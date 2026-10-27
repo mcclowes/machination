@@ -1,0 +1,92 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import { GameService } from './service';
+import { createApi } from './http';
+import type { Snapshot } from '../src/online/protocol';
+
+test('three real HTTP clients share persistent server time, authorized orders, and private messages', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let now = 1000000;
+  const file = join(directory, 'games.json');
+  let api = createApi(await GameService.open(file, () => now));
+  await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve())));
+  let base = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
+  const tokens = Array.from({ length: 4 }, () => randomBytes(32).toString('hex'));
+  async function request(path: string, seat: number, payload?: unknown) {
+    const response = await fetch(`${base}${path}`, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${tokens[seat]}`, 'Content-Type': 'application/json' }, body: payload === undefined ? undefined : JSON.stringify(payload) });
+    return { status: response.status, data: await response.json() as Snapshot & { issues: { issue: string }[] } };
+  }
+  const created = await request('/v1/games', 0, {});
+  assert.equal(created.status, 200);
+  const id = created.data.id; const path = `/v1/games/${id}`;
+  assert.equal((await request('/v1/games', 0, {})).data.id, id, 'bootstrap retry reuses the seat');
+  assert.equal((await request(`${path}/start`, 0, {})).status, 409);
+  const joined = await request('/v1/join', 1, { invite: created.data.invite });
+  assert.equal(joined.data.faction, 'vesper');
+  assert.equal((await request('/v1/join', 1, { invite: created.data.invite })).data.faction, 'vesper');
+  await request('/v1/join', 2, { invite: created.data.invite });
+  assert.equal((await request('/v1/join', 3, { invite: created.data.invite })).status, 409);
+  assert.equal((await request(path, 3)).status, 401);
+  assert.equal((await request(`${path}/start`, 1, {})).status, 403);
+  now += 36e5 * 5;
+  assert.equal((await request(path, 0)).data.game.hour, 0, 'lobby time is frozen');
+  const started = await request(`${path}/start`, 0, {});
+  assert.equal(started.data.status, 'game.active');
+  const order = { requestId: randomUUID(), revision: started.data.revision, from: 'a', to: 'b', drones: 30 };
+  const results = await Promise.all([request(`${path}/orders`, 0, order), request(`${path}/orders`, 0, order)]);
+  assert.ok(results.every(r => r.status === 200));
+  assert.equal(results[1]!.data.game.fleets.length, 1, 'retry cannot duplicate a launch');
+  assert.equal((await request(`${path}/orders`, 0, { ...order, drones: 31 })).status, 409);
+  assert.equal((await request(`${path}/orders`, 0, { ...order, requestId: randomUUID() })).status, 409, 'stale revisions fail');
+  const revision = results[1]!.data.revision;
+  const failedOrder = { ...order, requestId: randomUUID(), revision, to: 'c', drones: 10 };
+  await mkdir(`${file}.tmp`);
+  assert.equal((await request(`${path}/orders`, 0, failedOrder)).status, 500, 'failed disk write is not acknowledged');
+  await rm(`${file}.tmp`, { recursive: true });
+  assert.equal((await request(path, 0)).data.game.fleets.length, 1, 'failed transaction leaves no partial launch');
+  assert.equal((await request(`${path}/orders`, 0, failedOrder)).status, 200, 'same ID succeeds after storage recovers');
+
+  assert.equal((await request(`${path}/orders`, 1, { ...order, revision: revision + 1, requestId: randomUUID() })).status, 409, 'cannot issue another seat orders');
+  const transmission = { requestId: randomUUID(), to: 'vesper', text: 'Alliance proposed. Eastern rocks are yours.' };
+  assert.equal((await request(`${path}/messages`, 0, transmission)).data.messages.length, 1);
+  assert.equal((await request(`${path}/messages`, 0, transmission)).data.messages.length, 1);
+  assert.equal((await request(path, 1)).data.messages.length, 1);
+  assert.equal((await request(path, 2)).data.messages.length, 0, 'third party cannot read bilateral diplomacy');
+  now += 36e5 * 12;
+  const progressed = (await request(path, 0)).data;
+  assert.equal(progressed.game.hour, 12);
+  assert.equal(progressed.game.rocks[1]!.owner, 'you');
+  assert.equal(progressed.game.fleets.length, 0, 'human rivals never issue AI orders');
+  assert.equal(progressed.game.rocks[4]!.drones, 138);
+  const persisted = await readFile(file, 'utf8');
+  assert.ok(tokens.every(token => !persisted.includes(token)), 'raw tokens are never stored');
+  await new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve()));
+  api = createApi(await GameService.open(file, () => now));
+  await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
+  assert.deepEqual((await request(path, 0)).data, progressed, 'restart preserves game and seat');
+  assert.equal((await request(`${path}/orders`, 0, order)).data.game.fleets.length, 0, 'old retry stays deduplicated after restart');
+  const malformed = await fetch(`${base}${path}/orders`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
+  assert.equal(malformed.status, 400);
+  const forbidden = await fetch(`${base}/health`, { headers: { Origin: 'https://untrusted.example' } });
+  assert.equal(forbidden.status, 403);
+});
+
+
+test('refuses damaged persistence rather than replacing it with an empty server', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-corrupt-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'games.json');
+  await writeFile(file, '{broken');
+  await assert.rejects(() => GameService.open(file));
+  assert.equal(await readFile(file, 'utf8'), '{broken');
+  await writeFile(file, JSON.stringify({ version: 2, rooms: [] }));
+  await assert.rejects(() => GameService.open(file));
+});

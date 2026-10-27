@@ -40,8 +40,8 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 ## Release milestones
 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
-2. Multiplayer: authoritative game service, identity, invitations, order authorization, and reconnect synchronization.
-3. Diplomacy: private messages, alliances, gifts, and push notifications.
+2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Public hosting and account recovery remain.
+3. Diplomacy: private bilateral messages are implemented. Alliances, gifts, group channels, and push notifications remain.
 4. Strategic depth: fog of war, modules, scheduled orders, map generation, and balance sessions.
 5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
 

@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { BeltMap } from './src/components/BeltMap';
 import { advance, CARGO_TARGET, createGame, dispatch, FACTIONS, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
+import { OnlineOperation } from './src/online/OnlineOperation';
 
 const ink = '#e5eadc';
 const green = '#b8e986';
@@ -20,7 +21,10 @@ function Button({ label, onPress, disabled, quiet = false }: { label: string; on
 }
 function Label({ children }: { children: React.ReactNode }) { return <Text style={s.label}>{children}</Text>; }
 function clock(hour: number) { return `D${String(Math.floor(hour / 24) + 1).padStart(2, '0')} · ${String(Math.floor(hour % 24)).padStart(2, '0')}:${String(Math.floor(hour % 1 * 60)).padStart(2, '0')}`; }
-export default function App() { return <SafeAreaProvider><Operation /></SafeAreaProvider>; }
+export default function App() {
+  const [mode, setMode] = useState<'solo' | 'online'>('solo');
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}</View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
+}
 function Operation() {
   const { width } = useWindowDimensions();
   const wide = width >= 850;
@@ -73,7 +77,7 @@ function Operation() {
     catch (e) { setError((e as Error).message); }
   }
   function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setForecast(0); setPlanning(false); setDestination(undefined); }
-  return <SafeAreaView style={s.safe}>
+  return <SafeAreaView style={s.safe} edges={['bottom']}>
     <StatusBar style="light" />
     <ScrollView contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
       <View style={s.header}>

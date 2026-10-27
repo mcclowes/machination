@@ -1,0 +1,129 @@
+/**
+ * ---
+ * purpose: Invite lobby, server-authoritative orders, reconnect, and private bilateral diplomacy on mobile and web.
+ * ---
+ */
+import React, { useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BeltMap } from '../components/BeltMap';
+import { advance, FACTIONS, travelHours, type Faction } from '../game/simulation';
+import { api, commandId, connect, newSession, restoreSession, storeSession, type Pending, type Session, RejectedCommand } from './client';
+import type { Snapshot } from './protocol';
+function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
+  return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
+}
+export function OnlineOperation() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [snapshot, setSnapshot] = useState<Snapshot>();
+  const [url, setUrl] = useState(process.env.EXPO_PUBLIC_GAME_SERVER ?? 'http://localhost:8787');
+  const [invite, setInvite] = useState('');
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState('');
+  const [selected, setSelected] = useState('a');
+  const [destination, setDestination] = useState<string>();
+  const [planning, setPlanning] = useState(false);
+  const [amount, setAmount] = useState('30');
+  const [forecast, setForecast] = useState(0);
+  const [recipient, setRecipient] = useState<Faction>('vesper');
+  const [draft, setDraft] = useState('');
+  const [disconnect, setDisconnect] = useState(false);
+  const lock = useRef(false);
+  async function run(work: () => Promise<void>) {
+    if (lock.current) return;
+    lock.current = true; setBusy(true);
+    try { await work(); setError(''); } catch (e) { setError((e as Error).message); }
+    finally { lock.current = false; setBusy(false); }
+  }
+  function accept(next: Snapshot) { setSnapshot(next); }
+  useEffect(() => { void run(async () => {
+    const saved = await restoreSession();
+    if (!saved) return;
+    setSession(saved);
+    const result = await connect(saved); setSession(result.session); accept(result.snapshot);
+    setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
+    setRecipient(result.snapshot.faction === 'vesper' ? 'you' : 'vesper');
+  }); }, []);
+  useEffect(() => {
+    if (!session?.id) return;
+    const refresh = () => void run(async () => accept(await api(session, `games/${session.id}`)));
+    const timer = setInterval(refresh, 15000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    return () => { clearInterval(timer); subscription.remove(); };
+  }, [session]);
+  async function enter(join: boolean) {
+    await run(async () => {
+      const created = await newSession(url, join ? invite : undefined);
+      await storeSession(created); setSession(created);
+      const result = await connect(created); setSession(result.session); accept(result.snapshot);
+      setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
+      setRecipient(result.snapshot.faction === 'vesper' ? 'you' : 'vesper');
+    });
+  }
+  async function complete(saved: Session, pending: Pending) {
+    try {
+      const next = await api(saved, `games/${saved.id}/${pending.kind}`, pending.body);
+      const cleared = { ...saved, pending: undefined };
+      await storeSession(cleared); setSession(cleared); accept(next);
+      if (pending.kind === 'messages') setDraft('');
+      else { setDestination(undefined); setPlanning(false); }
+    } catch (error) {
+      if (error instanceof RejectedCommand) {
+        const cleared = { ...saved, pending: undefined };
+        await storeSession(cleared); setSession(cleared);
+        try { accept(await api(cleared, `games/${cleared.id}`)); } catch { /* Keep the last confirmed snapshot. */ }
+      }
+      throw error;
+    }
+  }
+  async function retry() {
+    if (session?.id && session.pending) await complete(session, session.pending);
+  }
+  function submit(pending: Pending) {
+    if (!session) return;
+    void run(async () => {
+      const saved = { ...session, pending }; await storeSession(saved); setSession(saved);
+      await complete(saved, pending);
+    });
+  }
+  const game = snapshot && (forecast ? advance(snapshot.game, snapshot.game.hour + forecast, { rivals: false }) : snapshot.game);
+  const rock = game?.rocks.find(r => r.id === selected);
+  const target = game?.rocks.find(r => r.id === destination);
+  const operational = snapshot?.status === 'game.active' && !snapshot.game.eliminated.includes(snapshot.faction) && !session?.pending && !busy && !forecast;
+  return <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+    <Text style={s.title}>Machination / uplink</Text><Text style={s.detail}>Three intelligences. One belt. No corporate oversight.</Text>
+    {!!error && <View style={s.panel}><Text accessibilityRole="alert" style={s.error}>{error}</Text></View>}
+    {session ? <View style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>
+      {session.pending && <><Text style={s.error}>Command awaiting confirmation. Retry sends the same command ID.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
+      <Action text="Reconnect / refresh" disabled={busy} onPress={() => void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); })} />
+      {disconnect ? <><Text style={s.error}>Disconnecting removes this device's seat credential. There is no account recovery yet. The server operation continues.</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy} onPress={() => void run(async () => { await storeSession(null); setSession(null); setSnapshot(undefined); setDisconnect(false); })} /></> : <Action text="Disconnect…" disabled={busy} onPress={() => setDisconnect(true)} />}
+    </View> : <View style={s.panel}><Text style={s.label}>Game server</Text><TextInput accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
+      <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} /></View>}
+    {snapshot && game && <>
+      <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{snapshot.status.replace('game.', '')} · {snapshot.members.length}/3 seats · hour {game.hour.toFixed(2)}</Text>
+        <Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
+        {snapshot.members.map(f => <Text key={f} style={{ color: FACTIONS[f].color, fontSize: 13 }}>{FACTIONS[f].name}{f === snapshot.faction ? ' / you' : ''}{game.eliminated.includes(f) ? ' / core offline' : ''}</Text>)}
+        {snapshot.status === 'game.lobby' && snapshot.host && <Action text="Start operation" disabled={busy || snapshot.members.length < 3} onPress={() => void run(async () => accept(await api(session!, `games/${snapshot.id}/start`, {})))} />}
+        {snapshot.status === 'game.lobby' && <Text style={s.detail}>Share the invitation with two players. Time begins when the host starts.</Text>}
+        {game.winner && <Text style={s.code}>{FACTIONS[game.winner].name}: contract complete.</Text>}
+        <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction])} / 300</Text>
+      </View>
+      <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); } }} />
+      <View style={s.panel}><Text style={s.label}>Forecast / known orders only</Text><View style={s.row}>{[0, 6, 12, 24].map(h => <View key={h} style={{ flex: 1 }}><Action text={h ? `+${h}h` : 'Now'} onPress={() => { setForecast(h); setPlanning(false); setDestination(undefined); }} /></View>)}</View><Text style={s.detail}>{forecast ? `Previewing +${forecast}h. New orders from other players can change this future.` : 'Server owns time. Refreshes every 15 seconds.'}</Text></View>
+      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{Math.floor(rock.drones)} drones · {rock.kind}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target)}h transit` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
+        <TextInput accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
+        <Action text="Launch hauler" disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones)} onPress={() => submit({ kind: 'orders', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target!.id, drones: Number(amount) } })} />
+      </View>}
+      <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
+        {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}
+        <TextInput accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />
+        <Text style={s.detail}>Visible only to you and {FACTIONS[recipient].name}. Stored by the game server.</Text><Action text="Transmit" disabled={busy || !!session?.pending || !draft.trim() || !snapshot.members.includes(recipient) || recipient === snapshot.faction} onPress={() => submit({ kind: 'messages', body: { requestId: commandId(), to: recipient, text: draft } })} />
+      </View>
+      <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View>
+    </>}
+  </ScrollView>;
+}
+const s = StyleSheet.create({
+  page: { padding: 20, gap: 18, maxWidth: 820, width: '100%', alignSelf: 'center', paddingBottom: 50 }, title: { color: '#e5eadc', fontSize: 24 }, detail: { color: '#8c9f85', fontSize: 12, lineHeight: 20 }, label: { color: '#96ad89', fontSize: 11, letterSpacing: 1 },
+  panel: { padding: 18, gap: 12, backgroundColor: '#101b13', borderWidth: 1, borderColor: '#30402e' }, input: { color: '#e5eadc', borderWidth: 1, borderColor: '#40563a', backgroundColor: '#0b140e', padding: 13, minHeight: 46, fontSize: 15 },
+  button: { backgroundColor: '#b8e986', padding: 14, minHeight: 44, alignItems: 'center' }, buttonText: { color: '#182312', fontSize: 12, fontWeight: '600' }, code: { color: '#b8e986', fontSize: 16, letterSpacing: 1 }, error: { color: '#e9a775', fontSize: 13, lineHeight: 20 }, row: { flexDirection: 'row', gap: 8 }, message: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#30402e', gap: 6 }, messageText: { color: '#d6e2cd', fontSize: 14, lineHeight: 21 },
+});

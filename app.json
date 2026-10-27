@@ -5,8 +5,20 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.mcclowes.machination" },
-    "android": { "package": "com.mcclowes.machination" },
-    "web": { "bundler": "metro", "name": "Machination", "description": "Slow orbits. Cold decisions." }
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mcclowes.machination"
+    },
+    "android": {
+      "package": "com.mcclowes.machination"
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "Machination",
+      "description": "Slow orbits. Cold decisions."
+    },
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

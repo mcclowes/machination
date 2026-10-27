@@ -2,7 +2,7 @@
 
 Slow orbits. Cold decisions.
 
-An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. The first playable is an offline solo operation with two deterministic AI rivals.
+An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. Play solo against two deterministic AI rivals, or connect three human players through the invite-only multiplayer service.
 
 ## Run
 
@@ -32,9 +32,13 @@ npx expo install --check
 
 The simulation is pure TypeScript and independent of rendering and storage. Tests live alongside it. The command map uses SVG and shared React Native controls.
 
+See [existing remake references](docs/remake-references.md) for reuse candidates and license findings.
+
 ## Scope
 
-This is a playable foundation, not a store release. Multiplayer, real diplomacy, fog of war, modules, push notifications, and native distribution remain unimplemented. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
+This is a playable foundation, not a store release. Fog of war, modules, push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
+
+Run `npm run server` and open **Multiplayer uplink** to create or join a three-player operation. See [multiplayer setup and API](docs/multiplayer.md).
 
 See [game design](docs/game-design.md) and [implementation tracking](https://github.com/mcclowes/machination/issues/1).
 

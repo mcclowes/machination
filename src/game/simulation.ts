@@ -61,7 +61,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: [{ hour: game.hour, message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events].slice(0, 80),
   };
 }
-export function advance(input: Game, targetHour: number): Game {
+export function advance(input: Game, targetHour: number, options: { rivals?: boolean } = {}): Game {
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
     ...input, rocks: input.rocks.map(r => ({ ...r })), fleets: input.fleets.map(f => ({ ...f })),
@@ -110,7 +110,7 @@ export function advance(input: Game, targetHour: number): Game {
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= CARGO_TARGET) ?? (factions.length === 1 ? factions[0]! : null);
     if (game.winner) game.events.unshift({ hour: next, message: `${FACTIONS[game.winner].name}: corporate quota secured. Contract complete.` });
-    if (!game.winner && Number.isInteger(next) && next % 6 === 0) game = actRivals(game);
+    if (options.rivals !== false && !game.winner && Number.isInteger(next) && next % 6 === 0) game = actRivals(game);
     game.events = game.events.slice(0, 80);
   }
   return game;
