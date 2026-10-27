@@ -7,13 +7,15 @@ import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Text as SvgText } from 'react-native-svg';
 import { MODULES } from '../game/modules';
-import { FACTIONS, type Game, type Rock } from '../game/simulation';
+import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
-type Props = { game: Game; selected: string; destination?: string; onSelect: (rock: Rock) => void };
-export function BeltMap({ game, selected, destination, onSelect }: Props) {
+type ChartRock = Omit<Rock, 'owner' | 'drones'> & { owner?: Faction | null; drones?: number; known?: boolean };
+type Props<T extends ChartRock> = { game: { hour: number; rocks: T[]; fleets: Fleet[]; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void };
+export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect }: Props<T>) {
   return <View style={styles.chart}>
     <Svg width="100%" height="100%" viewBox="0 0 400 480" preserveAspectRatio="none" pointerEvents="none">
       {Array.from({ length: 65 }, (_, i) => <Circle key={i} cx={(i * 137.5) % 400} cy={(i * 79.7) % 480} r={i % 4 === 0 ? 1 : 0.5} fill="#b5c7bd" opacity={0.12 + (i % 3) * 0.09} />)}
+      {game.coverage?.map((sensor, i) => <Ellipse key={`sensor-${i}`} cx={sensor.x * 4} cy={sensor.y * 4.8} rx={sensor.radius * 4} ry={sensor.radius * 4.8} fill="#b8e986" fillOpacity="0.025" stroke="#b8e986" strokeOpacity="0.12" strokeWidth="0.7" />)}
       {[90, 150, 215, 285].map(r => <Ellipse key={r} cx="204" cy="243" rx={r} ry={r * 0.91} stroke="#26332e" strokeWidth="0.7" fill="none" strokeDasharray="3 7" />)}
       <Circle cx="204" cy="243" r="30" fill="#9c744a" opacity="0.025" />
       <Circle cx="204" cy="243" r="14" fill="#9c744a" opacity="0.06" />
@@ -39,14 +41,14 @@ export function BeltMap({ game, selected, destination, onSelect }: Props) {
     {game.rocks.map(rock => {
       const color = rock.owner ? FACTIONS[rock.owner].color : '#7d8b83';
       const active = selected === rock.id || destination === rock.id;
-      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.kind}, ${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones)} drones${rock.module ? `, ${MODULES[rock.module].name}` : ''}`} onPress={() => onSelect(rock)} style={[styles.rock, { left: `${rock.x}%`, top: `${rock.y}%` }]}>
+      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.kind}, ${rock.known === false ? 'outside sensor range, ownership and drones unknown' : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.module ? `, ${MODULES[rock.module].name}` : ''}`} onPress={() => onSelect(rock)} style={[styles.rock, { left: `${rock.x}%`, top: `${rock.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? color : 'transparent', backgroundColor: active ? `${color}10` : 'transparent' }]}>
           <View style={[styles.stone, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
             <Text style={{ color, fontSize: 11 }}>{rock.kind === 'core' ? '◈' : rock.kind === 'reactor' ? 'ϟ' : '·'}</Text>
           </View>
         </View>
         <Text style={[styles.name, { color: active ? '#eff4e9' : color }]}>{rock.name}</Text>
-        <Text style={[styles.count, { color }]}>{Math.floor(rock.drones).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}</Text>
+        <Text style={[styles.count, { color }]}>{rock.known === false ? '?' : Math.floor(rock.drones ?? 0).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}</Text>
       </Pressable>;
     })}
     <View style={styles.coordinates}><Text style={styles.coord}>SECTOR 07—B</Text><Text style={styles.coord}>2.8 AU / OUTER BELT</Text></View>

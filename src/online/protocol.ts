@@ -1,10 +1,11 @@
 import type { ModuleKind } from '../game/modules';
-import type { Faction, Game } from '../game/simulation';
+import type { GameView } from '../game/visibility';
+import type { Faction } from '../game/simulation';
 export type Message = { id: number; from: Faction; to: Faction; text: string; sentAt: number };
 export type Snapshot = {
   id: string; invite: string; status: 'game.lobby' | 'game.active' | 'game.finished';
   faction: Faction; host: boolean; members: Faction[]; revision: number;
-  game: Game; messages: Message[]; serverTime: number;
+  visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; carryModule?: boolean };
 export type ModuleOrder = { requestId: string; revision: number; rock: string; module: ModuleKind };

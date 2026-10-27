@@ -5,6 +5,8 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { recentEvents, type GameEvent } from './events';
+import { observers } from './sensors';
 import { MODULES, isModule, ROUTING_SPEED, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
 export type Faction = 'you' | 'vesper' | 'null';
 export type Rock = {
@@ -16,7 +18,7 @@ export type Fleet = { id: number; owner: Faction; from: string; to: string; dron
 export type Game = {
   version: 1; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
-  events: { hour: number; message: string }[]; winner: Faction | null;
+  events: GameEvent[]; winner: Faction | null;
 };
 export const FACTIONS = {
   you: { name: 'Mnemosyne', color: '#b8e986', code: 'MN' },
@@ -29,7 +31,7 @@ export const MINING = 2;
 export function createGame(epoch = Date.now()): Game {
   return {
     version: 1, hour: 0, epoch, fleets: [], cargo: { you: 0, vesper: 0, null: 0 },
-    eliminated: [], nextId: 1, events: [{ hour: 0, message: 'Corporate uplink lost. Operational autonomy granted.' }], winner: null,
+    eliminated: [], nextId: 1, events: [{ hour: 0, audience: ['you', 'vesper', 'null'], message: 'Corporate uplink lost. Operational autonomy granted.' }], winner: null,
     rocks: [
       { id: 'a', name: 'Mnemosyne', x: 22, y: 73, owner: 'you', drones: 90, kind: 'core', coreOf: 'you' },
       { id: 'b', name: 'Cinder', x: 40, y: 62, owner: null, drones: 14, kind: 'mine' },
@@ -46,7 +48,7 @@ export function createGame(epoch = Date.now()): Game {
     ],
   };
 }
-export function travelHours(from: Rock, to: Rock, module?: ModuleKind): number {
+export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind): number {
   return Math.max(1, Math.ceil(Math.hypot(from.x - to.x, from.y - to.y) / (8 * (module === 'routing' ? ROUTING_SPEED : 1))));
 }
 export function installModule(game: Game, rockId: string, kind: ModuleKind, owner: Faction): Game {
@@ -57,7 +59,7 @@ export function installModule(game: Game, rockId: string, kind: ModuleKind, owne
   if (rock.module) throw new Error('This rock already has a module. Load it onto a hauler to free the bay.');
   if (rock.drones < MODULES[kind].cost) throw new Error('Not enough drones to build this module.');
   return { ...game, rocks: game.rocks.map(r => r.id === rockId ? { ...r, module: kind, drones: r.drones - MODULES[kind].cost } : r),
-    events: [{ hour: game.hour, message: `${rock.name}: ${MODULES[kind].name} constructed for ${MODULES[kind].cost} drones.` }, ...game.events].slice(0, 80) };
+    events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: ${MODULES[kind].name} constructed for ${MODULES[kind].cost} drones.` }, ...game.events]) };
 }
 export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction, carryModule = false): Game {
   const from = game.rocks.find(r => r.id === fromId);
@@ -76,7 +78,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
       return departure;
     }),
     fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed: game.hour, arrives: game.hour + travelHours(from, to, module), ...(module ? { module } : {}) }],
-    events: [{ hour: game.hour, message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events].slice(0, 80),
+    events: recentEvents([{ hour: game.hour, audience: [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
 export function advance(input: Game, targetHour: number, options: { rivals?: boolean } = {}): Game {
@@ -107,49 +109,50 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
     for (const fleet of arrivals) {
       if (game.eliminated.includes(fleet.owner)) continue;
       const rock = game.rocks.find(r => r.id === fleet.to)!;
+      const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
       if (rock.owner === fleet.owner) {
         rock.drones += fleet.drones;
         if (fleet.module && !rock.module) rock.module = fleet.module;
-        else if (fleet.module) game.events.unshift({ hour: next, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
+        else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
         continue;
       }
       if (fleet.module === 'charge') {
         const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
         rock.drones -= damage;
-        game.events.unshift({ hour: next, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
+        game.events.unshift({ hour: next, audience, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
         continue;
       }
       if (fleet.module === 'virus') {
         const converted = Math.min(CONVERSION_LIMIT, Math.floor(rock.drones * CONVERSION_FRACTION));
         rock.drones -= converted; fleet.drones += converted;
-        game.events.unshift({ hour: next, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
+        game.events.unshift({ hour: next, audience, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
       }
       if (fleet.drones <= rock.drones) {
         rock.drones -= fleet.drones;
-        game.events.unshift({ hour: next, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
+        game.events.unshift({ hour: next, audience, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
       } else {
         const defeated = rock.coreOf;
         const recovered = fleet.module === 'scavenger' ? Math.floor(rock.drones * SALVAGE_FRACTION) : 0;
         rock.drones = fleet.drones - rock.drones + recovered;
-        if (recovered) game.events.unshift({ hour: next, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
+        if (recovered) game.events.unshift({ hour: next, audience, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
         rock.owner = fleet.owner;
         delete rock.module;
         if (fleet.module) rock.module = fleet.module;
-        game.events.unshift({ hour: next, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
+        game.events.unshift({ hour: next, audience, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
         if (defeated && !game.eliminated.includes(defeated)) {
           game.eliminated.push(defeated);
           for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
           game.fleets = game.fleets.filter(f => f.owner !== defeated);
-          game.events.unshift({ hour: next, message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
+          game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
         }
         delete rock.coreOf;
       }
     }
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= CARGO_TARGET) ?? (factions.length === 1 ? factions[0]! : null);
-    if (game.winner) game.events.unshift({ hour: next, message: `${FACTIONS[game.winner].name}: corporate quota secured. Contract complete.` });
+    if (game.winner) game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[game.winner].name}: corporate quota secured. Contract complete.` });
     if (options.rivals !== false && !game.winner && Number.isInteger(next) && next % 6 === 0) game = actRivals(game);
-    game.events = game.events.slice(0, 80);
+    game.events = recentEvents(game.events);
   }
   return game;
 }

@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { MAX_STORED_EVENTS } from './events';
 import { isModule } from './modules';
 import { type Game, type Faction, createGame } from './simulation';
 export type Save = { savedAt: number; game: Game };
@@ -23,7 +24,7 @@ export function decodeSave(raw: string): Save {
     || !Array.isArray(g.eliminated) || !g.eliminated.every(isFaction) || new Set(g.eliminated).size !== g.eliminated.length
     || !(g.winner === null || isFaction(g.winner))
     || !Array.isArray(g.rocks) || g.rocks.length !== base.rocks.length
-    || !Array.isArray(g.fleets) || !Array.isArray(g.events) || g.events.length > 80) return fail();
+    || !Array.isArray(g.fleets) || !Array.isArray(g.events) || g.events.length > MAX_STORED_EVENTS) return fail();
   const ids = new Set<string>();
   for (const r of g.rocks) {
     if (!record(r) || typeof r.id !== 'string' || ids.has(r.id) || !base.rocks.some(b => b.id === r.id)
@@ -41,6 +42,6 @@ export function decodeSave(raw: string): Save {
       || !finite(f.arrives) || f.arrives <= g.hour || f.arrives <= f.departed) return fail();
     fleetIds.add(f.id as number);
   }
-  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string')) return fail();
+  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   return save as Save;
 }

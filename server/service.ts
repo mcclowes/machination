@@ -3,16 +3,17 @@
  * purpose: Serialize multiplayer transactions, persist snapshots, authorize seats, and settle server time.
  * ---
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
+import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
 import type { Message, ModuleOrder, Order, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { faction: Faction; hash: string }[]; messages: Message[];
+  seats: { faction: Faction; hash: string; revision?: number }[]; messages: Message[];
   receipts: Record<string, string>;
 };
 type Database = { version: 1; rooms: Room[] };
@@ -41,6 +42,10 @@ export class GameService {
           || new Set(r.seats.map(s => s.faction)).size !== r.seats.length || r.seats[0]?.faction !== 'you'
           || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
           || !r.messages.every(m => Number.isSafeInteger(m.id) && FACTIONS.includes(m.from) && FACTIONS.includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
+        for (const seat of r.seats) {
+          seat.revision ??= 0;
+          if (!Number.isSafeInteger(seat.revision) || seat.revision < 0) throw new Error('Damaged seat revision.');
+        }
         ids.add(r.id);
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -77,10 +82,15 @@ export class GameService {
   private settle(room: Room) {
     if (room.startedAt !== null) room.game = advance(room.game, Math.max(room.game.hour, (this.now() - room.startedAt) / 3_600_000), { rivals: false });
   }
+  private revision(room: Room, faction: Faction): number { return room.seats.find(s => s.faction === faction)!.revision ?? 0; }
+  private identify(room: Room, faction: Faction, kind: 'hauler' | 'message', id: number): number {
+    const key = room.seats.find(s => s.faction === faction)!.hash;
+    return createHmac('sha256', key).update(`${kind}:${id}`).digest().readUIntBE(0, 6);
+  }
   private view(room: Room, faction: Faction): Snapshot {
     return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner ? 'game.finished' : 'game.active',
-      faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: room.revision,
-      game: room.game, messages: room.messages.filter(m => m.from === faction || m.to === faction), serverTime: this.now() };
+      faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
+      visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id)), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
   create(token: string): Promise<Snapshot> {
     return this.transaction(db => {
@@ -116,7 +126,7 @@ export class GameService {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
       requireThat(r.seats.length === 3, 409, 'game.conflict.seats', 'Wait for all three intelligences to join.');
-      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; r.revision++; }
+      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1; }
       this.settle(r); return this.view(r, f);
     });
   }
@@ -135,10 +145,11 @@ export class GameService {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, order.requestId, JSON.stringify(['order', order.from, order.to, order.drones, order.revision, ...(order.carryModule === undefined || order.carryModule === false ? [] : [order.carryModule])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
-      requireThat(Number.isSafeInteger(order.revision) && order.revision === r.revision, 409, 'order.conflict.stale', 'The operation changed. Refresh before issuing this order.');
+      requireThat(Number.isSafeInteger(order.revision) && order.revision === this.revision(r, f), 409, 'order.conflict.stale', 'The operation changed. Refresh before issuing this order.');
       try { r.game = dispatch(r.game, order.from, order.to, order.drones, f, order.carryModule); }
       catch (e) { throw new Failure(409, 'order.conflict.invalid', (e as Error).message); }
       r.revision++;
+      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);
     });
   }
@@ -147,10 +158,11 @@ export class GameService {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['module', command.rock, command.module, command.revision]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
-      requireThat(Number.isSafeInteger(command.revision) && command.revision === r.revision, 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
       try { r.game = installModule(r.game, command.rock, command.module, f); }
       catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
       r.revision++;
+      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);
     });
   }

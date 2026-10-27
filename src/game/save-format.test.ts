@@ -39,3 +39,12 @@ test('legacy saves remain valid and optional rock and hauler modules are validat
   badFleet.game.fleets[0].module = 'missing';
   assert.throws(() => decodeSave(JSON.stringify(badFleet)));
 });
+
+test('old event history loads but malformed visibility audiences are refused', () => {
+  const game = createGame(0);
+  game.events = [{ hour: 0, message: 'Legacy event without an audience.' }];
+  assert.equal(decodeSave(JSON.stringify({ savedAt: 0, game })).game.events.length, 1);
+  const malformed = JSON.parse(JSON.stringify({ savedAt: 0, game }));
+  malformed.game.events[0].audience = ['rogue'];
+  assert.throws(() => decodeSave(JSON.stringify(malformed)));
+});

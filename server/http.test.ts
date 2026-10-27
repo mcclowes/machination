@@ -64,7 +64,8 @@ test('three real HTTP clients share persistent server time, authorized orders, a
   assert.equal(progressed.game.hour, 12);
   assert.equal(progressed.game.rocks[1]!.owner, 'you');
   assert.equal(progressed.game.fleets.length, 0, 'human rivals never issue AI orders');
-  assert.equal(progressed.game.rocks[4]!.drones, 138);
+  assert.equal(progressed.game.rocks[4]!.drones, undefined, 'rival inventory stays outside sensors');
+  assert.equal((await request(path, 1)).data.game.rocks[4]!.drones, 138);
   const persisted = await readFile(file, 'utf8');
   assert.ok(tokens.every(token => !persisted.includes(token)), 'raw tokens are never stored');
   await new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve()));

@@ -42,7 +42,7 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
 2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Public hosting and account recovery remain.
 3. Diplomacy: private bilateral messages are implemented. Alliances, gifts, group channels, and push notifications remain.
-4. Strategic depth: fog of war, modules, scheduled orders, map generation, and balance sessions.
+4. Strategic depth: modules and server-filtered sensor visibility are implemented. Moving-hauler interception, scheduled orders, map generation, and balance sessions remain.
 5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
 
 Use original assets, writing, and implementation. The design takes inspiration from slow multiplayer strategy; it doesn't use Subterfuge assets or code.
@@ -63,3 +63,10 @@ Routing, virus, and scavenger modules survive a winning attack and occupy the ac
 Simultaneous arrivals resolve by launch sequence, including module effects. A charge arriving before a normal hauler can clear a garrison for that second hauler to claim. Defenders still produce drones until arrival, so a charge can't guarantee a later capture.
 
 These are initial Machination balance rules. The scavenger rig currently salvages combat losses; targeting moving enemy haulers remains future work. The charge's limited blast differs from the remake's destructive Martyr behavior. The core and module identities follow the proposed theme without importing the remake's full specialist catalog.
+
+
+## Sensor visibility
+
+Online intelligence comes from owned rocks (32 map units) and haulers (16 map units). Public chart locations remain targetable, but remote ownership, garrisons, modules, and enemy haulers are withheld by the server. Players know only their own cargo totals; elimination and contract completion are public broadcasts.
+
+Combat participants and observers retain event telemetry; discovering a rock doesn't reveal its earlier hidden history. This creates a reason to scout, exchange information, and negotiate. The online forecast uses only observations and marks arrivals at unobserved destinations as unresolved. It never assumes an unknown garrison is empty. See multiplayer.md for the exact response contract and legacy handling.

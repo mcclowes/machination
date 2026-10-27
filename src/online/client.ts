@@ -42,7 +42,7 @@ export async function api(session: Session, path: string, payload?: unknown): Pr
       if (response.status >= 400 && response.status < 500) throw new RejectedCommand(response.status, detail);
       throw new Error(detail);
     }
-    if (!data || typeof data.id !== 'string' || !data.game || !Array.isArray(data.messages) || !['you', 'vesper', 'null'].includes(data.faction)) throw new Error('Unsupported server response.');
+    if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || !data.game || !Array.isArray(data.messages) || !['you', 'vesper', 'null'].includes(data.faction)) throw new Error('Unsupported server response.');
     return data as Snapshot;
   } finally { clearTimeout(timer); }
 }
