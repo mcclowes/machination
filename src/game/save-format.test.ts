@@ -22,3 +22,20 @@ test('refuses damaged or unsupported saves rather than exposing invalid state', 
   for (const data of invalid) assert.throws(() => decodeSave(JSON.stringify(data)));
   assert.throws(() => decodeSave('{broken'));
 });
+
+test('legacy saves remain valid and optional rock and hauler modules are validated', async () => {
+  const { installModule } = await import('./simulation');
+  const legacy = createGame(0);
+  assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game: legacy })).game, legacy);
+  const equipped = installModule(legacy, 'a', 'routing', 'you');
+  const moving = dispatch(equipped, 'a', 'b', 30, 'you', true);
+  for (const game of [equipped, moving, advance(moving, 2, { rivals: false })]) {
+    assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game })).game, game);
+  }
+  const badRock = JSON.parse(JSON.stringify({ savedAt: 0, game: equipped }));
+  badRock.game.rocks[0].module = 'missing';
+  assert.throws(() => decodeSave(JSON.stringify(badRock)));
+  const badFleet = JSON.parse(JSON.stringify({ savedAt: 0, game: moving }));
+  badFleet.game.fleets[0].module = 'missing';
+  assert.throws(() => decodeSave(JSON.stringify(badFleet)));
+});

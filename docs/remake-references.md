@@ -1,6 +1,6 @@
 # Existing remake references
 
-Reviewed public repositories for the Machination rebuild. No source code or artwork has been copied into the current implementation.
+Reviewed public repositories for the Machination rebuild. No source code or artwork has been copied into the current implementation. The module milestone uses the behavior references noted below, with original TypeScript implementations and Machination-specific balance rules.
 
 ## Subterfuge Revived
 
@@ -19,3 +19,14 @@ Its README lists the license as TBD, and the repository metadata doesn't declare
 [solaris-games/solaris](https://github.com/solaris-games/solaris), inspected at `ba044868dc5320ceecd2939cfcbb209326d13317`, declares [GPL-3.0](https://github.com/solaris-games/solaris/blob/master/LICENSE). Its README describes specialists, trade, group chat, and games with up to 64 players. Its implementation uses a Node/Express/MongoDB backend and Vue/Pixi client.
 
 Useful product references: group diplomacy, specialist affordances, trade, and managing longer games. Any source adoption needs an explicit project licensing decision and preserved notices; current work uses no Solaris source.
+
+
+## Module behavior references
+
+Reviewed CC0 Remake-Core commit `213d4a45833bf0d1b58e1334790bf0a8c8df0776`:
+
+- [`Helmsman.cs`](https://github.com/Subterfuge-Revived/Remake-Core/blob/213d4a45833bf0d1b58e1334790bf0a8c8df0776/Core/SubterfugeCore/Core/Entities/Specialists/Specialists/Helmsman.cs): faster travel while attached, with the bonus removed on departure/capture. Machination implements an explicitly carried routing module with a fixed ×1.5 speed multiplier and no levels.
+- [`Martyr.cs`](https://github.com/Subterfuge-Revived/Remake-Core/blob/213d4a45833bf0d1b58e1334790bf0a8c8df0776/Core/SubterfugeCore/Core/Entities/Specialists/Specialists/Martyr.cs): destruction triggered through combat participation. Machination's charge instead caps damage at twice its drone payload and leaves ownership and cores intact.
+- [`Pirate.cs`](https://github.com/Subterfuge-Revived/Remake-Core/blob/213d4a45833bf0d1b58e1334790bf0a8c8df0776/Core/SubterfugeCore/Core/Entities/Specialists/Specialists/Pirate.cs): direct targeting of enemy submarines. This is a reference for the still-missing interception mechanic. The current scavenger module recovers attack losses and isn't a port of Pirate behavior.
+
+Conversion and salvage rules are original choices for this prototype. Costs, effects, transport, collision behavior, and limitations are recorded in game-design.md and tested through the simulation and HTTP boundary.

@@ -5,13 +5,14 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { MODULES, isModule, ROUTING_SPEED, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
 export type Faction = 'you' | 'vesper' | 'null';
 export type Rock = {
   id: string; name: string; x: number; y: number;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine';
-  coreOf?: Faction;
+  coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number };
+export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; module?: ModuleKind };
 export type Game = {
   version: 1; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
@@ -45,19 +46,36 @@ export function createGame(epoch = Date.now()): Game {
     ],
   };
 }
-export function travelHours(from: Rock, to: Rock): number {
-  return Math.max(1, Math.ceil(Math.hypot(from.x - to.x, from.y - to.y) / 8));
+export function travelHours(from: Rock, to: Rock, module?: ModuleKind): number {
+  return Math.max(1, Math.ceil(Math.hypot(from.x - to.x, from.y - to.y) / (8 * (module === 'routing' ? ROUTING_SPEED : 1))));
 }
-export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction): Game {
+export function installModule(game: Game, rockId: string, kind: ModuleKind, owner: Faction): Game {
+  const rock = game.rocks.find(r => r.id === rockId);
+  if (game.winner || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
+  if (!isModule(kind)) throw new Error('Unknown module.');
+  if (!rock || rock.owner !== owner) throw new Error('Modules can only be built on a controlled rock.');
+  if (rock.module) throw new Error('This rock already has a module. Load it onto a hauler to free the bay.');
+  if (rock.drones < MODULES[kind].cost) throw new Error('Not enough drones to build this module.');
+  return { ...game, rocks: game.rocks.map(r => r.id === rockId ? { ...r, module: kind, drones: r.drones - MODULES[kind].cost } : r),
+    events: [{ hour: game.hour, message: `${rock.name}: ${MODULES[kind].name} constructed for ${MODULES[kind].cost} drones.` }, ...game.events].slice(0, 80) };
+}
+export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction, carryModule = false): Game {
   const from = game.rocks.find(r => r.id === fromId);
   const to = game.rocks.find(r => r.id === toId);
   if (game.winner || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   if (!from || !to || from === to || from.owner !== owner) throw new Error('Select an owned departure rock and a different destination.');
   if (!Number.isInteger(drones) || drones < 1 || drones > from.drones) throw new Error('Drone count exceeds available inventory.');
+  if (typeof carryModule !== 'boolean' || carryModule && !from.module) throw new Error('There is no module available to load.');
+  const module = carryModule ? from.module : undefined;
   return {
     ...game, nextId: game.nextId + 1,
-    rocks: game.rocks.map(r => r.id === fromId ? { ...r, drones: r.drones - drones } : r),
-    fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed: game.hour, arrives: game.hour + travelHours(from, to) }],
+    rocks: game.rocks.map(r => {
+      if (r.id !== fromId) return r;
+      const departure = { ...r, drones: r.drones - drones };
+      if (carryModule) delete departure.module;
+      return departure;
+    }),
+    fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed: game.hour, arrives: game.hour + travelHours(from, to, module), ...(module ? { module } : {}) }],
     events: [{ hour: game.hour, message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events].slice(0, 80),
   };
 }
@@ -89,14 +107,34 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
     for (const fleet of arrivals) {
       if (game.eliminated.includes(fleet.owner)) continue;
       const rock = game.rocks.find(r => r.id === fleet.to)!;
-      if (rock.owner === fleet.owner) { rock.drones += fleet.drones; continue; }
+      if (rock.owner === fleet.owner) {
+        rock.drones += fleet.drones;
+        if (fleet.module && !rock.module) rock.module = fleet.module;
+        else if (fleet.module) game.events.unshift({ hour: next, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
+        continue;
+      }
+      if (fleet.module === 'charge') {
+        const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
+        rock.drones -= damage;
+        game.events.unshift({ hour: next, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
+        continue;
+      }
+      if (fleet.module === 'virus') {
+        const converted = Math.min(CONVERSION_LIMIT, Math.floor(rock.drones * CONVERSION_FRACTION));
+        rock.drones -= converted; fleet.drones += converted;
+        game.events.unshift({ hour: next, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
+      }
       if (fleet.drones <= rock.drones) {
         rock.drones -= fleet.drones;
         game.events.unshift({ hour: next, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
       } else {
         const defeated = rock.coreOf;
-        rock.drones = fleet.drones - rock.drones;
+        const recovered = fleet.module === 'scavenger' ? Math.floor(rock.drones * SALVAGE_FRACTION) : 0;
+        rock.drones = fleet.drones - rock.drones + recovered;
+        if (recovered) game.events.unshift({ hour: next, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
         rock.owner = fleet.owner;
+        delete rock.module;
+        if (fleet.module) rock.module = fleet.module;
         game.events.unshift({ hour: next, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
         if (defeated && !game.eliminated.includes(defeated)) {
           game.eliminated.push(defeated);

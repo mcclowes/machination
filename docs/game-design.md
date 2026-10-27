@@ -35,7 +35,7 @@ The forecast runs the same simulation on a copy. It includes known orders and de
 
 The defining feature should be human diplomacy under long travel commitments. AI opponents establish a playable loop but cannot validate that experience. Keep the first online version small: invite-only games, server-owned time, private bilateral messages, and a readable order history.
 
-Potential module mappings: scavenger rig, routing daemon, conversion virus, and self-destruct charge. Modules need balance rules before implementation.
+Potential module mappings: scavenger rig, routing daemon, conversion virus, and self-destruct charge. The initial playable rules are specified below; further balancing needs human playtests.
 
 ## Release milestones
 
@@ -46,3 +46,20 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
 
 Use original assets, writing, and implementation. The design takes inspiration from slow multiplayer strategy; it doesn't use Subterfuge assets or code.
+
+## Modules
+
+Modules are built at a controlled rock by spending its drones. A rock has one module bay. Building is forbidden after elimination or game end. Modules must be explicitly loaded onto a hauler; loading vacates the departure bay. All haulers still require at least one drone.
+
+| Module | Cost | Effect while carried |
+| --- | --- | --- |
+| Routing daemon | 24 drones | Travel speed ×1.5; the final transit duration is rounded up to whole hours, minimum one hour |
+| Conversion virus | 36 drones | Before hostile combat, converts floor(20% of defenders), capped at 20, from defenders to attackers |
+| Scavenger rig | 28 drones | After a winning hostile attack, restores floor(25% of attacking drones lost in that combat) |
+| Self-destruct charge | 20 drones | On hostile arrival, consumes the entire hauler and destroys up to twice its payload in defending drones; does not change rock ownership or destroy a core |
+
+Routing, virus, and scavenger modules survive a winning attack and occupy the acquired rock's bay. A losing or tied attack destroys the carried module. Parked modules have no combat effect and are destroyed when their rock is captured. Friendly arrivals unload their module if the bay is free; if occupied, the incoming module is scrapped without refund. Friendly delivery never detonates a charge. The charge doesn't damage parked modules.
+
+Simultaneous arrivals resolve by launch sequence, including module effects. A charge arriving before a normal hauler can clear a garrison for that second hauler to claim. Defenders still produce drones until arrival, so a charge can't guarantee a later capture.
+
+These are initial Machination balance rules. The scavenger rig currently salvages combat losses; targeting moving enemy haulers remains future work. The charge's limited blast differs from the remake's destructive Martyr behavior. The core and module identities follow the proposed theme without importing the remake's full specialist catalog.

@@ -19,6 +19,8 @@ Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emul
 
 Select a controlled rock, choose **Plan transfer**, tap a destination, and launch drones. Mines produce cargo; reactors and cores produce drones. Reach 300 cargo or capture both rival cores. Losing your core ends your operation.
 
+Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
+
 Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The timeline forecasts known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
 ## Check
@@ -36,7 +38,7 @@ See [existing remake references](docs/remake-references.md) for reuse candidates
 
 ## Scope
 
-This is a playable foundation, not a store release. Fog of war, modules, push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
+This is a playable foundation, not a store release. Fog of war, moving-hauler interception, push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
 
 Run `npm run server` and open **Multiplayer uplink** to create or join a three-player operation. See [multiplayer setup and API](docs/multiplayer.md).
 

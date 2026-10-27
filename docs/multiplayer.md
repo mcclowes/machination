@@ -29,10 +29,11 @@ Base path: `/v1`. All endpoints other than `/health` use the **seat token** sche
 | POST | `/join` | `{invite}` | Claim the next seat; repeat token resumes that seat |
 | GET | `/games/:id` | none | Authorized game view and participant-filtered messages |
 | POST | `/games/:id/start` | `{}` | Host starts with three occupied seats; retry is harmless |
-| POST | `/games/:id/orders` | `{requestId, revision, from, to, drones}` | Validate against the current server state and dispatch |
+| POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
+| POST | `/games/:id/modules` | `{requestId, revision, rock, module}` | Spend drones on an owned rock and occupy its module bay |
 | POST | `/games/:id/messages` | `{requestId, to, text}` | Private bilateral transmission |
 
-A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
+A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
 
 ## Persistence and operation
 

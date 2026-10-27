@@ -1,0 +1,58 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import { GameService } from './service';
+import { createApi } from './http';
+import type { Snapshot } from '../src/online/protocol';
+
+test('HTTP module construction is authorized, charged once, transported, and persistent', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-modules-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'game.json');
+  let now = 0;
+  const api = createApi(await GameService.open(file, () => now));
+  await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve())));
+  const url = `http://127.0.0.1:${(api.address() as AddressInfo).port}/v1`;
+  const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
+  async function post(path: string, seat: number, payload: unknown) {
+    const response = await fetch(`${url}/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${tokens[seat]}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return { status: response.status, data: await response.json() as Snapshot };
+  }
+  const created = (await post('games', 0, {})).data;
+  const base = `games/${created.id}`;
+  const build = { requestId: randomUUID(), revision: 0, rock: 'a', module: 'routing' };
+  assert.equal((await post(`${base}/modules`, 0, build)).status, 409, 'cannot construct in a lobby');
+  await post('join', 1, { invite: created.invite });
+  await post('join', 2, { invite: created.invite });
+  const started = (await post(`${base}/start`, 0, {})).data;
+  build.revision = started.revision;
+  const builds = await Promise.all([post(`${base}/modules`, 0, build), post(`${base}/modules`, 0, build)]);
+  assert.ok(builds.every(r => r.status === 200));
+  const equipped = builds[1]!.data;
+  assert.equal(equipped.game.rocks[0]!.drones, 66);
+  assert.equal(equipped.game.rocks[0]!.module, 'routing');
+  const invalid = { ...build, requestId: randomUUID(), revision: equipped.revision };
+  assert.equal((await post(`${base}/modules`, 1, invalid)).status, 409, 'cannot build on another intelligence rock');
+  assert.equal((await post(`${base}/modules`, 0, { ...invalid, rock: 'c', module: '__proto__' })).status, 409);
+  assert.equal((await post(`${base}/modules`, 0, { ...invalid, rock: 'c', module: 'routing', revision: 0 })).status, 409);
+  const order = { requestId: randomUUID(), revision: equipped.revision, from: 'a', to: 'b', drones: 30, carryModule: true };
+  const sent = await post(`${base}/orders`, 0, order);
+  assert.equal(sent.status, 200);
+  assert.equal(sent.data.game.fleets[0]!.arrives, 2);
+  assert.equal(sent.data.game.fleets[0]!.module, 'routing');
+  assert.equal(sent.data.game.rocks[0]!.module, undefined);
+  assert.equal((await post(`${base}/orders`, 0, order)).data.game.fleets.length, 1);
+  assert.equal((await post(`${base}/orders`, 0, { ...order, carryModule: false })).status, 409);
+  const resumed = await GameService.open(file, () => now);
+  assert.equal((await resumed.snapshot(created.id, tokens[0]!)).game.fleets[0]!.module, 'routing');
+  now = 2 * 3_600_000;
+  const arrival = await resumed.snapshot(created.id, tokens[0]!);
+  assert.equal(arrival.game.rocks[1]!.module, 'routing');
+  assert.equal(arrival.game.rocks[1]!.owner, 'you');
+  assert.equal(arrival.game.fleets.length, 0);
+});

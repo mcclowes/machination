@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { isModule } from './modules';
 import { type Game, type Faction, createGame } from './simulation';
 export type Save = { savedAt: number; game: Game };
 const factions: unknown[] = ['you', 'vesper', 'null'];
@@ -28,7 +29,7 @@ export function decodeSave(raw: string): Save {
     if (!record(r) || typeof r.id !== 'string' || ids.has(r.id) || !base.rocks.some(b => b.id === r.id)
       || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || !nonnegative(r.drones)
       || !(r.owner === null || isFaction(r.owner)) || !['core', 'reactor', 'mine'].includes(r.kind as string)
-      || !(r.coreOf === undefined || isFaction(r.coreOf))) return fail();
+      || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
     ids.add(r.id);
   }
   const fleetIds = new Set<number>();
@@ -36,6 +37,7 @@ export function decodeSave(raw: string): Save {
     if (!record(f) || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)
       || !isFaction(f.owner) || g.eliminated.includes(f.owner) || !ids.has(f.from as string) || !ids.has(f.to as string) || f.from === f.to
       || !Number.isInteger(f.drones) || (f.drones as number) < 1 || !nonnegative(f.departed) || f.departed > g.hour
+      || !(f.module === undefined || isModule(f.module))
       || !finite(f.arrives) || f.arrives <= g.hour || f.arrives <= f.departed) return fail();
     fleetIds.add(f.id as number);
   }

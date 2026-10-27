@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Snapshot, Transmission } from './protocol';
-export type Pending = { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
+import type { ModuleOrder, Order, Snapshot, Transmission } from './protocol';
+export type Pending = { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = { url: string; token: string; id?: string; invite?: string; pending?: Pending };
 const KEY = 'machination.online.v1';
 export async function storeSession(session: Session | null) {

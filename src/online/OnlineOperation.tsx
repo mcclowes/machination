@@ -5,6 +5,8 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ModuleBay } from '../components/ModuleBay';
+import { MODULES } from '../game/modules';
 import { BeltMap } from '../components/BeltMap';
 import { advance, FACTIONS, travelHours, type Faction } from '../game/simulation';
 import { api, commandId, connect, newSession, restoreSession, storeSession, type Pending, type Session, RejectedCommand } from './client';
@@ -22,6 +24,7 @@ export function OnlineOperation() {
   const [selected, setSelected] = useState('a');
   const [destination, setDestination] = useState<string>();
   const [planning, setPlanning] = useState(false);
+  const [carry, setCarry] = useState(false);
   const [amount, setAmount] = useState('30');
   const [forecast, setForecast] = useState(0);
   const [recipient, setRecipient] = useState<Faction>('vesper');
@@ -65,7 +68,7 @@ export function OnlineOperation() {
       const cleared = { ...saved, pending: undefined };
       await storeSession(cleared); setSession(cleared); accept(next);
       if (pending.kind === 'messages') setDraft('');
-      else { setDestination(undefined); setPlanning(false); }
+      else { setDestination(undefined); setPlanning(false); setCarry(false); }
     } catch (error) {
       if (error instanceof RejectedCommand) {
         const cleared = { ...saved, pending: undefined };
@@ -107,12 +110,14 @@ export function OnlineOperation() {
         {game.winner && <Text style={s.code}>{FACTIONS[game.winner].name}: contract complete.</Text>}
         <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction])} / 300</Text>
       </View>
-      <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); } }} />
+      <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); } }} />
       <View style={s.panel}><Text style={s.label}>Forecast / known orders only</Text><View style={s.row}>{[0, 6, 12, 24].map(h => <View key={h} style={{ flex: 1 }}><Action text={h ? `+${h}h` : 'Now'} onPress={() => { setForecast(h); setPlanning(false); setDestination(undefined); }} /></View>)}</View><Text style={s.detail}>{forecast ? `Previewing +${forecast}h. New orders from other players can change this future.` : 'Server owns time. Refreshes every 15 seconds.'}</Text></View>
-      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{Math.floor(rock.drones)} drones · {rock.kind}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target)}h transit` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
+      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{Math.floor(rock.drones)} drones · {rock.kind}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target, carry ? rock.module : undefined)}h transit` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
         <TextInput accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
-        <Action text="Launch hauler" disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones)} onPress={() => submit({ kind: 'orders', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target!.id, drones: Number(amount) } })} />
+        <Action text="Launch hauler" disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones)} onPress={() => submit({ kind: 'orders', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target!.id, drones: Number(amount), carryModule: carry && !!rock.module } })} />
+        {rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!operational} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}
+      <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {game.rocks.find(r => r.id === f.to)?.name} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
       <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
         {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}
         <TextInput accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />

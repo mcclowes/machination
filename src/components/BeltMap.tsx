@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Text as SvgText } from 'react-native-svg';
+import { MODULES } from '../game/modules';
 import { FACTIONS, type Game, type Rock } from '../game/simulation';
 
 type Props = { game: Game; selected: string; destination?: string; onSelect: (rock: Rock) => void };
@@ -38,14 +39,14 @@ export function BeltMap({ game, selected, destination, onSelect }: Props) {
     {game.rocks.map(rock => {
       const color = rock.owner ? FACTIONS[rock.owner].color : '#7d8b83';
       const active = selected === rock.id || destination === rock.id;
-      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.kind}, ${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones)} drones`} onPress={() => onSelect(rock)} style={[styles.rock, { left: `${rock.x}%`, top: `${rock.y}%` }]}>
+      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.kind}, ${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones)} drones${rock.module ? `, ${MODULES[rock.module].name}` : ''}`} onPress={() => onSelect(rock)} style={[styles.rock, { left: `${rock.x}%`, top: `${rock.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? color : 'transparent', backgroundColor: active ? `${color}10` : 'transparent' }]}>
           <View style={[styles.stone, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
             <Text style={{ color, fontSize: 11 }}>{rock.kind === 'core' ? '◈' : rock.kind === 'reactor' ? 'ϟ' : '·'}</Text>
           </View>
         </View>
         <Text style={[styles.name, { color: active ? '#eff4e9' : color }]}>{rock.name}</Text>
-        <Text style={[styles.count, { color }]}>{Math.floor(rock.drones).toString().padStart(2, '0')}</Text>
+        <Text style={[styles.count, { color }]}>{Math.floor(rock.drones).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}</Text>
       </Pressable>;
     })}
     <View style={styles.coordinates}><Text style={styles.coord}>SECTOR 07—B</Text><Text style={styles.coord}>2.8 AU / OUTER BELT</Text></View>

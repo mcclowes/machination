@@ -6,7 +6,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Failure, GameService } from './service';
-import type { Order, Transmission } from '../src/online/protocol';
+import type { ModuleOrder, Order, Transmission } from '../src/online/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new Failure(415, 'request.validation.content_type', 'Send JSON content.');
   const chunks: Buffer[] = []; let size = 0;
@@ -58,7 +58,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
         result = await service.join(input.invite, token);
       } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(start|orders|messages))?$/);
+        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(start|orders|messages|modules))?$/);
         if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
         const id = match[1]!; const action = match[2];
         if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
@@ -66,6 +66,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
           const input = await body(req);
           if (action === 'start') result = await service.start(id, token);
           else if (action === 'orders') result = await service.order(id, token, input as Order);
+          else if (action === 'modules') result = await service.install(id, token, input as ModuleOrder);
           else if (action === 'messages') result = await service.message(id, token, input as Transmission);
           else throw new Failure(405, 'request.validation.method', 'Method not allowed.');
         } else throw new Failure(405, 'request.validation.method', 'Method not allowed.');
