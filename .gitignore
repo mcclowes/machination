@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+.saggar/
+*.tsbuildinfo
+.DS_Store
+.fettle/shots/
+.fettle/visual-results.json
