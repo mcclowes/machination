@@ -67,6 +67,8 @@ Native checks cover an iOS 27.1 foldable simulator and the ordinary iPhone 18 Pr
 
 On the fresh iPhone 18 Pro simulator, the same signed universal build installs and launches into the first-run briefing. Its heading, Close control, and body clear the status area. Return to command opens the solo operation. Entering a 20-drone manifest and launching toward Morrow reduces the core from 90 to 70 drones and creates one nine-hour hauler. The twelve-hour forecast includes rival activity and disables order controls. Terminating and relaunching restores the live clock, 70-drone core, and same 20-drone hauler without repeating the briefing; the forecast selection resets to live state. Ordinary-phone multiplayer, recovery, software-keyboard geometry, and enlarged text remain unverified.
 
+The ordinary-phone full manual also reaches its later forecast, schedule, and diplomacy sections with Close clear of the status area; Return to command preserves the operation. Two native six-hour advances then match the earlier twelve-hour forecast: Morrow belongs to Vesper with 24 drones, the player core has 118 drones, cargo is 1/300, and two rival haulers remain in transit. This verifies the native solo arrival path with competing rival orders, rather than assuming the player's first transfer captures its destination.
+
 The first Android compile stopped before APK creation because NDK 27.1.12297006 is missing and its license is not accepted. Install that component through Android Studio, then rerun the playtest command. No Android device is connected and no Android emulator is configured. Android native gameplay remains unverified.
 
 ## Native identity
