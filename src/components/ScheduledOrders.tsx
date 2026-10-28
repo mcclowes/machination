@@ -3,10 +3,12 @@
  * purpose: Shared launch timing and private queue controls for future transfers and actions.
  * ---
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MODULES } from '../game/modules';
-import type { ScheduledOrder } from '../game/orders';
+import { isScheduledLaunch, type LaunchEdit, type ScheduledOrder } from '../game/orders';
+import { LaunchReview } from './LaunchReview';
+import type { LaunchUnit } from './launch-manifest';
 import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
 import { gameClock } from '../game/time-machine';
 import type { Fleet } from '../game/simulation';
@@ -36,12 +38,13 @@ export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; n
   }
   return queueActionLabel(plan.action, rocks, route);
 }
-type QueueProps = { plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void };
-export function ScheduledOrders({ plans, fleets = [], hour, rocks, disabled, onCancel }: QueueProps) {
+type QueueProps = { plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean };
+export function ScheduledOrders({ plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation }: QueueProps) {
+  const [review, setReview] = useState<string>();
   return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
     const action = isActionPlan(p);
     const label = scheduledOrderLabel(p, rocks, plans, fleets);
-    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
+    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}{action && p.action.type === 'intercept' ? ` · target hauler #${p.action.target}` : ''}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === p.id ? undefined : p.id)} style={s.cancel}><Text style={s.text}>{disabled ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === p.id && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={disabled} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
   }) : <Text style={s.detail}>No queued orders. Your plans remain private until execution.</Text>}</View>;
 }
 const s = StyleSheet.create({
