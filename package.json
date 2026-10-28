@@ -15,7 +15,7 @@
     "build:sounds": "node scripts/build-sounds.mjs",
     "server": "tsx server/main.ts",
     "build:android:playtest": "expo prebuild --platform android --no-install && cd android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --console=plain --max-workers=2",
-    "build:ios:simulator": "expo prebuild --platform ios --no-install && cd ios && pod install && cd .. && xcodebuild -workspace ios/Machination.xcworkspace -scheme Machination -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/playtest CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES -jobs 2 -quiet build",
+    "build:ios:simulator": "expo prebuild --platform ios --no-install && cd ios && pod install && cd .. && xcodebuild -workspace ios/Machination.xcworkspace -scheme Machination -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/playtest CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES -jobs 2 build",
     "build:server": "node scripts/build-server.mjs",
     "test:server-build": "npm run build:server && node --test scripts/build-server.test.mjs",
     "server:production": "node dist-server/main.mjs",

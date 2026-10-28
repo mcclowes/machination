@@ -51,6 +51,8 @@ The scene lifecycle plugin creates the React window inside `UIWindowScene` and f
 
 Physical devices and distribution require Apple signing configuration. No signing credentials are included in the repository.
 
+The simulator command retains full Xcode diagnostics. A subsequent Xcode 27.1 build failed with exit 65 and several SwiftCompile reports of exit code 0 with no further output. An [Expo issue](https://github.com/expo/expo/issues/50279) reports a similar failure associated with `-quiet`; removing that flag here preserves diagnostic context without asserting that it alone fixes every compiler failure. The current diagnostic retry uses the actual ARM64 simulator destination and a result bundle. Installation still requires a successful terminal build result; an older app left in the output directory isn't evidence that the retry passed. See [#8](https://github.com/mcclowes/machination/issues/8).
+
 ## Verification boundaries
 
 An Expo JavaScript export proves bundling, not native compilation. A Gradle or Xcode build proves compilation, not installation or gameplay. Before distributing, verify first-launch dismissal, operation save/reload, foreground/background catch-up, map selection, transfers, module combat, invitation joining, private messages, and retry behavior on both native platforms. Include notched screens, the software keyboard, and enlarged text in layout checks.
