@@ -25,6 +25,42 @@ async function setup(t: TestContext, initialGame: typeof createGame = epoch => c
   return { service, tokens, file, start, id: created.id, clock: () => now, hour: (hour: number) => { now = hour * 3_600_000; } };
 }
 
+test('HTTP mixed queues beyond twenty orders survive scoped retries, restart, history, and execution', async t => {
+  const s = await setup(t);
+  const server = createApi(s.service); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const endpoint = `http://127.0.0.1:${address.port}/v1/games/${s.id}/schedules`;
+  let current = s.start;
+  let last: ScheduleOrder | undefined;
+  for (let i = 0; i < 25; i++) {
+    for (const order of [
+      { from: 'c', to: 'b', drones: 1 },
+      { action: { type: 'shields' as const, rock: 'c', disabled: i % 2 === 0 } },
+    ]) {
+      last = { requestId: randomUUID(), revision: current.revision, executeAt: 1, ...order };
+      const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${s.tokens[0]}`, 'Content-Type': 'application/json' }, body: JSON.stringify(last) });
+      assert.equal(response.status, 200);
+      current = await response.json() as typeof s.start;
+    }
+  }
+  assert.equal(current.game.scheduled.length, 50);
+  assert.equal(current.game.rocks.find(r => r.id === 'c')!.drones, 40);
+  assert.equal((await s.service.snapshot(s.id, s.tokens[1]!)).game.scheduled.length, 0);
+  const reopened = await GameService.open(s.file, s.clock);
+  assert.equal((await reopened.snapshot(s.id, s.tokens[0]!)).game.scheduled.length, 50);
+  assert.equal((await reopened.schedule(s.id, s.tokens[0]!, last!)).game.scheduled.length, 50);
+  assert.equal((await reopened.history(s.id, s.tokens[0]!, 0)).game.scheduled.length, 50);
+  s.hour(1);
+  const executed = await reopened.snapshot(s.id, s.tokens[0]!);
+  assert.equal(executed.game.scheduled.length, 0);
+  assert.equal(executed.game.fleets.length, 25);
+  assert.equal(executed.game.rocks.find(r => r.id === 'c')!.drones, 15);
+  const source = executed.game.rocks.find(r => r.id === 'c');
+  assert.ok(source?.known);
+  assert.equal(source.shieldsDisabled, true);
+});
+
 test('private future actions authenticate, deduplicate, cancel, replay, and survive restart', async t => {
   const s = await setup(t); const { service, id, tokens } = s;
   const command: ScheduleOrder = { requestId: randomUUID(), revision: s.start.revision, executeAt: 2, action: { type: 'shields', rock: 'c', disabled: true } };

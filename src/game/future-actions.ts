@@ -10,7 +10,7 @@ import { drillMine, setShields } from './economy';
 import { setFunding } from './funding';
 import { hireAmount, isSpecialistKind, SPECIALISTS, type SpecialistKind } from './specialist-catalog';
 import type { Faction, Game } from './simulation';
-import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION, type ScheduledOrder } from './orders';
+import { MAX_PLAN_DELAY, type ScheduledOrder } from './orders';
 import { mechanicsVersion } from './rules';
 import { commandHauler, type HaulerChange } from './transport';
 import { giftTransfer } from './gifts';
@@ -83,7 +83,6 @@ export function scheduleAction(game: Game, plan: ActionPlan): Game {
   if (!Number.isFinite(plan.executeAt) || plan.executeAt <= game.hour || plan.executeAt > game.hour + MAX_PLAN_DELAY) throw new Error('Schedule a future action within seven days.');
   const existing = game.scheduled ?? [];
   if (existing.some(p => p.id === plan.id && p.owner === plan.owner)) throw new Error('This plan ID is already in use.');
-  if (existing.filter(p => p.owner === plan.owner).length >= MAX_PLANS_PER_FACTION) throw new Error('An intelligence can queue at most 20 orders.');
   const action = validateFutureAction(plan.action);
   if (('rock' in action) && !game.rocks.some(r => r.id === action.rock)) throw new Error('Choose a known chart site.');
   if (game.rules?.mode === 'domination' && (action.type === 'drill-mine' || action.type === 'funding')) throw new Error('Mining and funding are unavailable in domination operations.');

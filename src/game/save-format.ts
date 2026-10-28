@@ -11,7 +11,7 @@ import { upgradeSpecialists } from './specialists';
 import { FUNDING_LEAD } from './funding';
 import { MINING_DAY } from './mining';
 import { isSpecialistKind, SPECIALISTS, HIRE_CATEGORIES } from './specialist-catalog';
-import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION } from './orders';
+import { MAX_PLAN_DELAY } from './orders';
 import { MAX_STORED_EVENTS } from './events';
 import { isModule } from './modules';
 import { createLegacyGame } from './legacy';
@@ -123,7 +123,7 @@ export function decodeSave(raw: string): Save {
     for (const f of factions) if (!g.eliminated.includes(f as Faction) && assets.flatMap(a => a.specialists as Record<string, unknown>[]).filter(u => u.owner === f && u.kind === 'queen' && !u.captive).length !== 1) return fail();
   }
   if (g.scheduled !== undefined) {
-    if (!Array.isArray(g.scheduled) || g.scheduled.length > MAX_PLANS_PER_FACTION * factions.length) return fail();
+    if (!Array.isArray(g.scheduled)) return fail();
     const plans = new Set<string>();
     for (const p of g.scheduled) {
       if (!record(p) || typeof p.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(p.id) || !isFaction(p.owner)
@@ -153,7 +153,6 @@ export function decodeSave(raw: string): Save {
       }
       plans.add(`${p.owner}:${p.id}`);
     }
-    if (factions.some(f => (g.scheduled as Record<string, unknown>[]).filter(p => p.owner === f).length > MAX_PLANS_PER_FACTION)) return fail();
   }
   if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   const decoded = save as Save;

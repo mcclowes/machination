@@ -81,15 +81,12 @@ test('core elimination and quota victory remove future plans before they can lau
   assert.equal(won.scheduled!.length, 0);
 });
 
-test('plans validate horizons, counts, ownership, capacity, and scoped IDs', () => {
+test('plans validate horizons, counts, ownership, and scoped IDs', () => {
   const game = createGame(0);
   const valid = { id: 'validated-order-0001', owner: 'you' as const, from: 'a', to: 'b', drones: 1, executeAt: 1 };
   for (const executeAt of [-1, 0, 169, NaN, Infinity]) assert.throws(() => scheduleTransfer(game, { ...valid, executeAt }));
   for (const drones of [0, -1, 0.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => scheduleTransfer(game, { ...valid, drones }));
   assert.throws(() => scheduleTransfer(game, { ...valid, from: 'e' }));
-  let full = game;
-  for (let i = 0; i < 20; i++) full = scheduleTransfer(full, { ...valid, id: `capacity-order-${i.toString().padStart(4, '0')}` });
-  assert.throws(() => scheduleTransfer(full, valid));
   const yours = scheduleTransfer(game, valid);
   const both = scheduleTransfer(yours, { ...valid, owner: 'vesper', from: 'e' });
   assert.equal(both.scheduled!.length, 2, 'another seat cannot probe a private ID collision');

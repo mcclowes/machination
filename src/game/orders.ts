@@ -10,7 +10,6 @@ import type { Faction, Game } from './simulation';
 import { recentEvents } from './events';
 import type { ModuleKind } from './modules';
 export const MAX_PLAN_DELAY = 7 * 24;
-export const MAX_PLANS_PER_FACTION = 20;
 export type ScheduledTransfer = { id: string; owner: Faction; from: string; to: string; drones: number; executeAt: number; fleetId?: number; specialists?: string[]; module?: ModuleKind };
 export type ScheduledOrder = ScheduledTransfer | ScheduledAction;
 export type TransferPlan = Omit<ScheduledTransfer, 'module' | 'fleetId'> & { carryModule?: boolean };
@@ -19,7 +18,6 @@ export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
   if (typeof plan.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(plan.id)) throw new Error('Provide a unique plan ID.');
   const existing = game.scheduled ?? [];
   if (existing.some(p => p.id === plan.id && p.owner === plan.owner)) throw new Error('This plan ID is already in use.');
-  if (existing.filter(p => p.owner === plan.owner).length >= MAX_PLANS_PER_FACTION) throw new Error('An intelligence can queue at most 20 transfers.');
   if (!Number.isFinite(plan.executeAt) || plan.executeAt <= game.hour || plan.executeAt > game.hour + MAX_PLAN_DELAY) throw new Error('Schedule a future launch within seven days.');
   if (!Array.isArray(plan.specialists ?? []) || new Set(plan.specialists).size !== (plan.specialists?.length ?? 0)) throw new Error('Choose each planned module once.');
   if (!Number.isSafeInteger(plan.drones) || plan.drones < (game.version === 2 && plan.specialists?.length ? 0 : 1)) throw new Error('A transfer needs a positive whole number of drones.');
