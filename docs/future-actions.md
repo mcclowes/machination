@@ -1,6 +1,6 @@
 # Future actions
 
-The Time Machine can now queue recruitment, promotions, captive releases, mine construction, shield changes, and funding at the inspected future time. Transfers retain their existing timing controls. Historical gameplay remains read-only. Live actions still use their immediate command paths.
+The Time Machine queues transfers, gifts, interceptions, recruitment, promotions, captive releases, mine construction, shield changes, funding, and hauler commands at the inspected future time. Hauler commands include preparation edits and cancellation, gift conversion and cancellation, and Navigator course changes. Historical gameplay remains read-only. Live actions use their immediate command paths.
 
 The [official Steam description](https://store.steampowered.com/app/4831650/Subterfuge/) describes scheduling orders from the Time Machine. The [firsthand 2016 FAQ](https://herbertzhb.wordpress.com/2016/06/28/subterfuge-2/) explicitly discusses private future hires and promotions. Site and funding scheduling, execution ordering, and cancellation behavior here are the implementation interpretation; original-client acceptance is still required. This isn't a claim of complete future-order parity.
 
@@ -15,12 +15,23 @@ Transfers and actions share `game.scheduled`, the existing seven-day horizon, an
 | `drill-mine` | `rock` |
 | `shields` | `rock`, `disabled` |
 | `funding` | `to`, `enabled` |
+| `gift` | `from`, `to`, `drones`, `recipient`, optional `carryModule` and `specialists` |
+| `intercept` | `from`, `target`, `drones`, optional `specialists` |
+| `hauler` | `change`, using the existing hauler command shape |
 
 No drones, specialists, credits, or cargo are reserved. Existing economy/arrival processing occurs first at an event hour, then due orders execute in queue insertion order. Each action uses the same engine operation as its live equivalent. A failed action logs a private abort and consumes no resources. Canceled dependencies can make later orders abort. Defeat, resignation, and game completion retain the existing queue cleanup.
 
 Site identifiers are public, so a future site action can anticipate a conquest without probing hidden future state at submission. Runtime ownership, inventory, credit, promotion, and funding rules remain authoritative. Self-funding, absent recipients, invalid types, unknown fields, and domination mining/funding plans are rejected before persistence.
 
-The UI labels future buttons with Schedule and the selected clock time, retains the real private queue while forecasting, and offers cancellation through the same queue panel. Map/timeline markers include all queued order times. Hauler commands, interceptions, and gifts remain live-only in this slice.
+The UI labels future buttons with Schedule and the selected clock time, retains the real private queue while forecasting, and offers cancellation through the same queue panel. Map/timeline markers include all queued order times. Queue captions identify haulers by route rather than opaque server identifiers. Forecast controls use provisional inventory, preparation windows, gift windows, and course cooldowns; the engine rechecks these at execution.
+
+Scheduled launches still prepare for ten minutes when their order executes. Gift conversion starts its ten-minute cancellation window at execution; a queued cancellation must execute before that deadline. This follows the [official rulebook's launch and gift windows](https://subterfuge-game.com/rulebook/). Interceptions require an observed enemy at submission and an eligible, reachable target at execution. Hauler commands accept only an owned live hauler or an identity reserved by the caller's pending launch. Canceling the launch dependency leaves later orders to abort privately.
+
+## Planned haulers
+
+New configured games use mechanics version 4. Queueing a transfer, gift launch, or interception reserves a numeric fleet identity and advances the private counter. Execution creates that identity without consuming the counter again. Failed and canceled orders burn the identity; it is never reassigned. This reserves no drones or specialists. Seat-scoped views map the reservation and every command reference through the same opaque identity function as a live hauler.
+
+Forecasts simulate only visible fleets and the caller's queued references, then restore their stable aliases. A planned hauler is therefore addressable before launch and keeps its identity across forecasting, execution, restart, and replay. Earlier mechanics retain their original allocation-at-execution behavior. Their synthetic forecast haulers cannot be selected for future commands; existing live haulers remain eligible. Loading a save never upgrades its mechanics.
 
 ## Planned hires and privacy
 
@@ -36,6 +47,8 @@ Public views translate planned and existing unit references through the caller's
 
 ## Verification and open acceptance
 
-All 268 engine, server, network, and plugin tests pass, along with TypeScript, web export, and standalone production server checks. New cases cover timing, future production, private aliasing, unknown offers, save/replay reconstruction, chained hire/promotion/transfers, anticipated conquests, existing-numbered-unit collisions, queue ordering, malformed data, HTTP ownership injection, retries, restart, cancellation, and changed requirements. Prior-engine compatibility fixtures remain in the full suite.
+All 287 engine, component-helper, server, network, and plugin tests pass, along with TypeScript, web export, and standalone production server checks. Cases cover timing, future production, private aliasing, unknown offers, save/replay reconstruction, chained hires and haulers, anticipated conquests, counter collisions, queue ordering, malformed data, HTTP ownership injection, nested request mutation, canonical retries, restart, cancellation, and changed requirements. Prior-engine compatibility fixtures remain in the full suite. Component-helper checks now run in the default test command.
 
-Real browser and phone acceptance remains incomplete because Safari bindings still return `cgWindowNotFound`. Future hauler changes, interception and gift planning, original finalization/confirmation behavior, the seven-day horizon and 20-order capacity, and less common rescue/ownership dependencies remain to compare against the original client. Full specialist, native gesture, and complete-match acceptance remain tracked in #18.
+Chrome acceptance verified a two-player operation, future transfer, a gift command on its not-yet-launched hauler, a later gift cancellation inside the ten-minute window, and the real private queue throughout forecasting. Restarting the disposable server with an advanced test clock executed all three orders: the 20-drone hauler launched, its gift marker was cleared, and its queue emptied. Replaying the earlier gift window showed the pending cancellation and disabled historical controls. It also exposed and verified fixes for opaque queue captions, a clipped manifest button, and a regression that showed the live queue in history. Screenshots are saved in the ignored `.fettle/shots/` directory. This is desktop browser acceptance, not physical-phone or original-client acceptance; interception and Navigator controls still need direct interaction acceptance.
+
+Original finalization/confirmation behavior, the seven-day horizon and 20-order capacity, and less common rescue/ownership dependencies remain to compare against the original client. Full specialist, native gesture, and complete-match acceptance remain tracked in #18.

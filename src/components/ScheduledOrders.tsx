@@ -9,25 +9,38 @@ import { MODULES } from '../game/modules';
 import type { ScheduledOrder } from '../game/orders';
 import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
 import { gameClock } from '../game/time-machine';
+import type { Fleet } from '../game/simulation';
 type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean };
 export function LaunchTiming({ delay, disabled, onChange, future }: TimingProps) {
   return <View style={s.section}><Text style={s.label}>Launch timing</Text><View style={s.options}>{[0, 1, 6, 12, 24, 48, 72, 168].map(h => <Pressable key={h} accessibilityRole="button" accessibilityState={{ selected: delay === h, disabled }} disabled={disabled} onPress={() => onChange(h)} style={[s.option, delay === h && s.selected, disabled && s.disabled]}><Text style={s.text}>{h ? h >= 24 ? `+${h / 24}d` : `+${h}h` : future ? 'At forecast' : 'Now'}</Text></Pressable>)}</View>{delay > 0 && <Text style={s.detail}>Drones aren't reserved. Ownership, inventory, and the selected module must still permit a full launch at execution time.</Text>}</View>;
 }
-function queueActionLabel(action: FutureAction, rocks: { id: string; name: string }[]) {
+function queueActionLabel(action: FutureAction, rocks: { id: string; name: string }[], route?: string) {
   if (action.type !== 'hauler') return actionLabel(action, rocks);
   const change = action.change;
   const labels = { 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit manifest', course: 'Change course', gift: 'Make gift', 'cancel-gift': 'Cancel gift' };
   const destination = change.action === 'course' ? ` → ${rocks.find(r => r.id === change.to)?.name ?? change.to}` : '';
-  return `${labels[change.action]} · hauler ${change.fleet}${destination}`;
+  return `${labels[change.action]}${route ? ` · ${route}` : ' · hauler unavailable'}${destination}`;
 }
-export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; name: string }[]) {
-  return isActionPlan(plan) ? queueActionLabel(plan.action, rocks) : `${rocks.find(r => r.id === plan.from)?.name ?? plan.from} → ${rocks.find(r => r.id === plan.to)?.name ?? plan.to}`;
+export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; name: string }[], plans: readonly ScheduledOrder[] = [], fleets: readonly Fleet[] = []) {
+  const name = (id: string) => rocks.find(r => r.id === id)?.name ?? id;
+  if (!isActionPlan(plan)) return `${name(plan.from)} → ${name(plan.to)}`;
+  let route: string | undefined;
+  if (plan.action.type === 'hauler') {
+    const id = plan.action.change.fleet;
+    const fleet = fleets.find(f => f.id === id);
+    const launch = plans.find(p => p.fleetId === id && p.owner === plan.owner);
+    if (fleet) route = `${name(fleet.from)} → ${fleet.intercept ? 'interception' : name(fleet.to)}`;
+    else if (launch && !isActionPlan(launch)) route = `${name(launch.from)} → ${name(launch.to)}`;
+    else if (launch && isActionPlan(launch) && launch.action.type === 'gift') route = `${name(launch.action.from)} → ${name(launch.action.to)}`;
+    else if (launch && isActionPlan(launch) && launch.action.type === 'intercept') route = `${name(launch.action.from)} → interception`;
+  }
+  return queueActionLabel(plan.action, rocks, route);
 }
-type QueueProps = { plans: ScheduledOrder[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void };
-export function ScheduledOrders({ plans, hour, rocks, disabled, onCancel }: QueueProps) {
+type QueueProps = { plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void };
+export function ScheduledOrders({ plans, fleets = [], hour, rocks, disabled, onCancel }: QueueProps) {
   return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
     const action = isActionPlan(p);
-    const label = scheduledOrderLabel(p, rocks);
+    const label = scheduledOrderLabel(p, rocks, plans, fleets);
     return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
   }) : <Text style={s.detail}>No queued orders. Your plans remain private until execution.</Text>}</View>;
 }
