@@ -36,6 +36,7 @@ function Action({ text, onPress, disabled = false }: { text: string; onPress: ()
 }
 export function OnlineOperation() {
   const [section, setSection] = useState<OperationSection | null>(null);
+  const [mapCamera, setMapCamera] = useState({ scale: 1, x: 0, y: 0 });
   const [session, setSession] = useState<Session | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [url, setUrl] = useState(process.env.EXPO_PUBLIC_GAME_SERVER ?? 'http://localhost:8787');
@@ -55,6 +56,7 @@ export function OnlineOperation() {
   const past = mode === 'past';
   const history = useHistoricalView(session?.id && snapshot?.history ? { ...session, id: session.id, faction: snapshot.faction } : undefined, past ? inspectedHour : null);
   useEffect(() => { setPlanning(false); setNavigating(undefined); setDestination(undefined); setCarry(false); setSelectedUnits([]); setDelay(0); }, [mode, session?.url, session?.id, session?.token]);
+  useEffect(() => { setMapCamera({ scale: 1, x: 0, y: 0 }); }, [session?.url, session?.id, snapshot?.faction]);
   const forecast = inspectionOffset(snapshot?.game.hour ?? 0, inspectedHour);
   const [acknowledged, setAcknowledged] = useState<string>();
   const [disconnect, setDisconnect] = useState(false);
@@ -176,15 +178,17 @@ export function OnlineOperation() {
       <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
   const timeline = snapshot && <TimeMachine compact hour={snapshot.game.hour} historyStart={snapshot.history?.from} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...(game?.events.map(event => event.hour) ?? []), ...(game?.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]) ?? []), ...(game?.scheduled.map(p => p.executeAt) ?? [])]} online />;
-  if (snapshot && past && !game) return <ScrollView ref={scroll} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}>
-    {timeline}{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}<Text accessibilityRole={history.error ? 'alert' : undefined} style={s.error}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text>
-    <Action text="Now" onPress={() => setInspectedHour(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}
-    <Text style={s.label}>Chat · current</Text>{diplomacy}{connection}
-  </ScrollView>;
+  if (snapshot && past && !game) {
+    const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => setInspectedHour(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
+    return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
+      status={<><Text style={s.label}>{FACTIONS[snapshot.faction].name} · loading history · {gameClock(inspectedHour!)}</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</>}
+      chart={<View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>{waiting}</View>} timeline={timeline}
+      panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Connection and recovery', content: connection } }} />;
+  }
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
   return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
     status={<><View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}</>}
-    chart={<BeltMap fill player={snapshot.faction} onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
+    chart={<BeltMap fill viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
     hint={(planning || navigating !== undefined) ? <><Text style={s.detail}>{navigating !== undefined ? 'Choose a new course destination.' : `From ${rock?.name}: choose a destination.`}</Text><Action text="Cancel selection" onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
     timeline={timeline}
     panels={{

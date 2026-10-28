@@ -3,38 +3,38 @@
  * purpose: Local operation screen, transfer planning, forecast controls, and save lifecycle.
  * ---
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View, Modal, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
-import { dispatchIntercept } from './src/game/interception';
 import { flightDestination } from './src/game/flight';
 import { InterceptionTargets } from './src/components/InterceptionTargets';
-import { cancelTransfer, scheduleTransfer } from './src/game/orders';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
 import { SpecialistBay } from './src/components/SpecialistBay';
-import { hireSpecialist, promoteSpecialist } from './src/game/specialists';
-import { releaseSpecialist } from './src/game/specialist-travel';
 import { specialistSpeed } from './src/game/specialist-effects';
 import { SPECIALISTS } from './src/game/specialist-catalog';
 import { ModuleBay } from './src/components/ModuleBay';
-import { MODULES, type ModuleKind } from './src/game/modules';
+import { type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
-import { advance, createGame, dispatch, installModule, FACTIONS, operationStatus, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
+import { advance, createGame, FACTIONS, operationStatus, travelHours, type Rock } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
 import { HaulerOrders } from './src/components/HaulerOrders';
-import { commandHauler, LAUNCH_PREPARATION } from './src/game/transport';
+import { LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
-import { cargoTarget, drillMine, droneInventory, mineCost, powerCapacity, setShields } from './src/game/economy';
+import { cargoTarget, droneInventory, mineCost, powerCapacity } from './src/game/economy';
 import { OperationShell, type OperationSection } from './src/components/OperationShell';
 import { FundingPanel } from './src/components/FundingPanel';
-import { setFunding } from './src/game/funding';
 import { TimeMachine } from './src/components/TimeMachine';
-import { gameClock as clock, inspectionOffset, orderHour } from './src/game/time-machine';
+import { gameClock as clock, inspectionOffset, inspectionMode, orderHour } from './src/game/time-machine';
+import { applyCommand, createArchive, exportArchive, replayTo, type GameCommand } from './src/game/replay';
+import { MAX_REPLAY_COMMANDS, MAX_REPLAY_CHARACTERS } from './src/game/replay-save';
+import type { LocalOperation } from './src/game/operation-save';
+import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
 
+function newOperation(): LocalOperation { const game = createGame(); return { game, archive: createArchive(game, { rivals: true }) }; }
 const ink = '#e5eadc';
 const green = '#b8e986';
 function Button({ label, onPress, disabled, quiet = false }: { label: string; onPress: () => void; disabled?: boolean; quiet?: boolean }) {
@@ -49,7 +49,10 @@ export default function App() {
 }
 function Operation() {
   const [section, setSection] = useState<OperationSection | null>(null);
-  const [game, setGame] = useState<Game>(() => createGame());
+  const [operation, setOperation] = useState<LocalOperation>(newOperation);
+  const current = useRef(operation);
+  const { game, archive } = operation;
+  function replace(next: LocalOperation) { current.current = next; setOperation(next); }
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState('');
@@ -63,33 +66,39 @@ function Operation() {
   const [navigating, setNavigating] = useState<number>();
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const forecast = inspectionOffset(game.hour, inspectedHour);
+  const historical = inspectionMode(game.hour, inspectedHour) === 'past';
   const [reset, setReset] = useState(false);
   const lastTick = useRef(Date.now());
   useEffect(() => {
-    loadGame().then(saved => { if (saved) setGame(saved); }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
+    loadGame().then(saved => { if (saved) { replace(saved); setInspectedHour(null); } }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
   }, []);
   useEffect(() => {
     if (!ready || loadFailed) return;
-    saveGame(game).catch(() => setError('Could not save this operation. Keep the app open and retry.'));
-  }, [game, ready, loadFailed]);
+    saveGame(operation).catch(() => setError('Could not save this operation. Keep the app open and retry.'));
+  }, [operation, ready, loadFailed]);
   useEffect(() => {
     if (!ready || loadFailed) return;
     const tick = () => {
       const now = Date.now();
       const delta = Math.max(0, now - lastTick.current) / 3_600_000;
       lastTick.current = now;
-      setGame(g => g.winner || g.draw ? g : advance(g, g.hour + delta));
+      const op = current.current;
+      if (!op.game.winner && !op.game.draw) replace({ ...op, game: advance(op.game, op.game.hour + delta) });
     };
     const timer = setInterval(tick, 15_000);
     const subscription = AppState.addEventListener('change', () => tick());
     return () => { clearInterval(timer); subscription.remove(); };
   }, [ready, loadFailed]);
-  const shown = forecast ? advance(game, game.hour + forecast) : game;
+  const live = useMemo(() => observe(game, 'you'), [game]);
+  const past = useMemo(() => inspectedHour !== null && inspectedHour < current.current.game.hour ? observe(replayTo(archive, inspectedHour, { rivals: true, knownThrough: current.current.game.hour }), 'you') : null, [archive, inspectedHour, historical]);
+  const shown = past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live);
+  const visibleWorld = { rocks: shown.rocks.filter((r): r is Rock & { known: true } => r.known), fleets: shown.fleets, funding: shown.funding };
+  const historyStart = useMemo(() => exportArchive(archive).baseline.hour, [archive]);
   const rock = shown.rocks.find(r => r.id === selected)!;
   const target = shown.rocks.find(r => r.id === destination);
   const owned = shown.rocks.filter(r => r.owner === 'you');
   const status = operationStatus(game, 'you');
-  const operational = status === 'active' && ready && !loadFailed;
+  const operational = status === 'active' && ready && !loadFailed && !historical;
   const outcomeMessage = {
     active: '',
     draw: 'All cores offline. The operation ended in a draw.',
@@ -97,72 +106,81 @@ function Operation() {
     defeat: `Contract lost. ${game.winner ? FACTIONS[game.winner].name : 'A rival'} fulfilled the contract.`,
     eliminated: 'Core offline. Your operation has ended.',
   }[status];
-  const unitManifest = (rock.specialists ?? []).filter(u => selectedUnits.includes(u.id) && u.owner === 'you' && !u.captive);
+  const unitManifest = (rock.known ? rock.specialists ?? [] : []).filter(u => selectedUnits.includes(u.id) && u.owner === 'you' && !u.captive);
   const unitIds = unitManifest.map(u => u.id);
   const duration = target ? game.version === 2 ? Math.max(1e-6, Math.hypot(rock.x - target.x, rock.y - target.y) / specialistSpeed(shown, 'you', unitManifest, target.owner === 'you')) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const count = Number(amount);
   const preparation = game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;
-  const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones));
-  function select(r: Rock) {
-    if (navigating !== undefined) { try { setGame(commandHauler(game, 'you', { action: 'course', fleet: navigating, to: r.id })); setError(''); } catch (e) { setError((e as Error).message); } setNavigating(undefined); return; }
+  const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones ?? 0));
+  function select(r: ObservedRock) {
+    if (navigating !== undefined) { try { act({ type: 'hauler', owner: 'you', change: { action: 'course', fleet: navigating, to: r.id } }); setError(''); } catch (e) { setError((e as Error).message); } setNavigating(undefined); return; }
     if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); }
-    else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); setAmount(String(Math.max(game.version === 2 ? 0 : 1, Math.floor(r.drones / 2)))); }
+    else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); setAmount(String(Math.max(game.version === 2 ? 0 : 1, Math.floor((r.drones ?? 0) / 2)))); }
   }
   function send() {
     if (!canSend || !destination) return;
-    try { const executeAt = orderHour(game.hour, inspectedHour, delay); setGame(executeAt > game.hour ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt, carryModule: carry && !!rock.module, specialists: unitIds }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module, unitIds)); setDelay(0); setPlanning(false); setSection(null); setDestination(undefined); setCarry(false); setSelectedUnits([]); setError(''); }
+    try { const executeAt = orderHour(game.hour, inspectedHour, delay); act(executeAt > game.hour ? { type: 'schedule', owner: 'you', plan: { id: Crypto.randomUUID(), from: selected, to: destination, drones: count, executeAt, carryModule: carry && !!rock.module, specialists: unitIds } } : { type: 'dispatch', owner: 'you', from: selected, to: destination, drones: count, carryModule: carry && !!rock.module, specialists: unitIds }); setDelay(0); setPlanning(false); setSection(null); setDestination(undefined); setCarry(false); setSelectedUnits([]); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   function intercept(target: number) {
-    try { setGame(dispatchIntercept(game, selected, target, count, 'you', false, unitIds.length ? unitIds : undefined)); setPlanning(false); setDestination(undefined); setCarry(false); setDelay(0); setError(''); }
+    try { act({ type: 'intercept', owner: 'you', from: selected, target, drones: count, specialists: unitIds.length ? unitIds : undefined }); setPlanning(false); setDestination(undefined); setCarry(false); setDelay(0); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   function cancelPlan(id: string) {
-    try { setGame(cancelTransfer(game, id, 'you')); setError(''); }
+    try { act({ type: 'cancel-schedule', owner: 'you', id }); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
-  function changeUnits(change: (game: Game) => Game) { try { setGame(change(game)); setError(''); } catch (e) { setError((e as Error).message); } }
+  function act(command: GameCommand) {
+    if (inspectionMode(current.current.game.hour, inspectedHour) === 'past') throw new Error('Historical views are read-only. Return to Now to issue an order.');
+    const next = applyCommand(current.current.archive, command, { rivals: true, knownThrough: current.current.game.hour });
+    const data = exportArchive(next.archive);
+    if (data.entries.length > MAX_REPLAY_COMMANDS || JSON.stringify(data).length > MAX_REPLAY_CHARACTERS) throw new Error('This operation has reached its command history limit.');
+    replace(next);
+  }
+  function changeUnits(command: GameCommand) { try { act(command); setError(''); } catch (e) { setError((e as Error).message); } }
   function buildModule(kind: ModuleKind) {
-    try { setGame(installModule(game, selected, kind, 'you')); setError(''); }
+    try { act({ type: 'install-module', owner: 'you', rock: selected, kind }); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
-  function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setInspectedHour(null); setPlanning(false); setDestination(undefined); }
+  function skip() { lastTick.current = Date.now(); replace({ ...current.current, game: advance(current.current.game, current.current.game.hour + 6) }); setInspectedHour(null); setPlanning(false); setDestination(undefined); }
   return <View style={s.safe}>
     <OperationShell section={section} onSection={setSection}
-      status={<><View style={s.between}><Text style={s.mono}>The quiet belt · solo</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(game).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
+      status={<><View style={s.between}><Text style={s.mono}>The quiet belt · solo</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
 {!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
       chart={<BeltMap fill player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
-      timeline={<TimeMachine compact hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...(game.scheduled ?? []).map(p => p.executeAt)]} />}
+      timeline={<TimeMachine compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...shown.scheduled.map(p => p.executeAt)]} />}
       panels={{
         asset: { title: planning ? 'Transfer order' : rock.name, content: <View style={s.panel}>
-            <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
-            <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{siteDescription(rock)}</Text>
-            <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
+            {!!shown.uncertain.length && <Text style={s.small}>Arrival outcomes unknown outside observed sensors. Refresh live observations before relying on this forecast.</Text>}
+            {shown.interceptionUncertain && <Text style={s.small}>Interception outcome unknown. The target is outside current observations.</Text>}
+            <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{!rock.known ? 'UNKNOWN' : rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
+            <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.known ? siteDescription(rock) : 'Outside sensor range. Ownership and inventory unknown.'}</Text>
+            <View style={s.inventory}><Text style={s.inventoryNumber}>{rock.known ? Math.floor(rock.drones) : '—'}</Text><Text style={s.small}>drones on station</Text></View>
             {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
               <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{duration.toFixed(2)}h transit · arrives {clock(launchAt + preparation + duration)}</Text>}</View>
               <LaunchTiming future={!!forecast} delay={delay} disabled={!operational} onChange={setDelay} />
-              <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
+              <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor((rock.drones ?? 0) * f)))} /></View>)}</View>
               <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
             </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => { setPlanning(true); setSection(null); }} />}
-            {game.version === 2 && rock.owner === 'you' && <SiteControls rock={rock} cost={mineCost(game, 'you')} enabled={operational && !forecast} onMine={() => { try { setGame(drillMine(game, selected, 'you')); setError(''); } catch (e) { setError((e as Error).message); } }} onShields={() => { try { setGame(setShields(game, selected, 'you', !rock.shieldsDisabled)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
-            {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} specialists={unitIds} disabled={!operational || !!forecast} onIntercept={intercept} />}
-            {game.version === 2 && rock.owner === 'you' && <SpecialistBay mode="cargo" game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits(g => hireSpecialist(g, 'you', kind))} onPromote={id => changeUnits(g => promoteSpecialist(g, 'you', id))} onRelease={id => changeUnits(g => releaseSpecialist(g, 'you', id))} />}
+            {game.version === 2 && rock.known && rock.owner === 'you' && <SiteControls rock={rock} cost={mineCost({ minesDrilled: { you: 0, vesper: 0, null: 0, ...shown.minesDrilled } }, 'you')} enabled={operational && !forecast} onMine={() => { try { act({ type: 'drill-mine', owner: 'you', rock: selected }); setError(''); } catch (e) { setError((e as Error).message); } }} onShields={() => { try { act({ type: 'shields', owner: 'you', rock: selected, disabled: !rock.shieldsDisabled }); setError(''); } catch (e) { setError((e as Error).message); } }} />}
+            {rock.known && rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} specialists={unitIds} disabled={!operational || !!forecast} onIntercept={intercept} />}
+            {game.version === 2 && rock.known && rock.owner === 'you' && <SpecialistBay mode="cargo" game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits({ type: 'hire', owner: 'you', kind })} onPromote={id => changeUnits({ type: 'promote', owner: 'you', id })} onRelease={id => changeUnits({ type: 'release', owner: 'you', id })} />}
             {rock.owner !== 'you' && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.small}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}
-            {game.version === 1 && rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
+            {game.version === 1 && rock.known && rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View> },
-        orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders fleets={game.fleets.filter(f => f.owner === 'you')} rocks={game.rocks} hour={game.hour} enabled={operational} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => { try { setGame(commandHauler(game, 'you', command)); setError(''); } catch (e) { setError((e as Error).message); } }} />} <ScheduledOrders plans={(game.scheduled ?? []).filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
-        units: { title: `Modules · ${rock.name}`, content: <><Button label="Go to core site" quiet onPress={() => { const home = shown.rocks.find(r => r.coreOf === 'you' && r.owner === 'you'); if (home) select(home); setSection('units'); }} />{game.version === 2 && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits(g => hireSpecialist(g, 'you', kind))} onPromote={id => changeUnits(g => promoteSpecialist(g, 'you', id))} onRelease={id => changeUnits(g => releaseSpecialist(g, 'you', id))} />}</> },
+        orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders fleets={shown.fleets.filter(f => f.owner === 'you')} rocks={shown.rocks} hour={shown.hour} enabled={operational && !forecast} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => { try { act({ type: 'hauler', owner: 'you', change: command }); setError(''); } catch (e) { setError((e as Error).message); } }} />} <ScheduledOrders plans={shown.scheduled.filter(p => p.owner === 'you')} hour={shown.hour} rocks={shown.rocks} disabled={!operational || !!forecast} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
+        units: { title: `Modules · ${rock.name}`, content: <><Button label="Go to core site" quiet onPress={() => { const home = shown.rocks.find(r => r.coreOf === 'you' && r.owner === 'you'); if (home) select(home); setSection('units'); }} />{game.version === 2 && rock.known && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits({ type: 'hire', owner: 'you', kind })} onPromote={id => changeUnits({ type: 'promote', owner: 'you', id })} onRelease={id => changeUnits({ type: 'release', owner: 'you', id })} />}</> },
         signals: { title: 'Signal log', content: <>{shown.events.slice(0, 50).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}</> },
-        intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(shown, 'you')} / ${powerCapacity(shown, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
-            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(shown, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
-            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, shown.cargo.you / cargoTarget(game) * 100)}%` }]} /></View>
-          </View><FundingPanel game={shown} owner="you" enabled={operational && !forecast} onChange={(to, enabled) => changeUnits(g => setFunding(g, 'you', to, enabled))} /></> },
-        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders.</Text></> },
+        intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(visibleWorld, 'you')} / ${powerCapacity(visibleWorld, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
+            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(visibleWorld, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
+            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you ?? 0)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, (shown.cargo.you ?? 0) / cargoTarget(game) * 100)}%` }]} /></View>
+          </View><FundingPanel game={shown} owner="you" enabled={operational && !forecast} onChange={(to, enabled) => changeUnits({ type: 'funding', owner: 'you', to, enabled })} /></> },
+        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational || !!forecast} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders.</Text></> },
       }} />
-    <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
+    <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { replace(newOperation()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
   </View>;
 }
 const s = StyleSheet.create( {

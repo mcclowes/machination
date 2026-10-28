@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import type { ReplayData } from './replay';
 import { upgradeSpecialists } from './specialists';
 import { FUNDING_LEAD } from './funding';
 import { MINING_DAY } from './mining';
@@ -13,7 +14,7 @@ import { isModule } from './modules';
 import { createLegacyGame } from './legacy';
 import { maximumShield } from './economy';
 import { type Game, type Faction, type Rock, createGame } from './simulation';
-export type Save = { savedAt: number; game: Game };
+export type Save = { savedAt: number; game: Game; replay?: ReplayData };
 const factions: unknown[] = ['you', 'vesper', 'null'];
 const isFaction = (v: unknown): v is Faction => factions.includes(v);
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);

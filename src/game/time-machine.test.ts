@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { advance } from './simulation';
 import { scheduleTransfer } from './orders';
-import { orderHour, inspectionOffset } from './time-machine';
+import { orderHour, inspectionOffset, inspectionMode, timelineHour } from './time-machine';
 
 test('an order issued in the Time Machine launches at the inspected minute using future inventory', () => {
   const live = createGame(0);
@@ -25,7 +25,20 @@ test('inspection stays at an absolute time across polling and scheduling never e
   assert.equal(inspectionOffset(9, 8.5), 0);
   assert.equal(orderHour(2, null, 0), 2);
   assert.equal(orderHour(2, 8.5, 1), 9.5);
-  assert.equal(orderHour(9, 8.5, 0), 9);
+  assert.throws(() => orderHour(9, 8.5, 0), /read-only/);
   assert.equal(orderHour(2, 170, 0), 170);
   for (const delay of [1, -1, NaN, Infinity]) assert.throws(() => orderHour(2, 170, delay));
+});
+
+test('time inspection distinguishes read-only history, live time, and future scheduling', () => {
+  assert.equal(inspectionMode(12, null), 'live');
+  assert.equal(inspectionMode(12, 12), 'live');
+  assert.equal(inspectionMode(12, 11.5), 'past');
+  assert.equal(inspectionMode(12, 12.5), 'future');
+  assert.equal(timelineHour(12, 2, 0), 2);
+  assert.equal(timelineHour(12, 2, 1), 180);
+  assert.equal(timelineHour(12, 2, 10 / 178), null);
+  assert.equal(timelineHour(12, undefined, 0), null);
+  assert.equal(timelineHour(12, 2.001, -1), 2.001);
+  assert.equal(timelineHour(12, 2, 2), 180);
 });

@@ -1,16 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { type Game, advance } from './simulation';
-import { decodeSave, type Save } from './save-format';
+import { decodeOperation, encodeOperation, type LocalOperation } from './operation-save';
 const KEY = 'machination.game.v1';
-export async function loadGame(): Promise<Game | null> {
+export async function loadGame(): Promise<LocalOperation | null> {
+  await pending.catch(() => undefined);
   const raw = await AsyncStorage.getItem(KEY);
-  if (!raw) return null;
-  const saved = decodeSave(raw);
-  return advance(saved.game, saved.game.hour + Math.max(0, Date.now() - saved.savedAt) / 3_600_000);
+  return raw ? decodeOperation(raw, Date.now()) : null;
 }
 let pending = Promise.resolve();
-export function saveGame(game: Game): Promise<void> {
-  const encoded = JSON.stringify({ savedAt: Date.now(), game } satisfies Save);
+export function saveGame(operation: LocalOperation): Promise<void> {
+  const encoded = encodeOperation(operation, Date.now());
   pending = pending.catch(() => undefined).then(() => AsyncStorage.setItem(KEY, encoded));
   return pending;
 }

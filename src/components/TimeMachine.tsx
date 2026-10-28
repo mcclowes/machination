@@ -6,22 +6,25 @@
 import React, { useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MAX_PLAN_DELAY } from '../game/orders';
-import { gameClock, inspectionOffset } from '../game/time-machine';
+import { gameClock, inspectionMode, timelineHour } from '../game/time-machine';
 
-type Props = { hour: number; inspectedHour: number | null; onChange: (hour: number | null) => void; events: readonly number[]; online?: boolean; compact?: boolean };
-export function TimeMachine({ hour, inspectedHour, onChange, events, online, compact }: Props) {
+type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; online?: boolean; compact?: boolean };
+export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, online, compact }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const offset = inspectionOffset(hour, inspectedHour);
+  const mode = inspectionMode(hour, inspectedHour);
+  const offset = (inspectedHour ?? hour) - hour;
+  const start = Math.min(hour, historyStart ?? hour);
+  const span = hour + MAX_PLAN_DELAY - start;
+  const minimum = start - hour;
   const [entry, setEntry] = useState('6');
   const [trackWidth, setTrackWidth] = useState(1);
   const track = useRef<View>(null);
   const origin = useRef(0);
-  const current = useRef({ hour, onChange, trackWidth });
-  current.current = { hour, onChange, trackWidth };
+  const current = useRef({ hour, historyStart, onChange, trackWidth });
+  current.current = { hour, historyStart, onChange, trackWidth };
   function scrub(x: number) {
-    const { hour: live, onChange: change, trackWidth: width } = current.current;
-    const minutes = Math.round(Math.max(0, Math.min(1, x / width)) * MAX_PLAN_DELAY * 60);
-    change(minutes ? live + minutes / 60 : null);
+    const { hour: live, historyStart: first, onChange: change, trackWidth: width } = current.current;
+    change(timelineHour(live, first, x / width));
   }
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -29,20 +32,25 @@ export function TimeMachine({ hour, inspectedHour, onChange, events, online, com
     onPanResponderGrant: event => { origin.current = event.nativeEvent.locationX; scrub(origin.current); },
     onPanResponderMove: (_event, gesture) => scrub(origin.current + gesture.dx),
   })).current;
-  const futureEvents = [...new Set(events.filter(t => t > hour + 1 / 3600 && t <= hour + MAX_PLAN_DELAY))].sort((a, b) => a - b);
-  const next = futureEvents.find(t => t > (inspectedHour ?? hour) + 1 / 3600);
+  const markers = [...new Set(events.filter(t => t >= start && t <= hour + MAX_PLAN_DELAY))].sort((a, b) => a - b);
+  const next = markers.find(t => t > (inspectedHour ?? hour) + 1 / 3600);
+  const previous = [...markers].reverse().find(t => t < (inspectedHour ?? hour) - 1 / 3600);
   const parsed = Number(entry);
-  const validEntry = entry.trim() !== '' && Number.isFinite(parsed) && parsed >= 0 && parsed <= MAX_PLAN_DELAY;
+  const validEntry = entry.trim() !== '' && Number.isFinite(parsed) && parsed >= minimum && parsed <= MAX_PLAN_DELAY;
+  const inspectEntry = () => validEntry && onChange(parsed ? Math.max(start, hour + Math.round(parsed * 60) / 60) : null);
+  const step = (delta: number) => { const nextOffset = Math.max(minimum, Math.min(MAX_PLAN_DELAY, offset + delta)); onChange(nextOffset ? hour + nextOffset : null); };
+  const position = (at: number) => Math.max(0, Math.min(100, (at - start) / span * 100));
   return <View style={[s.panel, compact && { padding: 8, gap: 0 }]}>
-    <View style={s.row}><Text style={s.state}>{offset ? `Forecast · ${gameClock(inspectedHour!)}` : `Live · ${gameClock(hour)}`}</Text><View style={{ flex: 1 }} />{compact ? <><Control label="Now" selected={!offset} onPress={() => onChange(null)} /><Control label={expanded ? 'Close time controls' : 'Time Machine'} onPress={() => setExpanded(!expanded)} /></> : <Text style={s.title}>Time Machine</Text>}</View>
-    <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Forecast timeline" accessibilityValue={{ min: 0, max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${offset.toFixed(2)} hours ahead` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => onChange(hour + Math.max(0, Math.min(MAX_PLAN_DELAY, offset + (event.nativeEvent.actionName === 'increment' ? 1 : -1))))}>
-      <View style={s.rail}><View style={[s.fill, { width: `${offset / MAX_PLAN_DELAY * 100}%` }]} />{futureEvents.map(t => <View key={t} style={[s.tick, { left: `${(t - hour) / MAX_PLAN_DELAY * 100}%` }]} />)}<View style={[s.thumb, { left: `${offset / MAX_PLAN_DELAY * 100}%` }]} /></View>
+    <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <><Control label="Now" selected={mode === 'live'} onPress={() => onChange(null)} /><Control label={expanded ? 'Close time controls' : 'Time Machine'} onPress={() => setExpanded(!expanded)} /></> : <Text style={s.title}>Time Machine</Text>}</View>
+    <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Operation timeline" accessibilityValue={{ min: Math.round(minimum * 60), max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${Math.abs(offset).toFixed(2)} hours ${offset < 0 ? 'ago' : 'ahead'}` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}>
+      <View style={s.rail}><View style={[s.fill, { width: `${position(inspectedHour ?? hour)}%` }]} />{markers.map(t => <View key={t} style={[s.tick, { left: `${position(t)}%` }]} />)}<View style={[s.tick, { left: `${position(hour)}%`, backgroundColor: '#e5eadc', height: 18, top: -7 }]} /><View style={[s.thumb, { left: `${position(inspectedHour ?? hour)}%` }]} /></View>
     </View>
     {(!compact || expanded) && <><View style={s.row}>{[0, 6, 24, 72, 168].map(h => <Control key={h} label={h ? `+${h < 24 ? `${h}h` : `${h / 24}d`}` : 'Now'} selected={h === 0 ? !offset : Math.abs(offset - h) < 1 / 60} onPress={() => onChange(h ? hour + h : null)} />)}</View>
-    <View style={s.row}><Control label="−1h" onPress={() => onChange(offset > 1 ? hour + offset - 1 : null)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => onChange(hour + Math.min(MAX_PLAN_DELAY, offset + 1))} /><Control label="Next event" disabled={next === undefined} onPress={() => next !== undefined && onChange(next)} /></View>
-    <View style={s.row}><Text style={s.detail}>Hours ahead</Text><TextInput accessibilityLabel="Hours ahead" secureTextEntry={false} keyboardType="decimal-pad" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={() => validEntry && onChange(parsed ? hour + Math.round(parsed * 60) / 60 : null)} /><Control label="Inspect" disabled={!validEntry} onPress={() => onChange(parsed ? hour + Math.round(parsed * 60) / 60 : null)} /></View>
-    <Text style={s.detail}>{offset ? 'Plan a transfer on the chart to schedule it at this time. Future inventory is a prediction; launch requirements are checked at execution.' : 'Scrub ahead to inspect movement, production, and known outcomes. Tick marks show arrivals and planned launches.'}</Text>
-    <Text style={s.detail}>{online ? 'Current observations only. Hidden forces and new human orders can change this future.' : 'Includes known orders and deterministic training rivals.'}</Text></>}
+    <View style={s.row}><Control label="−1h" disabled={offset <= minimum} onPress={() => step(-1)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => step(1)} /><Control label="Previous event" disabled={previous === undefined} onPress={() => previous !== undefined && onChange(previous)} /><Control label="Next event" disabled={next === undefined} onPress={() => next !== undefined && onChange(next)} /></View>
+    {historyStart !== undefined && <View style={s.row}><Control label="History start" onPress={() => onChange(historyStart)} /><Text style={s.detail}>Available from {gameClock(historyStart)}</Text></View>}
+    <View style={s.row}><Text style={s.detail}>Hours from now</Text><TextInput accessibilityLabel="Hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>
+    <Text style={s.detail}>{mode === 'past' ? 'Historical view · read-only. Information is limited to sensors at this time.' : mode === 'future' ? 'Plan a transfer on the chart to schedule it at this time. Future inventory is a prediction; launch requirements are checked at execution.' : 'Scrub through observed history or ahead to inspect movement, production, and known outcomes.'}</Text>
+    {mode !== 'past' && <Text style={s.detail}>{online ? 'Current observations only. Hidden forces and new human orders can change this future.' : 'Current observations only. Hidden forces and training rival orders can change this future.'}</Text>}</>}
   </View>;
 }
 function Control({ label, selected, disabled, onPress }: { label: string; selected?: boolean; disabled?: boolean; onPress: () => void }) {

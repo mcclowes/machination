@@ -12,18 +12,20 @@ import { MODULES } from '../game/modules';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
-type Props<T extends ChartRock> = { game: { hour: number; rocks: T[]; fleets: Fleet[]; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void };
-export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, player, onInspectFleet, onManageFleet }: Props<T>) {
-  const [camera, setCamera] = useState({ scale: 1, x: 0, y: 0 });
+export type MapCamera = { scale: number; x: number; y: number };
+type Props<T extends ChartRock> = { game: { hour: number; rocks: T[]; fleets: Fleet[]; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void };
+export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, viewport, player, onInspectFleet, onManageFleet }: Props<T>) {
+  const [localCamera, setLocalCamera] = useState<MapCamera>({ scale: 1, x: 0, y: 0 });
+  const camera = viewport?.camera ?? localCamera;
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
-  const current = useRef({ camera, size });
-  current.current = { camera, size };
+  const current = useRef({ camera, size, onChange: viewport?.onChange ?? setLocalCamera });
+  current.current = { camera, size, onChange: viewport?.onChange ?? setLocalCamera };
   const start = useRef({ ...camera, pinch: 0 });
   function move(scale: number, x: number, y: number) {
     const zoom = Math.max(1, Math.min(4, scale));
     const bound = (zoom - 1) * 50;
-    setCamera({ scale: zoom, x: Math.max(-bound, Math.min(bound, x)), y: Math.max(-bound, Math.min(bound, y)) });
+    current.current.onChange({ scale: zoom, x: Math.max(-bound, Math.min(bound, x)), y: Math.max(-bound, Math.min(bound, y)) });
   }
   const pan = useRef(PanResponder.create({
     onMoveShouldSetPanResponder: (event, gesture) => event.nativeEvent.touches.length > 1 || current.current.camera.scale > 1 && Math.hypot(gesture.dx, gesture.dy) > 6,
