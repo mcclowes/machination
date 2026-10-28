@@ -63,7 +63,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
       {scene.draw && <Text style={s.text}>Draw</Text>}
     </View>
     <View style={s.stage}>
-    <BeltMap fill game={scene} selected={selected} player={replay.perspective} onSelect={site => { setOptions(false); setSelected(site.id); }} inspectFleet={inspection}
+    <BeltMap fill inspecting={!!selected} game={scene} selected={selected} player={replay.perspective} onSelect={site => { setOptions(false); setSelected(site.id); }} inspectFleet={inspection}
       onInspectFleet={() => { setSelected(''); setOptions(false); }} timeInspection={scene.fleets.every(fleet => fleet.arrives >= replay.from && fleet.arrives <= replay.through)
         ? { liveHour: replay.through, historyStart: replay.from, onInspect: hour => { if (hour === null || hour >= replay.from && hour <= replay.through) seek({ hour: hour ?? replay.through }); } }
         : undefined} />

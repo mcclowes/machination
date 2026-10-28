@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartPosition, chartRoute } from './chart-projection';
+import { chartOffsets, chartPosition, chartRoute, chartTransform } from './chart-projection';
 import { constrainCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
@@ -34,4 +34,34 @@ test('Fit projects exactly one complete tile, and sensor circles carry across bo
     return dx * dx + dy * dy <= 1;
   });
   assert.deepEqual(coveringCopies, [{ x: -200, y: -80 }]);
+});
+
+test('phone, landscape, and open-sheet viewports preserve circular ranges and equal world distances', () => {
+  for (const viewport of [{ width: 390, height: 780 }, { width: 390, height: 180 }, { width: 1000, height: 500 }]) {
+    for (const scale of [1, 2, 4]) {
+      const camera = { scale, x: 23, y: -31 };
+      const center = chartPosition(world, camera, { x: 100, y: 40 }, viewport);
+      const east = chartPosition(world, camera, { x: 110, y: 40 }, viewport);
+      const south = chartPosition(world, camera, { x: 100, y: 50 }, viewport);
+      const horizontalRadius = (east.x - center.x) / 100 * viewport.width;
+      const verticalRadius = (south.y - center.y) / 100 * viewport.height;
+      assert.ok(Math.abs(horizontalRadius - verticalRadius) < 1e-9, 'Equal world distances must occupy equal screen distances');
+      const transform = chartTransform(world, camera, viewport);
+      assert.ok(Math.abs(center.x / 100 * viewport.width - (transform.x + 100 * transform.scale)) < 1e-9, 'SVG and touch targets share one projection');
+      assert.ok(Math.abs(center.y / 100 * viewport.height - (transform.y + 40 * transform.scale)) < 1e-9);
+    }
+  }
+});
+
+test('tall torus viewports remain tiled across the entire screen after panning', () => {
+  const viewport = { width: 390, height: 900 };
+  const camera = constrainCamera(world, { scale: 1, x: 45, y: -45 });
+  const offsets = chartOffsets(world, camera, viewport);
+  for (const x of [0, 50, 100]) for (const y of [0, 50, 100]) {
+    assert.ok(offsets.some(offset => {
+      const first = chartPosition(world, camera, offset, viewport);
+      const last = chartPosition(world, camera, { x: offset.x + 200, y: offset.y + 80 }, viewport);
+      return first.x <= x && last.x >= x && first.y <= y && last.y >= y;
+    }), `Wrapped geometry must cover screen position ${x}, ${y}`);
+  }
 });

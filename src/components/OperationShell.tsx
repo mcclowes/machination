@@ -6,7 +6,7 @@
 import React from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Faction } from '../game/players';
-import { PlayerAvatar, PlayerPortraits } from './PlayerIdentity';
+import { PlayerPortraits } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
 
 export type OperationSection = 'asset' | 'orders' | 'units' | 'signals' | 'intel' | 'settings';
@@ -29,7 +29,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   const wide = width >= 1000;
   const panel = section && panels[section];
   return <PlayerPortraits.Provider value={portraits}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <View style={s.status}><PlayerAvatar faction={player} /><View style={s.statusContent}>{status}</View></View>
+    {!!status && <View style={s.status}><View style={s.statusContent}>{status}</View></View>}
     <View style={[s.stage, wide && s.wide]}>
       <View style={s.chart}>{chart}{!!hint && <View style={s.hint}>{hint}</View>}</View>
       {panel && <View style={[s.drawer, wide ? s.sidebar : s.sheet]}>
@@ -46,12 +46,12 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   </KeyboardAvoidingView></PlayerPortraits.Provider>;
 }
 const s = StyleSheet.create({
-  shell: { flex: 1, minHeight: 0, backgroundColor: '#080f0d' }, status: { paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#30402e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0, gap: 6 },
+  shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0, gap: 6 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' }, wide: { flexDirection: 'row' }, chart: { flex: 1, minWidth: 0 },
-  drawer: { backgroundColor: '#101b13', borderWidth: 1, borderColor: '#40563a', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '70%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
-  footer: { padding: 12, borderTopWidth: 1, borderColor: '#40563a', backgroundColor: '#152118' },
-  heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#30402e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: 14, gap: 14, paddingBottom: 24 },
+  drawer: { backgroundColor: '#14232b', borderTopWidth: 1, borderColor: '#30454c', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '55%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  footer: { padding: 12, borderTopWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' },
+  heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#23363e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: 14, gap: 14, paddingBottom: 24 },
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
-  navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#30402e', backgroundColor: '#0e1812' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: '#19271a' }, glyph: { color: '#8c9f85', fontSize: 19 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
+  navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#23363e', backgroundColor: '#101b21' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: 'transparent' }, glyph: { color: '#8c9f85', fontSize: 17 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
   hint: { position: 'absolute', top: 8, left: 10, right: 112, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36', borderRadius: 10 },
 });

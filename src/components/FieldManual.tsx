@@ -30,7 +30,7 @@ const illustrations: Partial<Record<typeof sections[number][0], ArtworkId>> = {
   Gifts: 'command-bridge', Sensors: 'cloaked-ship', 'Time Machine': 'time-ship',
   'Private scheduled orders': 'industrial-cockpit',
 };
-export function FieldManual() {
+export function FieldManual({ compact = false }: { compact?: boolean } = {}) {
   const [visible, setVisible] = useState(false);
   const [briefing, setBriefing] = useState(false);
   const [archive, setArchive] = useState(false);
@@ -48,7 +48,7 @@ export function FieldManual() {
     void AsyncStorage.setItem(ACKNOWLEDGED, '1').catch(() => undefined);
   }
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={s.trigger}><Text style={s.triggerText}>Manual</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={[s.trigger, compact && { minWidth: 44, backgroundColor: 'transparent', borderWidth: 0 }]}><Text style={s.triggerText}>{compact ? '?' : 'Manual'}</Text></Pressable>
     <Modal visible={visible} animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={close}>
       <SafeAreaProvider><SafeAreaView style={s.safe}>
         <View style={s.header}><Text accessibilityRole="header" style={s.title}>{archive ? 'Art archive' : briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel={archive ? 'Return to field manual' : 'Open art archive'} onPress={() => setArchive(!archive)} style={s.trigger}><Text style={s.triggerText}>{archive ? 'Manual' : 'Art archive'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
