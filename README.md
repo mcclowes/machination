@@ -44,6 +44,8 @@ See [existing remake references](docs/remake-references.md) for reuse candidates
 
 Original native icons and launch artwork are generated from an editable vector. Run `npm run build:brand` to rebuild them and create a masked preview. See [artwork notes](assets/brand/README.md).
 
+Open **Manual → Art archive** to browse all 24 generated illustrations from the Machination ChatGPT project. Project scenes also illustrate the manual, controlled-site inspectors, and specialist bay. [Project artwork notes](assets/artwork/README.md) record source chats, preserved originals, and display copies.
+
 ## Scope
 
 This is a playable foundation, not a store release. Push notifications, email-based account recovery, public hosting, and native distribution remain unimplemented. Players can save a single-use offline recovery code for their multiplayer seat. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, save restoration, core commands, private messaging, and seat recovery are verified. Android and physical-device behavior still need verification.

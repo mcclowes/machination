@@ -10,6 +10,7 @@ import { gameClock } from '../game/time-machine';
 import { recruitmentStatus } from '../game/specialists';
 import type { Faction, Game, Rock } from '../game/simulation';
 import type { GameView } from '../game/visibility';
+import { ArtworkImage, SpecialistIcon } from './Artwork';
 
 export type SpecialistBayProps = {
   game: Game | GameView; rock: Rock; owner: Faction; enabled: boolean;
@@ -30,7 +31,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
   const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return <View style={s.bay}>
-    {mode !== 'cargo' && <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
+    {mode !== 'cargo' && <><ArtworkImage id="ritual-tech-clash" /><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
     <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
     <Text style={s.detail}>Next recruitment: hour {status.nextAt}. Hiring and promotion cost 1 credit.</Text>
     <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
@@ -39,7 +40,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
       const entry = SPECIALISTS[kind];
       const amount = hireAmount(kind);
       return <View key={kind} style={s.card}>
-        <View style={s.between}><Text style={s.name}>{entry.name}</Text><Text style={s.cost}>×{amount}</Text></View>
+        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
         <Text style={s.reference}>{entry.reference}</Text>
         <Text style={s.detail}>{entry.description}</Text>
         <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · 1 credit`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for 1 credit`)} disabled={!canRecruit || !controlled || status.at !== rock.id} onPress={() => onHire(kind)} />
@@ -54,7 +55,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
       const checked = selected.includes(unit.id);
       const canLoad = game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner) && controlled && owned && !unit.captive && selectionEnabled;
       return <View key={unit.id} style={[s.card, checked && s.selected]}>
-        <View style={s.between}><Text style={s.name}>{entry.name}</Text><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your unit' : 'Foreign unit'}</Text></View>
+        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your unit' : 'Foreign unit'}</Text></View>
         {mode !== 'cargo' && <><Text style={s.reference}>{entry.reference}</Text>
         <Text style={s.detail}>{unit.captive ? 'Captive units have no abilities and cannot be loaded.' : entry.description}</Text></>}
         {!unit.captive && owned && <Pressable accessibilityRole="checkbox" accessibilityLabel={`Load ${entry.name} onto the next hauler`} accessibilityState={{ checked, disabled: !canLoad }} disabled={!canLoad} onPress={() => onSelect(checked ? selected.filter(id => id !== unit.id) : [...selected, unit.id])} style={[s.button, checked && s.selected, !canLoad && s.disabled]}>
@@ -77,6 +78,7 @@ const s = StyleSheet.create({
   bay: { borderTopWidth: 1, borderTopColor: '#30402e', marginTop: 16, paddingTop: 16, gap: 10 },
   label: { color: '#96ad89', fontSize: 10, letterSpacing: 1.4 },
   between: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  identity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { color: '#d6e2cd', fontSize: 12, flexShrink: 1 },
   cost: { color: '#b8e986', fontSize: 11 },
   reference: { color: '#96ad89', fontSize: 10 },

@@ -7,6 +7,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ArtArchive, ArtworkImage } from './Artwork';
+import type { ArtworkId } from './artwork-catalog';
 const ACKNOWLEDGED = 'machination.briefing.v1';
 const sections = [
   ['Your mandate', 'You are a mining intelligence. New operations start with five sites and 160 drones per intelligence. Choose mining to reach 200 cargo, or domination to control half the chart; being the last active intelligence also wins. Losing your core without a fallback ends your orders and mining, but your territory, production, and launched haulers remain. Version-one saves retain their original rules and 300-cargo quota.'],
@@ -21,9 +23,16 @@ const sections = [
   ['Resignation and inactivity', 'Setup lets you resign after reviewing an irreversible confirmation. Resignation ends orders and mining, removes cargo and funding, and cancels queued transfers and preparations. Territory, launched haulers, production, shields, sensors, and chat remain. Multiplayer automatically resigns a player after 48 hours without activity. Opening the operation in the foreground, issuing orders, or chatting renews activity; background refreshes do not. Setup shows your deadline. Solo training has no inactivity timeout.'],
   ['Diplomacy and reconnecting', 'In Multiplayer uplink, choose 2–10 players and a mode before creating an operation, then share its invitation. The host starts after all configured seats join. New games generate ten sites per player; each player initially owns five. Solo replacement offers the same setup choices. Private signals reach their two participants; private groups have fixed named members, and the public channel reaches everyone in the operation. Funding in Intel supports another intelligence when you lead by 20 cargo, adding 50 capacity and 2 drones per factory cycle. Support is free and ends if the lead falls below 20. Agreements are enforced by people. Keep the same app installation or browser tab to retain your seat. Generate a recovery code while connected and save it privately with the server address. Restoring a seat uses the code once and disconnects the old device; generate a new code afterward. Without a saved code, lost credentials cannot be recovered. If a command is uncertain, retry it instead of recreating it.'],
 ] as const;
+const illustrations: Partial<Record<typeof sections[number][0], ArtworkId>> = {
+  'Your mandate': 'mining-world', 'Your first transfer': 'fleet-sheet',
+  'Production and time': 'mining-drones', 'Units and interception': 'ritual-tech-clash',
+  Gifts: 'command-bridge', Sensors: 'cloaked-ship', 'Time Machine': 'time-ship',
+  'Private scheduled orders': 'industrial-cockpit',
+};
 export function FieldManual() {
   const [visible, setVisible] = useState(false);
   const [briefing, setBriefing] = useState(false);
+  const [archive, setArchive] = useState(false);
   const interacted = useRef(false);
   useEffect(() => {
     let mounted = true;
@@ -33,7 +42,7 @@ export function FieldManual() {
     return () => { mounted = false; };
   }, []);
   function close() {
-    interacted.current = true; setVisible(false); setBriefing(false);
+    interacted.current = true; setVisible(false); setBriefing(false); setArchive(false);
     // A failed preference write only repeats the briefing on the next launch.
     void AsyncStorage.setItem(ACKNOWLEDGED, '1').catch(() => undefined);
   }
@@ -41,13 +50,13 @@ export function FieldManual() {
     <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={s.trigger}><Text style={s.triggerText}>Manual</Text></Pressable>
     <Modal visible={visible} animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={close}>
       <SafeAreaProvider><SafeAreaView style={s.safe}>
-        <View style={s.header}><Text accessibilityRole="header" style={s.title}>{briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
-        <ScrollView contentContainerStyle={s.content}>
+        <View style={s.header}><Text accessibilityRole="header" style={s.title}>{archive ? 'Art archive' : briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel={archive ? 'Return to field manual' : 'Open art archive'} onPress={() => setArchive(!archive)} style={s.trigger}><Text style={s.triggerText}>{archive ? 'Manual' : 'Art archive'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
+        {archive ? <ArtArchive /> : <ScrollView contentContainerStyle={s.content}>
           <Text style={s.intro}>Your corporation is too far away to interfere. Start with tactical practice to learn the chart, orders, specialists, and Time Machine. Then play solo or negotiate with human rivals.</Text>
-          {(briefing ? sections.slice(0, 3) : sections).map(([title, body]) => <View key={title} style={s.section}><Text accessibilityRole="header" style={s.heading}>{title}</Text><Text style={s.body}>{body}</Text></View>)}
+          {(briefing ? sections.slice(0, 3) : sections).map(([title, body]) => <View key={title} style={s.section}>{illustrations[title] && <ArtworkImage id={illustrations[title]} />}<Text accessibilityRole="header" style={s.heading}>{title}</Text><Text style={s.body}>{body}</Text></View>)}
           {briefing && <Pressable accessibilityRole="button" onPress={() => setBriefing(false)} style={s.trigger}><Text style={s.triggerText}>Read the full field manual</Text></Pressable>}
           <Pressable accessibilityRole="button" onPress={close} style={s.begin}><Text style={s.beginText}>Return to command</Text></Pressable>
-        </ScrollView>
+        </ScrollView>}
       </SafeAreaView></SafeAreaProvider>
     </Modal>
   </>;

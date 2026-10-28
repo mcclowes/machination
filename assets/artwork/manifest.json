@@ -1,0 +1,405 @@
+{
+  "project": "https://chatgpt.com/g/g-p-6ae25982e48481919ece752bcab9c398/project",
+  "capturedAt": "2026-10-28",
+  "chats": [
+    {
+      "title": "Evolving Victory Conditions",
+      "id": "6ae267ca-4e2c-83ed-b7ab-776cb15b554f",
+      "generatedImages": 0
+    },
+    {
+      "title": "Mining Planet Concept",
+      "id": "6ae2674b-811c-83eb-8f06-eecfdac6f049",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Fight Image",
+      "id": "6ae261e1-a2ec-83eb-b29f-86d7e6cc59d7",
+      "generatedImages": 2
+    },
+    {
+      "title": "Create Time Ship Image",
+      "id": "6ae261d0-62ac-83eb-ba18-7169542ac75f",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create gravity well image",
+      "id": "6ae25f03-b6a8-83ed-b1b2-03f5daf786be",
+      "generatedImages": 2
+    },
+    {
+      "title": "Create exploding planet image",
+      "id": "6ae25f8e-8b50-83eb-9989-464e3d64e039",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Specialist Icons",
+      "id": "6ae25f6d-087c-83ed-9a19-715192075abf",
+      "generatedImages": 2
+    },
+    {
+      "title": "Create Mining Drone Image",
+      "id": "6ae25f53-3b0c-83eb-bae1-2b7dac0e5b99",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Cloaked Ship Image",
+      "id": "6ae25f3f-bb50-83ed-8c74-9f7f444cee35",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Assassin Captain Image",
+      "id": "6ae25eed-fc34-83ed-b1cb-0c1397630ec6",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create bombardment image",
+      "id": "6ae25ec5-08d4-83eb-a4cb-d882df5ee85e",
+      "generatedImages": 1
+    },
+    {
+      "title": "Character Head Images",
+      "id": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "generatedImages": 5
+    },
+    {
+      "title": "Create specialist icons",
+      "id": "6ae25d9a-fc70-83ed-b909-f5ff93d287f2",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create ship images",
+      "id": "6ae25d91-713c-83ed-a602-3fc066c055c3",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Robot Drone Images",
+      "id": "6ae25d78-45cc-83eb-8261-345b2dfadd1f",
+      "generatedImages": 1
+    },
+    {
+      "title": "Create Game Logo Image",
+      "id": "6ae25c4c-b928-83eb-822a-9750a713fc66",
+      "generatedImages": 1
+    },
+    {
+      "title": "Generate Console Image",
+      "id": "6ae20c0c-5894-83ed-9407-a2465a52305f",
+      "generatedImages": 2
+    }
+  ],
+  "images": [
+    {
+      "id": "mining-world",
+      "title": "Mining world",
+      "category": "Scenes",
+      "chatId": "6ae2674b-811c-83eb-8f06-eecfdac6f049",
+      "ordinal": 1,
+      "originalFilename": "Industrial Mining World Under a Cratered Moon.png",
+      "original": "assets/artwork/originals/mining-world.png",
+      "display": "assets/artwork/display/mining-world.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "8ee908dfe1c2f8e50321e786862705c2704e456c750b999dc9b4f8fbc3ce4fb4"
+    },
+    {
+      "id": "techno-gothic-duel",
+      "title": "Techno-gothic duel",
+      "category": "Scenes",
+      "chatId": "6ae261e1-a2ec-83eb-b29f-86d7e6cc59d7",
+      "ordinal": 1,
+      "originalFilename": "Techno-Gothic Duel Beneath the Iron Moon.png",
+      "original": "assets/artwork/originals/techno-gothic-duel.png",
+      "display": "assets/artwork/display/techno-gothic-duel.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "204236b4dd0ed94680e9dd3d7793704ef6db7e298cd60e3d4f4ce8101e789362"
+    },
+    {
+      "id": "ritual-tech-clash",
+      "title": "Ritual-tech clash",
+      "category": "Scenes",
+      "chatId": "6ae261e1-a2ec-83eb-b29f-86d7e6cc59d7",
+      "ordinal": 2,
+      "originalFilename": "Ritual-Tech Clash on the Industrial Platform.png",
+      "original": "assets/artwork/originals/ritual-tech-clash.png",
+      "display": "assets/artwork/display/ritual-tech-clash.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "cd11e11dcea14d922219dc5a2f8e4c99dddfb1ae903f0dfd77f05f99bb3a102f"
+    },
+    {
+      "id": "time-ship",
+      "title": "Ship emerging from time travel",
+      "category": "Scenes",
+      "chatId": "6ae261d0-62ac-83eb-ba18-7169542ac75f",
+      "ordinal": 1,
+      "originalFilename": "Spaceship Bursting Through a Warp Vortex.png",
+      "original": "assets/artwork/originals/time-ship.png",
+      "display": "assets/artwork/display/time-ship.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "dff0c44579861afa0d256f27a672669bcd85996eabcb649e3d3815a177412259"
+    },
+    {
+      "id": "gravity-well-arrows",
+      "title": "Gravity well · first version",
+      "category": "Scenes",
+      "chatId": "6ae25f03-b6a8-83ed-b1b2-03f5daf786be",
+      "ordinal": 1,
+      "originalFilename": "Gravity Well_ Ships in the Spiral.png",
+      "original": "assets/artwork/originals/gravity-well-arrows.png",
+      "display": "assets/artwork/display/gravity-well-arrows.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "1a024303432394c06780f567780a0990b235f99e08e6e3d8621cb36a2ad2b1dd"
+    },
+    {
+      "id": "gravity-well",
+      "title": "Gravitational vortex fleet",
+      "category": "Scenes",
+      "chatId": "6ae25f03-b6a8-83ed-b1b2-03f5daf786be",
+      "ordinal": 2,
+      "originalFilename": "Gravitational Vortex Fleet.png",
+      "original": "assets/artwork/originals/gravity-well.png",
+      "display": "assets/artwork/display/gravity-well.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "961d5e7cda5bd748e6ac5de0450734dfaa3665ec9bf667ed7257449f6014b6df"
+    },
+    {
+      "id": "exploding-planet",
+      "title": "Exploding planet",
+      "category": "Scenes",
+      "chatId": "6ae25f8e-8b50-83eb-9989-464e3d64e039",
+      "ordinal": 1,
+      "originalFilename": "Exploding Planet_ Galactic Inferno.png",
+      "original": "assets/artwork/originals/exploding-planet.png",
+      "display": "assets/artwork/display/exploding-planet.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "1f0522cb6044bd776fee86a95c3fc9218983c042f5d59e7e209acec80e5fa499"
+    },
+    {
+      "id": "specialist-icons-color",
+      "title": "Specialist icons · color",
+      "category": "Icons",
+      "chatId": "6ae25f6d-087c-83ed-9a19-715192075abf",
+      "ordinal": 1,
+      "originalFilename": "Sci-Fi Faction Icon Grid.png",
+      "original": "assets/artwork/originals/specialist-icons-color.png",
+      "display": "assets/artwork/display/specialist-icons-color.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "5e7f88ee15b37d7172fc81a1b77920e4e9be8947d0a3a40d6c258a2de03e9236"
+    },
+    {
+      "id": "specialist-icons-ivory",
+      "title": "Specialist icons · ivory",
+      "category": "Icons",
+      "chatId": "6ae25f6d-087c-83ed-9a19-715192075abf",
+      "ordinal": 2,
+      "originalFilename": "Distressed Ivory Role Icon Grid.png",
+      "original": "assets/artwork/originals/specialist-icons-ivory.png",
+      "display": "assets/artwork/display/specialist-icons-ivory.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "adef7ae7146a8bd37ba446da068f27727f78e8673429208b03e5bc46df850757"
+    },
+    {
+      "id": "mining-drones",
+      "title": "Mining drones",
+      "category": "Scenes",
+      "chatId": "6ae25f53-3b0c-83eb-bae1-2b7dac0e5b99",
+      "ordinal": 1,
+      "originalFilename": "Industrial Drones Mining an Asteroid.png",
+      "original": "assets/artwork/originals/mining-drones.png",
+      "display": "assets/artwork/display/mining-drones.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "cfc7add37879956518af7f8d6c412568cae1abba9970a84b32318029ebb00ed8"
+    },
+    {
+      "id": "cloaked-ship",
+      "title": "Cloaked warship",
+      "category": "Scenes",
+      "chatId": "6ae25f3f-bb50-83ed-8c74-9f7f444cee35",
+      "ordinal": 1,
+      "originalFilename": "Cloaked Warship Amidst Asteroids.png",
+      "original": "assets/artwork/originals/cloaked-ship.png",
+      "display": "assets/artwork/display/cloaked-ship.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "d7b2180e2086ee5a4b81f04750e16b0eddd8cf9b66115e88416f277a67af8fb3"
+    },
+    {
+      "id": "assassin",
+      "title": "Assassin on the bridge",
+      "category": "Scenes",
+      "chatId": "6ae25eed-fc34-83ed-b1cb-0c1397630ec6",
+      "ordinal": 1,
+      "originalFilename": "Assassin on the Starship Bridge.png",
+      "original": "assets/artwork/originals/assassin.png",
+      "display": "assets/artwork/display/assassin.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "0a79f69c274b800b0ff7dc865d347721e3effb59a2b5242134cadd18fd7ebe8e"
+    },
+    {
+      "id": "bombardment",
+      "title": "Orbital bombardment",
+      "category": "Scenes",
+      "chatId": "6ae25ec5-08d4-83eb-a4cb-d882df5ee85e",
+      "ordinal": 1,
+      "originalFilename": "Orbital Fleet Bombardment.png",
+      "original": "assets/artwork/originals/bombardment.png",
+      "display": "assets/artwork/display/bombardment.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "a7f221e71c3620f331134b436b6ac9439ccc046a29f811b38ea0d69572832674"
+    },
+    {
+      "id": "portraits-original",
+      "title": "Commanders · original roster",
+      "category": "Commanders",
+      "chatId": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "ordinal": 1,
+      "originalFilename": "Sci-Fi Character Portrait Roster.png",
+      "original": "assets/players/roster.png",
+      "display": "assets/artwork/display/portraits-original.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "caa1bdea5d06cd75fdb949b1e78dc7250600900e0dd78796ae0b8a1dd13cb2c0"
+    },
+    {
+      "id": "portraits-retro",
+      "title": "Commanders · retro roster",
+      "category": "Commanders",
+      "chatId": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "ordinal": 2,
+      "originalFilename": "Retro Sci-Fi Character Roster.png",
+      "original": "assets/players/retro-roster.png",
+      "display": "assets/artwork/display/portraits-retro.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "87b2ad1988f8508fc4018afbc0b4ec9fa50337aa649e61633a74dce67e2fb459"
+    },
+    {
+      "id": "portraits-cyborg",
+      "title": "Commanders · cyborg roster",
+      "category": "Commanders",
+      "chatId": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "ordinal": 3,
+      "originalFilename": "Cyberpunk Mercenary Roster.png",
+      "original": "assets/players/cyborg-roster.png",
+      "display": "assets/artwork/display/portraits-cyborg.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "1f25c07c57ba6475f05153c6735aad7dcca11edf2c78f2745f1a4ca40b1dcb7d"
+    },
+    {
+      "id": "portraits-cybernetic",
+      "title": "Commanders · cybernetic roster",
+      "category": "Commanders",
+      "chatId": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "ordinal": 4,
+      "originalFilename": "Cyberpunk Cyborg Faction Portraits.png",
+      "original": "assets/players/cybernetic-roster.png",
+      "display": "assets/artwork/display/portraits-cybernetic.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "c6acb3cb5e2da279be92beaa2da6c4ef8285beafd482686c5de4e873bc0248c0"
+    },
+    {
+      "id": "portraits-nomad",
+      "title": "Commanders · nomad roster",
+      "category": "Commanders",
+      "chatId": "6ae25993-00a0-83ed-b88d-223ef3525360",
+      "ordinal": 5,
+      "originalFilename": "Six Portraits of a Sci-Fi Nomad Sect.png",
+      "original": "assets/players/nomad-roster.png",
+      "display": "assets/artwork/display/portraits-nomad.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "c05f555708f554b22b07bceb749a191472ec0750fd4f2f5ae29dfb471a611dd6"
+    },
+    {
+      "id": "faction-emblems",
+      "title": "Faction emblems",
+      "category": "Icons",
+      "chatId": "6ae25d9a-fc70-83ed-b909-f5ff93d287f2",
+      "ordinal": 1,
+      "originalFilename": "Minimalist Faction Emblem Grid.png",
+      "original": "assets/artwork/originals/faction-emblems.png",
+      "display": "assets/artwork/display/faction-emblems.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "caa75438dc971e1463289ed20e5d294411056cca3f15b7af4a8090190ab87cd1"
+    },
+    {
+      "id": "fleet-sheet",
+      "title": "Fleet designs",
+      "category": "Design sheets",
+      "chatId": "6ae25d91-713c-83ed-a602-3fc066c055c3",
+      "ordinal": 1,
+      "originalFilename": "Sci-Fi Fleet Concept Sheet.png",
+      "original": "assets/artwork/originals/fleet-sheet.png",
+      "display": "assets/artwork/display/fleet-sheet.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "fb73015a4e9d4e75239c488aa9ca7a996a0f0aaf66c8fcd6a1c92fbe869d953d"
+    },
+    {
+      "id": "drone-sheet",
+      "title": "Drone designs",
+      "category": "Design sheets",
+      "chatId": "6ae25d78-45cc-83eb-8261-345b2dfadd1f",
+      "ordinal": 1,
+      "originalFilename": "Sci-Fi Drone Concept Art Sheet.png",
+      "original": "assets/artwork/originals/drone-sheet.png",
+      "display": "assets/artwork/display/drone-sheet.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "d8961fcd80bc4ac1f8ec539ba4656c8f1da509a6ea36818b1cf7acdea20fa60e"
+    },
+    {
+      "id": "asteroid-frontier",
+      "title": "Machination: asteroid frontier",
+      "category": "Scenes",
+      "chatId": "6ae25c4c-b928-83eb-822a-9750a713fc66",
+      "ordinal": 1,
+      "originalFilename": "Machination_ Asteroid Frontier.png",
+      "original": "assets/brand/asteroid-frontier.png",
+      "display": "assets/artwork/display/asteroid-frontier.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "fede531bdc00dd4b1587450c6932ed11fbe57f78bd784dfde2539d48a5c8ecde"
+    },
+    {
+      "id": "command-bridge",
+      "title": "Starship command bridge",
+      "category": "Scenes",
+      "chatId": "6ae20c0c-5894-83ed-9407-a2465a52305f",
+      "ordinal": 1,
+      "originalFilename": "Starship Command Bridge_ Khera-7 Route.png",
+      "original": "assets/artwork/originals/command-bridge.png",
+      "display": "assets/artwork/display/command-bridge.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "b733f8aa84ed38b6d8e45dc833881aefe2688b69ade068d46ec1242e70440248"
+    },
+    {
+      "id": "industrial-cockpit",
+      "title": "Industrial cockpit",
+      "category": "Scenes",
+      "chatId": "6ae20c0c-5894-83ed-9407-a2465a52305f",
+      "ordinal": 2,
+      "originalFilename": "Gritty Cockpit Under a Gas Giant.png",
+      "original": "assets/artwork/originals/industrial-cockpit.png",
+      "display": "assets/artwork/display/industrial-cockpit.png",
+      "width": 1536,
+      "height": 1024,
+      "sha256": "25918f3ab33e6b96af78a0b26226ea3a10865626c3050e320ddc84a49ef5f688"
+    }
+  ]
+}
