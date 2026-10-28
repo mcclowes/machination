@@ -12,8 +12,10 @@ import type { LaunchUnit } from './launch-manifest';
 import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
 import { gameClock } from '../game/time-machine';
 import type { Fleet } from '../game/simulation';
-type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean };
-export function LaunchTiming({ delay, disabled, onChange, future }: TimingProps) {
+type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean; compact?: boolean };
+export function LaunchTiming({ delay, disabled, onChange, future, compact }: TimingProps) {
+  const [expanded, setExpanded] = useState(false);
+  if (compact && !expanded) return <Pressable accessibilityRole="button" accessibilityLabel="Change launch timing" onPress={() => setExpanded(true)} style={s.cancel}><Text style={s.text}>{delay ? `Launch in ${delay}h` : future ? 'Launch at forecast time' : 'Launch now'} · change timing</Text></Pressable>;
   return <View style={s.section}><Text style={s.label}>Launch timing</Text><View style={s.options}>{[0, 1, 6, 12, 24, 48, 72, 168].map(h => <Pressable key={h} accessibilityRole="button" accessibilityState={{ selected: delay === h, disabled }} disabled={disabled} onPress={() => onChange(h)} style={[s.option, delay === h && s.selected, disabled && s.disabled]}><Text style={s.text}>{h ? h >= 24 ? `+${h / 24}d` : `+${h}h` : future ? 'At forecast' : 'Now'}</Text></Pressable>)}</View>{delay > 0 && <Text style={s.detail}>Drones aren't reserved. Ownership, inventory, and the selected module must still permit a full launch at execution time.</Text>}</View>;
 }
 function queueActionLabel(action: FutureAction, rocks: { id: string; name: string }[], route?: string) {

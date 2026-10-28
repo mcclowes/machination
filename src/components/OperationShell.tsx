@@ -10,7 +10,7 @@ import { PlayerAvatar, PlayerPortraits } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
 
 export type OperationSection = 'asset' | 'orders' | 'units' | 'signals' | 'intel' | 'settings';
-type Panel = { title: string; content: React.ReactNode };
+type Panel = { title: string; content: React.ReactNode; footer?: React.ReactNode };
 type Props = {
   chart: React.ReactNode; timeline: React.ReactNode; status: React.ReactNode;
   player?: Faction;
@@ -35,6 +35,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
       {panel && <View style={[s.drawer, wide ? s.sidebar : s.sheet]}>
         <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={s.close}><Text style={s.text}>×</Text></Pressable></View>
         <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>{panel.content}</ScrollView>
+        {panel.footer && <View style={s.footer}>{panel.footer}</View>}
       </View>}
     </View>
     <ScrollView style={s.timeline} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">{timeline}</ScrollView>
@@ -47,9 +48,10 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
 const s = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: '#080f0d' }, status: { paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#30402e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0, gap: 6 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' }, wide: { flexDirection: 'row' }, chart: { flex: 1, minWidth: 0 },
-  drawer: { backgroundColor: '#101b13', borderWidth: 1, borderColor: '#40563a', minHeight: 0 }, sidebar: { width: 370 }, sheet: { position: 'absolute', left: 8, right: 8, bottom: 8, maxHeight: '52%' },
+  drawer: { backgroundColor: '#101b13', borderWidth: 1, borderColor: '#40563a', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '70%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  footer: { padding: 12, borderTopWidth: 1, borderColor: '#40563a', backgroundColor: '#152118' },
   heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#30402e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: 14, gap: 14, paddingBottom: 24 },
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
   navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#30402e', backgroundColor: '#0e1812' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: '#19271a' }, glyph: { color: '#8c9f85', fontSize: 19 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
-  hint: { position: 'absolute', top: 8, left: 10, right: 220, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36' },
+  hint: { position: 'absolute', top: 8, left: 10, right: 112, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36', borderRadius: 10 },
 });
