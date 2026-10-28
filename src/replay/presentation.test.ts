@@ -137,3 +137,14 @@ test('output is detached from input and earlier frames, including every nested c
   mutate(v);
   assert.deepEqual(b, presentObservation(original, aliases));
 });
+
+test('selected public player portraits survive without carrying extra rule or array metadata', () => {
+  const v = richView();
+  v.rules!.portraits = ['pilot', 'admiral'];
+  Object.assign(v.rules!.portraits, { privateSeed: 'FORBIDDEN' });
+  const scene = presentObservation(v);
+  assert.deepEqual(scene.rules!.portraits, ['pilot', 'admiral']);
+  assert.ok(!JSON.stringify(scene).includes('FORBIDDEN'));
+  scene.rules!.portraits![0] = 'engineer';
+  assert.equal(v.rules!.portraits[0], 'pilot');
+});

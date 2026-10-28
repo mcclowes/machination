@@ -2,6 +2,7 @@ import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/players';
 import type { ModuleKind } from '../game/modules';
 import type { SpecialistKind } from '../game/specialist-catalog';
+import type { CharacterId } from '../game/characters';
 
 export type ReplayUnit = { id: string; kind: SpecialistKind; owner: Faction; captive?: true };
 type ReplayPoint = { x: number; y: number };
@@ -22,7 +23,7 @@ export type ReplayScene = {
   cargo: Partial<Record<Faction, number>>;
   standings?: Partial<Record<Faction, { cargo: number; funders: number }>>;
   eliminated: Faction[]; winner: Faction | null; draw?: true;
-  rules?: { players: Faction[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4;
+  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4;
     map: { generator: 'balanced.v1' | 'balanced.v2'; width: number; height: number; topology?: 'torus' } };
 };
 
@@ -38,7 +39,7 @@ export function createReplayAliases(): { fleet: (id: number) => number; unit: (i
 
 const factions: readonly Faction[] = ['you', 'vesper', 'null', 'aether', 'umbra', 'orbit', 'prism', 'echo', 'nadir', 'zenith'];
 
-/** Projects an already filtered observation. Actual preparations are public; private queued intents never are. */
+/** Projects an already filtered observation. Observed preparations belong to the chart; private queued intents never do. */
 export function presentObservation(view: GameView, aliases = createReplayAliases()): ReplayScene {
   const scene: ReplayScene = {
     hour: view.hour, rocks: [], fleets: [], coverage: view.coverage.map(s => ({ x: s.x, y: s.y, radius: s.radius })),
@@ -98,6 +99,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     const r = view.rules;
     scene.rules = { players: r.players.map(f => f), mode: r.mode, victoryTarget: r.victoryTarget,
       map: { generator: r.map.generator, width: r.map.width, height: r.map.height } };
+    if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;
   }
