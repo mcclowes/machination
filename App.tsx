@@ -32,7 +32,7 @@ function Label({ children }: { children: React.ReactNode }) { return <Text style
 function clock(hour: number) { return `D${String(Math.floor(hour / 24) + 1).padStart(2, '0')} · ${String(Math.floor(hour % 24)).padStart(2, '0')}:${String(Math.floor(hour % 1 * 60)).padStart(2, '0')}`; }
 export default function App() {
   const [mode, setMode] = useState<'solo' | 'online'>('solo');
-  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
 }
 function Operation() {
   const { width } = useWindowDimensions();
@@ -101,7 +101,7 @@ function Operation() {
   function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setForecast(0); setPlanning(false); setDestination(undefined); }
   return <SafeAreaView style={s.safe} edges={['bottom']}>
     <StatusBar style="light" />
-    <ScrollView contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
       <View style={s.header}>
         <View style={s.brand}><View style={s.mark}><Text style={s.markText}>M</Text></View><View><Text style={s.title}>Machination</Text><Text style={s.tagline}>SLOW ORBITS. COLD DECISIONS.</Text></View></View>
       </View>
