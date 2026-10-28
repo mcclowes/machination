@@ -38,6 +38,7 @@ import { OperationShell, type OperationSection } from '../components/OperationSh
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionMode, inspectionOffset, orderHour } from '../game/time-machine';
 import { forecastObservation } from '../game/visibility';
+import { eventMessage } from '../components/event-message';
 import { FACTIONS, travelHours } from '../game/simulation';
 import { PlayerIdentity } from '../components/PlayerIdentity';
 import { playerAppearance } from '../game/players';
@@ -318,7 +319,7 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View></> },
       units: { title: `Modules · ${rock?.name ?? ''}`, content: <><Action text="Go to core site" onPress={() => { const home = game.rocks.find(r => r.known && r.coreOf === snapshot.faction && r.owner === snapshot.faction); if (home) { setSelected(home.id); setSelectedUnits([]); setDestination(undefined); setPlanning(false); } }} />{rock ? <>{game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay game={game} rock={rock} owner={snapshot.faction} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}</> : null}</> },
       signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}
-      <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View></> },
+      <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {eventMessage(game, event)}</Text>)}</View></> },
       intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: playerAppearance(snapshot.faction, game.rules?.portraits).color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')} · {joined}/{roster.length} players joined · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>
         {rulesSummary}<Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
         {roster.map(f => <PlayerIdentity key={f} faction={f} detail={[f === snapshot.faction ? 'You' : '', snapshot.members.includes(f) ? 'Joined' : 'Awaiting player', game.eliminated.includes(f) ? 'Eliminated' : ''].filter(Boolean).join(' · ')} />)}

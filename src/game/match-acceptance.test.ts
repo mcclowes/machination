@@ -7,6 +7,7 @@ import { worldDistance } from './geometry';
 import { executeCommand, createArchive, restoreArchive, exportArchive, replayTo, type GameCommand, type ReplayEntry } from './replay';
 import { decodeReplay } from './replay-save';
 import { decodeSave } from './save-format';
+import { eventMessage } from '../components/event-message';
 
 // A synchronous event loop cannot be interrupted by node:test's timeout.
 function advance(game: Game, hour: number, options: { rivals: false }): Game {
@@ -158,5 +159,59 @@ for (const playerCount of [2, 3, 10]) for (const mode of ['mining', 'domination'
     assert.deepEqual(replayTo(restored, game.hour, options), game);
     assert.deepEqual(advance(game, game.hour + 100, { rivals: false }), game);
     assert.deepEqual(replayTo(archive, game.hour + 100, { ...options, knownThrough: game.hour + 100 }), game);
+  });
+}
+
+for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 2026]) {
+  test(`generated ${mode} match ends through leadership capture: seed ${seed}`, () => {
+    const baseline = createConfiguredGame({ playerCount: 2, mode, driftingBases: false }, 0, seed);
+    const players = baseline.rules!.players;
+    // Each seat voluntarily discloses its own core's location for an arranged convoy battle.
+    const cores = new Map(players.map(owner => [owner, observe(baseline, owner).rocks.find(r =>
+      r.known && r.specialists?.some(u => u.kind === 'queen' && u.owner === owner))!.id]));
+    const entries: ReplayEntry[] = [];
+    let game = baseline;
+    const submit = (command: GameCommand) => {
+      entries.push({ hour: game.hour, command });
+      game = executeCommand(game, command);
+    };
+    for (const owner of players) {
+      const view = observe(game, owner);
+      const donor = view.rocks.find(r => r.known && r.owner === owner && r.drones! >= 40)!;
+      submit({ type: 'dispatch', owner, from: donor.id, to: cores.get(owner)!, drones: 40 });
+    }
+    game = advance(game, Math.max(...game.fleets.map(f => f.arrives)), { rivals: false });
+    for (const owner of players) {
+      const view = observe(game, owner);
+      const source = view.rocks.find(r => r.id === cores.get(owner))!;
+      assert.ok(source.known);
+      const queen = source.specialists!.find(u => u.kind === 'queen' && u.owner === owner)!;
+      const target = [...cores].find(([other]) => other !== owner)![1];
+      submit({ type: 'dispatch', owner, from: source.id, to: target, drones: owner === 'you' ? 40 : 39, specialists: [queen.id] });
+    }
+    const arrival = Math.max(...game.fleets.map(f => f.arrives));
+    game = advance(game, arrival + 1, { rivals: false });
+    assert.equal(game.winner, 'you');
+    assert.deepEqual(game.eliminated, ['vesper']);
+    assert.equal(game.draw, undefined);
+    assert.ok(game.hour < arrival, 'leadership capture must finish the game during route combat');
+    assert.ok(game.fleets.some(f => f.specialists?.some(u => u.kind === 'queen' && u.owner === 'vesper' && u.captive)));
+    assert.equal(game.rocks.filter(r => r.owner === 'vesper').length, 5, 'eliminated sites persist');
+    assert.deepEqual(game.rocks.map(r => r.owner), baseline.rocks.map(r => r.owner));
+    assert.equal(game.cargo.you, 0, 'mining quota is not the victory condition');
+    assert.equal(game.rocks.filter(r => r.owner === 'you').length, 5, 'domination target is not reached');
+    for (const owner of players) {
+      const view = observe(game, owner);
+      assert.equal(eventMessage(view, view.events[0]!), 'Mnemosyne: last intelligence active. Contract complete.');
+    }
+    inspect(game);
+    const donor = game.rocks.find(r => r.owner === 'vesper' && r.drones >= 1)!;
+    assert.throws(() => executeCommand(game, { type: 'dispatch', owner: 'vesper', from: donor.id, to: cores.get('vesper')!, drones: 1 }));
+    const data = { ...exportArchive(createArchive(baseline)), entries };
+    const archive = restoreArchive(data);
+    assert.deepEqual(replayTo(archive, game.hour, { rivals: false, knownThrough: game.hour }), game);
+    assert.deepEqual(playSchedule(baseline, entries, game.hour, true), game);
+    assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game, replay: data })).game, game);
+    assert.deepEqual(advance(game, game.hour + 100, { rivals: false }), game);
   });
 }
