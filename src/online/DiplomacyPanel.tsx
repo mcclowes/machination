@@ -7,14 +7,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FACTIONS, type Faction } from '../game/simulation';
 import { commandId, type Pending } from './client';
-import { DIPLOMACY_LIMITS, type Snapshot } from './protocol';
+import { DIPLOMACY_LIMITS, type ObjectReference, type Snapshot } from './protocol';
+import { ReferenceText } from '../components/ReferenceText';
 
 type ChatCommand = Extract<Pending, { kind: 'messages' | 'channel-messages' | 'groups' }>;
-type Props = { snapshot?: Snapshot; disabled: boolean; acknowledged?: string; scroll: React.RefObject<ScrollView | null>; onSubmit: (command: ChatCommand) => void };
+type Props = { origin?: string; onInspectReference?: (reference: ObjectReference, mode: 'observed' | 'now') => void; snapshot?: Snapshot; disabled: boolean; acknowledged?: string; scroll: React.RefObject<ScrollView | null>; onSubmit: (command: ChatCommand) => void };
 type Sent = { id: string; thread: string; text: string } | { id: string; name: string; groups: string[] };
 
 // State lives in the operation so closing a drawer never discards a draft.
-export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, onSubmit }: Props): React.ReactNode {
+export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, onSubmit, origin, onInspectReference }: Props): React.ReactNode {
   const [thread, setThread] = useState('public');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
@@ -34,7 +35,7 @@ export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, on
   useEffect(() => { const keyboard = Keyboard.addListener('keyboardDidShow', revealComposer); return () => keyboard.remove(); }, []);
   useEffect(() => {
     if (!snapshot) return;
-    const next = `${snapshot.id}:${snapshot.faction}`;
+    const next = JSON.stringify([origin ?? '', snapshot.id, snapshot.faction]);
     if (identity.current !== next) {
       identity.current = next; setDrafts({}); setMembers([snapshot.faction]); setName(''); setCreating(false); sent.current = undefined;
       setThread(snapshot.channels?.some(c => c.id === 'public') ? 'public' : `direct:${snapshot.members.find(f => f !== snapshot.faction) ?? snapshot.faction}`);
@@ -50,7 +51,7 @@ export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, on
       sent.current = undefined;
     }
     if (Keyboard.isVisible()) revealComposer();
-  }, [snapshot, acknowledged]);
+  }, [snapshot, acknowledged, origin]);
   if (!snapshot) return null;
   const available = [
     ...(snapshot.channels?.some(c => c.id === 'public') ? [{ id: 'public', label: 'Public room' }] : []),
@@ -80,7 +81,7 @@ export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, on
     <Text accessibilityRole="header" style={s.title}>{available.find(item => item.id === thread)?.label ?? 'Choose a channel'}</Text>
     {validThread && <Text style={s.detail}>{thread === 'public' ? 'Public room · all joined players can read this.' : 'Private · fixed audience.'} {audience.map(f => FACTIONS[f].name).join(', ')}.</Text>}
     {messages.length > limit && <Action text="Show earlier messages" onPress={() => setLimit(current => current + 100)} />}
-    {messages.slice(-limit).map(m => <View key={m.id} style={s.message}><Text style={[s.detail, { color: FACTIONS[m.from].color }]}>{FACTIONS[m.from].name} · {new Date(m.sentAt).toLocaleString()}</Text><Text selectable style={s.text}>{m.text}</Text></View>)}
+    {messages.slice(-limit).map(m => <View key={m.id} style={s.message}><Text style={[s.detail, { color: FACTIONS[m.from].color }]}>{FACTIONS[m.from].name} · {new Date(m.sentAt).toLocaleString()}</Text><ReferenceText text={m.text} onInspect={onInspectReference} /></View>)}
     {validThread && messages.length === 0 && <Text style={s.detail}>No transmissions in this channel.</Text>}
     <View ref={composer} collapsable={false} onLayout={() => { if (Keyboard.isVisible()) revealComposer(); }} style={s.group}>
       <TextInput ref={editor} accessibilityLabel={recipient ? 'Private transmission' : thread === 'public' ? 'Public transmission' : 'Group transmission'} onFocus={() => { if (Keyboard.isVisible()) revealComposer(); }} multiline maxLength={DIPLOMACY_LIMITS.text} value={draft} onChangeText={text => setDrafts(current => ({ ...current, [thread]: text }))} style={[s.input, { minHeight: 90 }]} placeholder="Write a transmission…" placeholderTextColor="#647960" />
