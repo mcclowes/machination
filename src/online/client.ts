@@ -1,11 +1,11 @@
-import type { CreateGroup, ChannelTransmission } from './protocol';
+import type { ResignOrder, CreateGroup, ChannelTransmission } from './protocol';
 import type { FundingOrder } from './protocol';
 import { api } from './network';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from './protocol';
-export type Pending = { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
+export type Pending = { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = { url: string; token: string; id?: string; invite?: string; pending?: Pending };
 const KEY = 'machination.online.v1';
 export async function storeSession(session: Session | null) {
@@ -33,9 +33,11 @@ export async function newSession(url: string, invite?: string): Promise<Session>
 export async function connect(session: Session): Promise<{ session: Session; snapshot: Snapshot }> {
   const snapshot = session.id ? await api(session, `games/${session.id}`)
     : session.invite ? await api(session, 'join', { invite: session.invite }) : await api(session, 'games', {});
+  const current = session.id && AppState.currentState === 'active' && snapshot.inactivity
+    ? await api(session, `games/${snapshot.id}/activity`, {}) : snapshot;
   const connected = { ...session, id: snapshot.id };
   await storeSession(connected);
-  return { session: connected, snapshot };
+  return { session: connected, snapshot: current };
 }
 export const commandId = () => Crypto.randomUUID();
 

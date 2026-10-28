@@ -5,6 +5,8 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ResignationControl } from '../components/ResignationControl';
+import { presenceDue, inactivityRemaining } from './presence';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
@@ -63,6 +65,9 @@ export function OnlineOperation() {
   const [recoveryInput, setRecoveryInput] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const lock = useRef(false);
+  const lastActivity = useRef(0);
+  const latestSnapshot = useRef(snapshot);
+  latestSnapshot.current = snapshot;
   const scroll = useRef<ScrollView>(null);
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
@@ -70,7 +75,10 @@ export function OnlineOperation() {
     try { await work(); setError(''); } catch (e) { if (e instanceof RejectedCommand && e.status === 401) { setSnapshot(undefined); setRecoveryCode(''); } setError((e as Error).message); }
     finally { lock.current = false; setBusy(false); }
   }
-  function accept(next: Snapshot) { setSnapshot(next); }
+  function accept(next: Snapshot) {
+    if (next.inactivity && next.inactivity.expiresAt !== latestSnapshot.current?.inactivity?.expiresAt) lastActivity.current = Date.now();
+    latestSnapshot.current = next; setSnapshot(next);
+  }
   useEffect(() => { void run(async () => {
     const saved = await restoreSession();
     if (!saved) return;
@@ -81,9 +89,15 @@ export function OnlineOperation() {
   }); }, []);
   useEffect(() => {
     if (!session?.id || session.pending?.kind === 'recover') return;
-    const refresh = () => void run(async () => accept(await api(session, `games/${session.id}`)));
-    const timer = setInterval(refresh, 15000);
-    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    const refresh = (foregroundEvent = false) => void run(async () => {
+      const active = AppState.currentState === 'active';
+      const presence = presenceDue({ now: Date.now(), lastActivity: lastActivity.current, active, eligible: !!latestSnapshot.current?.inactivity, foregroundEvent });
+      const next = await api(session, `games/${session.id}${presence ? '/activity' : ''}`, presence ? {} : undefined);
+      if (presence) lastActivity.current = Date.now();
+      accept(next);
+    });
+    const timer = setInterval(() => refresh(), 15000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(true); });
     return () => { clearInterval(timer); subscription.remove(); };
   }, [session]);
   async function enter(join: boolean) {
@@ -136,11 +150,13 @@ export function OnlineOperation() {
     });
   }
   async function retry() {
+    if (session?.pending?.kind === 'resign' && mode !== 'live') { setError('Return to Now to retry resignation.'); return; }
     if (session?.id && session.pending) await complete(session, session.pending);
   }
   function submit(pending: Pending) {
     if (!session) return;
     if (past && !['messages', 'groups', 'channel-messages', 'recovery', 'recover'].includes(pending.kind)) { setError('Historical views are read-only. Return to Now to issue orders.'); return; }
+    if (pending.kind === 'resign' && (mode !== 'live' || busy || session.pending || snapshot?.status !== 'game.active' || snapshot.game.version !== 2 || snapshot.game.eliminated.includes(snapshot.faction))) return;
     void run(async () => {
       const saved = { ...session, pending }; await storeSession(saved); setSession(saved);
       await complete(saved, pending);
@@ -177,13 +193,18 @@ export function OnlineOperation() {
     </View> : <View key="connection-entry" style={s.panel}><Text style={s.label}>Game server</Text><TextInput key="server-url" secureTextEntry={false} accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
       <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
+  const setup = <><View style={s.panel}><Text style={s.title}>Operation participation</Text>
+    {snapshot?.game.eliminated.includes(snapshot.faction) && <Text style={s.detail}>You are eliminated. Sensors and chat remain available.</Text>}
+    {snapshot?.inactivity && <><Text style={s.detail}>After 48 hours of inactivity, you are automatically resigned. Opening this operation in the foreground, issuing orders, or chatting counts as activity. Background refreshes do not.</Text><Text style={s.detail}>{inactivityRemaining(snapshot.inactivity.expiresAt, snapshot.serverTime)} remaining at server time {new Date(snapshot.serverTime).toISOString()}. Deadline: {new Date(snapshot.inactivity.expiresAt).toISOString()}.</Text></>}
+    <ResignationControl key={`${mode}:${session?.url}:${session?.id}:${session?.token}:${snapshot?.faction}:${snapshot?.status}:${snapshot?.game.eliminated.includes(snapshot.faction)}`} enabled={!!immediate && snapshot?.game.version === 2} onConfirm={() => { if (snapshot) submit({ kind: 'resign', body: { requestId: commandId(), revision: snapshot.revision } }); }} />
+  </View>{connection}</>;
   const timeline = snapshot && <TimeMachine compact hour={snapshot.game.hour} historyStart={snapshot.history?.from} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...(game?.events.map(event => event.hour) ?? []), ...(game?.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]) ?? []), ...(game?.scheduled.map(p => p.executeAt) ?? [])]} online />;
   if (snapshot && past && !game) {
     const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => setInspectedHour(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
     return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
       status={<><Text style={s.label}>{FACTIONS[snapshot.faction].name} · loading history · {gameClock(inspectedHour!)}</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</>}
       chart={<View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>{waiting}</View>} timeline={timeline}
-      panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Connection and recovery', content: connection } }} />;
+      panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Setup', content: setup } }} />;
   }
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
   return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
@@ -212,14 +233,14 @@ export function OnlineOperation() {
       <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View></> },
       intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.status.replace('game.', '')} · {snapshot.members.length}/3 seats · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>
         <Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
-        {snapshot.members.map(f => <Text key={f} style={{ color: FACTIONS[f].color, fontSize: 13 }}>{FACTIONS[f].name}{f === snapshot.faction ? ' / you' : ''}{game.eliminated.includes(f) ? ' / core offline' : ''}</Text>)}
+        {snapshot.members.map(f => <Text key={f} style={{ color: FACTIONS[f].color, fontSize: 13 }}>{FACTIONS[f].name}{f === snapshot.faction ? ' / you' : ''}{game.eliminated.includes(f) ? ' / eliminated' : ''}</Text>)}
         {snapshot.status === 'game.lobby' && snapshot.host && <Action text="Start operation" disabled={past || busy || snapshot.members.length < 3} onPress={() => { if (!past) void run(async () => accept(await api(session!, `games/${snapshot.id}/start`, {}))); }} />}
         {snapshot.status === 'game.lobby' && <Text style={s.detail}>Share the invitation with two players. Time begins when the host starts.</Text>}
-        {game.draw && <Text style={s.code}>All cores offline. The operation ended in a draw.</Text>}
+        {game.draw && <Text style={s.code}>All players eliminated. The operation ended in a draw.</Text>}
         {game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}
         <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction] ?? 0)} / {cargoTarget(game)}</Text><FundingPanel game={game} owner={snapshot.faction} enabled={!!immediate} onChange={(recipient, enabled) => submit({ kind: 'funding', body: { requestId: commandId(), revision: snapshot.revision, recipient, enabled } })} />
       </View> },
-      settings: { title: 'Connection and recovery', content: connection },
+      settings: { title: 'Setup', content: setup },
     }} />;
 
 }
