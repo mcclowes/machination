@@ -1,17 +1,15 @@
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createGame } from '../src/game/simulation';
 import { createConfiguredGame } from '../src/game/world';
 import { isActionPlan } from '../src/game/future-actions';
-import { promotion } from '../src/game/specialist-catalog';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { ScheduleOrder } from '../src/online/protocol';
 
 async function setup(t: TestContext, initialGame: typeof createGame = epoch => createGame(epoch, { you: 42, vesper: 43, null: 44 })) {
   const directory = await mkdtemp(join(tmpdir(), 'machination-future-'));
@@ -141,4 +139,21 @@ test('transfer, gift, and intercept edits preserve omitted manifests and explici
     const manifest = isActionPlan(cleared) && 'specialists' in cleared.action ? cleared.action.specialists : !isActionPlan(cleared) ? cleared.specialists : undefined;
     assert.equal(manifest?.length ?? 0, 0);
   }
+});
+
+test('an edited manifest can retain a previously selected recruit after its hire dependency is canceled', async t => {
+  const s = await setup(t);
+  let current = await s.service.schedule(s.id, s.tokens[0]!, { requestId: randomUUID(), revision: s.start.revision, executeAt: 4, action: { type: 'hire', kind: s.start.game.recruitment!.you!.offers[0]! } });
+  const hire = current.game.scheduled.find(isActionPlan)!;
+  const unit = hire.hireUnits![0]!;
+  const launchId = randomUUID();
+  current = await s.service.schedule(s.id, s.tokens[0]!, { requestId: launchId, revision: current.revision, executeAt: 5, from: 'a', to: 'b', drones: 1, specialists: [unit] });
+  current = await s.service.cancelSchedule(s.id, s.tokens[0]!, { requestId: randomUUID(), revision: current.revision, planId: hire.id });
+  current = await s.service.editSchedule(s.id, s.tokens[0]!, { requestId: randomUUID(), revision: current.revision, planId: launchId, drones: 2, specialists: [unit] });
+  assert.deepEqual((current.game.scheduled[0]! as { specialists: string[] }).specialists, [unit]);
+  const untouched = structuredClone(current.game.scheduled);
+  await assert.rejects(s.service.editSchedule(s.id, s.tokens[0]!, { requestId: randomUUID(), revision: current.revision, planId: launchId, drones: 3, specialists: [unit, '123456789'] }), { code: 'schedule.conflict.invalid' });
+  assert.deepEqual((await s.service.snapshot(s.id, s.tokens[0]!)).game.scheduled, untouched);
+  s.hour(5);
+  assert.equal((await s.service.snapshot(s.id, s.tokens[0]!)).game.fleets.length, 0);
 });

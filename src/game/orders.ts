@@ -3,15 +3,46 @@
  * purpose: Validate future transfers, share mixed queue types, and cancel private orders without reserving resources.
  * ---
  */
-import { isActionPlan, actionLabel, plannedUnitIds, type ScheduledAction } from './future-actions';
+import { isActionPlan, actionLabel, plannedUnitIds, type ScheduledAction, type FutureAction } from './future-actions';
 import { inRange, sensors } from './sensors';
 import { mechanicsVersion } from './rules';
+import { playersIn } from './players';
 import type { Faction, Game } from './simulation';
 import { recentEvents } from './events';
 import type { ModuleKind } from './modules';
 export const MAX_PLAN_DELAY = 7 * 24;
 export type ScheduledTransfer = { id: string; owner: Faction; from: string; to: string; drones: number; executeAt: number; fleetId?: number; specialists?: string[]; module?: ModuleKind };
 export type ScheduledOrder = ScheduledTransfer | ScheduledAction;
+export type ScheduledLaunch = ScheduledTransfer | (ScheduledAction & { action: Extract<FutureAction, { type: 'gift' | 'intercept' }> });
+export type LaunchEdit = { planId: string; drones: number; specialists?: string[] };
+export function isScheduledLaunch(plan: ScheduledOrder): plan is ScheduledLaunch {
+  return !isActionPlan(plan) || plan.action.type === 'gift' || plan.action.type === 'intercept';
+}
+export function validateLaunchEdit(value: unknown): LaunchEdit {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Provide a scheduled launch manifest.');
+  const edit = value as Record<string, unknown>;
+  if (!['planId', 'drones'].every(key => Object.hasOwn(edit, key)) || Object.keys(edit).some(key => !['planId', 'drones', 'specialists'].includes(key))
+    || typeof edit.planId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(edit.planId) || !Number.isSafeInteger(edit.drones) || (edit.drones as number) < 0
+    || edit.specialists !== undefined && (!Array.isArray(edit.specialists) || edit.specialists.length > 10000 || new Set(edit.specialists).size !== edit.specialists.length
+      || !edit.specialists.every(id => typeof id === 'string' && /^[a-zA-Z0-9:-]{1,80}$/.test(id)))) throw new Error('Provide a scheduled launch manifest.');
+  return { planId: edit.planId, drones: edit.drones as number, ...(Array.isArray(edit.specialists) ? { specialists: [...edit.specialists] as string[] } : {}) };
+}
+export function editScheduledLaunch(game: Game, owner: Faction, change: LaunchEdit): Game {
+  if (!playersIn(game).includes(owner) || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
+  const edit = validateLaunchEdit(change);
+  const plan = game.scheduled?.find(p => p.id === edit.planId && p.owner === owner);
+  if (!plan || !isScheduledLaunch(plan) || plan.executeAt <= game.hour) throw new Error('Scheduled launch unavailable. It may have executed or been canceled.');
+  const prior = 'action' in plan ? plan.action : plan;
+  if (game.version === 1 && edit.specialists?.length) throw new Error('This operation transports cargo modules instead of specialists.');
+  const specialists = game.version === 1 ? undefined : edit.specialists ?? prior.specialists;
+  if (edit.drones < (game.version === 2 && (specialists?.length || 'type' in prior && prior.type === 'intercept') ? 0 : 1)) throw new Error('A launch needs drones or a specialist manifest.');
+  const available = new Set([...game.rocks, ...game.fleets].filter(a => a.owner === owner).flatMap(a => (a.specialists ?? []).filter(u => u.owner === owner && !u.captive).map(u => u.id))
+    .concat(plannedUnitIds(game, owner), prior.specialists ?? []));
+  if (edit.specialists?.some(id => !available.has(id))) throw new Error('Choose owned modules, planned recruits, or the existing manifest.');
+  const manifest = { drones: edit.drones, ...(specialists === undefined ? {} : { specialists: [...specialists] }) };
+  const replacement: ScheduledLaunch = 'action' in plan ? { ...plan, action: { ...plan.action, ...manifest } } : { ...plan, ...manifest };
+  return { ...game, scheduled: game.scheduled!.map(p => p === plan ? replacement : p), events: recentEvents([{ hour: game.hour, audience: [owner], message: `Scheduled launch from ${game.rocks.find(r => r.id === prior.from)?.name ?? prior.from} updated. Execution time is unchanged.` }, ...game.events]) };
+}
 export type TransferPlan = Omit<ScheduledTransfer, 'module' | 'fleetId'> & { carryModule?: boolean };
 export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
   if (game.winner || game.draw || game.eliminated.includes(plan.owner)) throw new Error('This intelligence is no longer operational.');

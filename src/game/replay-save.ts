@@ -4,6 +4,7 @@
  * ---
  */
 import { validateFutureAction } from './future-actions';
+import { validateLaunchEdit } from './orders';
 import { advance, FACTIONS, type Game } from './simulation';
 import { decodeSave } from './save-format';
 import { isModule } from './modules';
@@ -48,6 +49,7 @@ function command(v: unknown): boolean {
     }
     case 'schedule-action': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'executeAt', 'action']) && text(v.plan.id) && finite(v.plan.executeAt) && !!validateFutureAction(v.plan.action);
     case 'schedule': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'from', 'to', 'drones', 'executeAt'], ['specialists', 'carryModule']) && text(v.plan.id) && finite(v.plan.executeAt) && payload(v.plan);
+    case 'edit-schedule': return shape(v, [...keys, 'change']) && !!validateLaunchEdit(v.change);
     case 'cancel-schedule': case 'promote': case 'release': return shape(v, [...keys, 'id']) && text(v.id);
     case 'hire': return shape(v, [...keys, 'kind']) && isSpecialistKind(v.kind);
     case 'drill-mine': return shape(v, [...keys, 'rock']) && text(v.rock);

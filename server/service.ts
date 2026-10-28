@@ -504,9 +504,11 @@ export class GameService {
       requireThat(command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before editing.');
       const plan = r.game.scheduled?.find(plan => plan.id === command.planId && plan.owner === f && isScheduledLaunch(plan));
       requireThat(plan, 409, 'schedule.conflict.missing', 'Choose one of your queued launches.');
+      const prior = 'action' in plan ? plan.action : plan;
+      const existingUnits = 'specialists' in prior ? prior.specialists ?? [] : [];
       try {
         this.act(r, { type: 'edit-schedule', owner: f, change: { planId: command.planId, drones: command.drones,
-          ...(command.specialists === undefined ? {} : { specialists: command.specialists.map(unit => this.futureUnit(r, f, unit, true)) }) } });
+          ...(command.specialists === undefined ? {} : { specialists: command.specialists.map(alias => existingUnits.find(unit => String(this.identify(r, f, 'unit', unit)) === alias) ?? this.futureUnit(r, f, alias, true)) }) } });
       } catch (error) { throw new Failure(409, 'schedule.conflict.invalid', (error as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;

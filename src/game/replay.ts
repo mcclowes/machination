@@ -10,7 +10,7 @@ import { advance, dispatch, installModule, type Faction, type Game } from './sim
 import { giftTransfer } from './gifts';
 import { dispatchIntercept } from './interception';
 import { commandHauler, type HaulerChange } from './transport';
-import { scheduleTransfer, cancelTransfer, type TransferPlan } from './orders';
+import { scheduleTransfer, cancelTransfer, editScheduledLaunch, type LaunchEdit, type TransferPlan } from './orders';
 import { hireSpecialist, promoteSpecialist } from './specialists';
 import { releaseSpecialist } from './specialist-travel';
 import { drillMine, setShields } from './economy';
@@ -27,6 +27,7 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'schedule-action'; plan: Omit<ActionPlan, 'owner'> }
   | { type: 'schedule'; plan: Omit<TransferPlan, 'owner'> }
   | { type: 'cancel-schedule'; id: string }
+  | { type: 'edit-schedule'; change: LaunchEdit }
   | { type: 'hire'; kind: SpecialistKind }
   | { type: 'promote' | 'release'; id: string }
   | { type: 'drill-mine'; rock: string }
@@ -57,6 +58,7 @@ export function executeCommand(input: Game, command: GameCommand): Game {
     case 'schedule-action': return scheduleAction(game, { ...c.plan, owner: c.owner });
     case 'schedule': return scheduleTransfer(game, { ...c.plan, owner: c.owner });
     case 'cancel-schedule': return cancelTransfer(game, c.id, c.owner);
+    case 'edit-schedule': return editScheduledLaunch(game, c.owner, c.change);
     case 'hire': return hireSpecialist(game, c.owner, c.kind);
     case 'promote': return promoteSpecialist(game, c.owner, c.id);
     case 'release': return releaseSpecialist(game, c.owner, c.id);

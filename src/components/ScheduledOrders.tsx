@@ -26,6 +26,11 @@ function queueActionLabel(action: FutureAction, rocks: { id: string; name: strin
 export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; name: string }[], plans: readonly ScheduledOrder[] = [], fleets: readonly Fleet[] = []) {
   const name = (id: string) => rocks.find(r => r.id === id)?.name ?? id;
   if (!isActionPlan(plan)) return `${name(plan.from)} → ${name(plan.to)}`;
+  if (plan.action.type === 'intercept') {
+    const targetId = plan.action.target;
+    const target = fleets.find(f => f.id === targetId);
+    return `${actionLabel(plan.action, rocks)} · ${target ? `${name(target.from)} → ${name(target.to)} (${target.drones} drones)` : 'target no longer observed'}`;
+  }
   let route: string | undefined;
   if (plan.action.type === 'hauler') {
     const id = plan.action.change.fleet;
@@ -44,7 +49,7 @@ export function ScheduledOrders({ plans, fleets = [], hour, rocks, disabled, onC
   return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
     const action = isActionPlan(p);
     const label = scheduledOrderLabel(p, rocks, plans, fleets);
-    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}{action && p.action.type === 'intercept' ? ` · target hauler #${p.action.target}` : ''}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === p.id ? undefined : p.id)} style={s.cancel}><Text style={s.text}>{disabled ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === p.id && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={disabled} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
+    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === p.id ? undefined : p.id)} style={s.cancel}><Text style={s.text}>{disabled ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === p.id && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={disabled} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
   }) : <Text style={s.detail}>No queued orders. Your plans remain private until execution.</Text>}</View>;
 }
 const s = StyleSheet.create({
