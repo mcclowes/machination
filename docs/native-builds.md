@@ -66,3 +66,7 @@ The solo command scroll view now handles button taps while the keyboard is open;
 These native checks cover one iOS 27.1 foldable simulator. Android, physical devices, regular phone/tablet layouts, push delivery, and store distribution still require verification or implementation.
 
 The first Android compile stopped before APK creation because NDK 27.1.12297006 is missing and its license is not accepted. Install that component through Android Studio, then rerun the playtest command. No Android device is connected and no Android emulator is configured. Android native gameplay remains unverified.
+
+## Editor verification follow-up
+
+The current editor build enables automatic iOS keyboard insets and drag-to-dismiss behavior, separates connection and game form identities, and explicitly keeps ordinary inputs unmasked. Recovery inputs remain secure. The signed build compiles, installs, and launches, and all platform bundles export. Visual verification of keyboard visibility and secure-text traits after recovery remains open in [#13](https://github.com/mcclowes/machination/issues/13): computer use currently reports `cgWindowNotFound` for Device Hub, including after a fresh session. Regular phone and cross-device recovery checks remain pending.

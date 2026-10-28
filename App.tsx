@@ -101,7 +101,7 @@ function Operation() {
   function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setForecast(0); setPlanning(false); setDestination(undefined); }
   return <SafeAreaView style={s.safe} edges={['bottom']}>
     <StatusBar style="light" />
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
+    <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
       <View style={s.header}>
         <View style={s.brand}><View style={s.mark}><Text style={s.markText}>M</Text></View><View><Text style={s.title}>Machination</Text><Text style={s.tagline}>SLOW ORBITS. COLD DECISIONS.</Text></View></View>
       </View>
@@ -130,7 +130,7 @@ function Operation() {
             <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
             <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.kind === 'core' ? 'Intelligence core · +4 drones / h' : rock.kind === 'reactor' ? 'Reactor · +4 drones / h' : 'Extraction rock · +2 cargo / h'}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
-            {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
+            {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
               <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(game.hour + delay + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
               <LaunchTiming delay={delay} disabled={!operational || !!forecast} onChange={setDelay} />
