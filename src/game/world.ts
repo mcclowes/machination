@@ -3,6 +3,9 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { ALL_PLAYERS } from './players';
+import { validateOptions, type GameOptions } from './rules';
+import { generateWorld } from './generated-world';
 import { newRecruitment } from './specialists';
 import type { Faction, Game, Rock } from './simulation';
 
@@ -43,5 +46,18 @@ export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, n
       site('w', 'Lumen', 55, 36, 'generator'),
       site('x', 'Isotope', 48, 73, 'factory'),
     ],
+  };
+}
+
+export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>): Game {
+  const settings = validateOptions(options);
+  const players = ALL_PLAYERS.slice(0, settings.playerCount);
+  const { rocks, width, height } = generateWorld(players, mapSeed);
+  return { ...createGame(epoch, seeds), rocks,
+    rules: { players, mode: settings.mode, victoryTarget: settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v1', seed: mapSeed, width, height } },
+    cargo: Object.fromEntries(players.map(owner => [owner, 0])),
+    minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
+    recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0)])),
+    events: [{ hour: 0, audience: players, message: `Corporate uplink lost. Five sites assigned to each intelligence. ${settings.mode === 'mining' ? 'Establish extraction to fulfill the contract.' : 'Control half of the chart to secure domination.'}` }],
   };
 }

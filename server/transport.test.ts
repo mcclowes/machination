@@ -1,3 +1,4 @@
+import { createGame } from '../src/game/simulation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -11,7 +12,7 @@ test('private prepared launches edit, cancel, and survive restart through seat-s
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json');
   let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const created = await service.create(tokens[0]!);
   const other = await service.join(created.invite, tokens[1]!); await service.join(created.invite, tokens[2]!);
@@ -27,7 +28,7 @@ test('private prepared launches edit, cancel, and survive restart through seat-s
   const edited = await service.hauler(created.id, tokens[0]!, edit);
   assert.equal(edited.game.fleets[0]!.drones, 30);
   assert.equal((await service.hauler(created.id, tokens[0]!, edit)).game.fleets[0]!.drones, 30);
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   const restored = await service.snapshot(created.id, tokens[0]!);
   const canceled = await service.hauler(created.id, tokens[0]!, { requestId: randomUUID(), revision: restored.revision, fleet: fleet.id, action: 'cancel-launch' });
   assert.equal(canceled.game.fleets.length, 0);

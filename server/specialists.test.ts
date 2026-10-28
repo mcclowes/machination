@@ -1,3 +1,4 @@
+import { createGame } from '../src/game/simulation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -12,7 +13,7 @@ test('online cores and recruitment use private scoped identities and survive tra
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json');
   let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const created = await service.create(tokens[0]!);
   await service.join(created.invite, tokens[1]!); await service.join(created.invite, tokens[2]!);
@@ -34,7 +35,7 @@ test('online cores and recruitment use private scoped identities and survive tra
   const traveling = await service.snapshot(created.id, tokens[0]!);
   const kind = traveling.game.recruitment!.you!.offers[0]!;
   await assert.rejects(() => service.specialist(created.id, tokens[0]!, { requestId: randomUUID(), revision: traveling.revision, action: 'hire', kind }));
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   now = 7 * 3_600_000;
   const arrived = await service.snapshot(created.id, tokens[0]!);
   assert.equal(arrived.game.rocks.find(r => r.id === 'c')!.coreOf, 'you');

@@ -6,6 +6,9 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { createConfiguredGame } from '../src/game/world';
+import { DEFAULT_GAME_OPTIONS, validateOptions, type GameOptions } from '../src/game/rules';
+import { ALL_PLAYERS, playersIn } from '../src/game/players';
 import { advance, createGame, type Faction, type Game } from '../src/game/simulation';
 import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
@@ -19,7 +22,7 @@ import type { FundingOrder } from '../src/online/protocol';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
 import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
-const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
+const FACTIONS = ALL_PLAYERS;
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
@@ -38,8 +41,8 @@ const matchesHash = (expected: string | undefined, actual: string) => expected !
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 export class GameService {
   private queue: Promise<unknown> = Promise.resolve();
-  private constructor(private file: string, private database: Database, private now: () => number, private initialGame = createGame) {}
-  static async open(file: string, now = Date.now, initialGame = createGame): Promise<GameService> {
+  private constructor(private file: string, private database: Database, private now: () => number, private initialGame?: typeof createGame) {}
+  static async open(file: string, now = Date.now, initialGame?: typeof createGame): Promise<GameService> {
     let database: Database = { version: 1, rooms: [] };
     try {
       database = JSON.parse(await readFile(file, 'utf8'));
@@ -49,11 +52,11 @@ export class GameService {
         r.game = decodeSave(JSON.stringify({ savedAt: 0, game: r.game })).game;
         if (!/^[a-f0-9]{24}$/.test(r.id) || ids.has(r.id) || !/^[a-f0-9]{24}$/.test(r.invite)
           || !(r.startedAt === null || Number.isFinite(r.startedAt) && r.startedAt >= 0)
-          || !Number.isSafeInteger(r.revision) || r.revision < 0 || !Array.isArray(r.seats) || r.seats.length < 1 || r.seats.length > 3
-          || !r.seats.every(s => FACTIONS.includes(s.faction) && /^[a-f0-9]{64}$/.test(s.hash))
+          || !Number.isSafeInteger(r.revision) || r.revision < 0 || !Array.isArray(r.seats) || r.seats.length < 1 || r.seats.length > playersIn(r.game).length || r.startedAt !== null && r.seats.length !== playersIn(r.game).length
+          || !r.seats.every(s => playersIn(r.game).includes(s.faction) && /^[a-f0-9]{64}$/.test(s.hash))
           || new Set(r.seats.map(s => s.faction)).size !== r.seats.length || r.seats[0]?.faction !== 'you'
           || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
-          || !r.messages.every(m => Number.isSafeInteger(m.id) && FACTIONS.includes(m.from) && FACTIONS.includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
+          || !r.messages.every(m => Number.isSafeInteger(m.id) && playersIn(r.game).includes(m.from) && playersIn(r.game).includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
         for (const seat of r.seats) {
           if (seat.lastActiveHour !== undefined && (r.startedAt === null || r.game.version !== 2 || !Number.isFinite(seat.lastActiveHour) || seat.lastActiveHour < 0 || seat.lastActiveHour > r.game.hour)
             || seat.identityHash !== undefined && !isHash(seat.identityHash)
@@ -159,14 +162,20 @@ export class GameService {
       ...(room.replay ? { history: { from: room.replay.baseline.hour, through: room.game.hour } } : {}),
       visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id), id => String(this.identify(room, faction, 'unit', id))), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
-  create(token: string): Promise<Snapshot> {
+  create(token: string, options?: unknown): Promise<Snapshot> {
+    let requested: GameOptions | undefined;
+    try { requested = options === undefined ? undefined : validateOptions(options); }
+    catch (e) { return Promise.reject(new Failure(400, 'game.validation.options', (e as Error).message)); }
     return this.transaction(db => {
       const credential = this.credential(token);
       const existing = db.rooms.find(r => r.seats.some(s => s.hash === credential));
-      if (existing) { this.settle(existing); return this.view(existing, this.seat(existing, token)); }
+      if (existing) {
+        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining'), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
+        this.settle(existing); return this.view(existing, this.seat(existing, token));
+      }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        revision: 0, game: this.initialGame(this.now(), { you: randomBytes(4).readUInt32BE(), vesper: randomBytes(4).readUInt32BE(), null: randomBytes(4).readUInt32BE() }), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
+        revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
       db.rooms.push(room);
       return this.view(room, 'you');
     });
@@ -179,8 +188,8 @@ export class GameService {
       const existing = room.seats.find(s => s.hash === credential);
       if (existing) { this.settle(room); return this.view(room, existing.faction); }
       requireThat(!db.rooms.some(r => r.seats.some(s => s.hash === credential)), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
-      requireThat(room.startedAt === null && room.seats.length < 3, 409, 'game.conflict.closed', 'This operation is no longer accepting players.');
-      const faction = FACTIONS[room.seats.length]!;
+      requireThat(room.startedAt === null && room.seats.length < playersIn(room.game).length, 409, 'game.conflict.closed', 'This operation is no longer accepting players.');
+      const faction = playersIn(room.game)[room.seats.length]!;
       room.seats.push({ faction, hash: credential }); room.revision++;
       return this.view(room, faction);
     });
@@ -247,7 +256,7 @@ export class GameService {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
-      requireThat(r.seats.length === 3, 409, 'game.conflict.seats', 'Wait for all three intelligences to join.');
+      requireThat(r.seats.length === playersIn(r.game).length, 409, 'game.conflict.seats', `Wait for all ${playersIn(r.game).length} intelligences to join.`);
       if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1; }
       this.settle(r); return this.view(r, f);
     });

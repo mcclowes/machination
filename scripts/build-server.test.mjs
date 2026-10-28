@@ -74,6 +74,7 @@ test('standalone bundle serves and restores an offline operation without project
     const stored = JSON.parse(await readFile(dataFile, 'utf8'));
     stored.rooms[0].startedAt = Date.now() - elapsedHours * 3_600_000;
     stored.rooms[0].game.epoch = stored.rooms[0].startedAt;
+    if (stored.rooms[0].replay) stored.rooms[0].replay.baseline.epoch = stored.rooms[0].startedAt;
     await writeFile(dataFile, JSON.stringify(stored));
     runtime = await start(entry, dataFile);
     const resumed = await request(path);

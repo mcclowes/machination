@@ -1,0 +1,69 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { GameService } from './service';
+import { ALL_PLAYERS } from '../src/game/players';
+
+test('ten-seat domination rooms preserve immutable setup, authorize every seat, and replay through restart', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-config-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'world.json'); let now = 0;
+  let service = await GameService.open(file, () => now);
+  const tokens = ALL_PLAYERS.map(() => randomBytes(32).toString('hex'));
+  const options = { playerCount: 10, mode: 'domination' as const };
+  const created = await service.create(tokens[0]!, options);
+  assert.deepEqual(created.game.rules!.players, ALL_PLAYERS);
+  assert.equal(created.game.rules!.mode, 'domination'); assert.equal(created.game.rules!.victoryTarget, 50);
+  assert.equal(created.game.rocks.length, 100);
+  assert.equal(JSON.stringify(created).includes('"seed"'), false);
+  assert.deepEqual((await service.create(tokens[0]!, options)).game, created.game);
+  await assert.rejects(() => service.create(tokens[0]!, { playerCount: 2, mode: 'mining' }));
+  await assert.rejects(() => service.start(created.id, tokens[0]!));
+  for (let i = 1; i < 10; i++) assert.equal((await service.join(created.invite, tokens[i]!)).faction, ALL_PLAYERS[i]);
+  await assert.rejects(() => service.join(created.invite, randomBytes(32).toString('hex')));
+  await service.start(created.id, tokens[0]!);
+  const last = await service.snapshot(created.id, tokens[9]!);
+  assert.equal(Object.keys(last.game.recruitment!).length, 1);
+  const source = last.game.rocks.find(r => r.owner === 'zenith')!;
+  const changed = await service.site(created.id, tokens[9]!, { requestId: randomUUID(), revision: last.revision, action: 'shields', rock: source.id, disabled: true });
+  assert.equal(changed.game.rocks.find(r => r.id === source.id)!.known, true);
+  now = 3_600_000;
+  service = await GameService.open(file, () => now);
+  assert.deepEqual((await service.snapshot(created.id, tokens[9]!)).game.rules, changed.game.rules);
+  assert.equal((await service.history(created.id, tokens[9]!, 0)).game.rocks.find(r => r.id === source.id)!.known, true);
+  const privateRoom = JSON.parse(await readFile(file, 'utf8')).rooms[0];
+  assert.ok(Number.isInteger(privateRoom.game.rules.map.seed));
+  now = 49 * 3_600_000;
+  const expired = await service.snapshot(created.id, tokens[9]!);
+  assert.equal(expired.game.draw, true); assert.equal(expired.game.eliminated.length, 10); assert.equal(expired.game.hour, 48);
+  service = await GameService.open(file, () => now);
+  assert.equal((await service.snapshot(created.id, tokens[9]!)).game.draw, true);
+});
+
+test('HTTP setup validates options and starts a two-player game while defaults remain a three-player mining game', async t => {
+  const { createApi } = await import('./http');
+  const { once } = await import('node:events');
+  const dir = await mkdtemp(join(tmpdir(), 'machination-config-http-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const service = await GameService.open(join(dir, 'world.json'), () => 1000);
+  const server = createApi(service); server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => { server.closeAllConnections(); server.close(); });
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const origin = `http://127.0.0.1:${address.port}`;
+  async function post(path: string, token: string, body: unknown) {
+    const response = await fetch(`${origin}/v1/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: response.status, data: await response.json() };
+  }
+  const token = randomBytes(32).toString('hex');
+  for (const options of [null, [], {}, { playerCount: 1, mode: 'mining' }, { playerCount: 11, mode: 'mining' }, { playerCount: 2.5, mode: 'mining' }, { playerCount: 2, mode: 'custom' }, { playerCount: 2, mode: 'mining', seed: 1 }]) assert.equal((await post('games', token, { options })).status, 400);
+  assert.equal((await post('games', token, { playerCount: 2 })).status, 400);
+  const created = await post('games', token, { options: { playerCount: 2, mode: 'domination' } });
+  assert.equal(created.status, 200); assert.equal(created.data.game.rules.players.length, 2);
+  const rival = randomBytes(32).toString('hex'); await post('join', rival, { invite: created.data.invite });
+  const started = await post(`games/${created.data.id}/start`, token, {});
+  assert.equal(started.status, 200); assert.equal(started.data.status, 'game.active');
+  assert.equal(started.data.game.rules.victoryTarget, 10);
+  assert.equal(JSON.stringify(started.data).includes('"seed"'), false);
+  const defaults = await post('games', randomBytes(32).toString('hex'), {});
+  assert.equal(defaults.status, 200); assert.equal(defaults.data.game.rules.players.length, 3); assert.equal(defaults.data.game.rules.mode, 'mining'); assert.equal(defaults.data.game.rocks.length, 30);
+});

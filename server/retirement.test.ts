@@ -37,7 +37,7 @@ test('resignation is seat-authorized, durable, idempotent, and leaves sensors an
   assert.deepEqual((await post(command)).body.game, accepted.body.game);
   assert.equal(accepted.body.inactivity, undefined);
   now = 2 * HOUR;
-  const restored = await GameService.open(file, () => now);
+  const restored = await GameService.open(file, () => now, createGame);
   assert.deepEqual((await restored.snapshot(room.id, tokens[0]!)).game.eliminated, ['you']);
   assert.equal((await restored.history(room.id, tokens[0]!, 0.5)).game.eliminated.length, 0);
   assert.equal((await restored.history(room.id, tokens[0]!, 1)).game.eliminated[0], 'you');
@@ -51,7 +51,7 @@ test('resignation is seat-authorized, durable, idempotent, and leaves sensors an
 test('only foreground activity renews the 48-hour deadline, and offline expiries replay at their actual instant', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-idle-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.join(room.invite, tokens[2]!); await service.start(room.id, tokens[0]!);
   assert.equal((await service.snapshot(room.id, tokens[0]!)).inactivity!.expiresAt, 48 * HOUR);
@@ -61,7 +61,7 @@ test('only foreground activity renews the 48-hour deadline, and offline expiries
   assert.equal((await service.snapshot(room.id, tokens[0]!)).inactivity!.expiresAt, 48 * HOUR);
   await service.history(room.id, tokens[0]!, 20);
   now = 60 * HOUR;
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   const expired = await service.activity(room.id, tokens[0]!);
   assert.deepEqual(expired.game.eliminated, ['you', 'null']);
   assert.equal(expired.game.winner, 'vesper');
@@ -69,7 +69,7 @@ test('only foreground activity renews the 48-hour deadline, and offline expiries
   assert.equal(expired.inactivity, undefined);
   assert.equal((await service.history(room.id, tokens[0]!, 47.99)).game.eliminated.length, 0);
   assert.deepEqual((await service.history(room.id, tokens[0]!, 48)).game, expired.game);
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   assert.deepEqual((await service.snapshot(room.id, tokens[0]!)).game, expired.game);
   const absent = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const second = await service.create(absent[0]!); await service.join(second.invite, absent[1]!); await service.join(second.invite, absent[2]!); await service.start(second.id, absent[0]!);
@@ -81,25 +81,25 @@ test('only foreground activity renews the 48-hour deadline, and offline expiries
 test('existing operations receive a fresh inactivity grace period without losing earlier replay', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-idle-migrate-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.join(room.invite, tokens[2]!); await service.start(room.id, tokens[0]!);
   now = 12 * HOUR; await service.snapshot(room.id, tokens[0]!);
   const prior = JSON.parse(await readFile(file, 'utf8')); for (const seat of prior.rooms[0].seats) delete seat.lastActiveHour; await writeFile(file, JSON.stringify(prior));
-  now = 100 * HOUR; service = await GameService.open(file, () => now);
+  now = 100 * HOUR; service = await GameService.open(file, () => now, createGame);
   const migrated = await service.snapshot(room.id, tokens[0]!);
   assert.equal(migrated.game.eliminated.length, 0);
   assert.equal(migrated.inactivity!.expiresAt, 148 * HOUR);
   assert.equal(migrated.history!.from, 0);
   assert.equal((await service.history(room.id, tokens[0]!, 1)).game.hour, 1);
   const damaged = JSON.parse(await readFile(file, 'utf8')); damaged.rooms[0].seats[0].lastActiveHour = 101; await writeFile(file, JSON.stringify(damaged));
-  await assert.rejects(() => GameService.open(file, () => now), /metadata/);
+  await assert.rejects(() => GameService.open(file, () => now, createGame), /metadata/);
 });
 
 test('accepted game commands and chat renew activity without invalidating revisions or reviving eliminated seats', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-idle-actions-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  const service = await GameService.open(file, () => now);
+  const service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.join(room.invite, tokens[2]!); const start = await service.start(room.id, tokens[0]!);
   now = 2 * HOUR;
@@ -126,7 +126,7 @@ test('accepted game commands and chat renew activity without invalidating revisi
 test('failed durable writes publish neither resignation nor its receipt and a retry records it once', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-retire-write-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  const service = await GameService.open(file, () => now);
+  const service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.join(room.invite, tokens[2]!); const live = await service.start(room.id, tokens[0]!);
   const command = { requestId: randomUUID(), revision: live.revision };
@@ -140,13 +140,13 @@ test('failed durable writes publish neither resignation nor its receipt and a re
   const duplicate = await service.resign(room.id, tokens[0]!, command);
   assert.deepEqual(duplicate, resigned);
   assert.equal(resigned.game.events.filter(e => e.message.includes(': resigned.')).length, 1);
-  assert.deepEqual((await (await GameService.open(file, () => now)).history(room.id, tokens[0]!, 2)).game, resigned.game);
+  assert.deepEqual((await (await GameService.open(file, () => now, createGame)).history(room.id, tokens[0]!, 2)).game, resigned.game);
 });
 
 test('automatic inactivity still settles and survives restart when the player command history is full', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-idle-capacity-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.join(room.invite, tokens[2]!); await service.start(room.id, tokens[0]!);
   const stored = JSON.parse(await readFile(file, 'utf8'));
@@ -156,10 +156,10 @@ test('automatic inactivity still settles and survives restart when the player co
   stored.rooms[0].replay.entries = Array.from({ length: MAX_REPLAY_COMMANDS }, () => entry);
   stored.rooms[0].game = replayTo(restoreArchive(stored.rooms[0].replay), 0, { rivals: false, knownThrough: 0 });
   await writeFile(file, JSON.stringify(stored));
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   now = 48 * HOUR;
   const ended = await service.snapshot(room.id, tokens[0]!);
   assert.equal(ended.game.draw, true);
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   assert.deepEqual((await service.snapshot(room.id, tokens[0]!)).game, ended.game);
 });

@@ -1,6 +1,6 @@
 # Generated charts
 
-`generateWorld(players, seed)` accepts 2–10 unique catalog factions and a uint32 seed, including zero. The first participant is the host; its core is site `a`. The result contains rocks and square bounds. It doesn't mutate participants or retain random state between calls. Its local integer sampler is independent of recruitment and engine randomness. Integration must keep the seed private rather than adding it to a public GameView.
+`generateWorld(players, seed)` accepts 2–10 unique catalog factions and a uint32 seed, including zero. The participant list identifies the host independently of site identifiers. Public site IDs, names, and array order are shuffled independently of starting roles so distant labels do not reveal hidden cores or ownership. The result contains rocks and square bounds. It doesn't mutate participants or retain random state between calls. Its local integer sampler is independent of recruitment and engine randomness. Integration must keep the seed private rather than adding it to a public GameView.
 
 Each participant owns five sites: a queen core with zero drones and four sites with 40 drones each. Five additional dormant sites per participant have no owner, drones, or specialists. All sites begin as factories or generators, with empty shields and the supplied production and recharge clocks. There are no initial mines.
 

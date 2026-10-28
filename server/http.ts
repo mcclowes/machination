@@ -54,7 +54,11 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
       if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
       const token = req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1] ?? '';
       let result: unknown;
-      if (req.method === 'POST' && path === '/v1/games') { await body(req); result = await service.create(token); }
+      if (req.method === 'POST' && path === '/v1/games') {
+        const input = await body(req);
+        if (Object.keys(input).some(key => key !== 'options')) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
+        result = await service.create(token, input.options);
+      }
       else if (req.method === 'POST' && path === '/v1/join') {
         const input = await body(req);
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');

@@ -93,7 +93,7 @@ export function generateWorld(players: readonly Faction[], seed: number): { rock
       const core = rank === 0;
       const shieldMax = shields[rank]!;
       rocks.push({
-        id, name: core ? `${players[player]} core` : `Site ${index + 1}`, ...best!.points[pointIndex]!,
+        id, name: `Relay ${index + 1}`, ...best!.points[pointIndex]!,
         owner, kind: types[rank]!,  drones: owner && !core ? 40 : 0,
         shield: 0, shieldMax, shieldAt: 48 / (shieldMax + (core ? 20 : 0)), shieldsDisabled: false, productionAt: 8,
         specialists: core && owner ? [{ id: `core-${owner}`, owner, kind: 'queen' }] : [],
@@ -101,5 +101,6 @@ export function generateWorld(players: readonly Faction[], seed: number): { rock
       });
     });
   });
-  return { rocks, width: size, height: size };
+  const publicSites = shuffle(rocks, random).map((rock, index) => ({ ...rock, id: index < 26 ? String.fromCharCode(97 + index) : `site-${String(index).padStart(3, '0')}`, name: `Relay ${index + 1}` }));
+  return { rocks: publicSites, width: size, height: size };
 }

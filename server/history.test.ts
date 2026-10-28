@@ -1,3 +1,4 @@
+import { createGame } from '../src/game/simulation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -11,7 +12,7 @@ import { createApi } from './http';
 test('historical HTTP views reconstruct offline battles with past sonar, scoped identities, and durable command order', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-history-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const created = await service.create(tokens[0]!);
   await service.join(created.invite, tokens[1]!); await service.join(created.invite, tokens[2]!);
@@ -25,7 +26,7 @@ test('historical HTTP views reconstruct offline battles with past sonar, scoped 
   const order = { requestId: randomUUID(), revision: before.revision, from: 'm', to: 'v', drones: 10 };
   await service.order(created.id, tokens[0]!, order); await service.order(created.id, tokens[0]!, order);
   now = 9 * 3_600_000;
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   const current = await service.snapshot(created.id, tokens[0]!);
   assert.equal(current.game.rocks.find(r => r.id === 'f')!.known, true);
   assert.equal(current.game.rocks.find(r => r.id === 'c')!.owner, 'vesper');
@@ -55,15 +56,15 @@ test('historical HTTP views reconstruct offline battles with past sonar, scoped 
 test('old rooms start history at their known baseline and malformed private archives are refused', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-history-migration-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'world.json'); let now = 0;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createGame);
   const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
   const created = await service.create(tokens[0]!); await service.join(created.invite, tokens[1]!); await service.join(created.invite, tokens[2]!); await service.start(created.id, tokens[0]!);
   now = 12 * 3_600_000; await service.snapshot(created.id, tokens[0]!);
   const old = JSON.parse(await readFile(file, 'utf8')); delete old.rooms[0].replay; await writeFile(file, JSON.stringify(old));
-  service = await GameService.open(file, () => now);
+  service = await GameService.open(file, () => now, createGame);
   assert.equal((await service.snapshot(created.id, tokens[0]!)).history!.from, 12);
   await assert.rejects(() => service.history(created.id, tokens[0]!, 11));
   assert.equal((await service.history(created.id, tokens[0]!, 12)).game.hour, 12);
   const damaged = JSON.parse(await readFile(file, 'utf8')); damaged.rooms[0].replay = { version: 1, baseline: {}, entries: [] }; await writeFile(file, JSON.stringify(damaged));
-  await assert.rejects(() => GameService.open(file, () => now));
+  await assert.rejects(() => GameService.open(file, () => now, createGame));
 });
