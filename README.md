@@ -21,6 +21,8 @@ Select a controlled rock, choose **Plan transfer**, tap a destination, and launc
 
 Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
 
+Choose a launch time from now to seven days ahead and manage private plans in **Scheduled transfers**. Plans use resources available at execution, and can be canceled before launch.
+
 Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The timeline forecasts known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
 ## Check

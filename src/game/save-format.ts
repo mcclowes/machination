@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION } from './orders';
 import { MAX_STORED_EVENTS } from './events';
 import { isModule } from './modules';
 import { type Game, type Faction, createGame } from './simulation';
@@ -41,6 +42,20 @@ export function decodeSave(raw: string): Save {
       || !(f.module === undefined || isModule(f.module))
       || !finite(f.arrives) || f.arrives <= g.hour || f.arrives <= f.departed) return fail();
     fleetIds.add(f.id as number);
+  }
+  if (g.scheduled !== undefined) {
+    if (!Array.isArray(g.scheduled) || g.scheduled.length > MAX_PLANS_PER_FACTION * factions.length) return fail();
+    const plans = new Set<string>();
+    for (const p of g.scheduled) {
+      if (!record(p) || typeof p.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(p.id) || !isFaction(p.owner)
+        || g.eliminated.includes(p.owner) || g.winner !== null || plans.has(`${p.owner}:${p.id}`)
+        || !ids.has(p.from as string) || !ids.has(p.to as string) || p.from === p.to
+        || !Number.isSafeInteger(p.drones) || (p.drones as number) < 1
+        || !finite(p.executeAt) || p.executeAt <= g.hour || p.executeAt > g.hour + MAX_PLAN_DELAY
+        || !(p.module === undefined || isModule(p.module))) return fail();
+      plans.add(`${p.owner}:${p.id}`);
+    }
+    if (factions.some(f => (g.scheduled as Record<string, unknown>[]).filter(p => p.owner === f).length > MAX_PLANS_PER_FACTION)) return fail();
   }
   if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   return save as Save;

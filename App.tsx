@@ -7,6 +7,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Modal, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as Crypto from 'expo-crypto';
+import { cancelTransfer, scheduleTransfer } from './src/game/orders';
+import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
 import { ModuleBay } from './src/components/ModuleBay';
 import { MODULES, type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
@@ -38,6 +41,7 @@ function Operation() {
   const [destination, setDestination] = useState<string>();
   const [planning, setPlanning] = useState(false);
   const [carry, setCarry] = useState(false);
+  const [delay, setDelay] = useState(0);
   const [amount, setAmount] = useState('45');
   const [forecast, setForecast] = useState(0);
   const [tab, setTab] = useState<'overview' | 'signals'>('overview');
@@ -69,14 +73,18 @@ function Operation() {
   const owned = shown.rocks.filter(r => r.owner === 'you');
   const operational = !game.winner && !game.eliminated.includes('you') && ready && !loadFailed;
   const count = Number(amount);
-  const canSend = operational && !forecast && rock.owner === 'you' && !!target && Number.isInteger(count) && count > 0 && count <= Math.floor(rock.drones);
+  const canSend = operational && !forecast && rock.owner === 'you' && !!target && Number.isSafeInteger(count) && count > 0 && (delay > 0 || count <= Math.floor(rock.drones));
   function select(r: Rock) {
     if (planning && r.id !== selected) setDestination(r.id);
     else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); setAmount(String(Math.max(1, Math.floor(r.drones / 2)))); }
   }
   function send() {
     if (!canSend || !destination) return;
-    try { setGame(dispatch(game, selected, destination, count, 'you', carry && !!rock.module)); setPlanning(false); setDestination(undefined); setCarry(false); setError(''); }
+    try { setGame(delay ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt: game.hour + delay, carryModule: carry && !!rock.module }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module)); setDelay(0); setPlanning(false); setDestination(undefined); setCarry(false); setError(''); }
+    catch (e) { setError((e as Error).message); }
+  }
+  function cancelPlan(id: string) {
+    try { setGame(cancelTransfer(game, id, 'you')); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   function buildModule(kind: ModuleKind) {
@@ -117,17 +125,19 @@ function Operation() {
             <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.kind === 'core' ? 'Intelligence core · +4 drones / h' : rock.kind === 'reactor' ? 'Reactor · +4 drones / h' : 'Extraction rock · +2 cargo / h'}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
             {planning ? <>
-              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(game.hour + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
+              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(game.hour + delay + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
+              <LaunchTiming delay={delay} disabled={!operational || !!forecast} onChange={setDelay} />
               <View style={s.between}><Label>Drone manifest</Label><TextInput accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
-              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label="Launch hauler ↗" disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
-            </> : <Button label={forecast ? 'Return to now to issue orders' : rock.owner === 'you' ? 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!forecast || rock.owner !== 'you' || rock.drones < 1} onPress={() => setPlanning(true)} />}
+              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={delay ? `Schedule launch +${delay}h` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
+            </> : <Button label={forecast ? 'Return to now to issue orders' : rock.owner === 'you' ? 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!forecast || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
             {rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View>
           <View style={s.panel}>
             <View style={s.tabs}>{(['overview', 'signals'] as const).map(t => <Pressable accessibilityRole="button" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} key={t} style={[s.tab, tab === t && { borderBottomColor: green }]}><Text style={{ color: tab === t ? ink : '#7c8b80', fontSize: 12 }}>{t === 'overview' ? 'In transit' : 'Signal log'}{t === 'overview' ? ` / ${shown.fleets.length}` : ''}</Text></Pressable>)}</View>
             {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{shown.rocks.find(r => r.id === f.to)?.name} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
           </View>
+          <ScheduledOrders plans={(shown.scheduled ?? []).filter(p => p.owner === 'you')} hour={shown.hour} rocks={shown.rocks} disabled={!operational || !!forecast} onCancel={cancelPlan} />
           <View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View>
           <Text style={s.small}>Local solo operation. Time continues while you're away.</Text>
         </View>

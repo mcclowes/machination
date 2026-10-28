@@ -42,7 +42,7 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
 2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Public hosting and account recovery remain.
 3. Diplomacy: private bilateral messages are implemented. Alliances, gifts, group channels, and push notifications remain.
-4. Strategic depth: modules and server-filtered sensor visibility are implemented. Moving-hauler interception, scheduled orders, map generation, and balance sessions remain.
+4. Strategic depth: modules and server-filtered sensor visibility are implemented. Scheduled transfers are implemented. Moving-hauler interception, map generation, and balance sessions remain.
 5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
 
 Use original assets, writing, and implementation. The design takes inspiration from slow multiplayer strategy; it doesn't use Subterfuge assets or code.
@@ -70,3 +70,13 @@ These are initial Machination balance rules. The scavenger rig currently salvage
 Online intelligence comes from owned rocks (32 map units) and haulers (16 map units). Public chart locations remain targetable, but remote ownership, garrisons, modules, and enemy haulers are withheld by the server. Players know only their own cargo totals; elimination and contract completion are public broadcasts.
 
 Combat participants and observers retain event telemetry; discovering a rock doesn't reveal its earlier hidden history. This creates a reason to scout, exchange information, and negotiate. The online forecast uses only observations and marks arrivals at unobserved destinations as unresolved. It never assumes an unknown garrison is empty. See multiplayer.md for the exact response contract and legacy handling.
+
+## Scheduled transfers
+
+Players can queue up to 20 private transfers, each up to seven days ahead. Plans don't reserve drones and may use production or friendly reinforcements that will arrive before the launch. A carried module is pinned to the selected module type; if it leaves the departure bay, the plan fails unless a matching module is there at execution.
+
+At each event timestamp, production settles first, arrivals resolve by launch sequence, and quota/core victory is checked. If the game is still active, due plans execute in submission order, followed by solo rival AI decisions. A plan either launches its full manifest or aborts once with private telemetry. It never sends a partial fleet or automatically retries later. Ownership is checked before inspecting a lost rock's module bay. Core elimination removes that intelligence's future plans; game completion removes every remaining plan.
+
+Cancellation is allowed only before execution. The server catches up to its current clock before processing cancellation, so a delayed cancel cannot undo a launch that has already happened. Queued plans and their cancellation logs are visible only to their owner. Launching produces the normal sensor-visible activity.
+
+Whole inventories within 1e-9 units are normalized after production to prevent fractional polling intervals from leaving floating-point dust at an exact launch threshold. Other fractional inventories remain intact. This is threshold stabilization, not a conversion of the whole economy to fixed-point arithmetic.

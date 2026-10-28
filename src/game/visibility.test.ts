@@ -90,3 +90,20 @@ test('unseen activity cannot crowd out an observer telemetry history', () => {
   assert.ok(yourEvents.length <= 80);
   assert.ok(observe(game, 'vesper').events.length <= 80);
 });
+
+test('private scheduled launches participate in forecasts without resolving unknown destinations', async () => {
+  const { scheduleTransfer } = await import('./orders');
+  const queued = scheduleTransfer(createGame(0), { id: 'hidden-future-order-01', owner: 'you', from: 'a', to: 'e', drones: 20, executeAt: 1 });
+  assert.equal(observe(queued, 'vesper').scheduled.length, 0);
+  assert.ok(!observe(queued, 'vesper').events.some(e => e.message.includes('planned')));
+  const own = observe(queued, 'you');
+  assert.equal(own.scheduled.length, 1);
+  const underway = forecastObservation(own, 'you', 2);
+  assert.equal(underway.scheduled.length, 0);
+  assert.equal(underway.fleets.length, 1);
+  assert.ok(underway.fleets[0]!.id < 0, 'forecast-created units have local IDs');
+  const arrived = forecastObservation(own, 'you', 9);
+  assert.equal(arrived.rocks[4]!.known, false);
+  assert.deepEqual(arrived.uncertain, ['e']);
+  assert.equal(arrived.fleets.length, 0);
+});

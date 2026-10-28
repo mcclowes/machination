@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/game/*.test.ts server/*.test.ts",
+    "test": "tsx --test src/game/*.test.ts src/online/*.test.ts server/*.test.ts",
     "build:web": "expo export --platform web",
     "server": "tsx server/main.ts"
   },

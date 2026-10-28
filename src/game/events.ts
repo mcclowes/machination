@@ -4,7 +4,7 @@
  * ---
  */
 import type { Faction } from './simulation';
-export type GameEvent = { hour: number; message: string; audience?: Faction[] };
+export type GameEvent = { hour: number; message: string; audience?: Faction[]; unresolvedDestination?: string };
 export const EVENTS_PER_OBSERVER = 80;
 export const MAX_STORED_EVENTS = EVENTS_PER_OBSERVER * 4;
 export function recentEvents(events: GameEvent[]): GameEvent[] {

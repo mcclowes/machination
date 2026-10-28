@@ -5,12 +5,14 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
 import { ModuleBay } from '../components/ModuleBay';
 import { MODULES } from '../game/modules';
 import { BeltMap } from '../components/BeltMap';
 import { forecastObservation } from '../game/visibility';
 import { FACTIONS, travelHours, type Faction } from '../game/simulation';
-import { api, commandId, connect, newSession, restoreSession, storeSession, type Pending, type Session, RejectedCommand } from './client';
+import { commandId, connect, newSession, restoreSession, storeSession, type Pending, type Session } from './client';
+import { api, RejectedCommand } from './network';
 import type { Snapshot } from './protocol';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
@@ -26,6 +28,7 @@ export function OnlineOperation() {
   const [destination, setDestination] = useState<string>();
   const [planning, setPlanning] = useState(false);
   const [carry, setCarry] = useState(false);
+  const [delay, setDelay] = useState(0);
   const [amount, setAmount] = useState('30');
   const [forecast, setForecast] = useState(0);
   const [recipient, setRecipient] = useState<Faction>('vesper');
@@ -69,7 +72,7 @@ export function OnlineOperation() {
       const cleared = { ...saved, pending: undefined };
       await storeSession(cleared); setSession(cleared); accept(next);
       if (pending.kind === 'messages') setDraft('');
-      else { setDestination(undefined); setPlanning(false); setCarry(false); }
+      else { setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); }
     } catch (error) {
       if (error instanceof RejectedCommand) {
         const cleared = { ...saved, pending: undefined };
@@ -88,6 +91,11 @@ export function OnlineOperation() {
       const saved = { ...session, pending }; await storeSession(saved); setSession(saved);
       await complete(saved, pending);
     });
+  }
+  function sendTransfer() {
+    if (!snapshot || !destination) return;
+    const body = { requestId: commandId(), revision: snapshot.revision, from: selected, to: destination, drones: Number(amount), carryModule: carry && !!snapshot.game.rocks.find(r => r.id === selected)?.module };
+    submit(delay ? { kind: 'schedules', body: { ...body, executeAt: snapshot.game.hour + delay } } : { kind: 'orders', body });
   }
   const game = snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game);
   const rock = game?.rocks.find(r => r.id === selected);
@@ -114,11 +122,13 @@ export function OnlineOperation() {
       <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); } }} />
       <View style={s.panel}><Text style={s.label}>Forecast / known orders only</Text><View style={s.row}>{[0, 6, 12, 24].map(h => <View key={h} style={{ flex: 1 }}><Action text={h ? `+${h}h` : 'Now'} onPress={() => { setForecast(h); setPlanning(false); setDestination(undefined); }} /></View>)}</View><Text style={s.detail}>{forecast ? `Previewing +${forecast}h. Based on current observations. Hidden forces and new orders can change this future.` : 'Sensors: 32 units per rock, 16 per hauler. Unknown rocks show ?. Refreshes every 15 seconds.'}</Text></View>
       {!!game.uncertain.length && <View style={s.panel}><Text style={s.error}>Arrival outcomes unknown at {game.uncertain.map(id => game.rocks.find(r => r.id === id)?.name).join(', ')}. Scout and refresh before relying on this forecast.</Text></View>}
-      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{rock.known ? `${Math.floor(rock.drones)} drones · ${rock.kind}` : 'Outside sensor range. Ownership and drones unknown.'}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target, carry ? rock.module : undefined)}h transit` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
+      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{rock.known ? `${Math.floor(rock.drones)} drones · ${rock.kind}` : 'Outside sensor range. Ownership and drones unknown.'}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target, carry ? rock.module : undefined)}h transit / arrival in ${delay + travelHours(rock, target, carry ? rock.module : undefined)}h` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
         <TextInput accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
-        <Action text="Launch hauler" disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones ?? 0)} onPress={() => submit({ kind: 'orders', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target!.id, drones: Number(amount), carryModule: carry && !!rock.module } })} />
+        <LaunchTiming delay={delay} disabled={!operational} onChange={setDelay} />
+        <Action text={delay ? `Schedule launch +${delay}h` : 'Launch hauler'} disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || !delay && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
         {rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!operational} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}
+      <ScheduledOrders plans={game.scheduled} hour={game.hour} rocks={game.rocks} disabled={!operational} onCancel={planId => submit({ kind: 'cancel-schedule', body: { requestId: commandId(), revision: snapshot.revision, planId } })} />
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {game.rocks.find(r => r.id === f.to)?.name} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
       <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
         {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}

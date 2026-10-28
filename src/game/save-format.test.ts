@@ -48,3 +48,17 @@ test('old event history loads but malformed visibility audiences are refused', (
   malformed.game.events[0].audience = ['rogue'];
   assert.throws(() => decodeSave(JSON.stringify(malformed)));
 });
+
+test('scheduled transfers persist while legacy saves without a queue still load', async () => {
+  const { scheduleTransfer } = await import('./orders');
+  const game = scheduleTransfer(createGame(0), { id: 'persisted-plan-0001', owner: 'you', from: 'a', to: 'b', drones: 100, executeAt: 3 });
+  assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game })).game, game);
+  const old = createGame(0); delete old.scheduled;
+  assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game: old })).game, old);
+  const malformed = JSON.parse(JSON.stringify({ savedAt: 0, game }));
+  malformed.game.scheduled[0].executeAt = 0;
+  assert.throws(() => decodeSave(JSON.stringify(malformed)));
+  malformed.game.scheduled[0].executeAt = 3;
+  malformed.game.scheduled[0].module = 'unknown';
+  assert.throws(() => decodeSave(JSON.stringify(malformed)));
+});

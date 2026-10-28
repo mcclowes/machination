@@ -1,8 +1,9 @@
+import { api } from './network';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import type { ModuleOrder, Order, Snapshot, Transmission } from './protocol';
-export type Pending = { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
+import type { CancelSchedule, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from './protocol';
+export type Pending = { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = { url: string; token: string; id?: string; invite?: string; pending?: Pending };
 const KEY = 'machination.online.v1';
 export async function storeSession(session: Session | null) {
@@ -27,24 +28,6 @@ export async function newSession(url: string, invite?: string): Promise<Session>
   if (invite && !/^[a-f0-9]{24}$/.test(invite.trim())) throw new Error('Invitation codes contain 24 lowercase letters and digits.');
   const bytes = await Crypto.getRandomBytesAsync(32);
   return { url: normalized.origin, token: Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(''), invite: invite?.trim() };
-}
-export class RejectedCommand extends Error { constructor(public status: number, message: string) { super(message); } }
-export async function api(session: Session, path: string, payload?: unknown): Promise<Snapshot> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(`${session.url}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST',
-      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
-      body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal });
-    const data = await response.json();
-    if (!response.ok) {
-      const detail = data.issues?.[0]?.message?.detail ?? 'Command was not accepted.';
-      if (response.status >= 400 && response.status < 500) throw new RejectedCommand(response.status, detail);
-      throw new Error(detail);
-    }
-    if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || !data.game || !Array.isArray(data.messages) || !['you', 'vesper', 'null'].includes(data.faction)) throw new Error('Unsupported server response.');
-    return data as Snapshot;
-  } finally { clearTimeout(timer); }
 }
 export async function connect(session: Session): Promise<{ session: Session; snapshot: Snapshot }> {
   const snapshot = session.id ? await api(session, `games/${session.id}`)

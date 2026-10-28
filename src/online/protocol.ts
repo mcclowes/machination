@@ -8,6 +8,8 @@ export type Snapshot = {
   visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; carryModule?: boolean };
+export type ScheduleOrder = Order & { executeAt: number };
+export type CancelSchedule = { requestId: string; revision: number; planId: string };
 export type ModuleOrder = { requestId: string; revision: number; rock: string; module: ModuleKind };
 export type Transmission = { requestId: string; to: Faction; text: string };
 export type Issue = { issue: string; severity: 'error'; correlationId: string; dateTime: string; message: { title: string; detail: string } };

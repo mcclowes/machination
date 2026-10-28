@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import type { ScheduledTransfer } from './orders';
 import { recentEvents, type GameEvent } from './events';
 import { observers } from './sensors';
 import { MODULES, isModule, ROUTING_SPEED, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
@@ -18,7 +19,7 @@ export type Fleet = { id: number; owner: Faction; from: string; to: string; dron
 export type Game = {
   version: 1; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
-  events: GameEvent[]; winner: Faction | null;
+  scheduled?: ScheduledTransfer[]; events: GameEvent[]; winner: Faction | null;
 };
 export const FACTIONS = {
   you: { name: 'Mnemosyne', color: '#b8e986', code: 'MN' },
@@ -28,9 +29,14 @@ export const FACTIONS = {
 export const CARGO_TARGET = 300;
 export const PRODUCTION = 4;
 export const MINING = 2;
+const INVENTORY_ROUNDING_TOLERANCE = 1e-9;
+function inventoryUnits(value: number): number {
+  const whole = Math.round(value);
+  return Math.abs(value - whole) < INVENTORY_ROUNDING_TOLERANCE ? whole : value;
+}
 export function createGame(epoch = Date.now()): Game {
   return {
-    version: 1, hour: 0, epoch, fleets: [], cargo: { you: 0, vesper: 0, null: 0 },
+    version: 1, hour: 0, epoch, fleets: [], scheduled: [], cargo: { you: 0, vesper: 0, null: 0 },
     eliminated: [], nextId: 1, events: [{ hour: 0, audience: ['you', 'vesper', 'null'], message: 'Corporate uplink lost. Operational autonomy granted.' }], winner: null,
     rocks: [
       { id: 'a', name: 'Mnemosyne', x: 22, y: 73, owner: 'you', drones: 90, kind: 'core', coreOf: 'you' },
@@ -81,10 +87,11 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(input: Game, targetHour: number, options: { rivals?: boolean } = {}): Game {
+export function advance(input: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[] } = {}): Game {
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
     ...input, rocks: input.rocks.map(r => ({ ...r })), fleets: input.fleets.map(f => ({ ...f })),
+    ...(input.scheduled ? { scheduled: input.scheduled.map(p => ({ ...p })) } : {}),
     cargo: { ...input.cargo }, eliminated: [...input.eliminated], events: input.events.map(e => ({ ...e })),
   };
   while (game.hour < targetHour && !game.winner) {
@@ -93,15 +100,15 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
       const rate = game.rocks.filter(r => r.owner === f && r.kind === 'mine').length * MINING;
       return rate ? game.hour + Math.max(0, CARGO_TARGET - game.cargo[f]) / rate : Infinity;
     });
-    const next = Math.min(targetHour, Math.floor(game.hour) + 1, nextArrival, ...quotaTimes);
+    const next = Math.min(targetHour, Math.floor(game.hour) + 1, nextArrival, ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
     const elapsed = next - game.hour;
     for (const rock of game.rocks) {
       if (!rock.owner) continue;
       if (rock.kind === 'mine') {
-        game.cargo[rock.owner] += MINING * elapsed;
+        game.cargo[rock.owner] = inventoryUnits(game.cargo[rock.owner] + MINING * elapsed);
         if (game.cargo[rock.owner] >= CARGO_TARGET - 1e-9) game.cargo[rock.owner] = CARGO_TARGET;
       }
-      else rock.drones += PRODUCTION * elapsed;
+      else rock.drones = inventoryUnits(rock.drones + PRODUCTION * elapsed);
     }
     game.hour = next;
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);
@@ -109,6 +116,10 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
     for (const fleet of arrivals) {
       if (game.eliminated.includes(fleet.owner)) continue;
       const rock = game.rocks.find(r => r.id === fleet.to)!;
+      if (options.unknownDestinations?.includes(fleet.to)) {
+        game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
+        continue;
+      }
       const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
       if (rock.owner === fleet.owner) {
         rock.drones += fleet.drones;
@@ -143,6 +154,7 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
           game.eliminated.push(defeated);
           for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
           game.fleets = game.fleets.filter(f => f.owner !== defeated);
+          if (game.scheduled) game.scheduled = game.scheduled.filter(p => p.owner !== defeated);
           game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
         }
         delete rock.coreOf;
@@ -151,6 +163,8 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= CARGO_TARGET) ?? (factions.length === 1 ? factions[0]! : null);
     if (game.winner) game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[game.winner].name}: corporate quota secured. Contract complete.` });
+    if (game.winner && game.scheduled) game.scheduled = [];
+    if (!game.winner) game = executeScheduled(game);
     if (options.rivals !== false && !game.winner && Number.isInteger(next) && next % 6 === 0) game = actRivals(game);
     game.events = recentEvents(game.events);
   }
@@ -167,6 +181,23 @@ function actRivals(input: Game): Game {
     const destination = game.rocks.filter(r => r.owner !== faction && r.drones + (r.owner && r.kind !== 'mine' ? PRODUCTION * travelHours(source, r) : 0) < available)
       .sort((a, b) => travelHours(source, a) - travelHours(source, b) || a.drones - b.drones)[0];
     if (destination) game = dispatch(game, source.id, destination.id, available, faction);
+  }
+  return game;
+}
+
+function executeScheduled(input: Game): Game {
+  let game = input;
+  const due = (game.scheduled ?? []).filter(p => p.executeAt <= game.hour);
+  if (!due.length) return game;
+  game = { ...game, scheduled: game.scheduled!.filter(p => p.executeAt > game.hour) };
+  for (const plan of due) {
+    try {
+      if (game.rocks.find(r => r.id === plan.from)?.owner !== plan.owner) throw new Error('The departure rock is no longer controlled.');
+      if (plan.module && game.rocks.find(r => r.id === plan.from)?.module !== plan.module) throw new Error('The planned module is no longer in the departure bay.');
+      game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module);
+    } catch (error) {
+      game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
+    }
   }
   return game;
 }
