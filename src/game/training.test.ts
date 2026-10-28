@@ -110,3 +110,12 @@ test('a raid that merely arrives and disappears is not an interception success',
   assert.equal(defended.game.fleets.some(f => f.id === 1), false);
   assert.equal(assessTrainingAttempt('interception', defended).status, 'failed');
 });
+
+test('capture objectives accept safe core relocation while the transport lesson keeps its stated home constraint', () => {
+  let capture = command(createTrainingAttempt('first-launch'), { type: 'dispatch', owner: 'you', from: 'home', to: 'works', drones: 0, specialists: ['core-you'] });
+  capture = command(capture, launch(6));
+  assert.equal(assessTrainingAttempt('first-launch', clock(capture, 6)).status, 'passed');
+  let transport = command(createTrainingAttempt('unit-transport'), { type: 'dispatch', owner: 'you', from: 'home', to: 'works', drones: 0, specialists: ['core-you'] });
+  transport = command(transport, solutions['unit-transport']);
+  assert.equal(assessTrainingAttempt('unit-transport', clock(transport, 6)).status, 'failed');
+});

@@ -25,7 +25,7 @@ import { SPECIALISTS } from './src/game/specialist-catalog';
 import { ModuleBay } from './src/components/ModuleBay';
 import { type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
-import { advance, createGame, FACTIONS, operationStatus, travelHours, type Game, type Rock } from './src/game/simulation';
+import { createGame, FACTIONS, operationStatus, travelHours, type Game, type Rock } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
@@ -40,8 +40,10 @@ import { TerritoryStandings } from './src/components/TerritoryStandings';
 import { FundingPanel } from './src/components/FundingPanel';
 import { TimeMachine } from './src/components/TimeMachine';
 import { gameClock as clock, inspectionOffset, inspectionMode, orderHour } from './src/game/time-machine';
-import { applyCommand, createArchive, exportArchive, replayTo, type GameCommand } from './src/game/replay';
-import { MAX_REPLAY_COMMANDS, MAX_REPLAY_CHARACTERS } from './src/game/replay-save';
+import { createArchive, exportArchive, replayTo, type GameCommand } from './src/game/replay';
+import { localLifecycle } from './src/game/local-lifecycle';
+import { Practice, type PracticeAttempt } from './src/components/Practice';
+import { PracticeStatus } from './src/components/PracticeStatus';
 import type { LocalOperation } from './src/game/operation-save';
 import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
 
@@ -56,19 +58,20 @@ function Button({ label, onPress, disabled, quiet = false }: { label: string; on
 }
 function Label({ children }: { children: React.ReactNode }) { return <Text style={s.label}>{children}</Text>; }
 export default function App() {
-  const [mode, setMode] = useState<'solo' | 'online'>('solo');
-  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
+  const [mode, setMode] = useState<'solo' | 'online' | 'practice' | null>(null);
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>{(['solo', 'online', 'practice'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo' : m === 'online' ? 'Multiplayer' : 'Practice'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : mode === 'online' ? <OnlineOperation /> : mode === 'practice' ? <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice> : <View style={{ padding: 24, gap: 16 }}><Text accessibilityRole="header" style={s.heading}>Machination</Text><Text style={s.dialogBody}>Learn the controls in tactical exercises, start a solo operation, or negotiate with human rivals.</Text><Button label="Start tactical practice" onPress={() => setMode('practice')} /><Button label="Open solo operation" quiet onPress={() => setMode('solo')} /><Button label="Open multiplayer uplink" quiet onPress={() => setMode('online')} /></View>}</SafeAreaView></SafeAreaProvider>;
 }
-function Operation() {
+function Operation({ practice }: { practice?: PracticeAttempt } = {}) {
+  const policy = useMemo(() => localLifecycle({ initial: () => operationFor(createGame()), create: newOperation, load: loadGame, save: saveGame }, practice?.scenario.id), [practice?.scenario.id]);
   const [section, setSection] = useState<OperationSection | null>(null);
-  const [operation, setOperation] = useState<LocalOperation>(() => operationFor(createGame()));
+  const [operation, setOperation] = useState<LocalOperation>(policy.initial);
   const current = useRef(operation);
   const { game, archive } = operation;
   function replace(next: LocalOperation) { current.current = next; setOperation(next); }
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState('');
-  const [selected, setSelected] = useState('a');
+  const [selected, setSelected] = useState(practice?.scenario.focus ?? 'a');
   const [destination, setDestination] = useState<string>();
   const [planning, setPlanning] = useState(false);
   const [carry, setCarry] = useState(false);
@@ -84,27 +87,27 @@ function Operation() {
   const [newOptions, setNewOptions] = useState<GameOptions>(DEFAULT_GAME_OPTIONS);
   const lastTick = useRef(Date.now());
   useEffect(() => {
-    loadGame().then(saved => { const next = saved ?? newOperation(); replace(next); setSelected((next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks.find(r => r.owner === 'you') ?? next.game.rocks[0]!).id); if (next.game.rules) setNewOptions({ playerCount: next.game.rules.players.length, mode: next.game.rules.mode }); setInspectedHour(null); }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
+    policy.load().then(next => { replace(next); setSelected((next.game.rocks.find(r => r.id === practice?.scenario.focus) ?? next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks.find(r => r.owner === 'you') ?? next.game.rocks[0]!).id); if (next.game.rules) setNewOptions({ playerCount: next.game.rules.players.length, mode: next.game.rules.mode }); setInspectedHour(null); }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
   }, []);
   useEffect(() => {
     if (!ready || loadFailed) return;
-    saveGame(operation).catch(() => setError('Could not save this operation. Keep the app open and retry.'));
+    policy.save(operation).catch(() => setError('Could not save this operation. Keep the app open and retry.'));
   }, [operation, ready, loadFailed]);
   useEffect(() => {
-    if (!ready || loadFailed) return;
+    if (!ready || loadFailed || !policy.automaticClock) return;
     const tick = () => {
       const now = Date.now();
       const delta = Math.max(0, now - lastTick.current) / 3_600_000;
       lastTick.current = now;
       const op = current.current;
-      if (!op.game.winner && !op.game.draw) replace({ ...op, game: advance(op.game, op.game.hour + delta) });
+      if (!op.game.winner && !op.game.draw) replace(policy.advance(op, op.game.hour + delta, 'clock'));
     };
     const timer = setInterval(tick, 15_000);
     const subscription = AppState.addEventListener('change', () => tick());
     return () => { clearInterval(timer); subscription.remove(); };
   }, [ready, loadFailed]);
   const live = useMemo(() => observe(game, 'you'), [game]);
-  const past = useMemo(() => inspectedHour !== null && inspectedHour < current.current.game.hour ? observe(replayTo(archive, inspectedHour, { rivals: true, knownThrough: current.current.game.hour }), 'you') : null, [archive, inspectedHour, historical]);
+  const past = useMemo(() => inspectedHour !== null && inspectedHour < current.current.game.hour ? observe(replayTo(archive, inspectedHour, { rivals: policy.rivals, knownThrough: current.current.game.hour }), 'you') : null, [archive, inspectedHour, historical]);
   const shown = past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live);
   const orders = past ?? live;
   const visibleWorld = { rocks: shown.rocks.filter((r): r is Rock & { known: true } => r.known), fleets: shown.fleets, funding: shown.funding };
@@ -113,7 +116,10 @@ function Operation() {
   const target = shown.rocks.find(r => r.id === destination);
   const owned = shown.rocks.filter(r => r.owner === 'you');
   const status = operationStatus(game, 'you');
-  const operational = status === 'active' && ready && !loadFailed && !historical;
+  const assessment = policy.assess(operation);
+  const reported = useRef(false);
+  useEffect(() => { if (assessment?.status === 'passed' && !reported.current) { reported.current = true; practice?.onPassed(); } }, [assessment?.status]);
+  const operational = status === 'active' && ready && !loadFailed && !historical && (!assessment || assessment.status === 'active');
   const outcomeMessage = {
     active: '',
     draw: 'No operational intelligences remain. The operation ended in a draw.',
@@ -149,10 +155,7 @@ function Operation() {
   }
   function act(command: GameCommand) {
     if (inspectionMode(current.current.game.hour, inspectedHour) === 'past') throw new Error('Historical views are read-only. Return to Now to issue an order.');
-    const next = applyCommand(current.current.archive, command, { rivals: true, knownThrough: current.current.game.hour });
-    const data = exportArchive(next.archive);
-    if (data.entries.length > MAX_REPLAY_COMMANDS || JSON.stringify(data).length > MAX_REPLAY_CHARACTERS) throw new Error('This operation has reached its command history limit.');
-    replace(next);
+    replace(policy.submit(current.current, command));
   }
   function siteAction(action: FutureAction) {
     if (!operational || shown.winner || shown.draw || shown.eliminated.includes('you')) return false;
@@ -168,11 +171,17 @@ function Operation() {
     try { act({ type: 'install-module', owner: 'you', rock: selected, kind }); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
-  function skip() { lastTick.current = Date.now(); replace({ ...current.current, game: advance(current.current.game, current.current.game.hour + 6) }); setInspectedHour(null); setPlanning(false); setDestination(undefined); }
+  function advanceClock(hours: number) {
+    if (!operational || practice && inspectedHour !== null) return;
+    try { lastTick.current = Date.now(); replace(policy.advance(current.current, current.current.game.hour + hours, 'manual')); setInspectedHour(null); setPlanning(false); setNavigating(undefined); setDestination(undefined); setError(''); }
+    catch (error) { setError((error as Error).message); }
+  }
+  function skip() { advanceClock(6); }
+
   return <View style={s.safe}>
     <OperationShell section={section} onSection={setSection}
-      status={<><View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
-{!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
+      status={<>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
+{!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
       chart={<BeltMap fill timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
       timeline={<TimeMachine forecastUncertain={shown.forecastUncertain} fleets={orders.fleets} plans={orders.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={inspectTime} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...orders.scheduled.map(p => p.executeAt)]} />}
@@ -204,9 +213,9 @@ function Operation() {
             <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(visibleWorld, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
             <View style={s.between}><Text style={s.small}>{game.rules?.mode === 'domination' ? 'Controlled sites' : 'Cargo quota'}</Text><Text style={s.small}>{Math.floor(victoryProgress(shown, 'you'))} / {victoryTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, victoryProgress(shown, 'you') / victoryTarget(game) * 100)}%` }]} /></View>
           </View><TerritoryStandings game={shown} /><FundingPanel game={shown} owner="you" enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} scheduledAt={forecast ? inspectedHour! : undefined} onChange={(to, enabled) => siteAction({ type: 'funding', to, enabled })} /></> },
-        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational || !!forecast} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>{game.rules ? `${game.rules.players.length} intelligences · ${game.rules.mode} · target ${victoryTarget(game)} ${game.rules.mode === 'domination' ? 'controlled sites' : 'cargo'}` : 'Fixed chart · 3 intelligences'}</Text><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders. The multiplayer inactivity rule does not apply to this training operation.</Text>{game.version === 2 && <ResignationControl key={`${historical}:${forecast > 0}:${status}`} enabled={operational && !forecast} onConfirm={() => changeUnits({ type: 'resign', owner: 'you' })} />}</> },
+        settings: { title: practice ? 'Practice exercise' : 'Solo operation', content: practice ? <View style={s.panel}><Text style={s.small}>Time advances only when you choose. Retry to start this exercise from the same position.</Text><Button label="Retry exercise" quiet onPress={practice.onRetry} /><Button label="All exercises" quiet onPress={practice.onBack} /></View> : <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational || !!forecast} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>{game.rules ? `${game.rules.players.length} intelligences · ${game.rules.mode} · target ${victoryTarget(game)} ${game.rules.mode === 'domination' ? 'controlled sites' : 'cargo'}` : 'Fixed chart · 3 intelligences'}</Text><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders. The multiplayer inactivity rule does not apply to this training operation.</Text>{game.version === 2 && <ResignationControl key={`${historical}:${forecast > 0}:${status}`} enabled={operational && !forecast} onConfirm={() => changeUnits({ type: 'resign', owner: 'you' })} />}</> },
       }} />
-    <Modal visible={reset} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. A fresh generated chart will use the settings below.</Text><GameSetup value={newOptions} onChange={setNewOptions} /><Button label="Replace operation" onPress={() => { const next = newOperation(newOptions); replace(next); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected((next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks[0]!).id); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
+    <Modal visible={!practice && reset} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. A fresh generated chart will use the settings below.</Text><GameSetup value={newOptions} onChange={setNewOptions} /><Button label="Replace operation" onPress={() => { const next = newOperation(newOptions); replace(next); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected((next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks[0]!).id); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
   </View>;
 }
 const s = StyleSheet.create( {

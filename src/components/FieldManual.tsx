@@ -43,7 +43,7 @@ export function FieldManual() {
       <SafeAreaProvider><SafeAreaView style={s.safe}>
         <View style={s.header}><Text accessibilityRole="header" style={s.title}>{briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
         <ScrollView contentContainerStyle={s.content}>
-          <Text style={s.intro}>Your corporation is too far away to interfere. Start with a solo operation to learn the belt, then negotiate with human rivals.</Text>
+          <Text style={s.intro}>Your corporation is too far away to interfere. Start with tactical practice to learn the chart, orders, specialists, and Time Machine. Then play solo or negotiate with human rivals.</Text>
           {(briefing ? sections.slice(0, 3) : sections).map(([title, body]) => <View key={title} style={s.section}><Text accessibilityRole="header" style={s.heading}>{title}</Text><Text style={s.body}>{body}</Text></View>)}
           {briefing && <Pressable accessibilityRole="button" onPress={() => setBriefing(false)} style={s.trigger}><Text style={s.triggerText}>Read the full field manual</Text></Pressable>}
           <Pressable accessibilityRole="button" onPress={close} style={s.begin}><Text style={s.beginText}>Return to command</Text></Pressable>

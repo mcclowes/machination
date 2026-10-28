@@ -3,6 +3,7 @@ import { createConfiguredGame } from './world';
 import { createArchive, exportArchive, replayTo, restoreArchive } from './replay';
 import type { LocalOperation } from './operation-save';
 import { dispatch, type Game, type Rock } from './simulation';
+import { activeUnits } from './specialists';
 
 export type TrainingId = 'first-launch' | 'shield-combat' | 'unit-transport' | 'future-production' | 'interception';
 export type TrainingScenario = { id: TrainingId; title: string; instruction: string; objective: string; hints: readonly string[]; deadline: number; focus: string };
@@ -11,7 +12,7 @@ export const TRAINING_SCENARIOS: readonly TrainingScenario[] = [
   { id: 'shield-combat', title: 'Break the perimeter', instruction: 'Take Quiet landing from its shielded garrison.', objective: 'Overcome both shields and defenders with drones left over.', hints: ['The ten shield points absorb drones before the eight defenders fight.', 'Send more than eighteen drones.'], deadline: 6, focus: 'works' },
   { id: 'unit-transport', title: 'A quiet passenger', instruction: 'Move the designated routing daemon from Core berth to Foundry, carrying no drones or other modules.', objective: 'Deliver the routing daemon alone while keeping your core at home.', hints: ['Select the routing daemon in the manifest and set drones to zero.', 'Leave the intelligence core at Core berth.'], deadline: 6, focus: 'home' },
   { id: 'future-production', title: 'Borrow tomorrow', instruction: 'Before hour 8, queue Foundry’s first six drones for Quiet landing at hour 8.', objective: 'Use a transfer queued before first production to capture Quiet landing by hour 10.', hints: ['Queued transfers do not reserve drones.', 'Production at hour 8 happens before the queued launch.'], deadline: 10, focus: 'works' },
-  { id: 'interception', title: 'Cut the approach', instruction: 'Use Foundry’s scavenger rig to intercept the inbound raid before it reaches Core berth.', objective: 'Stop the raid with an interception order and keep your core safe.', hints: ['Select the incoming hauler and choose interception.', 'The scavenger rig travels twice as fast on its interception leg.'], deadline: 6, focus: 'works' },
+  { id: 'interception', title: 'Cut the approach', instruction: 'Use Foundry’s scavenger rig to intercept the inbound raid before it reaches Core berth.', objective: 'Stop the raid with an interception order and keep your core safe.', hints: ['Select Foundry, set the drone manifest, and use its Scavenger interception list.', 'The scavenger rig travels twice as fast on its interception leg.'], deadline: 6, focus: 'works' },
 ];
 
 export function createTrainingAttempt(id: TrainingId): LocalOperation {
@@ -46,8 +47,9 @@ export function assessTrainingAttempt(id: TrainingId, operation: LocalOperation)
   const { game, archive } = operation;
   const history = exportArchive(archive);
   const at = (hour: number): Game => replayTo(archive, hour, { rivals: false, knownThrough: game.hour });
-  const safe = (state: Game) => !state.eliminated.includes('you') && state.rocks.some(r => r.id === 'home' && r.owner === 'you' && r.specialists?.some(u => u.id === 'core-you' && !u.captive));
-  if (!safe(game)) return { status: 'failed', message: 'Your intelligence core must remain safe at Core berth. Retry the exercise.' };
+  const safe = (state: Game) => !state.eliminated.includes('you') && activeUnits(state, 'you').some(u => u.kind === 'queen')
+    && (id !== 'unit-transport' || state.rocks.some(r => r.id === 'home' && r.owner === 'you' && r.specialists?.some(u => u.id === 'core-you' && !u.captive)));
+  if (!safe(game)) return { status: 'failed', message: id === 'unit-transport' ? 'Your intelligence core must remain at Core berth. Retry the exercise.' : 'Keep your intelligence core safe. Retry the exercise.' };
   const horizon = Math.min(game.hour, scenario.deadline);
   let passed = false;
   for (const [index, entry] of history.entries.entries()) {
@@ -55,7 +57,7 @@ export function assessTrainingAttempt(id: TrainingId, operation: LocalOperation)
     if (entry.hour > horizon || !('owner' in c) || c.owner !== 'you') continue;
     const prefix = restoreArchive({ ...history, entries: history.entries.slice(0, index + 1) });
     const submitted = replayTo(prefix, entry.hour, { rivals: false, knownThrough: entry.hour });
-    if (!safe(submitted)) return { status: 'failed', message: 'Keep your intelligence core safe at Core berth throughout the exercise.' };
+    if (!safe(submitted)) return { status: 'failed', message: id === 'unit-transport' ? 'Keep your intelligence core at Core berth throughout this exercise.' : 'Keep your intelligence core safe throughout the exercise.' };
     const expectedId = c.type === 'schedule' ? submitted.scheduled?.find(p => p.id === c.plan.id && !('action' in p)) : undefined;
     let launched: Game;
     if (c.type === 'schedule' && id === 'future-production' && entry.hour < 8 && c.plan.executeAt === 8 && c.plan.from === 'works' && c.plan.to === 'relay' && c.plan.drones === 6 && horizon >= 8) launched = at(8);

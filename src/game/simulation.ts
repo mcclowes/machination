@@ -96,7 +96,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(saved: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null> } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
@@ -110,7 +110,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
   refreshMining(game);
   refreshUnitEffects(game);
   if (game.version === 2) { applyStationPassives(game); refreshUnitEffects(game); }
-  while (game.hour < targetHour && !game.winner && !game.draw) {
+  while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));
     const quotaTimes = playersIn(game).filter(f => !game.eliminated.includes(f)).map(f => {
       if (game.version === 2) return Infinity;
