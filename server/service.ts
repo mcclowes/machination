@@ -14,6 +14,7 @@ import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
 import { mapActionFleets, mapActionUnits, plannedFleetIds, plannedUnitIds, validateFutureAction } from '../src/game/future-actions';
+import { isScheduledLaunch, validateLaunchEdit } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayData } from '../src/game/replay';
 import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
@@ -22,7 +23,7 @@ import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
-import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS = ALL_PLAYERS;
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 type Room = {
@@ -475,6 +476,38 @@ export class GameService {
           specialists: command.specialists?.map(unit => this.futureUnit(r, f, unit, true)) ?? [] } });
       }
       catch (e) { throw new Failure(409, 'schedule.conflict.invalid', (e as Error).message); }
+      r.revision++;
+      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  async editSchedule(id: string, token: string, input: EditSchedule): Promise<Snapshot> {
+    const invalid = () => new Failure(400, 'schedule.validation.payload', 'Provide a queued launch manifest edit.');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
+    const value = input as unknown as Record<string, unknown>;
+    if (Object.keys(value).some(key => !['requestId', 'revision', 'planId', 'drones', 'specialists'].includes(key))
+      || !Object.hasOwn(value, 'requestId') || !Object.hasOwn(value, 'revision')
+      || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(value.requestId)
+      || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0) throw invalid();
+    let change;
+    try {
+      change = validateLaunchEdit({ planId: value.planId, drones: value.drones,
+        ...(Object.hasOwn(value, 'specialists') ? { specialists: value.specialists } : {}) });
+    } catch { throw invalid(); }
+    const command = { requestId: value.requestId, revision: value.revision as number, ...change };
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const payload = JSON.stringify(['edit-schedule', command.revision, command.planId, command.drones,
+        ...(command.specialists === undefined ? [] : [command.specialists])]);
+      if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before editing.');
+      const plan = r.game.scheduled?.find(plan => plan.id === command.planId && plan.owner === f && isScheduledLaunch(plan));
+      requireThat(plan, 409, 'schedule.conflict.missing', 'Choose one of your queued launches.');
+      try {
+        this.act(r, { type: 'edit-schedule', owner: f, change: { planId: command.planId, drones: command.drones,
+          ...(command.specialists === undefined ? {} : { specialists: command.specialists.map(unit => this.futureUnit(r, f, unit, true)) }) } });
+      } catch (error) { throw new Failure(409, 'schedule.conflict.invalid', (error as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);

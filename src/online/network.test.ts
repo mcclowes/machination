@@ -98,3 +98,19 @@ test('creation sends validated explicit options and preserves the legacy omitted
   });
   await api({ url: 'https://belt.example', token: 'secret' }, 'games', payload);
 });
+
+test('pending schedule edits send authenticated manifests with omitted and empty selections intact', async t => {
+  const session = { url: 'https://belt.example', token: 'seat-token', id: 'operation' };
+  const frame = { id: session.id, faction: 'you', visibility: 'sensors.v1', messages: [], game: { scheduled: [] } };
+  for (const specialists of [undefined, [] as string[], ['unit-alias']]) {
+    const pending: import('./client').Pending = { kind: 'edit-schedule', body: { requestId: 'unique-request-id', revision: 3, planId: 'queued-launch-id', drones: 4, ...(specialists === undefined ? {} : { specialists }) } };
+    t.mock.method(globalThis, 'fetch', async (url: string, options: RequestInit) => {
+      assert.equal(url, 'https://belt.example/v1/games/operation/edit-schedule');
+      assert.equal(options.method, 'POST');
+      assert.equal((options.headers as Record<string, string>).Authorization, 'Bearer seat-token');
+      assert.deepEqual(JSON.parse(options.body as string), pending.body);
+      return new Response(JSON.stringify(frame));
+    });
+    assert.deepEqual(await api(session, `games/${session.id}/${pending.kind}`, pending.body), frame);
+  }
+});

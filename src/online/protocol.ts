@@ -1,3 +1,4 @@
+import type { LaunchEdit } from '../game/orders';
 import type { FutureAction } from '../game/future-actions';
 import type { SpecialistKind } from '../game/specialist-catalog';
 import type { HaulerChange } from '../game/transport';
@@ -37,3 +38,5 @@ export type Issue = { issue: string; severity: 'error'; correlationId: string; d
 
 export type RecoverySetup = { requestId: string; secret: string };
 export type RecoverSeat = { secret: string };
+
+export type EditSchedule = { requestId: string; revision: number } & LaunchEdit;
