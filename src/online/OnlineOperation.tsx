@@ -13,8 +13,9 @@ import { MODULES } from '../game/modules';
 import { BeltMap } from '../components/BeltMap';
 import { forecastObservation } from '../game/visibility';
 import { FACTIONS, travelHours, type Faction } from '../game/simulation';
-import { commandId, connect, newSession, restoreSession, storeSession, type Pending, type Session } from './client';
+import { commandId, connect, newCredential, newSession, restoreSession, storeSession, type Pending, type Session } from './client';
 import { api, RejectedCommand } from './network';
+import { parseRecoveryCode, formatRecoveryCode } from './recovery';
 import type { Snapshot } from './protocol';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
@@ -36,11 +37,13 @@ export function OnlineOperation() {
   const [recipient, setRecipient] = useState<Faction>('vesper');
   const [draft, setDraft] = useState('');
   const [disconnect, setDisconnect] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
   const lock = useRef(false);
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true; setBusy(true);
-    try { await work(); setError(''); } catch (e) { setError((e as Error).message); }
+    try { await work(); setError(''); } catch (e) { if (e instanceof RejectedCommand && e.status === 401) { setSnapshot(undefined); setRecoveryCode(''); } setError((e as Error).message); }
     finally { lock.current = false; setBusy(false); }
   }
   function accept(next: Snapshot) { setSnapshot(next); }
@@ -48,12 +51,13 @@ export function OnlineOperation() {
     const saved = await restoreSession();
     if (!saved) return;
     setSession(saved);
+    if (saved.pending?.kind === 'recover') { await complete(saved, saved.pending); return; }
     const result = await connect(saved); setSession(result.session); accept(result.snapshot);
     setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
     setRecipient(result.snapshot.faction === 'vesper' ? 'you' : 'vesper');
   }); }, []);
   useEffect(() => {
-    if (!session?.id) return;
+    if (!session?.id || session.pending?.kind === 'recover') return;
     const refresh = () => void run(async () => accept(await api(session, `games/${session.id}`)));
     const timer = setInterval(refresh, 15000);
     const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
@@ -73,16 +77,39 @@ export function OnlineOperation() {
       const next = await api(saved, `games/${saved.id}/${pending.kind}`, pending.body);
       const cleared = { ...saved, pending: undefined };
       await storeSession(cleared); setSession(cleared); accept(next);
+      if (pending.kind === 'recovery') setRecoveryCode(formatRecoveryCode(saved.id!, pending.body.secret));
+      if (pending.kind === 'recover') {
+        setSelected((next.game.rocks.find(r => r.owner === next.faction) ?? next.game.rocks[0]!).id);
+        setRecipient(next.faction === 'vesper' ? 'you' : 'vesper'); setRecoveryInput('');
+      }
       if (pending.kind === 'messages') setDraft('');
       else { setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); }
     } catch (error) {
       if (error instanceof RejectedCommand) {
         const cleared = { ...saved, pending: undefined };
-        await storeSession(cleared); setSession(cleared);
+        await storeSession(pending.kind === 'recover' ? null : cleared); setSession(pending.kind === 'recover' ? null : cleared);
         try { accept(await api(cleared, `games/${cleared.id}`)); } catch { /* Keep the last confirmed snapshot. */ }
       }
       throw error;
     }
+  }
+  function createRecovery() {
+    if (!session?.id) return;
+    setRecoveryCode('');
+    void run(async () => {
+      const pending: Pending = { kind: 'recovery', body: { requestId: commandId(), secret: await newCredential() } };
+      const saved = { ...session, pending }; await storeSession(saved); setSession(saved);
+      await complete(saved, pending);
+    });
+  }
+  function restoreSeat() {
+    void run(async () => {
+      const code = parseRecoveryCode(recoveryInput);
+      const fresh = await newSession(url);
+      const pending: Pending = { kind: 'recover', body: { secret: code.secret } };
+      const saved = { ...fresh, id: code.id, pending };
+      await storeSession(saved); setSession(saved); await complete(saved, pending);
+    });
   }
   async function retry() {
     if (session?.id && session.pending) await complete(session, session.pending);
@@ -99,6 +126,7 @@ export function OnlineOperation() {
     const body = { requestId: commandId(), revision: snapshot.revision, from: selected, to: destination, drones: Number(amount), carryModule: carry && !!snapshot.game.rocks.find(r => r.id === selected)?.module };
     submit(delay ? { kind: 'schedules', body: { ...body, executeAt: snapshot.game.hour + delay } } : { kind: 'orders', body });
   }
+  const recoveryPending = session?.pending?.kind === 'recover' || session?.pending?.kind === 'recovery';
   const game = snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game);
   const rock = game?.rocks.find(r => r.id === selected);
   const target = game?.rocks.find(r => r.id === destination);
@@ -107,11 +135,15 @@ export function OnlineOperation() {
     <Text style={s.title}>Machination / uplink</Text><Text style={s.detail}>Three intelligences. One belt. No corporate oversight.</Text>
     {!!error && <View style={s.panel}><Text accessibilityRole="alert" style={s.error}>{error}</Text></View>}
     {session ? <View style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>
-      {session.pending && <><Text style={s.error}>Command awaiting confirmation. Retry sends the same command ID.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
-      <Action text="Reconnect / refresh" disabled={busy} onPress={() => void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); })} />
-      {disconnect ? <><Text style={s.error}>Disconnecting removes this device's seat credential. There is no account recovery yet. The server operation continues.</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy} onPress={() => void run(async () => { await storeSession(null); setSession(null); setSnapshot(undefined); setDisconnect(false); })} /></> : <Action text="Disconnect…" disabled={busy} onPress={() => setDisconnect(true)} />}
+      {session.pending && <><Text style={s.error}>Request awaiting confirmation. Retry repeats the saved request.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
+      {recoveryPending && <Text style={s.error}>Confirm this recovery request before removing the connection. The saved request may be needed to keep access to your seat.</Text>}
+      <Action text="Reconnect / refresh" disabled={busy || session.pending?.kind === 'recover'} onPress={() => void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); })} />
+      {!!snapshot && <><Text style={s.label}>Seat recovery</Text><Text style={s.detail}>{snapshot.recoveryEnabled ? 'A recovery code is active. Generating another replaces it.' : 'Save a recovery code before leaving this device. Each code works once and replaces the old connection when used.'}</Text><Action text={snapshot.recoveryEnabled ? 'Replace recovery code' : 'Generate recovery code'} disabled={busy || !!session.pending} onPress={createRecovery} /></>}
+      {!!recoveryCode && <><Text style={s.detail}>Save this code with the server address in a private place, such as a password manager. It controls your seat. This app only shows it until you leave this screen.</Text><Text selectable style={s.code}>{recoveryCode}</Text><Action text="Hide recovery code" onPress={() => setRecoveryCode('')} /></>}
+      {disconnect ? <><Text style={s.error}>Disconnecting removes this device's seat credential. You can return only with a recovery code saved earlier. The server operation continues.</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy || recoveryPending} onPress={() => void run(async () => { await storeSession(null); setSession(null); setSnapshot(undefined); setDisconnect(false); setRecoveryCode(''); })} /></> : <Action text="Disconnect…" disabled={busy || recoveryPending} onPress={() => setDisconnect(true)} />}
     </View> : <View style={s.panel}><Text style={s.label}>Game server</Text><TextInput accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
-      <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} /></View>}
+      <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
+      <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}
     {snapshot && game && <>
       <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{snapshot.status.replace('game.', '')} · {snapshot.members.length}/3 seats · hour {game.hour.toFixed(2)}</Text>
         <Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>

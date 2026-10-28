@@ -2,8 +2,8 @@ import { api } from './network';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import type { CancelSchedule, InterceptOrder, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from './protocol';
-export type Pending = { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
+import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from './protocol';
+export type Pending = { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = { url: string; token: string; id?: string; invite?: string; pending?: Pending };
 const KEY = 'machination.online.v1';
 export async function storeSession(session: Session | null) {
@@ -26,8 +26,7 @@ export async function newSession(url: string, invite?: string): Promise<Session>
   if (normalized.protocol !== 'https:' && !['localhost', '127.0.0.1', '10.0.2.2'].includes(normalized.hostname)) throw new Error('Use HTTPS for remote operations.');
   if (normalized.origin.length > 250) throw new Error('Server address is too long.');
   if (invite && !/^[a-f0-9]{24}$/.test(invite.trim())) throw new Error('Invitation codes contain 24 lowercase letters and digits.');
-  const bytes = await Crypto.getRandomBytesAsync(32);
-  return { url: normalized.origin, token: Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join(''), invite: invite?.trim() };
+  return { url: normalized.origin, token: await newCredential(), invite: invite?.trim() };
 }
 export async function connect(session: Session): Promise<{ session: Session; snapshot: Snapshot }> {
   const snapshot = session.id ? await api(session, `games/${session.id}`)
@@ -37,3 +36,8 @@ export async function connect(session: Session): Promise<{ session: Session; sna
   return { session: connected, snapshot };
 }
 export const commandId = () => Crypto.randomUUID();
+
+export async function newCredential(): Promise<string> {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}

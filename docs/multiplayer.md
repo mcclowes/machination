@@ -21,7 +21,7 @@ Private messages are returned only to their sender and recipient. They are store
 
 ## HTTP contract
 
-Base path: `/v1`. All endpoints other than `/health` use the **seat token** scheme: `Authorization: Bearer <64 lowercase hex characters>`. A client generates this token from 32 cryptographically random bytes and saves it before bootstrap. The server stores only its SHA-256 hash. Possession of the token controls that seat. No account recovery or token rotation is implemented yet.
+Base path: `/v1`. All game endpoints except `/games/:id/recover` use the **seat token** scheme: `Authorization: Bearer <64 lowercase hex characters>`. A client generates this token from 32 cryptographically random bytes and saves it before bootstrap. The server stores only its SHA-256 hash. Possession of the token controls that seat. A player can opt into offline seat recovery, described below. No email-based identity or account recovery is provided. `/health` is public.
 
 | Method | Path | JSON body | Result |
 | --- | --- | --- | --- |
@@ -32,6 +32,8 @@ Base path: `/v1`. All endpoints other than `/health` use the **seat token** sche
 | POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
 | POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned scavenger rig against a visible enemy hauler |
 | POST | `/games/:id/modules` | `{requestId, revision, rock, module}` | Spend drones on an owned rock and occupy its module bay |
+| POST | `/games/:id/recovery` | `{requestId, secret}` | Register or replace a private recovery secret using the current seat token |
+| POST | `/games/:id/recover` | `{secret}` | Recovery-code scheme: consume the secret and bind the seat to a fresh token |
 | POST | `/games/:id/messages` | `{requestId, to, text}` | Private bilateral transmission |
 
 A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
@@ -51,7 +53,7 @@ Run **one process per data file**. This is a small hosted-playtest backend, not 
 
 Public hosting needs HTTPS termination, a persistent volume, backups, and an explicit allowed browser origin. The adapter limits JSON requests to 8 KB and 120 requests per minute per direct peer address. When proxied, the current limiter groups requests by the proxy's address. Operation capacity is 1,000 rooms, 10,000 accepted command IDs per room, and 5,000 private messages per room; reaching a limit returns an explicit failure rather than evicting retry history.
 
-Remaining release work includes hosting, account recovery, revocation, push notifications, moderation, native device QA, and scaling beyond one process.
+Remaining release work includes hosting, email/account identity, general session management, push notifications, moderation, native device QA, and scaling beyond one process.
 
 ## Sensors and incomplete information
 
@@ -78,3 +80,19 @@ Queues are persisted with the world and settled at the exact simulated launch ti
 `target` is the requesting seat's opaque hauler ID. Raw simulation IDs and another seat's IDs are rejected. Current visibility, ownership, payload, module, and reachability are checked authoritatively. Accepted requests use durable retry receipts before target validation on replay, so a retry remains harmless after combat or restart.
 
 Visible fleets include explicit route geometry for interception and return legs. An interception's target reference is included only while that target is visible and uses the same seat-scoped ID mapping. The forecast sets `interceptionUncertain: true` when a projected rendezvous has no observed target; it invents neither a combat result nor a return payload. Refreshing the authoritative view resolves the actual outcome.
+
+## Offline seat recovery
+
+While connected, choose **Generate recovery code** and save the code with the server address in a private place, such as a password manager. The app displays the code only after the server confirms registration. It contains the operation ID and a cryptographically generated 32-byte secret. Generating another code replaces the old one. Codes remain valid until replaced or used; they are offline backup credentials rather than email reset links.
+
+On another device, enter the same server address and the saved code under **Restore your seat**. Restoration revokes the old connection and consumes the code. Generate and save a new code after recovery. Without a code saved earlier, a lost credential cannot be recovered. There is no external identity verification or email recovery service.
+
+`POST /games/:id/recovery` uses the **seat token** scheme and accepts `{requestId, secret}`. The secret must be 64 lowercase hex characters. Its SHA-256 hash, not its plaintext value, is persisted. The registration receipt contains only that hash. Replaying a registration after its code was replaced or consumed returns `409 recovery.conflict.superseded`; the client must not present that old code as active. Registration and recovery do not change game-order revisions.
+
+`POST /games/:id/recover` uses the **recovery-code** scheme. Send the saved secret in JSON as `{secret}` and a newly generated 32-byte seat token as `Authorization: Bearer <64 lowercase hex characters>`. The new token is the destination credential, not proof of the old seat. The service authenticates the saved recovery secret. A code cannot move the seat onto an already assigned credential. Invalid, replaced, or consumed codes return `401 recovery.unauthorized.code`.
+
+The code is consumed and the new token hash is committed atomically before success is returned. A hash-only recovery receipt permits exact retries with the same secret and replacement token after a lost response or server restart. Other replacement tokens cannot reuse the consumed code. A failed durable write publishes neither credential replacement nor code consumption. The app persists its fresh credential and pending recovery request before sending it. Uncertain failures retain that request; definitive recovery rejection removes the unclaimed local connection so the player can correct the code.
+
+Recovery preserves the seat's faction, private plans, messages, order receipts, revisions, and opaque contact IDs. The ID mapping retains its original private key across credential replacement. Snapshots expose only `recoveryEnabled` for the requesting seat; they never expose hashes, secrets, or recovery receipts. Legacy seats without recovery metadata continue to load with recovery disabled. Update the client and server together to use the recovery endpoints.
+
+The offline-code design follows [OWASP's recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html) on cryptographic randomness, one-way storage, and single-use credentials.

@@ -6,7 +6,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Failure, GameService } from './service';
-import type { CancelSchedule, InterceptOrder, ModuleOrder, Order, ScheduleOrder, Transmission } from '../src/online/protocol';
+import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, ScheduleOrder, Transmission } from '../src/online/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new Failure(415, 'request.validation.content_type', 'Send JSON content.');
   const chunks: Buffer[] = []; let size = 0;
@@ -58,13 +58,15 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
         result = await service.join(input.invite, token);
       } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(start|orders|messages|modules|schedules|cancel-schedule|intercepts))?$/);
+        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(start|orders|messages|modules|schedules|cancel-schedule|intercepts|recovery|recover))?$/);
         if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
         const id = match[1]!; const action = match[2];
         if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
         else if (req.method === 'POST') {
           const input = await body(req);
-          if (action === 'start') result = await service.start(id, token);
+          if (action === 'recovery') result = await service.setRecovery(id, token, input as RecoverySetup);
+          else if (action === 'recover') result = await service.recover(id, token, input as RecoverSeat);
+          else if (action === 'start') result = await service.start(id, token);
           else if (action === 'orders') result = await service.order(id, token, input as Order);
           else if (action === 'intercepts') result = await service.intercept(id, token, input as InterceptOrder);
           else if (action === 'schedules') result = await service.schedule(id, token, input as ScheduleOrder);

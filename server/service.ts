@@ -3,7 +3,7 @@
  * purpose: Serialize multiplayer transactions, persist snapshots, authorize seats, and settle server time.
  * ---
  */
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
@@ -11,11 +11,11 @@ import { dispatchIntercept } from '../src/game/interception';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { CancelSchedule, InterceptOrder, Message, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { faction: Faction; hash: string; revision?: number }[]; messages: Message[];
+  seats: { faction: Faction; hash: string; revision?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
   receipts: Record<string, string>;
 };
 type Database = { version: 1; rooms: Room[] };
@@ -25,6 +25,8 @@ export class Failure extends Error {
 function requireThat(condition: unknown, status: number, code: string, message: string): asserts condition {
   if (!condition) throw new Failure(status, code, message);
 }
+const isHash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
+const matchesHash = (expected: string | undefined, actual: string) => expected !== undefined && timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(actual, 'hex'));
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 export class GameService {
   private queue: Promise<unknown> = Promise.resolve();
@@ -45,6 +47,9 @@ export class GameService {
           || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
           || !r.messages.every(m => Number.isSafeInteger(m.id) && FACTIONS.includes(m.from) && FACTIONS.includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
         for (const seat of r.seats) {
+          if (seat.identityHash !== undefined && !isHash(seat.identityHash)
+            || seat.recoveryHash !== undefined && !isHash(seat.recoveryHash)
+            || seat.recoveryReceipt !== undefined && (!seat.recoveryReceipt || !isHash(seat.recoveryReceipt.secretHash) || seat.recoveryReceipt.credentialHash !== seat.hash)) throw new Error('Damaged recovery metadata.');
           seat.revision ??= 0;
           if (!Number.isSafeInteger(seat.revision) || seat.revision < 0) throw new Error('Damaged seat revision.');
         }
@@ -86,12 +91,14 @@ export class GameService {
   }
   private revision(room: Room, faction: Faction): number { return room.seats.find(s => s.faction === faction)!.revision ?? 0; }
   private identify(room: Room, faction: Faction, kind: 'hauler' | 'message', id: number): number {
-    const key = room.seats.find(s => s.faction === faction)!.hash;
+    const seat = room.seats.find(s => s.faction === faction)!;
+    const key = seat.identityHash ?? seat.hash;
     return createHmac('sha256', key).update(`${kind}:${id}`).digest().readUIntBE(0, 6);
   }
   private view(room: Room, faction: Faction): Snapshot {
     return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner ? 'game.finished' : 'game.active',
       faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
+      recoveryEnabled: !!room.seats.find(s => s.faction === faction)!.recoveryHash,
       visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id)), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
   create(token: string): Promise<Snapshot> {
@@ -118,6 +125,36 @@ export class GameService {
       const faction = FACTIONS[room.seats.length]!;
       room.seats.push({ faction, hash: credential }); room.revision++;
       return this.view(room, faction);
+    });
+  }
+  setRecovery(id: string, token: string, command: RecoverySetup): Promise<Snapshot> {
+    return this.transaction(db => {
+      const room = this.room(db, id); const faction = this.seat(room, token); this.settle(room);
+      requireThat(typeof command.secret === 'string' && /^[a-f0-9]{64}$/.test(command.secret), 400, 'recovery.validation.secret', 'Provide a valid recovery secret.');
+      const secretHash = hash(command.secret); const seat = room.seats.find(s => s.faction === faction)!;
+      const prior = this.receipt(room, faction, command.requestId, JSON.stringify(['recovery', secretHash]));
+      if (prior) {
+        requireThat(seat.recoveryHash === secretHash, 409, 'recovery.conflict.superseded', 'This recovery code was replaced or consumed. Generate a new code.');
+        return this.view(room, faction);
+      }
+      requireThat(!db.rooms.some(r => r.seats.some(s => (s !== seat && s.recoveryHash === secretHash) || s.recoveryReceipt?.secretHash === secretHash)), 409, 'recovery.conflict.used', 'Generate a new recovery code.');
+      seat.recoveryHash = secretHash;
+      return this.view(room, faction);
+    });
+  }
+  recover(id: string, token: string, command: RecoverSeat): Promise<Snapshot> {
+    return this.transaction(db => {
+      const credential = this.credential(token);
+      requireThat(typeof command.secret === 'string' && /^[a-f0-9]{64}$/.test(command.secret), 401, 'recovery.unauthorized.code', 'Recovery code is invalid, replaced, or already used.');
+      const secretHash = hash(command.secret); const room = db.rooms.find(r => r.id === id);
+      const seat = room?.seats.find(s => matchesHash(s.recoveryHash, secretHash) || matchesHash(s.recoveryReceipt?.secretHash, secretHash) && s.recoveryReceipt?.credentialHash === credential && s.hash === credential);
+      requireThat(room && seat, 401, 'recovery.unauthorized.code', 'Recovery code is invalid, replaced, or already used.');
+      if (seat.recoveryReceipt?.secretHash === secretHash && seat.hash === credential) { this.settle(room); return this.view(room, seat.faction); }
+      requireThat(credential !== seat.hash && !db.rooms.some(r => r.seats.some(s => s.hash === credential)), 409, 'recovery.conflict.credential', 'Restore with a fresh connection credential.');
+      seat.identityHash ??= seat.hash;
+      seat.hash = credential; delete seat.recoveryHash;
+      seat.recoveryReceipt = { secretHash, credentialHash: credential };
+      this.settle(room); return this.view(room, seat.faction);
     });
   }
   snapshot(id: string, token: string): Promise<Snapshot> {

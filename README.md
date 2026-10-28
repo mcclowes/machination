@@ -40,7 +40,7 @@ See [existing remake references](docs/remake-references.md) for reuse candidates
 
 ## Scope
 
-This is a playable foundation, not a store release. Push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, and save restoration are verified. Native controls, multiplayer, and end-to-end gameplay still need device verification.
+This is a playable foundation, not a store release. Push notifications, email-based account recovery, public hosting, and native distribution remain unimplemented. Players can save a single-use offline recovery code for their multiplayer seat. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, and save restoration are verified. Native controls, multiplayer, and end-to-end gameplay still need device verification.
 
 Run `npm run server` and open **Multiplayer uplink** to create or join a three-player operation. Online play uses sensor-limited views: unknown rocks display `?`, and scouts reveal nearby contacts. Forecasts leave hidden arrival outcomes unresolved. Solo remains a full-information training simulation. See [multiplayer setup and API](docs/multiplayer.md).
 
