@@ -10,7 +10,7 @@ import { specialistSpeed } from './specialist-effects';
 const COURSE_COOLDOWN = 8;
 
 export function changeCourse(game: Game, fleetId: number, owner: Faction, destinationId: string): Game {
-  if (game.version !== 2 || game.winner || game.eliminated.includes(owner)) throw new Error('This intelligence cannot change course.');
+  if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence cannot change course.');
   const fleet = game.fleets.find(f => f.id === fleetId);
   if (!fleet || fleet.owner !== owner || fleet.preparing || fleet.departed > game.hour || fleet.arrives <= game.hour || fleet.courseLocked) {
     throw new Error('Choose an owned, departed hauler with an unlocked course.');

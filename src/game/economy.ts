@@ -4,7 +4,8 @@
  * ---
  */
 import type { Faction, Game, Rock } from './simulation';
-import { observers } from './sensors';
+import { unitCount, unitsAtRock } from './specialists';
+import { rockSensorRange, observers } from './sensors';
 import { recentEvents } from './events';
 
 export const FACTORY_CYCLE = 8;
@@ -16,16 +17,17 @@ export function cargoTarget(game: { version?: number }): number { return game.ve
 export function droneInventory(game: Pick<Game, 'rocks' | 'fleets'>, owner: Faction): number {
   return game.rocks.filter(r => r.owner === owner).reduce((n, r) => n + r.drones, 0) + game.fleets.filter(f => f.owner === owner).reduce((n, f) => n + f.drones, 0);
 }
-export function powerCapacity(game: Pick<Game, 'rocks'>, owner: Faction): number {
-  return 150 + 50 * game.rocks.filter(r => r.owner === owner && r.kind === 'generator').length;
+export function powerCapacity(game: Pick<Game, 'rocks' | 'fleets'>, owner: Faction): number {
+  return 150 + 50 * game.rocks.filter(r => r.owner === owner && r.kind === 'generator').length + 300 * unitCount(game, owner, 'energy')
+    + game.rocks.filter(r => r.owner === owner).reduce((n, rock) => n + 3 * maximumShield(rock) * unitsAtRock(game, rock.id).filter(u => u.owner === owner && u.kind === 'tinkerer').length, 0);
 }
-export function maximumShield(rock: Rock): number { return (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0); }
+export function maximumShield(rock: Rock): number { return Math.max(0, (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0) + (rock.shieldBonus ?? 0)); }
 export function mineCost(game: Pick<Game, 'minesDrilled'>, owner: Faction): number {
   const built = game.minesDrilled?.[owner] ?? 0;
   return built === 0 ? 50 : built * 100;
 }
 export function drillMine(game: Game, id: string, owner: Faction): Game {
-  if (game.version !== 2 || game.winner || game.eliminated.includes(owner)) throw new Error('Mine construction is unavailable in this operation.');
+  if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Mine construction is unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
   if (!rock || rock.owner !== owner || !['factory', 'generator'].includes(rock.kind)) throw new Error('Choose a controlled factory or generator.');
   const cost = mineCost(game, owner);
@@ -36,7 +38,7 @@ export function drillMine(game: Game, id: string, owner: Faction): Game {
   };
 }
 export function setShields(game: Game, id: string, owner: Faction, disabled: boolean): Game {
-  if (game.version !== 2 || game.winner || game.eliminated.includes(owner)) throw new Error('Shield controls are unavailable in this operation.');
+  if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Shield controls are unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
   if (!rock || rock.owner !== owner || typeof disabled !== 'boolean') throw new Error('Choose a controlled rock and a shield state.');
   return { ...game, rocks: game.rocks.map(r => r.id === id ? { ...r, shieldsDisabled: disabled } : r),
@@ -63,8 +65,11 @@ export function settleEconomy(game: Game): void {
       rock.shieldAt = game.hour + SHIELD_RECHARGE / max;
     }
     if (rock.kind === 'factory' && rock.productionAt! <= game.hour + 1e-9) {
-      rock.drones += Math.max(0, Math.min(FACTORY_OUTPUT, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
-      rock.productionAt = game.hour + FACTORY_CYCLE;
+      const foremen = game.rocks.filter(r => r.owner === rock.owner && Math.hypot(r.x - rock.x, r.y - rock.y) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
+      const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
+      const output = Math.max(0, FACTORY_OUTPUT + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
+      rock.drones += Math.max(0, Math.min(output, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
+      rock.productionAt = game.hour + (rock.productionInterval ?? FACTORY_CYCLE);
     }
     if (rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
       if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += game.rocks.filter(r => r.owner === rock.owner).length;

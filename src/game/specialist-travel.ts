@@ -1,0 +1,43 @@
+/**
+ * ---
+ * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
+ * ---
+ */
+import type { Faction, Fleet, Game } from './simulation';
+import { fleetPosition, type Point } from './flight';
+import type { Specialist } from './specialists';
+import { specialistSpeed, withUnitEffects } from './specialist-effects';
+
+export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: Specialist[]): Fleet | undefined {
+  if (!units.length) return;
+  const home = game.rocks.filter(r => r.owner === owner && !r.destroyed).sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y) || a.id.localeCompare(b.id))[0];
+  if (!home) return;
+  const speed = specialistSpeed(game, owner, units, true, 'return');
+  const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed,
+    route: { from: { ...point }, to: { x: home.x, y: home.y } }, departed: game.hour, arrives: game.hour + Math.max(1e-6, Math.hypot(home.x - point.x, home.y - point.y) / speed), returning: true };
+  game.fleets.push(fleet);
+  return fleet;
+}
+export function releaseSpecialist(input: Game, owner: Faction, id: string): Game {
+  if (input.version !== 2 || input.winner || input.draw || input.eliminated.includes(owner)) throw new Error('This intelligence can no longer release modules.');
+  const game = withUnitEffects(input);
+  const site = game.rocks.find(r => r.owner === owner && r.specialists?.some(u => u.id === id && u.captive));
+  const unit = site?.specialists?.find(u => u.id === id);
+  if (!site || !unit || !game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) throw new Error('Choose a captive module with a friendly site to return to.');
+  site.specialists = site.specialists!.filter(u => u.id !== id);
+  delete unit.captive;
+  sendUnitsHome(game, site, unit.owner, [unit]);
+  game.events.unshift({ hour: game.hour, audience: [...new Set([owner, unit.owner])], message: `${site.name}: captive module released and returning home.` });
+  return game;
+}
+export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
+  const point = fleetPosition(game, fleet);
+  const home = game.rocks.filter(r => r.owner === fleet.owner && !r.destroyed).sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y) || a.id.localeCompare(b.id))[0];
+  if (!home) { game.fleets = game.fleets.filter(f => f.id !== fleet.id); return; }
+  const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], true, 'return');
+  fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: { x: home.x, y: home.y } };
+  fleet.departed = game.hour; fleet.arrives = game.hour + Math.max(1e-6, Math.hypot(home.x - point.x, home.y - point.y) / speed);
+  fleet.returning = true; fleet.speed = speed;
+  if (locked) fleet.courseLocked = true;
+  delete fleet.intercept; delete fleet.preparing;
+}

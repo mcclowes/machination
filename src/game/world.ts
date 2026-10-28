@@ -3,16 +3,18 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { newRecruitment } from './specialists';
 import type { Faction, Game, Rock } from './simulation';
 
-export function createGame(epoch = Date.now()): Game {
+export function createGame(epoch = Date.now(), seeds?: Record<Faction, number>): Game {
   const site = (id: string, name: string, x: number, y: number, kind: 'factory' | 'generator', owner: Faction | null = null, core = false): Rock => ({
     id, name, x, y, kind, owner, drones: owner && !core ? 40 : 0,
     shield: 0, shieldMax: kind === 'factory' ? 10 : 20, shieldAt: 48 / ((kind === 'factory' ? 10 : 20) + (core ? 20 : 0)), shieldsDisabled: false,
-    productionAt: 8, ...(core && owner ? { coreOf: owner } : {}),
+    productionAt: 8, specialists: core && owner ? [{ id: `core-${owner}`, owner, kind: 'queen' }] : [], ...(core && owner ? { coreOf: owner } : {}),
   });
   return {
-    version: 2, hour: 0, epoch, fleets: [], scheduled: [], cargo: { you: 0, vesper: 0, null: 0 }, minesDrilled: { you: 0, vesper: 0, null: 0 },
+    recruitment: { you: newRecruitment(seeds?.you ?? epoch), vesper: newRecruitment(seeds?.vesper ?? epoch + 1), null: newRecruitment(seeds?.null ?? epoch + 2) },
+    version: 2, specialistVersion: 1, hour: 0, epoch, fleets: [], scheduled: [], cargo: { you: 0, vesper: 0, null: 0 }, minesDrilled: { you: 0, vesper: 0, null: 0 },
     eliminated: [], nextId: 1, winner: null,
     events: [{ hour: 0, audience: ['you', 'vesper', 'null'], message: 'Corporate uplink lost. Five sites assigned to each intelligence. Establish extraction to fulfill the contract.' }],
     rocks: [

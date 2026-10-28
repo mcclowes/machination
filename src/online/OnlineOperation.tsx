@@ -8,6 +8,9 @@ import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput,
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
+import { SpecialistBay } from '../components/SpecialistBay';
+import { specialistSpeed } from '../game/specialist-effects';
+import { SPECIALISTS } from '../game/specialist-catalog';
 import { ModuleBay } from '../components/ModuleBay';
 import { GiftTransfer } from '../components/GiftTransfer';
 import { MODULES } from '../game/modules';
@@ -39,7 +42,9 @@ export function OnlineOperation() {
   const [planning, setPlanning] = useState(false);
   const [carry, setCarry] = useState(false);
   const [delay, setDelay] = useState(0);
-  const [amount, setAmount] = useState('30');
+  const [amount, setAmount] = useState('0');
+  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [navigating, setNavigating] = useState<number>();
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const forecast = inspectionOffset(snapshot?.game.hour ?? 0, inspectedHour);
   const [recipient, setRecipient] = useState<Faction>('vesper');
@@ -105,7 +110,7 @@ export function OnlineOperation() {
         setRecipient(next.faction === 'vesper' ? 'you' : 'vesper'); setRecoveryInput('');
       }
       if (pending.kind === 'messages') setDraft('');
-      else { setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); }
+      else { setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); setSelectedUnits([]); setNavigating(undefined); }
     } catch (error) {
       if (error instanceof RejectedCommand) {
         const cleared = { ...saved, pending: undefined };
@@ -145,7 +150,7 @@ export function OnlineOperation() {
   }
   function sendTransfer() {
     if (!snapshot || !destination) return;
-    const body = { requestId: commandId(), revision: snapshot.revision, from: selected, to: destination, drones: Number(amount), carryModule: carry && !!snapshot.game.rocks.find(r => r.id === selected)?.module };
+    const body = { requestId: commandId(), revision: snapshot.revision, from: selected, to: destination, drones: Number(amount), specialists: unitIds, carryModule: carry && !!snapshot.game.rocks.find(r => r.id === selected)?.module };
     try {
       const executeAt = orderHour(snapshot.game.hour, inspectedHour, delay);
       submit(executeAt > snapshot.game.hour ? { kind: 'schedules', body: { ...body, executeAt } } : { kind: 'orders', body });
@@ -155,6 +160,9 @@ export function OnlineOperation() {
   const game = snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game);
   const rock = game?.rocks.find(r => r.id === selected);
   const target = game?.rocks.find(r => r.id === destination);
+  const unitManifest = rock?.known && snapshot ? (rock.specialists ?? []).filter(u => selectedUnits.includes(u.id) && u.owner === snapshot.faction && !u.captive) : [];
+  const unitIds = unitManifest.map(u => u.id);
+  const duration = target && rock && game && snapshot ? game.version === 2 ? Math.max(1e-6, Math.hypot(rock.x - target.x, rock.y - target.y) / specialistSpeed(game, snapshot.faction, unitManifest, target.owner === snapshot.faction)) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const operational = snapshot?.status === 'game.active' && !snapshot.game.eliminated.includes(snapshot.faction) && !session?.pending && !busy;
   const immediate = operational && !forecast;
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;
@@ -178,23 +186,27 @@ export function OnlineOperation() {
         {snapshot.members.map(f => <Text key={f} style={{ color: FACTIONS[f].color, fontSize: 13 }}>{FACTIONS[f].name}{f === snapshot.faction ? ' / you' : ''}{game.eliminated.includes(f) ? ' / core offline' : ''}</Text>)}
         {snapshot.status === 'game.lobby' && snapshot.host && <Action text="Start operation" disabled={busy || snapshot.members.length < 3} onPress={() => void run(async () => accept(await api(session!, `games/${snapshot.id}/start`, {})))} />}
         {snapshot.status === 'game.lobby' && <Text style={s.detail}>Share the invitation with two players. Time begins when the host starts.</Text>}
+        {game.draw && <Text style={s.code}>All cores offline. The operation ended in a draw.</Text>}
         {game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}
         <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction] ?? 0)} / {cargoTarget(game)}</Text>
       </View>
-      <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); } }} />
+      <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />
+      {navigating !== undefined && <View style={s.panel}><Text style={s.detail}>Select the new course destination on the chart.</Text><Action text="Cancel course selection" onPress={() => setNavigating(undefined)} /></View>}
       <TimeMachine hour={snapshot.game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...snapshot.game.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...snapshot.game.scheduled.map(p => p.executeAt)]} online />
       {game.interceptionUncertain && <View style={s.panel}><Text style={s.error}>Interception outcome unknown. The target isn't in the current observations.</Text></View>}
       {!!game.uncertain.length && <View style={s.panel}><Text style={s.error}>Arrival outcomes unknown at {game.uncertain.map(id => game.rocks.find(r => r.id === id)?.name).join(', ')}. Scout and refresh before relying on this forecast.</Text></View>}
-      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{rock.known ? `${Math.floor(rock.drones)} drones · ${siteDescription(rock)}` : 'Outside sensor range. Ownership and drones unknown.'}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target, carry ? rock.module : undefined, game.version)}h transit / arrival ${gameClock(launchAt + preparation + travelHours(rock, target, carry ? rock.module : undefined, game.version))}` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
+      {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{rock.known ? `${Math.floor(rock.drones)} drones · ${siteDescription(rock)}` : 'Outside sensor range. Ownership and drones unknown.'}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${duration.toFixed(2)}h transit / arrival ${gameClock(launchAt + preparation + duration)}` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
         <TextInput key="online-manifest" secureTextEntry={false} accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
         <LaunchTiming future={!!forecast} delay={delay} disabled={!operational} onChange={setDelay} />
-        <Action text={snapshot && launchAt > snapshot.game.hour ? `Schedule · ${gameClock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler'} disabled={!operational || !!game.winner || launchAt > snapshot.game.hour + 168 || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || launchAt <= snapshot.game.hour && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
-        {rock.known && rock.owner === snapshot.faction && target?.known && target.owner && target.owner !== snapshot.faction && !game.eliminated.includes(target.owner) && !delay && <GiftTransfer key={`${rock.id}:${target.id}:${target.owner}:${amount}:${carry}:${rock.module}`} legacy={game.version !== 2} from={rock} to={target} recipient={target.owner} drones={Number(amount)} carry={carry} disabled={!immediate || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones)} onGift={() => submit({ kind: 'gifts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target.id, drones: Number(amount), recipient: target.owner!, carryModule: carry && !!rock.module } })} />}
+        <Action text={snapshot && launchAt > snapshot.game.hour ? `Schedule · ${gameClock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler'} disabled={!operational || !!game.winner || !!game.draw || !!rock.destroyed || !!target?.destroyed || launchAt > snapshot.game.hour + 168 || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) < (unitIds.length ? 0 : 1) || launchAt <= snapshot.game.hour && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
+        {rock.known && rock.owner === snapshot.faction && target?.known && target.owner && target.owner !== snapshot.faction && !game.eliminated.includes(target.owner) && !delay && <GiftTransfer key={`${rock.id}:${target.id}:${target.owner}:${amount}:${carry}:${rock.module}:${unitIds.join(',')}`} specialists={unitManifest} legacy={game.version !== 2} from={rock} to={target} recipient={target.owner} drones={Number(amount)} carry={carry} disabled={!immediate || !Number.isSafeInteger(Number(amount)) || Number(amount) < (unitIds.length ? 0 : 1) || Number(amount) > Math.floor(rock.drones)} onGift={() => submit({ kind: 'gifts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target.id, drones: Number(amount), specialists: unitIds, recipient: target.owner!, carryModule: carry && !!rock.module } })} />}
         {game.version === 2 && rock.known && rock.owner === snapshot.faction && <SiteControls rock={rock} cost={mineCost({ minesDrilled: { you: 0, vesper: 0, null: 0, ...snapshot.game.minesDrilled } }, snapshot.faction)} enabled={!!immediate} onMine={() => submit({ kind: 'sites', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, action: 'mine' } })} onShields={() => submit({ kind: 'sites', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, action: 'shields', disabled: !rock.shieldsDisabled } })} />}
-        {rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} disabled={!immediate} onIntercept={target => submit({ kind: 'intercepts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, target, drones: Number(amount) } })} />}
-        {rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!immediate} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
+        {rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} specialists={unitIds} disabled={!immediate} onIntercept={target => submit({ kind: 'intercepts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, target, drones: Number(amount), ...(unitIds.length ? { specialists: unitIds } : {}) } })} />}
+        {game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay game={game} rock={rock} owner={snapshot.faction} enabled={!!immediate} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'hire', kind } })} onPromote={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'promote', unit } })} onRelease={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'release', unit } })} />}
+        {rock.known && rock.owner !== snapshot.faction && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.detail}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}
+        {game.version === 1 && rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!immediate} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}
-      {game.version === 2 && <HaulerOrders fleets={snapshot.game.fleets.filter(f => f.owner === snapshot.faction)} rocks={snapshot.game.rocks} hour={snapshot.game.hour} enabled={!!operational} onCommand={command => submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, ...command } })} />}
+      {game.version === 2 && <HaulerOrders fleets={snapshot.game.fleets.filter(f => f.owner === snapshot.faction)} rocks={snapshot.game.rocks} hour={snapshot.game.hour} enabled={!!operational} onNavigate={id => { setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, ...command } })} />}
       <ScheduledOrders plans={snapshot.game.scheduled} hour={snapshot.game.hour} rocks={game.rocks} disabled={!operational} onCancel={planId => submit({ kind: 'cancel-schedule', body: { requestId: commandId(), revision: snapshot.revision, planId } })} />
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
       <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>

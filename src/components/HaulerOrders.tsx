@@ -3,23 +3,32 @@
  * purpose: Live launch editing, cancellation, and in-transit gift controls shared by solo and online play.
  * ---
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SPECIALISTS } from '../game/specialist-catalog';
 import { flightDestination } from '../game/flight';
+import type { Specialist } from '../game/specialists';
 import type { Fleet } from '../game/simulation';
 import type { HaulerChange } from '../game/transport';
 
-type Props = { fleets: Fleet[]; rocks: { id: string; name: string }[]; hour: number; enabled: boolean; onCommand: (command: HaulerChange) => void };
-export function HaulerOrders({ fleets, rocks, hour, enabled, onCommand }: Props) {
-  return <View style={s.panel}><Text style={s.heading}>Your live hauler orders</Text>{fleets.length ? fleets.map(fleet => <Hauler key={fleet.id} fleet={fleet} rocks={rocks} hour={hour} enabled={enabled} onCommand={onCommand} />) : <Text style={s.detail}>No preparing or traveling haulers.</Text>}</View>;
+type Props = { fleets: Fleet[]; rocks: { id: string; name: string; specialists?: Specialist[] }[]; hour: number; enabled: boolean; onCommand: (command: HaulerChange) => void; onNavigate?: (id: number) => void };
+export function HaulerOrders({ fleets, rocks, hour, enabled, onCommand, onNavigate }: Props) {
+  return <View style={s.panel}><Text style={s.heading}>Your live hauler orders</Text>{fleets.length ? fleets.map(fleet => <Hauler key={fleet.id} fleet={fleet} rocks={rocks} hour={hour} enabled={enabled} onCommand={onCommand} onNavigate={onNavigate} />) : <Text style={s.detail}>No preparing or traveling haulers.</Text>}</View>;
 }
-function Hauler({ fleet, rocks, hour, enabled, onCommand }: Omit<Props, 'fleets'> & { fleet: Fleet }) {
+function Hauler({ fleet, rocks, hour, enabled, onCommand, onNavigate }: Omit<Props, 'fleets'> & { fleet: Fleet }) {
   const [amount, setAmount] = useState(String(fleet.drones));
+  const signature = (fleet.specialists ?? []).map(u => u.id).join(',');
+  const [manifest, setManifest] = useState<string[]>((fleet.specialists ?? []).map(u => u.id));
+  useEffect(() => { setAmount(String(fleet.drones)); setManifest((fleet.specialists ?? []).map(u => u.id)); }, [fleet.drones, signature]);
+  const available = [...(fleet.specialists ?? []), ...(rocks.find(r => r.id === fleet.from)?.specialists ?? [])].filter(u => u.owner === fleet.owner && !u.captive);
+  const selected = manifest.filter(id => available.some(u => u.id === id));
   const giftPending = fleet.giftAt !== undefined && fleet.giftAt > hour;
   return <View style={s.hauler}>
     <Text style={s.text}>{rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(rocks, fleet)}</Text>
     <Text style={s.detail}>{fleet.drones} drones · {fleet.preparing ? `preparing, departs in ${Math.max(0, (fleet.departed - hour) * 60).toFixed(0)}m` : `arrives in ${(fleet.arrives - hour).toFixed(2)}h`}{fleet.giftAt !== undefined ? giftPending ? ' · gift pending' : ' · gift active' : ''}</Text>
-    {fleet.preparing && <><View style={s.row}><TextInput accessibilityLabel={`Edit launch manifest to ${flightDestination(rocks, fleet)}`} secureTextEntry={false} keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /><Control text="Update manifest" disabled={!enabled || !Number.isSafeInteger(Number(amount)) || Number(amount) < 1} onPress={() => onCommand({ action: 'edit-launch', fleet: fleet.id, drones: Number(amount) })} /></View><Control text="Cancel launch and return manifest" disabled={!enabled} onPress={() => onCommand({ action: 'cancel-launch', fleet: fleet.id })} /></>}
+    {!!fleet.specialists?.length && <Text style={s.detail}>{fleet.specialists.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(' · ')}</Text>}
+    {!fleet.preparing && fleet.specialists?.some(u => u.kind === 'navigator' && u.owner === fleet.owner && !u.captive) && onNavigate && <Control text="Change course on chart" disabled={!enabled || !!fleet.courseLocked || fleet.specialists.some(u => u.kind === 'navigator' && u.lastCourseAt !== undefined && hour < u.lastCourseAt + 8)} onPress={() => onNavigate(fleet.id)} />}
+    {fleet.preparing && <>{available.map(unit => <Pressable key={unit.id} accessibilityRole="checkbox" accessibilityLabel={`Include ${SPECIALISTS[unit.kind].name} in preparing launch`} accessibilityState={{ checked: selected.includes(unit.id), disabled: !enabled }} disabled={!enabled} onPress={() => setManifest(current => current.includes(unit.id) ? current.filter(id => id !== unit.id) : [...current, unit.id])} style={s.control}><Text style={s.text}>{selected.includes(unit.id) ? '☑' : '☐'} {SPECIALISTS[unit.kind].name}</Text></Pressable>)}<View style={s.row}><TextInput accessibilityLabel={`Edit launch manifest to ${flightDestination(rocks, fleet)}`} secureTextEntry={false} keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /><Control text="Update manifest" disabled={!enabled || !Number.isSafeInteger(Number(amount)) || Number(amount) < (selected.length ? 0 : 1)} onPress={() => onCommand({ action: 'edit-launch', fleet: fleet.id, drones: Number(amount), specialists: selected })} /></View><Control text="Cancel launch and return manifest" disabled={!enabled} onPress={() => onCommand({ action: 'cancel-launch', fleet: fleet.id })} /></>}
     {fleet.giftAt === undefined ? <><Text style={s.detail}>A gift transfers to the next intelligence it contacts. The gift order takes effect in ten minutes and can be canceled before then.</Text><Control text="Turn hauler into a gift" disabled={!enabled} onPress={() => onCommand({ action: 'gift', fleet: fleet.id })} /></> : giftPending ? <Control text="Cancel gift order" disabled={!enabled} onPress={() => onCommand({ action: 'cancel-gift', fleet: fleet.id })} /> : <Text style={s.detail}>Gift committed. Ownership transfers on contact.</Text>}
   </View>;
 }

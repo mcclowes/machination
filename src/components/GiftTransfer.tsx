@@ -2,12 +2,14 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FACTIONS, type Faction, type Rock } from '../game/simulation';
+import type { Specialist } from '../game/specialists';
+import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
-export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onGift, legacy = false }: {
-  legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
+export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onGift, legacy = false, specialists = [] }: {
+  specialists?: Specialist[]; legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
 }) {
   const [review, setReview] = useState(false);
-  const payload = `${drones} drones${carry && from.module ? ` and ${MODULES[from.module].name}` : ''}`;
+  const payload = `${drones} drones${carry && from.module ? ` and ${MODULES[from.module].name}` : ''}${specialists.length ? ` and ${specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`;
   const button = (text: string, onPress: () => void) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
   return <View style={s.panel}>
     <Text style={s.title}>Voluntary support / {FACTIONS[recipient].name}</Text>

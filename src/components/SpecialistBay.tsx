@@ -16,10 +16,10 @@ export type SpecialistBayProps = {
   onHire: (kind: SpecialistKind) => void; onPromote: (id: string) => void; onRelease: (id: string) => void;
 };
 
-export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = true, selected, onSelect, onHire, onPromote, onRelease }: SpecialistBayProps) {
+export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = enabled, selected, onSelect, onHire, onPromote, onRelease }: SpecialistBayProps) {
   const status = recruitmentStatus(game, owner);
   const controlled = rock.owner === owner && !rock.destroyed;
-  const active = enabled && game.version === 2 && !game.winner && !game.eliminated.includes(owner);
+  const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   const canRecruit = active && !!status.at && status.credits > 0;
   const coreSite = game.rocks.find(site => site.id === status.at);
   const units = rock.specialists ?? [];
@@ -47,7 +47,7 @@ export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = t
       const next = promotion(unit.kind);
       const owned = unit.owner === owner;
       const checked = selected.includes(unit.id);
-      const canLoad = active && controlled && owned && !unit.captive && selectionEnabled;
+      const canLoad = game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner) && controlled && owned && !unit.captive && selectionEnabled;
       return <View key={unit.id} style={[s.card, checked && s.selected]}>
         <View style={s.between}><Text style={s.name}>{entry.name}</Text><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your unit' : 'Foreign unit'}</Text></View>
         <Text style={s.reference}>{entry.reference}</Text>

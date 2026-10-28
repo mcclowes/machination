@@ -7,6 +7,9 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
+import { hireSpecialist, promoteSpecialist, type Specialist } from '../src/game/specialists';
+import { isSpecialistKind } from '../src/game/specialist-catalog';
+import { releaseSpecialist } from '../src/game/specialist-travel';
 import { commandHauler } from '../src/game/transport';
 import { drillMine, setShields } from '../src/game/economy';
 import { dispatchIntercept } from '../src/game/interception';
@@ -14,7 +17,7 @@ import { giftTransfer } from '../src/game/gifts';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
@@ -41,7 +44,7 @@ export class GameService {
       if (database.version !== 1 || !Array.isArray(database.rooms)) throw new Error('Unsupported server database.');
       const ids = new Set<string>();
       for (const r of database.rooms) {
-        decodeSave(JSON.stringify({ savedAt: 0, game: r.game }));
+        r.game = decodeSave(JSON.stringify({ savedAt: 0, game: r.game })).game;
         if (!/^[a-f0-9]{24}$/.test(r.id) || ids.has(r.id) || !/^[a-f0-9]{24}$/.test(r.invite)
           || !(r.startedAt === null || Number.isFinite(r.startedAt) && r.startedAt >= 0)
           || !Number.isSafeInteger(r.revision) || r.revision < 0 || !Array.isArray(r.seats) || r.seats.length < 1 || r.seats.length > 3
@@ -93,16 +96,16 @@ export class GameService {
     if (room.startedAt !== null) room.game = advance(room.game, Math.max(room.game.hour, (this.now() - room.startedAt) / 3_600_000), { rivals: false });
   }
   private revision(room: Room, faction: Faction): number { return room.seats.find(s => s.faction === faction)!.revision ?? 0; }
-  private identify(room: Room, faction: Faction, kind: 'hauler' | 'message', id: number): number {
+  private identify(room: Room, faction: Faction, kind: 'hauler' | 'message' | 'unit', id: number | string): number {
     const seat = room.seats.find(s => s.faction === faction)!;
     const key = seat.identityHash ?? seat.hash;
     return createHmac('sha256', key).update(`${kind}:${id}`).digest().readUIntBE(0, 6);
   }
   private view(room: Room, faction: Faction): Snapshot {
-    return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner ? 'game.finished' : 'game.active',
+    return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner || room.game.draw ? 'game.finished' : 'game.active',
       faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
       recoveryEnabled: !!room.seats.find(s => s.faction === faction)!.recoveryHash,
-      visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id)), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
+      visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id), id => String(this.identify(room, faction, 'unit', id))), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
   create(token: string): Promise<Snapshot> {
     return this.transaction(db => {
@@ -111,7 +114,7 @@ export class GameService {
       if (existing) { this.settle(existing); return this.view(existing, this.seat(existing, token)); }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        revision: 0, game: this.initialGame(this.now()), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
+        revision: 0, game: this.initialGame(this.now(), { you: randomBytes(4).readUInt32BE(), vesper: randomBytes(4).readUInt32BE(), null: randomBytes(4).readUInt32BE() }), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
       db.rooms.push(room);
       return this.view(room, 'you');
     });
@@ -182,13 +185,46 @@ export class GameService {
     room.receipts[key] = payload;
     return false;
   }
+  private manifest(room: Room, owner: Faction, from: string, ids?: string[], carried: Specialist[] = []): string[] {
+    if (ids === undefined) return [];
+    requireThat(Array.isArray(ids) && ids.length <= 10000 && ids.every(id => typeof id === 'string') && new Set(ids).size === ids.length, 400, 'module.validation.manifest', 'Choose each module once.');
+    const available = [...(room.game.rocks.find(r => r.id === from && r.owner === owner)?.specialists ?? []), ...carried];
+    return ids.map(id => {
+      const unit = available.find(u => u.owner === owner && !u.captive && String(this.identify(room, owner, 'unit', u.id)) === id);
+      requireThat(unit, 409, 'module.conflict.unavailable', 'A selected module is no longer at the departure site.');
+      return unit.id;
+    });
+  }
+  specialist(id: string, token: string, command: SpecialistOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const payload = JSON.stringify(['specialist', command.action, command.action === 'hire' ? command.kind : command.unit, command.revision]);
+      if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'Your orders changed. Refresh before managing modules.');
+      try {
+        if (command.action === 'hire') {
+          if (!isSpecialistKind(command.kind)) throw new Error('Choose a recruitment offer.');
+          r.game = hireSpecialist(r.game, f, command.kind);
+        } else {
+          const unit = r.game.rocks.filter(rock => rock.owner === f).flatMap(rock => rock.specialists ?? []).find(u => String(this.identify(r, f, 'unit', u.id)) === command.unit);
+          if (!unit) throw new Error('Choose a module at a controlled site.');
+          if (command.action === 'promote') r.game = promoteSpecialist(r.game, f, unit.id);
+          else if (command.action === 'release') r.game = releaseSpecialist(r.game, f, unit.id);
+          else throw new Error('Unknown module command.');
+        }
+      } catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
+      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
   order(id: string, token: string, order: Order): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      if (this.receipt(r, f, order.requestId, JSON.stringify(['order', order.from, order.to, order.drones, order.revision, ...(order.carryModule === undefined || order.carryModule === false ? [] : [order.carryModule])]))) return this.view(r, f);
+      if (this.receipt(r, f, order.requestId, JSON.stringify(['order', order.from, order.to, order.drones, order.revision, ...(order.carryModule === undefined || order.carryModule === false ? [] : [order.carryModule]), ...(order.specialists?.length ? [order.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(order.revision) && order.revision === this.revision(r, f), 409, 'order.conflict.stale', 'The operation changed. Refresh before issuing this order.');
-      try { r.game = dispatch(r.game, order.from, order.to, order.drones, f, order.carryModule); }
+      try { r.game = dispatch(r.game, order.from, order.to, order.drones, f, order.carryModule, this.manifest(r, f, order.from, order.specialists)); }
       catch (e) { throw new Failure(409, 'order.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
@@ -198,10 +234,10 @@ export class GameService {
   gift(id: string, token: string, command: GiftOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      if (this.receipt(r, f, command.requestId, JSON.stringify(['gift', command.from, command.to, command.drones, command.recipient, command.revision, command.carryModule ?? false]))) return this.view(r, f);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['gift', command.from, command.to, command.drones, command.recipient, command.revision, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'gift.conflict.stale', 'Your orders changed. Refresh before gifting.');
-      try { r.game = giftTransfer(r.game, command.from, command.to, command.drones, f, command.recipient, command.carryModule); }
+      try { r.game = giftTransfer(r.game, command.from, command.to, command.drones, f, command.recipient, command.carryModule, this.manifest(r, f, command.from, command.specialists)); }
       catch (e) { throw new Failure(409, 'gift.conflict.invalid', (e as Error).message); }
       r.revision++;
       for (const seat of r.seats) if (seat.faction === f || r.game.version === 1 && seat.faction === command.recipient) seat.revision = this.revision(r, seat.faction) + 1;
@@ -224,13 +260,16 @@ export class GameService {
   hauler(id: string, token: string, command: HaulerOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      const payload = JSON.stringify(['hauler', command.fleet, command.action, command.action === 'edit-launch' ? command.drones : null, command.revision]);
+      const payload = JSON.stringify(['hauler', command.fleet, command.action, command.action === 'edit-launch' ? command.drones : null, command.revision, ...(command.action === 'course' ? [command.to] : []), ...(command.action === 'edit-launch' && command.specialists?.length ? [command.specialists] : [])]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'hauler.conflict.stale', 'Your orders changed. Refresh before changing this hauler.');
       const fleet = r.game.fleets.find(fleet => fleet.owner === f && this.identify(r, f, 'hauler', fleet.id) === command.fleet);
       requireThat(fleet, 409, 'hauler.conflict.target', 'Choose one of your haulers.');
-      try { r.game = commandHauler(r.game, f, { ...command, fleet: fleet.id }); }
+      try {
+        const change = command.action === 'edit-launch' && command.specialists !== undefined ? { ...command, specialists: this.manifest(r, f, fleet.from, command.specialists, fleet.specialists) } : command;
+        r.game = commandHauler(r.game, f, { ...change, fleet: fleet.id });
+      }
       catch (e) { throw new Failure(409, 'hauler.conflict.invalid', (e as Error).message); }
       r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);
@@ -256,14 +295,14 @@ export class GameService {
   intercept(id: string, token: string, command: InterceptOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      if (this.receipt(r, f, command.requestId, JSON.stringify(['intercept', command.from, command.target, command.drones, command.revision]))) return this.view(r, f);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['intercept', command.from, command.target, command.drones, command.revision, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'interception.conflict.stale', 'Your orders changed. Refresh before intercepting.');
       const visible = observe(r.game, f, fleetId => this.identify(r, f, 'hauler', fleetId));
       const contact = visible.fleets.find(fleet => fleet.id === command.target && fleet.owner !== f);
       requireThat(contact, 409, 'interception.conflict.target', 'Target is not an observed enemy hauler.');
       const target = r.game.fleets.find(fleet => this.identify(r, f, 'hauler', fleet.id) === contact.id)!;
-      try { r.game = dispatchIntercept(r.game, command.from, target.id, command.drones, f); }
+      try { r.game = dispatchIntercept(r.game, command.from, target.id, command.drones, f, true, command.specialists === undefined ? undefined : this.manifest(r, f, command.from, command.specialists)); }
       catch (e) { throw new Failure(409, 'interception.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
@@ -273,11 +312,11 @@ export class GameService {
   schedule(id: string, token: string, command: ScheduleOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      const payload = JSON.stringify(['schedule', command.from, command.to, command.drones, command.revision, command.executeAt, command.carryModule ?? false]);
+      const payload = JSON.stringify(['schedule', command.from, command.to, command.drones, command.revision, command.executeAt, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before scheduling.');
-      try { r.game = scheduleTransfer(r.game, { id: command.requestId, owner: f, from: command.from, to: command.to, drones: command.drones, executeAt: command.executeAt, carryModule: command.carryModule }); }
+      try { r.game = scheduleTransfer(r.game, { id: command.requestId, owner: f, from: command.from, to: command.to, drones: command.drones, executeAt: command.executeAt, carryModule: command.carryModule, specialists: this.manifest(r, f, command.from, command.specialists) }); }
       catch (e) { throw new Failure(409, 'schedule.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;

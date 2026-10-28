@@ -3,13 +3,15 @@
  * purpose: Scavenger interception orders, in-flight combat, and committed return missions.
  * ---
  */
+import { dispatchSpecialistIntercept } from './specialist-interception';
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, flightEndpoints, interceptionCourse, transferDuration, type Point } from './flight';
 import { inRange, observers, sensors } from './sensors';
 import { recentEvents } from './events';
 import { SALVAGE_FRACTION, BLAST_MULTIPLIER, CONVERSION_FRACTION, CONVERSION_LIMIT } from './modules';
 const MEETING_TOLERANCE = 1e-6;
-export function dispatchIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact = true): Game {
+export function dispatchIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact = true, specialists?: string[]): Game {
+  if (game.version === 2) return dispatchSpecialistIntercept(game, fromId, targetId, drones, owner, requireContact, specialists);
   if (game.winner || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   const from = game.rocks.find(r => r.id === fromId);
   const target = game.fleets.find(f => f.id === targetId);

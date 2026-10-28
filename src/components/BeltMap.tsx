@@ -7,6 +7,7 @@ import React, { useRef, useState } from 'react';
 import { View, Pressable, Text, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Circle, Ellipse, G, Line, Path, Text as SvgText } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
+import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
@@ -72,14 +73,14 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       const color = rock.owner ? FACTIONS[rock.owner].color : '#7d8b83';
       const active = selected === rock.id || destination === rock.id;
       const location = position(rock);
-      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? 'outside sensor range, ownership and drones unknown' : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.module ? `, ${MODULES[rock.module].name}` : ''}`} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      return <Pressable key={rock.id} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? 'outside sensor range, ownership and drones unknown' : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? color : 'transparent', backgroundColor: active ? `${color}10` : 'transparent' }]}>
           <View style={[styles.stone, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
-            <Text style={{ color, fontSize: 11 }}>{rock.coreOf || rock.kind === 'core' ? '◈' : rock.kind === 'reactor' || rock.kind === 'generator' ? 'ϟ' : rock.kind === 'factory' ? '▥' : '·'}</Text>
+            <Text style={{ color, fontSize: 11 }}>{rock.destroyed ? '×' : rock.coreOf || rock.kind === 'core' ? '◈' : rock.kind === 'reactor' || rock.kind === 'generator' ? 'ϟ' : rock.kind === 'factory' ? '▥' : '·'}</Text>
           </View>
         </View>
         <Text style={[styles.name, { color: active ? '#eff4e9' : color }]}>{rock.name}</Text>
-        <Text style={[styles.count, { color }]}>{rock.known === false ? '?' : Math.floor(rock.drones ?? 0).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}</Text>
+        <Text style={[styles.count, { color }]}>{rock.known === false ? '?' : Math.floor(rock.drones ?? 0).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}{rock.specialists?.length ? ` · ${rock.specialists.length}u` : ''}</Text>
       </Pressable>;
     })}
     {game.fleets.map(f => {
@@ -87,7 +88,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       return <Pressable key={`contact-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => setContact(f.id)} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? FACTIONS[f.owner].color : 'transparent' }]} /></Pressable>;
     })}
     <View style={styles.zoom}><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => move(camera.scale - 0.5, camera.x, camera.y)} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => move(camera.scale + 0.5, camera.x, camera.y)} /><MapControl label="Fit chart" text="Fit" onPress={() => move(1, 0, 0)} /></View>
-    {fleet && <View style={styles.inspector}><View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View><Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text><Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text><Text style={styles.contactText}>Arrives in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text><MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} /></View>}
+    {fleet && <View style={styles.inspector}><View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View><Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text><Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text><Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text><Text style={styles.contactText}>Arrives in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text><MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} /></View>}
     <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>SECTOR 07—B</Text><Text style={styles.coord}>2.8 AU / OUTER BELT</Text></View>
   </View>;
 }

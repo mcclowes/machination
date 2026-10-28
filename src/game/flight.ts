@@ -21,15 +21,15 @@ export function fleetPosition(world: FlightWorld, fleet: Fleet): Point {
   const progress = Math.max(0, Math.min(1, (world.hour - fleet.departed) / (fleet.arrives - fleet.departed)));
   return { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress };
 }
-export function interceptionCourse(world: FlightWorld, source: Point, target: Fleet): { arrives: number; point: Point } | null {
-  const remaining = target.arrives - world.hour;
+export function interceptionCourse(world: FlightWorld, source: Point, target: Fleet, speed = TRANSFER_SPEED, departureHour = world.hour): { arrives: number; point: Point } | null {
+  const remaining = target.arrives - departureHour;
   if (remaining <= TIME_TOLERANCE) return null;
-  const current = fleetPosition(world, target);
+  const current = fleetPosition({ ...world, hour: departureHour }, target);
   const destination = flightEndpoints(world, target).to;
   const vx = (destination.x - current.x) / remaining;
   const vy = (destination.y - current.y) / remaining;
   const dx = current.x - source.x; const dy = current.y - source.y;
-  const a = vx * vx + vy * vy - TRANSFER_SPEED * TRANSFER_SPEED;
+  const a = vx * vx + vy * vy - speed * speed;
   const b = 2 * (dx * vx + dy * vy); const c = dx * dx + dy * dy;
   let roots: number[];
   if (Math.abs(a) < TIME_TOLERANCE) roots = b < 0 ? [-c / b] : [];
@@ -41,7 +41,7 @@ export function interceptionCourse(world: FlightWorld, source: Point, target: Fl
   }
   const duration = Math.min(...roots.filter(t => Number.isFinite(t) && t > TIME_TOLERANCE && t < remaining - TIME_TOLERANCE));
   if (!Number.isFinite(duration)) return null;
-  return { arrives: world.hour + duration, point: { x: current.x + vx * duration, y: current.y + vy * duration } };
+  return { arrives: departureHour + duration, point: { x: current.x + vx * duration, y: current.y + vy * duration } };
 }
 export function flightDestination(rocks: readonly { id: string; name: string }[], fleet: Fleet): string {
   if (fleet.intercept) return 'Interception rendezvous';
