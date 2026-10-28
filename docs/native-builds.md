@@ -77,6 +77,16 @@ Standard-phone private messaging now also passes with the software keyboard expl
 
 The first Android compile stopped before APK creation because NDK 27.1.12297006 is missing and its license is not accepted. Install that component through Android Studio, then rerun the playtest command. No Android device is connected and no Android emulator is configured. Android native gameplay remains unverified.
 
+## Faithful rebuild acceptance, October 28
+
+A signed current Release build compiled with the document picker, filesystem, and sharing modules. A separately identified QA copy (`com.mcclowes.machination.fidelityqa`) was installed alongside the existing Machination app on the iPhone 18 Pro / iOS 27.0 simulator. The original app and its saved operation/connection were preserved. This is simulator evidence, not physical-device or Android acceptance.
+
+The current briefing clears the status area and dismisses to the entry screen. Native tactical practice completes its first exercise through the real map and manifest: six drones leave Foundry, arrival inspection forecasts Quiet landing with two survivors without awarding completion, and manual live advancement stops at 01:10 with actual capture and completion. Review images are `.fettle/shots/native-current-briefing.png`, `native-practice-arrival-forecast.png`, and `native-practice-complete.png`. The other four exercises still need native acceptance.
+
+Native Hermes successfully generates an observed solo replay and its disclosure preview. Save replay opens the system share sheet; Save to Files writes the JSON locally under On My iPhone. The app returns with “Share sheet closed,” without claiming recipient delivery. The document picker finds that saved file, strict import opens the unverified replay viewer, Beginning seeks to the first state, and Play reaches the recorded end and disables further playback. The live operation is unmounted during imported viewing. No replay was sent to another person. `.fettle/shots/native-replay-imported.png` records the actual viewer. This short clip has no moving haulers; native battle/movement playback, offline network isolation, and physical-device providers remain separate checks.
+
+Two UI gaps remain explicit. [#28](https://github.com/mcclowes/machination/issues/28) records swapped site/timeline accessibility roles after Practice-to-Solo transitions; a fresh Device Hub read reproduces the mismatch, but source inspection does not establish a safe recycling patch. React Native's iOS mapping of `tab` to no native trait is a separate confirmed issue; `934c5ec` uses selected buttons on iOS, with its native rebuild still queued at this checkpoint. [#31](https://github.com/mcclowes/machination/issues/31) records the replay viewer's controls displacing the chart on a phone. These findings prevent claiming complete native UI parity.
+
 ## Native identity
 
 Original icons and launch artwork are configured in `app.json`. Run `npm run build:brand` to regenerate their PNGs from the editable vector and inspect the masked and small-size preview. See [the artwork notes](../assets/brand/README.md).

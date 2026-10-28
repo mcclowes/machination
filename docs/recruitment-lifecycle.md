@@ -12,6 +12,8 @@ Those frames prove historical controls and future manifest selection. They don't
 
 The public `play.subterfuge-game.com` entry returned an HTML redirect to the main website on October 28, 2026. It didn't provide a playable web client for these probes. Current original-client interaction remains unverified.
 
+A fresh primary-frame review reads “Tap again to cancel hire (11m left)” at 02:10, while the forecast cursor is about +4.4h and the queued hire is labeled +4.5h. The remaining-time hint therefore cannot simply be the live-time interval until that future command. Neither the rounded labels nor the still frame establishes an exact cancellation clock, activation law, refund, or finalization action. The community Specialist 2 puzzle transcription specifically mentions permanence after ten minutes, but its original screenshot wasn't retrieved and that transcription alone isn't current-client acceptance. The [publisher's Steam page](https://store.steampowered.com/app/4831650/Subterfuge/?l=english) now offers a Mac demo; direct current-client investigation remains the next evidence route.
+
 ## Behavior to resolve before implementation
 
 | Question | Required observation |
