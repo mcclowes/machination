@@ -5,6 +5,8 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { flightDestination } from '../game/flight';
+import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
 import { ModuleBay } from '../components/ModuleBay';
 import { MODULES } from '../game/modules';
@@ -121,15 +123,17 @@ export function OnlineOperation() {
       </View>
       <BeltMap game={game} selected={selected} destination={destination} onSelect={r => { if (planning && r.id !== selected) setDestination(r.id); else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); } }} />
       <View style={s.panel}><Text style={s.label}>Forecast / known orders only</Text><View style={s.row}>{[0, 6, 12, 24].map(h => <View key={h} style={{ flex: 1 }}><Action text={h ? `+${h}h` : 'Now'} onPress={() => { setForecast(h); setPlanning(false); setDestination(undefined); }} /></View>)}</View><Text style={s.detail}>{forecast ? `Previewing +${forecast}h. Based on current observations. Hidden forces and new orders can change this future.` : 'Sensors: 32 units per rock, 16 per hauler. Unknown rocks show ?. Refreshes every 15 seconds.'}</Text></View>
+      {game.interceptionUncertain && <View style={s.panel}><Text style={s.error}>Interception outcome unknown. The target isn't in the current observations.</Text></View>}
       {!!game.uncertain.length && <View style={s.panel}><Text style={s.error}>Arrival outcomes unknown at {game.uncertain.map(id => game.rocks.find(r => r.id === id)?.name).join(', ')}. Scout and refresh before relying on this forecast.</Text></View>}
       {rock && <View style={s.panel}><Text style={s.title}>{rock.name}</Text><Text style={s.detail}>{rock.known ? `${Math.floor(rock.drones)} drones · ${rock.kind}` : 'Outside sensor range. Ownership and drones unknown.'}</Text><Text style={s.detail}>{target ? `To ${target.name} / ${travelHours(rock, target, carry ? rock.module : undefined)}h transit / arrival in ${delay + travelHours(rock, target, carry ? rock.module : undefined)}h` : planning ? 'Select any other rock as the destination.' : 'Inspect assets or plan a transfer from a controlled rock.'}</Text><Action text={planning ? 'Cancel transfer selection' : 'Choose transfer destination'} disabled={!operational || rock.owner !== snapshot.faction} onPress={() => { setPlanning(!planning); setDestination(undefined); }} />
         <TextInput accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
         <LaunchTiming delay={delay} disabled={!operational} onChange={setDelay} />
         <Action text={delay ? `Schedule launch +${delay}h` : 'Launch hauler'} disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || !delay && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
+        {rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} disabled={!operational} onIntercept={target => submit({ kind: 'intercepts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, target, drones: Number(amount) } })} />}
         {rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!operational} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}
       <ScheduledOrders plans={game.scheduled} hour={game.hour} rocks={game.rocks} disabled={!operational} onCancel={planId => submit({ kind: 'cancel-schedule', body: { requestId: commandId(), revision: snapshot.revision, planId } })} />
-      <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {game.rocks.find(r => r.id === f.to)?.name} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
+      <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
       <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
         {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}
         <TextInput accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />

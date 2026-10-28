@@ -62,3 +62,18 @@ test('scheduled transfers persist while legacy saves without a queue still load'
   malformed.game.scheduled[0].module = 'unknown';
   assert.throws(() => decodeSave(JSON.stringify(malformed)));
 });
+
+test('interception approaches and return legs round-trip and reject damaged flight geometry', async () => {
+  const { dispatchIntercept } = await import('./interception');
+  const { installModule } = await import('./simulation');
+  let game = installModule(createGame(0), 'a', 'scavenger', 'you');
+  game = advance(dispatch(game, 'e', 'a', 40, 'vesper'), 4, { rivals: false });
+  game = dispatchIntercept(game, 'a', game.fleets[0]!.id, 50, 'you');
+  const at = game.fleets.find(f => f.intercept)!.arrives;
+  for (const world of [game, advance(game, at, { rivals: false })]) {
+    assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game: world })).game, world);
+  }
+  const malformed = JSON.parse(JSON.stringify({ savedAt: 0, game }));
+  malformed.game.fleets.find((f: { intercept?: unknown }) => f.intercept).route.from.x = null;
+  assert.throws(() => decodeSave(JSON.stringify(malformed)));
+});

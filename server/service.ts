@@ -7,10 +7,11 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
+import { dispatchIntercept } from '../src/game/interception';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { CancelSchedule, Message, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { CancelSchedule, InterceptOrder, Message, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
@@ -162,6 +163,23 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
       try { r.game = installModule(r.game, command.rock, command.module, f); }
       catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
+      r.revision++;
+      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  intercept(id: string, token: string, command: InterceptOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['intercept', command.from, command.target, command.drones, command.revision]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'interception.conflict.stale', 'Your orders changed. Refresh before intercepting.');
+      const visible = observe(r.game, f, fleetId => this.identify(r, f, 'hauler', fleetId));
+      const contact = visible.fleets.find(fleet => fleet.id === command.target && fleet.owner !== f);
+      requireThat(contact, 409, 'interception.conflict.target', 'Target is not an observed enemy hauler.');
+      const target = r.game.fleets.find(fleet => this.identify(r, f, 'hauler', fleet.id) === contact.id)!;
+      try { r.game = dispatchIntercept(r.game, command.from, target.id, command.drones, f); }
+      catch (e) { throw new Failure(409, 'interception.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);

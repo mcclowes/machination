@@ -37,10 +37,26 @@ export function decodeSave(raw: string): Save {
   const fleetIds = new Set<number>();
   for (const f of g.fleets) {
     if (!record(f) || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)
-      || !isFaction(f.owner) || g.eliminated.includes(f.owner) || !ids.has(f.from as string) || !ids.has(f.to as string) || f.from === f.to
+      || !isFaction(f.owner) || g.eliminated.includes(f.owner) || !ids.has(f.from as string) || !ids.has(f.to as string) || f.from === f.to && !f.route
       || !Number.isInteger(f.drones) || (f.drones as number) < 1 || !nonnegative(f.departed) || f.departed > g.hour
       || !(f.module === undefined || isModule(f.module))
       || !finite(f.arrives) || f.arrives <= g.hour || f.arrives <= f.departed) return fail();
+    if (f.route !== undefined) {
+      if (!record(f.route) || !record(f.route.from) || !record(f.route.to)
+        || !finite(f.route.from.x) || !finite(f.route.from.y) || !finite(f.route.to.x) || !finite(f.route.to.y)
+        || f.from !== f.to || !(f.intercept || f.returning === true)) return fail();
+    }
+    if (f.intercept !== undefined) {
+      if (!record(f.intercept) || !f.route || f.module !== 'scavenger' || f.returning !== undefined
+        || !Number.isSafeInteger(f.intercept.target) || (f.intercept.target as number) < 1 || (f.intercept.target as number) >= (g.nextId as number)
+        || f.intercept.target === f.id || f.intercept.home !== f.from) return fail();
+    }
+    if (record(f.route)) {
+      const home = g.rocks.find(r => r.id === f.from)!;
+      const endpoint = f.returning ? f.route.to : f.route.from;
+      if (!record(endpoint) || endpoint.x !== home.x || endpoint.y !== home.y) return fail();
+    }
+    if (f.returning !== undefined && (f.returning !== true || !f.route || f.module !== 'scavenger')) return fail();
     fleetIds.add(f.id as number);
   }
   if (g.scheduled !== undefined) {

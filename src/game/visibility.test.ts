@@ -107,3 +107,25 @@ test('private scheduled launches participate in forecasts without resolving unkn
   assert.deepEqual(arrived.uncertain, ['e']);
   assert.equal(arrived.fleets.length, 0);
 });
+
+test('interception target references are scoped and a lost contact creates forecast uncertainty', async () => {
+  const { dispatchIntercept } = await import('./interception');
+  let game = installModule(createGame(0), 'a', 'scavenger', 'you');
+  game = advance(dispatch(game, 'e', 'a', 40, 'vesper'), 4, { rivals: false });
+  game = dispatchIntercept(game, 'a', game.fleets[0]!.id, 50, 'you');
+  const known = observe(game, 'you', id => 1000 + id);
+  assert.equal(known.fleets.find(f => f.intercept)!.intercept!.target, 1001);
+  const predicted = forecastObservation(known, 'you', 8);
+  assert.equal(predicted.rocks[0]!.module, 'scavenger');
+  assert.equal(predicted.rocks[0]!.drones, 64);
+  const target = game.fleets.find(f => f.owner === 'vesper')!;
+  target.from = 'e'; target.to = 'e'; target.returning = true; target.module = 'scavenger';
+  target.route = { from: { x: 51, y: 61 }, to: { x: 80, y: 49 } }; target.departed = 4;
+  game = advance(game, 5, { rivals: false });
+  const lost = observe(game, 'you', id => 1000 + id);
+  assert.equal(lost.fleets.length, 1);
+  assert.ok(!('target' in lost.fleets[0]!.intercept!));
+  const uncertain = forecastObservation(lost, 'you', 8);
+  assert.equal(uncertain.interceptionUncertain, true);
+  assert.equal(uncertain.fleets.length, 0, 'no invented return from an unobserved encounter');
+});

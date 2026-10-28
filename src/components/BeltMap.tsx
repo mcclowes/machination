@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path, Text as SvgText } from 'react-native-svg';
+import { flightEndpoints, fleetPosition } from '../game/flight';
 import { MODULES } from '../game/modules';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
@@ -22,13 +23,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       <Circle cx="204" cy="243" r="5" fill="#c9a06b" opacity="0.65" />
       <SvgText x="204" y="265" textAnchor="middle" fill="#6b746c" fontSize="7" letterSpacing="2">SOL / 04</SvgText>
       {game.fleets.map(f => {
-        const a = game.rocks.find(r => r.id === f.from)!;
-        const b = game.rocks.find(r => r.id === f.to)!;
-        const t = Math.min(1, (game.hour - f.departed) / (f.arrives - f.departed));
-        const x = (a.x + (b.x - a.x) * t) * 4;
-        const y = (a.y + (b.y - a.y) * t) * 4.8;
+        const { from: a, to: b } = flightEndpoints(game, f);
+        const position = fleetPosition(game, f);
+        const x = position.x * 4; const y = position.y * 4.8;
         return <React.Fragment key={f.id}>
           <Line x1={a.x * 4} y1={a.y * 4.8} x2={b.x * 4} y2={b.y * 4.8} stroke={FACTIONS[f.owner].color} opacity="0.35" strokeDasharray="3 4" />
+          {f.intercept && <Circle cx={x} cy={y} r="6" fill="none" stroke={FACTIONS[f.owner].color} strokeWidth="0.7" />}
           <Path d={`M ${x} ${y - 4} l 4 8 l -8 0 Z`} fill={FACTIONS[f.owner].color} />
         </React.Fragment>;
       })}

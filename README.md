@@ -19,7 +19,7 @@ Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emul
 
 Select a controlled rock, choose **Plan transfer**, tap a destination, and launch drones. Mines produce cargo; reactors and cores produce drones. Reach 300 cargo or capture both rival cores. Losing your core ends your operation.
 
-Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
+Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs intercept moving haulers and recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
 
 Choose a launch time from now to seven days ahead and manage private plans in **Scheduled transfers**. Plans use resources available at execution, and can be canceled before launch.
 
@@ -40,7 +40,7 @@ See [existing remake references](docs/remake-references.md) for reuse candidates
 
 ## Scope
 
-This is a playable foundation, not a store release. Moving-hauler interception, push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
+This is a playable foundation, not a store release. Push notifications, account recovery, public hosting, and native distribution remain unimplemented. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. Native runtime behavior still needs iOS and Android device verification.
 
 Run `npm run server` and open **Multiplayer uplink** to create or join a three-player operation. Online play uses sensor-limited views: unknown rocks display `?`, and scouts reveal nearby contacts. Forecasts leave hidden arrival outcomes unresolved. Solo remains a full-information training simulation. See [multiplayer setup and API](docs/multiplayer.md).
 

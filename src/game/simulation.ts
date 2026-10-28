@@ -5,17 +5,19 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { resolveInterceptions } from './interception';
+import { transferDuration, type Point } from './flight';
 import type { ScheduledTransfer } from './orders';
 import { recentEvents, type GameEvent } from './events';
 import { observers } from './sensors';
-import { MODULES, isModule, ROUTING_SPEED, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
+import { MODULES, isModule, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
 export type Faction = 'you' | 'vesper' | 'null';
 export type Rock = {
   id: string; name: string; x: number; y: number;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine';
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; module?: ModuleKind };
+export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true };
 export type Game = {
   version: 1; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
@@ -55,7 +57,7 @@ export function createGame(epoch = Date.now()): Game {
   };
 }
 export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind): number {
-  return Math.max(1, Math.ceil(Math.hypot(from.x - to.x, from.y - to.y) / (8 * (module === 'routing' ? ROUTING_SPEED : 1))));
+  return transferDuration(from, to, module);
 }
 export function installModule(game: Game, rockId: string, kind: ModuleKind, owner: Faction): Game {
   const rock = game.rocks.find(r => r.id === rockId);
@@ -87,7 +89,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(input: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[] } = {}): Game {
+export function advance(input: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[] } = {}): Game {
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
     ...input, rocks: input.rocks.map(r => ({ ...r })), fleets: input.fleets.map(f => ({ ...f })),
@@ -111,6 +113,7 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
       else rock.drones = inventoryUnits(rock.drones + PRODUCTION * elapsed);
     }
     game.hour = next;
+    resolveInterceptions(game, options.unknownInterceptions);
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);
     game.fleets = game.fleets.filter(f => f.arrives > next);
     for (const fleet of arrivals) {

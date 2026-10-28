@@ -8,6 +8,9 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
+import { dispatchIntercept } from './src/game/interception';
+import { flightDestination } from './src/game/flight';
+import { InterceptionTargets } from './src/components/InterceptionTargets';
 import { cancelTransfer, scheduleTransfer } from './src/game/orders';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
 import { ModuleBay } from './src/components/ModuleBay';
@@ -83,6 +86,10 @@ function Operation() {
     try { setGame(delay ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt: game.hour + delay, carryModule: carry && !!rock.module }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module)); setDelay(0); setPlanning(false); setDestination(undefined); setCarry(false); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
+  function intercept(target: number) {
+    try { setGame(dispatchIntercept(game, selected, target, count, 'you', false)); setPlanning(false); setDestination(undefined); setCarry(false); setDelay(0); setError(''); }
+    catch (e) { setError((e as Error).message); }
+  }
   function cancelPlan(id: string) {
     try { setGame(cancelTransfer(game, id, 'you')); setError(''); }
     catch (e) { setError((e as Error).message); }
@@ -124,18 +131,19 @@ function Operation() {
             <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
             <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.kind === 'core' ? 'Intelligence core · +4 drones / h' : rock.kind === 'reactor' ? 'Reactor · +4 drones / h' : 'Extraction rock · +2 cargo / h'}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
+            {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
               <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(game.hour + delay + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
               <LaunchTiming delay={delay} disabled={!operational || !!forecast} onChange={setDelay} />
-              <View style={s.between}><Label>Drone manifest</Label><TextInput accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
               <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={delay ? `Schedule launch +${delay}h` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
             </> : <Button label={forecast ? 'Return to now to issue orders' : rock.owner === 'you' ? 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!forecast || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
+            {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} disabled={!operational || !!forecast} onIntercept={intercept} />}
             {rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View>
           <View style={s.panel}>
             <View style={s.tabs}>{(['overview', 'signals'] as const).map(t => <Pressable accessibilityRole="button" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} key={t} style={[s.tab, tab === t && { borderBottomColor: green }]}><Text style={{ color: tab === t ? ink : '#7c8b80', fontSize: 12 }}>{t === 'overview' ? 'In transit' : 'Signal log'}{t === 'overview' ? ` / ${shown.fleets.length}` : ''}</Text></Pressable>)}</View>
-            {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{shown.rocks.find(r => r.id === f.to)?.name} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
+            {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{flightDestination(shown.rocks, f)} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
           </View>
           <ScheduledOrders plans={(shown.scheduled ?? []).filter(p => p.owner === 'you')} hour={shown.hour} rocks={shown.rocks} disabled={!operational || !!forecast} onCancel={cancelPlan} />
           <View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View>

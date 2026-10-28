@@ -30,6 +30,7 @@ Base path: `/v1`. All endpoints other than `/health` use the **seat token** sche
 | GET | `/games/:id` | none | Authorized game view and participant-filtered messages |
 | POST | `/games/:id/start` | `{}` | Host starts with three occupied seats; retry is harmless |
 | POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
+| POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned scavenger rig against a visible enemy hauler |
 | POST | `/games/:id/modules` | `{requestId, revision, rock, module}` | Spend drones on an owned rock and occupy its module bay |
 | POST | `/games/:id/messages` | `{requestId, to, text}` | Private bilateral transmission |
 
@@ -71,3 +72,9 @@ The online forecast operates only on the actual observations. It projects visibl
 Snapshots include only the requesting player's plans in `game.scheduled`. Plan creation and cancellation increment that seat's revision. Actual clock-driven execution doesn't increment a command revision; every immediate command still validates current resources and ownership. Accepted scheduling/cancellation requests can be retried after execution or restart without repeating the action. A late cancellation fails once the plan has launched. Rate limiting retains an uncertain client command so it can be retried using its original ID.
 
 Queues are persisted with the world and settled at the exact simulated launch time when the server processes a request. No player needs to remain connected. Queued launches participate in online forecasts, but hidden destination outcomes remain unresolved. Older saves without a queue load as having no pending plans. Update client and server together; the client now requires a scheduled-plan array in the response contract.
+
+## Interception contract
+
+`target` is the requesting seat's opaque hauler ID. Raw simulation IDs and another seat's IDs are rejected. Current visibility, ownership, payload, module, and reachability are checked authoritatively. Accepted requests use durable retry receipts before target validation on replay, so a retry remains harmless after combat or restart.
+
+Visible fleets include explicit route geometry for interception and return legs. An interception's target reference is included only while that target is visible and uses the same seat-scoped ID mapping. The forecast sets `interceptionUncertain: true` when a projected rendezvous has no observed target; it invents neither a combat result nor a return payload. Refreshing the authoritative view resolves the actual outcome.
