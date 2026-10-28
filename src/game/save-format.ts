@@ -129,14 +129,23 @@ export function decodeSave(raw: string): Save {
       if (!record(p) || typeof p.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(p.id) || !isFaction(p.owner)
         || g.eliminated.includes(p.owner) || g.winner !== null || plans.has(`${p.owner}:${p.id}`)
         || !finite(p.executeAt) || p.executeAt <= g.hour || p.executeAt > g.hour + MAX_PLAN_DELAY) return fail();
+      if (p.fleetId !== undefined) {
+        if (mechanicsVersion({ rules }) < 4 || !Number.isSafeInteger(p.fleetId) || (p.fleetId as number) < 1 || (p.fleetId as number) >= (g.nextId as number) || fleetIds.has(p.fleetId as number)) return fail();
+        fleetIds.add(p.fleetId as number);
+      }
       if ('action' in p) {
         try {
           if (g.version !== 2) return fail();
           const plan = validateScheduledAction(p);
+          const action = plan.action;
+          if ('from' in action && !ids.has(action.from) || action.type === 'gift' && (!ids.has(action.to) || action.from === action.to || action.recipient === plan.owner || !factions.includes(action.recipient)) || action.type === 'hauler' && action.change.action === 'course' && !ids.has(action.change.to)) return fail();
+          const reference = action.type === 'intercept' ? action.target : action.type === 'hauler' ? action.change.fleet : undefined;
+          if (reference !== undefined && reference >= (g.nextId as number)) return fail();
           if ('rock' in plan.action && !ids.has(plan.action.rock)) return fail();
           if (plan.action.type === 'funding' && (!isFaction(plan.action.to) || plan.action.to === plan.owner) || rules?.mode === 'domination' && ['funding', 'drill-mine'].includes(plan.action.type)) return fail();
         } catch { return fail(); }
       } else {
+        if (Object.keys(p).some(key => !['id', 'owner', 'executeAt', 'from', 'to', 'drones', 'module', 'specialists', 'fleetId'].includes(key))) return fail();
         if (!ids.has(p.from as string) || !ids.has(p.to as string) || p.from === p.to
           || !Number.isSafeInteger(p.drones) || (p.drones as number) < (g.version === 2 && Array.isArray(p.specialists) && p.specialists.length ? 0 : 1)
           || !(p.module === undefined || isModule(p.module))) return fail();

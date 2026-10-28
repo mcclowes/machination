@@ -11,9 +11,9 @@ import { recentEvents } from './events';
 import type { ModuleKind } from './modules';
 export const MAX_PLAN_DELAY = 7 * 24;
 export const MAX_PLANS_PER_FACTION = 20;
-export type ScheduledTransfer = { id: string; owner: Faction; from: string; to: string; drones: number; executeAt: number; specialists?: string[]; module?: ModuleKind };
+export type ScheduledTransfer = { id: string; owner: Faction; from: string; to: string; drones: number; executeAt: number; fleetId?: number; specialists?: string[]; module?: ModuleKind };
 export type ScheduledOrder = ScheduledTransfer | ScheduledAction;
-export type TransferPlan = Omit<ScheduledTransfer, 'module'> & { carryModule?: boolean };
+export type TransferPlan = Omit<ScheduledTransfer, 'module' | 'fleetId'> & { carryModule?: boolean };
 export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
   if (game.winner || game.draw || game.eliminated.includes(plan.owner)) throw new Error('This intelligence is no longer operational.');
   if (typeof plan.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(plan.id)) throw new Error('Provide a unique plan ID.');
@@ -31,8 +31,8 @@ export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
   const availableUnits = new Set([...game.rocks, ...game.fleets].filter(asset => asset.owner === plan.owner).flatMap(asset => (asset.specialists ?? []).filter(unit => unit.owner === plan.owner && !unit.captive).map(unit => unit.id)).concat(plannedUnitIds(game, plan.owner)));
   if (plan.specialists?.some(id => !availableUnits.has(id))) throw new Error('Planned modules must be owned or supplied by your queued hire.');
   if (plan.carryModule !== undefined && typeof plan.carryModule !== 'boolean' || plan.carryModule && !from.module) throw new Error('There is no module available to plan for transport.');
-  const scheduled: ScheduledTransfer = { id: plan.id, owner: plan.owner, from: plan.from, to: plan.to, drones: plan.drones, executeAt: plan.executeAt, ...(plan.carryModule ? { module: from.module! } : {}), ...(plan.specialists?.length ? { specialists: [...plan.specialists] } : {}) };
-  return { ...game, scheduled: [...existing, scheduled], events: recentEvents([{ hour: game.hour, audience: [plan.owner], message: `Transfer planned from ${from.name} for hour ${plan.executeAt.toFixed(2)}. Drones are not reserved.` }, ...game.events]) };
+  const scheduled: ScheduledTransfer = { id: plan.id, owner: plan.owner, from: plan.from, to: plan.to, drones: plan.drones, executeAt: plan.executeAt, ...(mechanicsVersion(game) >= 4 ? { fleetId: game.nextId } : {}), ...(plan.carryModule ? { module: from.module! } : {}), ...(plan.specialists?.length ? { specialists: [...plan.specialists] } : {}) };
+  return { ...game, nextId: game.nextId + (mechanicsVersion(game) >= 4 ? 1 : 0), scheduled: [...existing, scheduled], events: recentEvents([{ hour: game.hour, audience: [plan.owner], message: `Transfer planned from ${from.name} for hour ${plan.executeAt.toFixed(2)}. Drones are not reserved.` }, ...game.events]) };
 }
 export function cancelTransfer(game: Game, id: string, owner: Faction): Game {
   const plan = game.scheduled?.find(p => p.id === id && p.owner === owner);

@@ -72,7 +72,7 @@ export function installModule(game: Game, rockId: string, kind: ModuleKind, owne
   return { ...game, rocks: game.rocks.map(r => r.id === rockId ? { ...r, module: kind, drones: r.drones - MODULES[kind].cost } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: ${MODULES[kind].name} constructed for ${MODULES[kind].cost} drones.` }, ...game.events]) };
 }
-export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction, carryModule = false, specialists: string[] = []): Game {
+export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction, carryModule = false, specialists: string[] = [], fleetId?: number): Game {
   const from = game.rocks.find(r => r.id === fromId);
   const to = game.rocks.find(r => r.id === toId);
   if (!playersIn(game).includes(owner) || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
@@ -85,14 +85,14 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   const duration = game.version === 2 ? Math.max(1e-6, worldDistance(game, from, to) / speed) : travelHours(from, to, module, game.version);
   const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
   return {
-    ...game, nextId: game.nextId + 1,
+    ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0),
     rocks: game.rocks.map(r => {
       if (r.id !== fromId) return r;
       const departure = { ...r, drones: r.drones - drones, ...(r.specialists ? { specialists: r.specialists.filter(u => !specialists.includes(u.id)) } : {}) };
       if (carryModule) delete departure.module;
       return departure;
     }),
-    fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: departed + duration, ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
+    fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: departed + duration, ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
@@ -222,7 +222,7 @@ function executeScheduled(input: Game): Game {
       if (isActionPlan(plan)) { game = executeScheduledAction(game, plan); continue; }
       if (game.rocks.find(r => r.id === plan.from)?.owner !== plan.owner) throw new Error('The departure rock is no longer controlled.');
       if (plan.module && game.rocks.find(r => r.id === plan.from)?.module !== plan.module) throw new Error('The planned module is no longer in the departure bay.');
-      game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists);
+      game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists, plan.fleetId);
     } catch (error) {
       game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: isActionPlan(plan) ? `${actionLabel(plan.action, game.rocks)} aborted: ${(error as Error).message}` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
     }

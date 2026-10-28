@@ -13,7 +13,7 @@ import { resolveHaulerContact } from './specialist-combat';
 import { canObserveHauler } from './sensors';
 import { recentEvents } from './events';
 
-export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact: boolean, ids?: string[]): Game {
+export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact: boolean, ids?: string[], fleetId?: number): Game {
   if (game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   const source = game.rocks.find(r => r.id === fromId && r.owner === owner && !r.destroyed);
   const target = game.fleets.find(f => f.id === targetId && f.owner !== owner && !f.preparing);
@@ -26,9 +26,9 @@ export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId
   const speed = specialistSpeed(game, owner, units, false, 'intercept');
   const course = interceptionCourse(game, source, target, speed, departed);
   if (!course) throw new Error('This hauler cannot be reached before its current leg ends.');
-  const fleet: Fleet = { id: game.nextId, owner, from: fromId, to: fromId, drones, specialists: units, speed, preparing: true, departed, arrives: course.arrives,
+  const fleet: Fleet = { id: fleetId ?? game.nextId, owner, from: fromId, to: fromId, drones, specialists: units, speed, preparing: true, departed, arrives: course.arrives,
     route: { from: { x: source.x, y: source.y }, to: course.point }, intercept: { target: targetId, home: fromId } };
-  return { ...game, nextId: game.nextId + 1, rocks: game.rocks.map(r => r.id === fromId ? { ...r, drones: r.drones - drones, specialists: r.specialists!.filter(u => !selected.includes(u.id)) } : r), fleets: [...game.fleets, fleet],
+  return { ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0), rocks: game.rocks.map(r => r.id === fromId ? { ...r, drones: r.drones - drones, specialists: r.specialists!.filter(u => !selected.includes(u.id)) } : r), fleets: [...game.fleets, fleet],
     events: recentEvents([{ hour: game.hour, audience: [owner], message: `${source.name}: interception preparing with ${drones} drones.` }, ...game.events]),
   };
 }

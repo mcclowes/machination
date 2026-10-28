@@ -10,8 +10,8 @@ import { inRange, observers, sensors } from './sensors';
 import { recentEvents } from './events';
 import { SALVAGE_FRACTION, BLAST_MULTIPLIER, CONVERSION_FRACTION, CONVERSION_LIMIT } from './modules';
 const MEETING_TOLERANCE = 1e-6;
-export function dispatchIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact = true, specialists?: string[]): Game {
-  if (game.version === 2) return dispatchSpecialistIntercept(game, fromId, targetId, drones, owner, requireContact, specialists);
+export function dispatchIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact = true, specialists?: string[], fleetId?: number): Game {
+  if (game.version === 2) return dispatchSpecialistIntercept(game, fromId, targetId, drones, owner, requireContact, specialists, fleetId);
   if (game.winner || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   const from = game.rocks.find(r => r.id === fromId);
   const target = game.fleets.find(f => f.id === targetId);
@@ -20,9 +20,9 @@ export function dispatchIntercept(game: Game, fromId: string, targetId: number, 
   if (!target || target.owner === owner || requireContact && !inRange(sensors(game, owner), fleetPosition(game, target), game)) throw new Error('Select an observed enemy hauler.');
   const course = interceptionCourse(game, from, target);
   if (!course) throw new Error('This hauler cannot be reached before its current leg ends.');
-  const rig: Fleet = { id: game.nextId, owner, from: fromId, to: fromId, drones, departed: game.hour, arrives: course.arrives,
+  const rig: Fleet = { id: fleetId ?? game.nextId, owner, from: fromId, to: fromId, drones, departed: game.hour, arrives: course.arrives,
     module: 'scavenger', route: { from: { x: from.x, y: from.y }, to: course.point }, intercept: { target: targetId, home: fromId } };
-  return { ...game, nextId: game.nextId + 1,
+  return { ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0),
     rocks: game.rocks.map(r => { if (r.id !== fromId) return r; const departure = { ...r, drones: r.drones - drones }; delete departure.module; return departure; }),
     fleets: [...game.fleets, rig], events: recentEvents([{ hour: game.hour, audience: [...new Set([owner, ...observers(game, from)])], message: `${from.name}: scavenger rig dispatched with ${drones} drones for interception.` }, ...game.events]) };
 }
