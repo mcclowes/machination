@@ -11,6 +11,7 @@ import * as Crypto from 'expo-crypto';
 import { flightDestination } from './src/game/flight';
 import { InterceptionTargets } from './src/components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
+import { ResignationControl } from './src/components/ResignationControl';
 import { SpecialistBay } from './src/components/SpecialistBay';
 import { specialistSpeed } from './src/game/specialist-effects';
 import { SPECIALISTS } from './src/game/specialist-catalog';
@@ -104,7 +105,7 @@ function Operation() {
     draw: 'All cores offline. The operation ended in a draw.',
     victory: 'Contract fulfilled. The belt is yours.',
     defeat: `Contract lost. ${game.winner ? FACTIONS[game.winner].name : 'A rival'} fulfilled the contract.`,
-    eliminated: 'Core offline. Your operation has ended.',
+    eliminated: 'Your intelligence has been eliminated. Assets and sensor access remain; orders and extraction have ended.',
   }[status];
   const unitManifest = (rock.known ? rock.specialists ?? [] : []).filter(u => selectedUnits.includes(u.id) && u.owner === 'you' && !u.captive);
   const unitIds = unitManifest.map(u => u.id);
@@ -178,7 +179,7 @@ function Operation() {
             <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(visibleWorld, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
             <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you ?? 0)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, (shown.cargo.you ?? 0) / cargoTarget(game) * 100)}%` }]} /></View>
           </View><FundingPanel game={shown} owner="you" enabled={operational && !forecast} onChange={(to, enabled) => changeUnits({ type: 'funding', owner: 'you', to, enabled })} /></> },
-        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational || !!forecast} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders.</Text></> },
+        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational || !!forecast} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders. The multiplayer inactivity rule does not apply to this training operation.</Text>{game.version === 2 && <ResignationControl key={`${historical}:${forecast > 0}:${status}`} enabled={operational && !forecast} onConfirm={() => changeUnits({ type: 'resign', owner: 'you' })} />}</> },
       }} />
     <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { replace(newOperation()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
   </View>;

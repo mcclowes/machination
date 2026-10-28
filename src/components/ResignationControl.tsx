@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export function ResignationControl({ enabled, onConfirm }: { enabled: boolean; onConfirm: () => void }) {
   const [review, setReview] = useState(false);
-  useEffect(() => { if (!enabled) setReview(false); }, [enabled]);
   const button = (text: string, onPress: () => void, disabled = !enabled) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
-  return <View style={s.panel}>{review && enabled ? <>
+  return <View style={s.panel}>{review ? <>
     <Text style={s.detail}>Resignation is irreversible. You lose all cargo, cargo mining stops, funding ends, and queued orders and unlaunched preparations are canceled. You cannot issue further orders.</Text>
     <Text style={s.detail}>You keep your assets, launched haulers, drone production, shields, sensors, and chat.</Text>
     {button('Keep operation', () => setReview(false), false)}
