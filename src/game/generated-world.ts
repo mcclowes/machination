@@ -5,7 +5,6 @@ import type { Rock } from './simulation';
 
 type Point = { x: number; y: number };
 type Candidate = { points: Point[]; territories: number[][]; score: number };
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
 
 function sampler(seed: number): () => number {
@@ -26,18 +25,22 @@ function shuffle<T>(values: T[], random: () => number): T[] {
 }
 
 function candidate(count: number, size: number, random: () => number): Candidate {
+  // Candidates are canonical coordinates in [0, size), so no modulo is needed.
+  const distance = (a: Point, b: Point) => {
+    const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+    return Math.hypot(Math.min(dx, size - dx), Math.min(dy, size - dy));
+  };
   const points: Point[] = [];
   for (let attempt = 0; points.length < count * OUTPOSTS_PER_PLAYER && attempt < 20000; attempt++) {
-    const point = { x: 3 + random() * (size - 6), y: 3 + random() * (size - 6) };
+    const point = { x: random() * size, y: random() * size };
     if (points.every(other => distance(point, other) >= 5)) points.push(point);
   }
   if (points.length !== count * OUTPOSTS_PER_PLAYER) throw new Error('Unable to space chart sites.');
-  const interior = points.map((_, i) => i).filter(i => points[i]!.x > size * 0.12 && points[i]!.x < size * 0.88 && points[i]!.y > size * 0.12 && points[i]!.y < size * 0.88);
-  if (interior.length < count) interior.splice(0, interior.length, ...points.map((_, i) => i));
-  const starts = [interior[Math.floor(random() * interior.length)] ?? 0];
+  const indices = points.map((_, i) => i);
+  const starts = [indices[Math.floor(random() * indices.length)]!];
   while (starts.length < count) {
     let best = -1, bestDistance = -1;
-    for (const i of interior) {
+    for (const i of indices) {
       const separation = Math.min(...starts.map(start => distance(points[i]!, points[start]!)));
       if (separation > bestDistance) { best = i; bestDistance = separation; }
     }

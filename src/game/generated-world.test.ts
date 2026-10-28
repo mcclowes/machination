@@ -3,7 +3,13 @@ import { test } from 'node:test';
 import { ALL_PLAYERS, type Faction } from './players';
 import { generateWorld } from './generated-world';
 
-for (const count of [2, 3, 10]) test(`${count} players have equal assets, spaced sites, and bounded charts`, () => {
+// Independent metric keeps generator regressions visible even if shared geometry changes.
+const torusDistance = (world: { width: number; height: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+  const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+  return Math.hypot(Math.min(dx, world.width - dx), Math.min(dy, world.height - dy));
+};
+
+for (const count of [2, 3, 4, 5, 6, 7, 8, 9, 10]) test(`${count} players have equal assets, spaced sites, and bounded charts`, () => {
   for (const seed of [0, 1, 73, 0xffffffff]) {
     const players = ALL_PLAYERS.slice(0, count);
     const world = generateWorld(players, seed);
@@ -26,8 +32,8 @@ for (const count of [2, 3, 10]) test(`${count} players have equal assets, spaced
     for (const asset of assets) assert.deepEqual(asset, assets[0]);
     for (const [index, r] of world.rocks.entries()) {
       assert.match(r.id, /^[a-zA-Z0-9:-]{1,80}$/);
-      assert.ok(Number.isFinite(r.x) && r.x >= 0 && r.x <= world.width);
-      assert.ok(Number.isFinite(r.y) && r.y >= 0 && r.y <= world.height);
+      assert.ok(Number.isFinite(r.x) && r.x >= 0 && r.x < world.width);
+      assert.ok(Number.isFinite(r.y) && r.y >= 0 && r.y < world.height);
       assert.ok(r.kind === 'factory' || r.kind === 'generator');
       assert.ok(r.shieldMax === 10 || r.shieldMax === 20);
       assert.equal(r.shield, 0);
@@ -36,18 +42,18 @@ for (const count of [2, 3, 10]) test(`${count} players have equal assets, spaced
       assert.equal(r.productionAt, 8);
       assert.ok(Array.isArray(r.specialists));
       if (!r.owner) { assert.equal(r.drones, 0); assert.deepEqual(r.specialists, []); assert.equal(r.coreOf, undefined); }
-      for (const other of world.rocks.slice(index + 1)) assert.ok(Math.hypot(r.x - other.x, r.y - other.y) >= 5);
+      for (const other of world.rocks.slice(index + 1)) assert.ok(torusDistance(world, r, other) >= 5);
     }
     const expansion = players.map(() => 0);
     for (const neutral of world.rocks.filter(r => !r.owner)) {
-      const distances = players.map(owner => Math.min(...world.rocks.filter(r => r.owner === owner).map(r => Math.hypot(r.x - neutral.x, r.y - neutral.y))));
+      const distances = players.map(owner => Math.min(...world.rocks.filter(r => r.owner === owner).map(r => torusDistance(world, r, neutral))));
       const winner = distances.indexOf(Math.min(...distances));
       expansion[winner] = expansion[winner]! + 1;
     }
     assert.ok(Math.max(...expansion) - Math.min(...expansion) <= 4, `nearest-home expansion opportunity differs by at most four sites: ${expansion}`);
     const cores = world.rocks.filter(r => r.coreOf);
     for (const [i, core] of cores.entries()) for (const other of cores.slice(i + 1))
-      assert.ok(Math.hypot(core.x - other.x, core.y - other.y) >= 20);
+      assert.ok(torusDistance(world, core, other) >= 20);
     const ratio = world.rocks.filter(r => r.kind === 'generator').length / world.rocks.length;
     assert.ok(ratio >= 0.3 && ratio <= 0.6);
   }
@@ -91,4 +97,18 @@ test('public site names and ordering do not label hidden cores or reserve a fixe
     assert.ok(world.rocks.every(r => /^Relay \d+$/.test(r.name)));
   }
   assert.ok(hostIds.size > 1);
+});
+
+test('boundary seeds populate every chart edge and allow cores outside the former interior', () => {
+  const world = generateWorld(['you', 'vesper'], 1);
+  assert.ok(world.rocks.some(r => r.x < 3));
+  assert.ok(world.rocks.some(r => r.x > world.width - 3));
+  assert.ok(world.rocks.some(r => r.y < 3));
+  assert.ok(world.rocks.some(r => r.y > world.height - 3));
+  for (const seed of [0, 0xffffffff]) {
+    const chart = generateWorld(['you', 'vesper', 'zenith'], seed);
+    assert.ok(chart.rocks.some(r => r.coreOf && (r.x < chart.width * 0.12 || r.x > chart.width * 0.88)));
+    assert.deepEqual(Object.keys(chart).sort(), ['height', 'rocks', 'width']);
+    assert.deepEqual(chart, generateWorld(['you', 'vesper', 'zenith'], seed));
+  }
 });
