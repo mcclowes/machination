@@ -8,10 +8,11 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
 import { dispatchIntercept } from '../src/game/interception';
+import { giftTransfer } from '../src/game/gifts';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
@@ -189,6 +190,19 @@ export class GameService {
       catch (e) { throw new Failure(409, 'order.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  gift(id: string, token: string, command: GiftOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['gift', command.from, command.to, command.drones, command.recipient, command.revision, command.carryModule ?? false]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'gift.conflict.stale', 'Your orders changed. Refresh before gifting.');
+      try { r.game = giftTransfer(r.game, command.from, command.to, command.drones, f, command.recipient, command.carryModule); }
+      catch (e) { throw new Failure(409, 'gift.conflict.invalid', (e as Error).message); }
+      r.revision++;
+      for (const seat of r.seats) if (seat.faction === f || seat.faction === command.recipient) seat.revision = this.revision(r, seat.faction) + 1;
       return this.view(r, f);
     });
   }

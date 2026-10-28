@@ -30,6 +30,7 @@ Base path: `/v1`. All game endpoints except `/games/:id/recover` use the **seat 
 | GET | `/games/:id` | none | Authorized game view and participant-filtered messages |
 | POST | `/games/:id/start` | `{}` | Host starts with three occupied seats; retry is harmless |
 | POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
+| POST | `/games/:id/gifts` | `{requestId, revision, from, to, drones, recipient, carryModule?}` | Launch immediate support owned by another active intelligence; destination must be its currently observed rock |
 | POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned scavenger rig against a visible enemy hauler |
 | POST | `/games/:id/modules` | `{requestId, revision, rock, module}` | Spend drones on an owned rock and occupy its module bay |
 | POST | `/games/:id/recovery` | `{requestId, secret}` | Register or replace a private recovery secret using the current seat token |
@@ -39,6 +40,12 @@ Base path: `/v1`. All game endpoints except `/games/:id/recover` use the **seat 
 A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
 
 For a standalone runtime, container, health checks, and backup verification, see [hosted playtests](hosting.md).
+
+## Voluntary support
+
+Select a controlled departure and an observed rival rock, keep the launch delay at Now, then review and confirm a gift. The ordinary launch control still sends an attack. A gift immediately transfers hauler ownership, drones, any loaded module, and normal hauler sensors to the destination's intelligence. The donor cannot recall it. The recipient reinforces a still-friendly destination or fights if it changes hands. Gift launch telemetry goes to both participants and nearby observers; unrelated intelligences get no extra information. The donor retains only normal sensor contact with the hauler.
+
+Gifts cannot be scheduled. The service rechecks current observation, recipient ownership, source control, module availability, and inventory atomically. Invalid or hidden destinations share the same failure. Both participants' command revisions advance because their owned assets changed. Retrying an identical gift request cannot donate twice, including after restart. Losing the donor core does not revoke the gift; losing the recipient core removes the recipient's haulers normally. Existing snapshots need no schema migration because gifts become ordinary recipient-owned haulers.
 
 ## Persistence and operation
 

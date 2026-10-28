@@ -41,7 +41,7 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
 2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Offline seat recovery codes are implemented. Public hosting and email-based account recovery remain.
-3. Diplomacy: private bilateral messages are implemented. Alliances, gifts, group channels, and push notifications remain.
+3. Diplomacy: private bilateral messages and voluntary drone/module gifts are implemented. Alliances, group channels, and push notifications remain.
 4. Strategic depth: modules and server-filtered sensor visibility are implemented. Scheduled transfers are implemented. Moving-hauler interception is implemented. Map generation and balance sessions remain.
 5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
 
@@ -64,6 +64,10 @@ Simultaneous arrivals resolve by launch sequence, including module effects. A ch
 
 These are initial Machination balance rules. The scavenger rig combines interception with combat salvage. The charge's limited blast differs from the remake's destructive Martyr behavior. The core and module identities follow the proposed theme without importing the remake's full specialist catalog.
 
+
+## Gifts
+
+In multiplayer, immediate gifts launch from a controlled rock toward an observed rock belonging to another active intelligence. The hauler and any loaded module become the recipient's at launch, including sensor coverage. Arrival uses normal recipient reinforcement or combat rules if ownership changes. Gifts cannot be scheduled or recalled. The donor's elimination does not revoke support already given; recipient elimination removes it. The client requires a separate review and confirmation before gifting.
 
 ## Sensor visibility
 

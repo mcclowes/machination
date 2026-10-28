@@ -69,4 +69,6 @@ The first Android compile stopped before APK creation because NDK 27.1.12297006 
 
 ## Editor verification follow-up
 
+Drone/module gifts have simulation and real HTTP verification, including privacy, retries, restart, and offline delivery. Their review/confirm controls export for iOS, Android, and web. The signed iOS simulator build compiles, installs, and launches, with gift confirmation text verified in its embedded bundle. Native visual interaction remains unverified while Device Hub is unavailable. Track that check in [#15](https://github.com/mcclowes/machination/issues/15).
+
 The current editor build enables automatic iOS keyboard insets and drag-to-dismiss behavior, separates connection and game form identities, and explicitly keeps ordinary inputs unmasked. Recovery inputs remain secure. The signed build compiles, installs, and launches, and all platform bundles export. Visual verification of keyboard visibility and secure-text traits after recovery remains open in [#13](https://github.com/mcclowes/machination/issues/13): computer use currently reports `cgWindowNotFound` for Device Hub, including after a fresh session. Regular phone and cross-device recovery checks remain pending.

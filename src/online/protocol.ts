@@ -9,6 +9,7 @@ export type Snapshot = {
   visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; carryModule?: boolean };
+export type GiftOrder = Order & { recipient: Faction };
 export type InterceptOrder = { requestId: string; revision: number; from: string; target: number; drones: number };
 export type ScheduleOrder = Order & { executeAt: number };
 export type CancelSchedule = { requestId: string; revision: number; planId: string };

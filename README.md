@@ -23,6 +23,8 @@ Build modules with drones on a controlled rock, then explicitly load one onto a 
 
 Choose a launch time from now to seven days ahead and manage private plans in **Scheduled transfers**. Plans use resources available at execution, and can be canceled before launch.
 
+In multiplayer, support another intelligence by selecting its observed rock and reviewing a gift with the launch delay set to Now. Confirmation gives the recipient ownership of the hauler, drones, any loaded module, and its sensors immediately. Gifts cannot be recalled; normal transfers still attack rivals.
+
 Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The timeline forecasts known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
 ## Check

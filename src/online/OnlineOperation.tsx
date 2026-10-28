@@ -9,6 +9,7 @@ import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
 import { ModuleBay } from '../components/ModuleBay';
+import { GiftTransfer } from '../components/GiftTransfer';
 import { MODULES } from '../game/modules';
 import { BeltMap } from '../components/BeltMap';
 import { forecastObservation } from '../game/visibility';
@@ -161,6 +162,7 @@ export function OnlineOperation() {
         <TextInput key="online-manifest" secureTextEntry={false} accessibilityLabel="Online drone manifest" value={amount} onChangeText={setAmount} keyboardType="number-pad" style={s.input} />
         <LaunchTiming delay={delay} disabled={!operational} onChange={setDelay} />
         <Action text={delay ? `Schedule launch +${delay}h` : 'Launch hauler'} disabled={!operational || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || !delay && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
+        {rock.known && rock.owner === snapshot.faction && target?.known && target.owner && target.owner !== snapshot.faction && !game.eliminated.includes(target.owner) && !delay && <GiftTransfer key={`${rock.id}:${target.id}:${target.owner}:${amount}:${carry}:${rock.module}`} from={rock} to={target} recipient={target.owner} drones={Number(amount)} carry={carry} disabled={!operational || !Number.isSafeInteger(Number(amount)) || Number(amount) <= 0 || Number(amount) > Math.floor(rock.drones)} onGift={() => submit({ kind: 'gifts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, to: target.id, drones: Number(amount), recipient: target.owner!, carryModule: carry && !!rock.module } })} />}
         {rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} disabled={!operational} onIntercept={target => submit({ kind: 'intercepts', body: { requestId: commandId(), revision: snapshot.revision, from: rock.id, target, drones: Number(amount) } })} />}
         {rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!operational} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}
