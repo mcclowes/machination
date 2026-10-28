@@ -47,6 +47,8 @@ npm run build:ios:simulator
 
 This builds Release configuration without signing to `ios/build/playtest/Build/Products/Release-iphonesimulator/Machination.app`. The local Expo config plugin raises dependency deployment targets to the project minimum (iOS 15.1 by default), preserving any higher target. Xcode 27.1 rejects the older targets declared by SVG and AsyncStorage resource bundles. The plugin applies during prebuild and CocoaPods installation, so the fix survives regeneration and also covers `npm run ios`. It does not modify dependency source. This artifact runs only in an iOS simulator.
 
+The scene lifecycle plugin creates the React window inside `UIWindowScene` and forwards lifecycle and linking events through Expo. This is required for launch with the iOS 27 SDK; see [Apple’s scene migration guide](https://developer.apple.com/documentation/uikit/transitioning-to-the-uikit-scene-based-life-cycle). Machination supports one scene per process.
+
 Physical devices and distribution require Apple signing configuration. No signing credentials are included in the repository.
 
 ## Verification boundaries
@@ -55,6 +57,8 @@ An Expo JavaScript export proves bundling, not native compilation. A Gradle or X
 
 ## Current local evidence
 
-Both native projects generated successfully. An unsigned Release simulator app compiled successfully, containing ARM64 and Intel binaries and an embedded JavaScript bundle. The app installed successfully into the booted iOS 27.1 ReachedVisualDuo simulator, and CoreSimulator confirms its app container. Native launch and gameplay remain unverified: Device Hub currently displays a blank device surface.
+Both native projects generated successfully. The iOS Release simulator build completes without command-line deployment-target overrides. The compiled app contains ARM64 and Intel binaries, an embedded JavaScript bundle, and a resolved scene delegate manifest.
+
+Installation and native startup succeed on iOS 27.1. React initializes, the clock advances, and AsyncStorage writes a save that passes the game validator. Terminating and relaunching preserves the operation epoch and resumes its clock. The previous UIKit scene-lifecycle launch failure is resolved. Native visual controls and gameplay remain unverified because Device Hub currently exposes a blank device surface; these startup and persistence checks do not substitute for UI testing.
 
 The first Android compile stopped before APK creation because NDK 27.1.12297006 is missing and its license is not accepted. Install that component through Android Studio, then rerun the playtest command. No Android device is connected and no Android emulator is configured. Native gameplay remains unverified on both platforms.

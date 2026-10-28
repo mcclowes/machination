@@ -19,7 +19,8 @@
     },
     "plugins": [
       "expo-secure-store",
-      "./plugins/withMinimumIosTarget.cjs"
+      "./plugins/withMinimumIosTarget.cjs",
+      "./plugins/withIosScenes.cjs"
     ]
   }
 }
