@@ -27,3 +27,5 @@ Solo and online maps color remote sites by owner while leaving detail unknown. I
 The integrated suite passes 316 tests, including strict observation allowlists, paired hidden-world invariance, remote third-party capture, historical ownership, authenticated HTTP replies, polling, retry receipts, restart, private channels, command denial, legacy fixtures, replay compatibility, and UI description wording. New forecast regressions first reproduced suppressed domination and mining wins, then passed with public territory accounting. A hidden remote conquest still cannot manufacture a projected win.
 
 TypeScript, web export, and the standalone production server's two acceptance checks pass. Browser interaction for remote colors, inspectors, gifts, standings, and compact forecast copy remains unverified: Chrome returned `cgWindowNotFound`. Native phone acceptance and full matches remain open.
+
+The next recruitment comparison is tracked in [Recruitment lifecycle gap](recruitment-lifecycle.md).

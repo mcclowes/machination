@@ -1,0 +1,34 @@
+# Recruitment lifecycle gap
+
+Issue #18 remains open for undoable recruitment and promotion. The current engine applies a hire or promotion immediately when its command executes. It has no pending recruitment record, cancellation deadline, or finalization command. A queued future hire is an execution schedule with stable unit identities, rather than an undoable transaction. This gap prevents a full fidelity claim.
+
+## What the reference establishes
+
+The [official rulebook](https://subterfuge-game.com/rulebook/) establishes recruitment credits, hiring at the Queen's outpost, and promotion using a hiring opportunity. It doesn't specify a recruitment cancellation period, offer restoration, or finalization. Its ten-minute launch and gift windows don't establish recruitment timing.
+
+The [official Time Machine tutorial](https://vimeo.com/114210812), published in 2014 and linked from the [official tutorial page](https://subterfuge-game.com/rulebook/Videos.html), provides stronger UI evidence. At 02:10, a future Infiltrator hire has Cancel Hire and Finalize Hire controls, an in-progress status, and a countdown. At 02:15, that specialist can be selected in a future zero-drone launch manifest. Captured frames are recorded in [queued launch editing](queued-launch-editing.md).
+
+Those frames prove historical controls and future manifest selection. They don't prove when abilities activate, when the unit can physically depart, how cancellation refunds credits and restores offers, or whether early finalization executes a future hire immediately. The countdown in one frame isn't an exact duration specification. Promotion needs its own evidence. Historical community claims of a ten-minute period are useful leads, not confirmed current rules.
+
+The public `play.subterfuge-game.com` entry returned an HTML redirect to the main website on October 28, 2026. It didn't provide a playable web client for these probes. Current original-client interaction remains unverified.
+
+## Behavior to resolve before implementation
+
+| Question | Required observation |
+| --- | --- |
+| Deadline | Compare present time, submission time, future execution time, countdown, exact expiry, and reopening after expiry. |
+| Activation | Measure a passive, local effect, timed ability, and speed change before execution, during cancellation rights, and after finalization. |
+| Compensation | Compare credits, all offers, next cycle, multi-unit hires, and later consumed cycles before and after canceling. |
+| Dependencies | Cancel a hire while its recruit is aboard a preparing launch with unrelated passengers, then repeat after departure, capture, gift, and death where permitted. |
+| Early future finalize | Return to live time after finalizing a future hire; inspect unit presence, queue, credits, location, and cancellation rights. |
+| Promotion | Verify separate cancel/finalize controls, target location restrictions, old/new ability timing, and clock restoration. |
+
+## Implementation constraints
+
+Separate submission, execution, cancellation rights, and finalization. Persist authoritative transaction identity and deadlines; don't infer them from the forecast cursor or UI timers. Treat cancellation as a new replay command, preserving the original history entry. Preserve existing queued hire IDs and command retry semantics.
+
+Restore only the affected recruitment cycle and unit changes. Rolling back an entire Game would erase unrelated production, movement, and combat. Decrementing `used` and resetting the RNG seed can corrupt later recruitment cycles. Canceling one recruit must never delete a whole hauler containing the Queen and other passengers.
+
+Any changed authoritative behavior needs a compatibility policy for old immediate-hire saves and replay fixtures. Integrate deadlines with `advance`, offline restoration, forecasting, history, strict save validation, authenticated commands, private projections, and duplicate-request receipts. Once reference timing is established, test equality with launch/capture/expiry, large versus split advancement, saved intermediate states, repeated cancellation/finalization, and foreign or stale identities.
+
+The design constraints are ready. Behavioral implementation remains pending the observations above; no guessed activation delay or undo rule has been introduced.
