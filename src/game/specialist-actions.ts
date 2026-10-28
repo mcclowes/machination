@@ -3,6 +3,7 @@
  * purpose: Timed sentry fire and capacitor drain at exact event boundaries, independent of polling.
  * ---
  */
+import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
 import type { Game } from './simulation';
@@ -17,7 +18,7 @@ export function nextSpecialistEvent(game: Game): number {
 }
 export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink): void {
   for (const rock of game.rocks) for (const unit of unitsAtRock(game, rock.id)) {
-    if (!rock.owner || unit.owner !== rock.owner || unit.nextActionAt === undefined || unit.nextActionAt > game.hour + 1e-9) continue;
+    if (!rock.owner || unit.owner !== rock.owner || unit.nextActionAt === undefined || !isDue(game, unit.nextActionAt)) continue;
     try {
       if (unit.kind === 'tinkerer') {
         if ((rock.shield ?? 0) >= maximumShield(rock) && maximumShield(rock) > 0) rock.shieldAt = game.hour + 48 / maximumShield(rock);

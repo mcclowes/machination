@@ -3,6 +3,7 @@
  * purpose: Exact encounters between opposing ordinary haulers traveling the same outpost route.
  * ---
  */
+import { mechanicsVersion } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
@@ -32,6 +33,26 @@ function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   }
   return earliest;
 }
+type RouteCandidate = { hour: number; a: Fleet; b: Fleet; aLeg: Leg; bLeg: Leg };
+type Leg = Pick<Fleet, 'departed' | 'arrives' | 'route' | 'from' | 'to' | 'owner' | 'preparing' | 'intercept'>;
+function leg(fleet: Fleet): Leg {
+  const { departed, arrives, route, from, to, owner, preparing, intercept } = fleet;
+  return { departed, arrives, route, from, to, owner, preparing, intercept };
+}
+function sameLeg(fleet: Fleet, saved: Leg): boolean {
+  return (Object.keys(saved) as (keyof Leg)[]).every(key => fleet[key] === saved[key]);
+}
+/** Keep the solver's scheduled instant and leg provenance through same-hour effects. */
+export function routeCandidates(game: Game): RouteCandidate[] {
+  const result: RouteCandidate[] = [];
+  const ordered = [...game.fleets].sort((a, b) => a.id - b.id);
+  for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
+    const a = ordered[i]!, b = ordered[j]!;
+    const hour = encounterHour(game, a, b);
+    if (Number.isFinite(hour) && hour >= game.hour) result.push({ hour, a, b, aLeg: leg(a), bLeg: leg(b) });
+  }
+  return result;
+}
 export function nextRouteEncounter(game: Game): number {
   let next = Infinity;
   for (let i = 0; i < game.fleets.length; i++) for (let j = i + 1; j < game.fleets.length; j++) {
@@ -40,7 +61,17 @@ export function nextRouteEncounter(game: Game): number {
   }
   return next;
 }
-export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink): void {
+export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink, candidates?: readonly RouteCandidate[]): void {
+  if (mechanicsVersion(game) >= 5) {
+    for (const candidate of candidates ?? routeCandidates(game)) {
+      const { a, b } = candidate;
+      if (candidate.hour !== game.hour || !game.fleets.includes(a) || !game.fleets.includes(b)
+        || !sameLeg(a, candidate.aLeg) || !sameLeg(b, candidate.bLeg)) continue;
+      resolveHaulerContact(game, a, b);
+      tracePoint(trace, 'route-contact', game);
+    }
+    return;
+  }
   const ordered = [...game.fleets].sort((a, b) => a.id - b.id);
   for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
     const a = game.fleets.find(f => f.id === ordered[i]!.id); const b = game.fleets.find(f => f.id === ordered[j]!.id);

@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { mechanicsVersion } from './rules';
 import { tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
 import { wrappedBounds, worldDistance, type GeometryWorld } from './geometry';
 import { resolveSpecialistInterceptions } from './specialist-interception';
@@ -14,7 +15,7 @@ import { applyStationPassives, nextSpecialistEvent, settleSpecialistActions } fr
 import { resolveStationArrival } from './specialist-combat';
 import { refreshUnitEffects, specialistSpeed } from './specialist-effects';
 import { cloneUnits, manifestUnits, upgradeSpecialists, type Specialist, type Recruitment } from './specialists';
-import { nextRouteEncounter, resolveRouteEncounters } from './route-encounters';
+import { nextRouteEncounter, routeCandidates, resolveRouteEncounters } from './route-encounters';
 import { LAUNCH_PREPARATION, completePreparations } from './transport';
 import { nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
@@ -111,8 +112,9 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
   if (game.winner || game.draw) { tracePoint(trace, 'advance:final', game); return game; }
   reconcileFunding(game); tracePoint(trace, 'funding', game);
   refreshMining(game); tracePoint(trace, 'mining', game);
-  refreshUnitEffects(game); tracePoint(trace, 'effects', game);
-  if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game); tracePoint(trace, 'effects', game); }
+  const preserveDueClocks = mechanicsVersion(game) >= 5;
+  refreshUnitEffects(game, preserveDueClocks); tracePoint(trace, 'effects', game);
+  if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game, preserveDueClocks); tracePoint(trace, 'effects', game); }
   while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));
     const quotaTimes = playersIn(game).filter(f => !game.eliminated.includes(f)).map(f => {
@@ -120,7 +122,9 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
       const rate = game.rocks.filter(r => r.owner === f && r.kind === 'mine').length * LEGACY_MINING;
       return rate ? game.hour + Math.max(0, LEGACY_CARGO_TARGET - (game.cargo[f] ?? 0)) / rate : Infinity;
     });
-    const next = Math.min(targetHour, game.version === 2 ? Math.min(nextEconomyEvent(game), nextRouteEncounter(game), nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
+    const contacts = mechanicsVersion(game) >= 5 ? routeCandidates(game) : undefined;
+    const routeHour = game.version === 2 ? contacts ? Math.min(...contacts.map(c => c.hour)) : nextRouteEncounter(game) : Infinity;
+    const next = Math.min(targetHour, game.version === 2 ? Math.min(nextEconomyEvent(game), routeHour, nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
     const elapsed = next - game.hour;
     const spanFrom = trace ? traceSnapshot(game) : undefined;
     if (game.version === 1) for (const rock of game.rocks) {
@@ -134,7 +138,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     game.hour = next;
     if (trace && spanFrom) trace({ type: 'span', from: spanFrom, to: traceSnapshot(game) });
     if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
-    if (game.version === 2) resolveRouteEncounters(game, trace);
+    if (game.version === 2) resolveRouteEncounters(game, trace, contacts);
     if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace);
     else resolveInterceptions(game, options.unknownInterceptions, trace);
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);

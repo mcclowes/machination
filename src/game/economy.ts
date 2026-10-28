@@ -3,6 +3,7 @@
  * purpose: Industry cycles, power capacity, mining construction, and shield recharge for version-two operations.
  * ---
  */
+import { isDue } from './event-timing';
 import { worldDistance } from './geometry';
 import type { Faction, Game, Rock } from './simulation';
 import { fundingCount, reconcileFunding, FUNDING_OUTPUT, FUNDING_POWER } from './funding';
@@ -60,7 +61,7 @@ export function nextEconomyEvent(game: Game): number {
   return Math.min(...game.rocks.filter(r => r.owner && !r.destroyed).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
 }
 export function settleEconomy(game: Game): void {
-  for (const rock of game.rocks) if (rock.owner && !rock.destroyed && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
+  for (const rock of game.rocks) if (rock.owner && !rock.destroyed && rock.kind === 'mine' && isDue(game, rock.miningAt!)) {
     if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) + 1;
     rock.miningAt = game.hour + (rock.miningInterval ?? MINING_DAY);
   }
@@ -68,11 +69,11 @@ export function settleEconomy(game: Game): void {
   for (const rock of game.rocks) {
     if (!rock.owner || rock.destroyed) continue;
     const max = maximumShield(rock);
-    if ((rock.shield ?? 0) < max && rock.shieldAt! <= game.hour + 1e-9) {
+    if ((rock.shield ?? 0) < max && isDue(game, rock.shieldAt!)) {
       rock.shield = (rock.shield ?? 0) + 1;
       rock.shieldAt = game.hour + SHIELD_RECHARGE / max;
     }
-    if (rock.kind === 'factory' && rock.productionAt! <= game.hour + 1e-9) {
+    if (rock.kind === 'factory' && isDue(game, rock.productionAt!)) {
       const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
       const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
       const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));

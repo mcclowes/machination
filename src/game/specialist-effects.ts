@@ -12,7 +12,7 @@ import type { Specialist, UnitWorld } from './specialists';
 import { cloneUnits, unitCount, unitsAtRock } from './specialists';
 import { maximumShield } from './economy';
 
-export function refreshUnitEffects(game: Game): void {
+export function refreshUnitEffects(game: Game, preserveDueClocks = false): void {
   if (game.version !== 2) return;
   for (const rock of game.rocks) {
     if (rock.owner && rock.kind === 'factory') {
@@ -20,7 +20,7 @@ export function refreshUnitEffects(game: Game): void {
       if (interval !== (rock.productionInterval ?? 8)) rock.productionAt = game.hour + Math.max(0, (rock.productionAt! - game.hour) / (rock.productionInterval ?? 8)) * interval;
       rock.productionInterval = interval;
     }
-    for (const unit of unitsAtRock(game, rock.id)) if ((unit.kind === 'sentry' || unit.kind === 'tinkerer') && (unit.nextActionAt === undefined || unit.nextActionAt <= game.hour)) unit.nextActionAt = game.hour + (unit.kind === 'sentry' ? 2 : 1 / 3);
+    for (const unit of unitsAtRock(game, rock.id)) if ((unit.kind === 'sentry' || unit.kind === 'tinkerer') && (unit.nextActionAt === undefined || !preserveDueClocks && unit.nextActionAt <= game.hour)) unit.nextActionAt = game.hour + (unit.kind === 'sentry' ? 2 : 1 / 3);
     const oldMax = maximumShield(rock);
     const units = unitsAtRock(game, rock.id);
     const core = units.find(u => u.kind === 'queen' && u.owner === rock.owner);
@@ -28,7 +28,7 @@ export function refreshUnitEffects(game: Game): void {
     rock.shieldBonus = rock.owner ? 10 * unitCount(game, rock.owner, 'security') + 10 * units.filter(u => u.owner === rock.owner && u.kind === 'security').length - 20 * unitCount(game, rock.owner, 'king') : 0;
     const max = maximumShield(rock);
     rock.shield = Math.min(rock.shield ?? 0, max);
-    if (rock.owner && (max !== oldMax || (rock.shieldAt ?? 0) <= game.hour && rock.shield! < max)) rock.shieldAt = max > 0 ? game.hour + 48 / max : game.hour + 48;
+    if (rock.owner && (max !== oldMax || (rock.shieldAt === undefined || !preserveDueClocks && rock.shieldAt <= game.hour) && rock.shield! < max)) rock.shieldAt = max > 0 ? game.hour + 48 / max : game.hour + 48;
   }
   for (const fleet of game.fleets) {
     if (fleet.intercept) continue;

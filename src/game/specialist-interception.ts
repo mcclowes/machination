@@ -3,6 +3,7 @@
  * purpose: Specialist manifests, doubled-speed interception, shared contact rules, and nearest-site return missions.
  * ---
  */
+import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
@@ -34,7 +35,7 @@ export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId
   };
 }
 export function resolveSpecialistInterceptions(game: Game, unknown: readonly number[] = [], trace?: SimulationTraceSink): void {
-  const due = game.fleets.filter(f => f.intercept && !f.preparing && f.arrives <= game.hour + 1e-9).sort((a, b) => a.id - b.id);
+  const due = game.fleets.filter(f => f.intercept && !f.preparing && isDue(game, f.arrives)).sort((a, b) => a.id - b.id);
   for (const rig of due) {
     if (!game.fleets.some(f => f.id === rig.id)) continue;
     try {
