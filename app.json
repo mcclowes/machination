@@ -37,7 +37,8 @@
         }
       ],
       "./plugins/withMinimumIosTarget.cjs",
-      "./plugins/withIosScenes.cjs"
+      "./plugins/withIosScenes.cjs",
+      "./plugins/withIosTextInputIdentity.cjs"
     ]
   }
 }
