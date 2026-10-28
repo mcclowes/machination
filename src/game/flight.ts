@@ -3,11 +3,12 @@
  * purpose: Transfer geometry and continuous rendezvous solutions for moving haulers.
  * ---
  */
+import { sitePosition, type MovingPoint } from './drift';
 import { mapOffsets, nearestImage, wrappedBounds, wrapPoint, worldDistance, type GeometryWorld, type Point } from './geometry';
 import type { Fleet } from './simulation';
 import { ROUTING_SPEED, type ModuleKind } from './modules';
 export type { Point } from './geometry';
-export type FlightWorld = GeometryWorld & { hour: number; rocks: readonly (Point & { id: string })[] };
+export type FlightWorld = GeometryWorld & { hour: number; rocks: readonly (MovingPoint & { id: string })[] };
 export const TRANSFER_SPEED = 8;
 const TIME_TOLERANCE = 1e-9;
 export function transferDuration(from: Point, to: Point, module?: ModuleKind, version: 1 | 2 = 1, world: GeometryWorld = {}): number {
@@ -21,11 +22,16 @@ export function flightEndpoints(world: FlightWorld, fleet: Fleet): { from: Point
   return { from, to: wrappedBounds(world) ? nearestImage(world, from, to) : to };
 }
 export function fleetPosition(world: FlightWorld, fleet: Fleet): Point {
+  if (fleet.preparing && world.hour < fleet.departed) {
+    const site = world.rocks.find(r => r.id === fleet.from);
+    if (site?.drift) return sitePosition(world, site, world.hour);
+  }
   const { from, to } = flightEndpoints(world, fleet);
   const progress = Math.max(0, Math.min(1, (world.hour - fleet.departed) / (fleet.arrives - fleet.departed)));
   return wrapPoint(world, { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress });
 }
-export function interceptionCourse(world: FlightWorld, source: Point, target: Fleet, speed = TRANSFER_SPEED, departureHour = world.hour): { arrives: number; point: Point } | null {
+export function interceptionCourse(world: FlightWorld, source: MovingPoint, target: Fleet, speed = TRANSFER_SPEED, departureHour = world.hour): { arrives: number; point: Point } | null {
+  source = sitePosition(world, source, departureHour);
   const remaining = target.arrives - departureHour;
   if (remaining <= TIME_TOLERANCE) return null;
   const current = fleetPosition({ ...world, hour: departureHour }, target);

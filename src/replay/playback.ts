@@ -1,3 +1,5 @@
+import { moveReplayScene } from './motion';
+import { sitePosition } from '../game/drift';
 import { nearestImage, wrappedBounds, wrapPoint, type Point } from '../game/geometry';
 import type { ReplayFleet, ReplayScene } from './presentation';
 import type { SharedReplay } from './timeline';
@@ -33,8 +35,7 @@ export function seekReplay(replay: SharedReplay, hour: number, ordinal?: number)
   if (!source) throw new RangeError('Replay has no scene at this position');
   // Replay scenes contain validated JSON plain data; Hermes has no structuredClone.
   const scene: ReplayScene = JSON.parse(JSON.stringify(source));
-  scene.hour = at.hour;
-  return scene;
+  return moveReplayScene(scene, at.hour);
 }
 
 /** Missing ordinal means the final causal state at a boundary. Ends return null. */
@@ -56,6 +57,10 @@ export function nextReplayStep(replay: SharedReplay, position: ReplayPosition): 
 /** Matches valid flight.ts arithmetic using only disclosed geometry. */
 export function replayFleetPosition(scene: ReplayScene, fleet: ReplayFleet): Point {
   if (!Number.isFinite(fleet.arrives - fleet.departed) || fleet.arrives <= fleet.departed) throw new RangeError('Replay flight duration must be positive and finite');
+  if (fleet.preparing && scene.hour < fleet.departed) {
+    const source = scene.rocks.find(r => r.id === fleet.from);
+    if (source?.drift) return sitePosition(scene, source, scene.hour);
+  }
   let leg = fleet.route;
   if (!leg) {
     const from = scene.rocks.find(r => r.id === fleet.from);

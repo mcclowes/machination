@@ -3,6 +3,7 @@
  * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
  * ---
  */
+import { stationCourse } from './drift';
 import { mechanicsVersion } from './rules';
 import { nearestImage, worldDistance, wrappedBounds, wrapPoint } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
@@ -17,6 +18,7 @@ export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: S
   const speed = specialistSpeed(game, owner, units, true, mission === 'interception' ? 'interception-return' : 'return');
   const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed,
     route: { from: wrappedBounds(game) ? wrapPoint(game, point) : { ...point }, to: nearestImage(game, wrapPoint(game, point), home) }, departed: game.hour, arrives: game.hour + Math.max(1e-6, worldDistance(game, point, home) / speed), returning: true, ...(mission === 'interception' && mechanicsVersion(game) >= 3 ? { interceptionReturn: true } : {}) };
+  if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, game.hour));
   game.fleets.push(fleet);
   return fleet;
 }
@@ -40,6 +42,7 @@ export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], true, interception ? 'interception-return' : 'return');
   fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: nearestImage(game, point, home) };
   fleet.departed = game.hour; fleet.arrives = game.hour + Math.max(1e-6, worldDistance(game, point, home) / speed);
+  if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, game.hour));
   fleet.returning = true; fleet.speed = speed;
   if (interception && mechanicsVersion(game) >= 3) fleet.interceptionReturn = true; else delete fleet.interceptionReturn;
   if (locked) fleet.courseLocked = true;

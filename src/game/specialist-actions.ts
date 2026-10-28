@@ -3,6 +3,7 @@
  * purpose: Timed sentry fire and capacitor drain at exact event boundaries, independent of polling.
  * ---
  */
+import { siteRangeWindows } from './drift';
 import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
@@ -14,7 +15,15 @@ import { fleetPosition } from './flight';
 import { sendUnitsHome } from './specialist-travel';
 
 export function nextSpecialistEvent(game: Game): number {
-  return Math.min(...game.rocks.filter(r => r.owner).flatMap(r => unitsAtRock(game, r.id).filter(u => u.owner === r.owner && (u.kind === 'sentry' || u.kind === 'tinkerer')).map(u => u.nextActionAt ?? Infinity)));
+  const contacts: number[] = [];
+  for (const rock of game.rocks) {
+    if (!rock.owner || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
+    for (const holding of game.rocks) {
+      if ((!rock.drift && !holding.drift) || !holding.specialists?.some(u => u.owner === rock.owner && u.captive)) continue;
+      contacts.push(...siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).map(w => w.from).filter(hour => hour > game.hour && hour <= game.hour + 1));
+    }
+  }
+  return Math.min(...contacts, ...game.rocks.filter(r => r.owner).flatMap(r => unitsAtRock(game, r.id).filter(u => u.owner === r.owner && (u.kind === 'sentry' || u.kind === 'tinkerer')).map(u => u.nextActionAt ?? Infinity)));
 }
 export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink): void {
   for (const rock of game.rocks) for (const unit of unitsAtRock(game, rock.id)) {
@@ -52,7 +61,10 @@ export function applyStationPassives(game: Game, trace?: SimulationTraceSink): v
   for (const rock of game.rocks) {
     if (!rock.owner || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
-      if (worldDistance(game, holding, rock) > rockSensorRange(game, rock)) continue;
+      const inRange = rock.drift || holding.drift
+        ? siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).some(w => game.hour >= w.from && game.hour <= w.through)
+        : worldDistance(game, holding, rock) <= rockSensorRange(game, rock);
+      if (!inRange) continue;
       for (const unit of [...(holding.specialists ?? [])]) if (unit.owner === rock.owner && unit.captive && game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) {
         holding.specialists = holding.specialists!.filter(u => u.id !== unit.id);
         delete unit.captive;

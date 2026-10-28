@@ -1,10 +1,11 @@
 /** Private binary64 support inside one fixed state span; never serialize motion sources. */
+import type { MovingPoint } from '../game/drift';
 import { canObserveHauler, HAULER_SENSOR_RANGE, rockSensorRange } from '../game/sensors';
 import type { Faction, Game } from '../game/simulation';
 import { continuousVisibilityIntervals, flightMotionSpans, visibilityIntervals, type AffineMotion, type MotionSpan, type MovingSensor, type VisibilityInterval } from './visibility-intervals';
 
 export type ObservationIntervals = { sites: Map<string, VisibilityInterval[]>; fleets: Map<number, VisibilityInterval[]> };
-const still = (x: number, y: number): AffineMotion => ({ position: { x, y }, velocity: { x: 0, y: 0 } });
+const motion = (site: MovingPoint): AffineMotion => site.drift ? { position: site.drift.origin, velocity: site.drift.velocity, origin: 0, wrapped: true } : { position: { x: site.x, y: site.y }, velocity: { x: 0, y: 0 } };
 function shifted(piece: MotionSpan, from: number): AffineMotion {
   return { source: piece.motion.source, position: { x: piece.motion.position.x + piece.motion.velocity.x * (from - piece.from), y: piece.motion.position.y + piece.motion.velocity.y * (from - piece.from) }, velocity: piece.motion.velocity };
 }
@@ -23,7 +24,7 @@ export function observationIntervals(game: Game, faction: Faction, through: numb
   const from = game.hour;
   const intervals = precision === 'continuous' ? continuousVisibilityIntervals : visibilityIntervals;
   const whole = (): VisibilityInterval[] => [{ from, through }];
-  const fixed: MovingSensor[] = game.rocks.filter(r => r.owner === faction).map(r => ({ ...still(r.x, r.y), radius: rockSensorRange(game, r) }));
+  const fixed: MovingSensor[] = game.rocks.filter(r => r.owner === faction).map(r => ({ ...motion(r), radius: rockSensorRange(game, r) }));
   const mobile = game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).flatMap(f => flightMotionSpans(game, f, from, through));
   function support(pieces: MotionSpan[]): VisibilityInterval[] {
     const windows: VisibilityInterval[] = [];
@@ -38,7 +39,7 @@ export function observationIntervals(game: Game, faction: Faction, through: numb
   }
   const sites = new Map<string, VisibilityInterval[]>();
   for (const rock of game.rocks) {
-    const intervals = rock.owner === faction ? whole() : support([{ from, through, motion: still(rock.x, rock.y) }]);
+    const intervals = rock.owner === faction ? whole() : support([{ from, through, motion: motion(rock) }]);
     if (intervals.length) sites.set(rock.id, intervals);
   }
   const fleets = new Map<number, VisibilityInterval[]>();

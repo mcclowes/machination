@@ -1,3 +1,4 @@
+import type { Drift } from '../game/drift';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/players';
 import type { ModuleKind } from '../game/modules';
@@ -7,7 +8,7 @@ import type { CharacterId } from '../game/characters';
 export type ReplayUnit = { id: string; kind: SpecialistKind; owner: Faction; captive?: true };
 type ReplayPoint = { x: number; y: number };
 export type ReplayRock = ReplayPoint & {
-  id: string; name: string; known: boolean;
+  id: string; name: string; known: boolean; drift?: Drift;
   kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator' | 'unknown';
   owner?: Faction | null; drones?: number; destroyed?: true; coreOf?: Faction;
   shield?: number; shieldMax?: number; shieldsDisabled?: boolean; module?: ModuleKind; specialists?: ReplayUnit[];
@@ -19,11 +20,11 @@ export type ReplayFleet = {
 };
 export type ReplayScene = {
   version?: 1 | 2; hour: number; rocks: ReplayRock[]; fleets: ReplayFleet[];
-  coverage: { x: number; y: number; radius: number }[];
+  coverage: { x: number; y: number; radius: number; drift?: Drift }[];
   cargo: Partial<Record<Faction, number>>;
   standings?: Partial<Record<Faction, { cargo: number; funders: number }>>;
   eliminated: Faction[]; winner: Faction | null; draw?: true;
-  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5;
+  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6;
     map: { generator: 'balanced.v1' | 'balanced.v2'; width: number; height: number; topology?: 'torus' } };
 };
 
@@ -42,7 +43,7 @@ const factions: readonly Faction[] = ['you', 'vesper', 'null', 'aether', 'umbra'
 /** Projects an already filtered observation. Observed preparations belong to the chart; private queued intents never do. */
 export function presentObservation(view: GameView, aliases = createReplayAliases()): ReplayScene {
   const scene: ReplayScene = {
-    hour: view.hour, rocks: [], fleets: [], coverage: view.coverage.map(s => ({ x: s.x, y: s.y, radius: s.radius })),
+    hour: view.hour, rocks: [], fleets: [], coverage: view.coverage.map(s => ({ x: s.x, y: s.y, radius: s.radius, ...(s.drift ? { drift: { origin: { x: s.drift.origin.x, y: s.drift.origin.y }, velocity: { x: s.drift.velocity.x, y: s.drift.velocity.y } } } : {}) })),
     cargo: {}, eliminated: view.eliminated.map(f => f), winner: view.winner,
   };
   const units = (items: NonNullable<GameView['fleets'][number]['specialists']>): ReplayUnit[] => items.map(u => {
@@ -52,6 +53,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
   });
   for (const r of view.rocks) {
     const rock: ReplayRock = { id: r.id, name: r.name, x: r.x, y: r.y, known: r.known, kind: r.kind };
+    if (r.drift) rock.drift = { origin: { x: r.drift.origin.x, y: r.drift.origin.y }, velocity: { x: r.drift.velocity.x, y: r.drift.velocity.y } };
     if (r.owner !== undefined) rock.owner = r.owner;
     if (r.known) {
       rock.drones = r.drones;

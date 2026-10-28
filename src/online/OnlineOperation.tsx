@@ -10,7 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
 import { presenceDue, inactivityRemaining } from './presence';
-import { worldDistance } from '../game/geometry';
+import { stationCourse } from '../game/drift';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { selectableLaunchUnits } from '../components/launch-manifest';
@@ -256,11 +256,12 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
   const target = game?.rocks.find(r => r.id === destination);
   const unitManifest = rock?.known && snapshot ? (rock.specialists ?? []).filter(u => selectedUnits.includes(u.id) && u.owner === snapshot.faction && !u.captive) : [];
   const unitIds = unitManifest.map(u => u.id);
-  const duration = target && rock && game && snapshot ? game.version === 2 ? Math.max(1e-6, worldDistance(game, rock, target) / specialistSpeed(game, snapshot.faction, unitManifest, target.owner === snapshot.faction)) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const operational = !past && snapshot?.status === 'game.active' && !snapshot.game.eliminated.includes(snapshot.faction) && !session?.pending && !busy;
   const immediate = operational && !forecast;
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = snapshot ? Math.max(snapshot.game.hour, inspectedHour ?? snapshot.game.hour) + delay : 0;
+  const transfer = target && rock && game && snapshot && game.version === 2 ? stationCourse(game, rock, target, specialistSpeed(game, snapshot.faction, unitManifest, target.owner === snapshot.faction), launchAt + preparation) : undefined;
+  const duration = target && rock && game ? transfer ? transfer.arrives - launchAt - preparation : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const diplomacy = useDiplomacyPanel({ snapshot, origin: JSON.stringify([session?.url, session?.token]), disabled: busy || !!session?.pending, acknowledged, scroll, onSubmit: submit, onInspectReference: inspectReference });
   const rulesGame = snapshot?.game;
   const roster = rulesGame ? playersIn(rulesGame) : [];
@@ -292,7 +293,7 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
   return <OperationShell player={snapshot.faction} portraits={game.rules?.portraits} section={section} onSection={changeSection} panelScrollRef={scroll}
     status={<>{!!referenceNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{referenceNotice}</Text>}<View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{pendingEdit && <Text style={s.detail}>Saved launch edit · {pendingPlan ? scheduledOrderLabel(pendingPlan, snapshot.game.rocks, snapshot.game.scheduled, snapshot.game.fleets) : 'Queued launch'} · {pendingEdit.drones} drones · awaiting confirmation. Retry repeats this saved edit.</Text>}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
-    chart={<BeltMap fill inspectFleet={inspectFleet} fleetReference={fleet => referenceText('hauler', fleet.id, 'Hauler')} timeInspection={{ liveHour: snapshot.game.hour, historyStart: snapshot.history?.from, onInspect: inspectTime }} viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => { setReferenceRequest(undefined); setSection(null); }} onManageFleet={() => setSection('orders')} onTransfer={operational && !game.winner && !game.draw && navigating === undefined ? (from, to) => {
+    chart={<BeltMap fill transferRoute={transfer?.route} inspectFleet={inspectFleet} fleetReference={fleet => referenceText('hauler', fleet.id, 'Hauler')} timeInspection={{ liveHour: snapshot.game.hour, historyStart: snapshot.history?.from, onInspect: inspectTime }} viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => { setReferenceRequest(undefined); setSection(null); }} onManageFleet={() => setSection('orders')} onTransfer={operational && !game.winner && !game.draw && navigating === undefined ? (from, to) => {
       setReferenceRequest(undefined); setReferenceNotice(''); setSelected(from.id); setDestination(to.id); setPlanning(true); setSection('asset');
       setCarry(false); setSelectedUnits([]); setDelay(0); setAmount(String(Math.floor((from.drones ?? 0) / 2)));
     } : undefined} game={game} selected={selected} destination={destination} onSelect={r => { setReferenceRequest(undefined); setReferenceNotice(''); if (navigating !== undefined) { if (!r.destroyed) siteAction({ type: 'hauler', change: { action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}

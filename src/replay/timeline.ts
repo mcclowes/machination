@@ -6,7 +6,7 @@ export type ReplayGroup = { hour: number; states: ReplayScene[] };
 export type ReplaySpan = { from: number; through: number; scene: ReplayScene };
 export type SharedReplay = {
   kind: 'machination.observed-timeline';
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   presentationVersion: 1;
   history: 'canonical-events';
   perspective: Faction;

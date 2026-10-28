@@ -3,6 +3,7 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { seedDriftingBases } from './drift';
 import { ALL_PLAYERS } from './players';
 import { validateOptions, type GameOptions } from './rules';
 import { generateWorld } from './generated-world';
@@ -53,8 +54,9 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   const settings = validateOptions(options);
   const players = ALL_PLAYERS.slice(0, settings.playerCount);
   const { rocks, width, height } = generateWorld(players, mapSeed);
+  if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   return { ...createGame(epoch, seeds), rocks,
-    rules: { mechanicsVersion: 5, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    rules: { mechanicsVersion: settings.driftingBases ? 6 : 5, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
     recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0)])),

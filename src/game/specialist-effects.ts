@@ -3,6 +3,7 @@
  * purpose: Reconcile movable leadership and local/global shield effects after specialist changes.
  * ---
  */
+import { stationCourse } from './drift';
 import { mechanicsVersion, type GameRules } from './rules';
 import { nearestImage, wrappedBounds } from './geometry';
 import { fleetPosition, flightEndpoints } from './flight';
@@ -39,6 +40,10 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     const endpoint = wrappedBounds(game) ? nearestImage(game, point, flightEndpoints(game, fleet).to) : flightEndpoints(game, fleet).to;
     if (!fleet.preparing) { fleet.route = { from: point, to: { ...endpoint } }; fleet.departed = game.hour; }
     fleet.arrives = fleet.departed + Math.max(1e-6, Math.hypot(endpoint.x - point.x, endpoint.y - point.y) / speed);
+    if (target?.drift || fleet.preparing && game.rocks.find(r => r.id === fleet.from)?.drift) {
+      const source = fleet.preparing ? game.rocks.find(r => r.id === fleet.from)! : point;
+      Object.assign(fleet, stationCourse(game, source, target!, speed, fleet.departed));
+    }
     fleet.speed = speed;
   }
 }

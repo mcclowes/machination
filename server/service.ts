@@ -237,7 +237,7 @@ export class GameService {
       const credential = this.credential(token);
       const existing = db.rooms.find(r => r.seats.some(s => s.hash === credential));
       if (existing) {
-        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
+        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === (existing.game.rules?.mechanicsVersion === 6) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
         this.settle(existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');

@@ -5,7 +5,7 @@ import { atOrdinal, ordinal, nextHour, requireNumericRuntime, distanceBounds, MA
 export { UnsupportedVisibilityNumericError } from './numeric-support';
 import type { Fleet } from '../game/simulation';
 
-export type AffineMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number };
+export type AffineMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number; wrapped?: boolean };
 export type MovingSensor = AffineMotion & { radius: number };
 export type VisibilityInterval = { from: number; through: number };
 export type MotionSpan = VisibilityInterval & { motion: AffineMotion };
@@ -58,7 +58,9 @@ export function continuousVisibilityIntervals(world: GeometryWorld, point: Affin
   let images = 0;
   for (const sensor of sensors) {
     if (![sensor.position.x, sensor.position.y, sensor.velocity.x, sensor.velocity.y, sensor.radius].every(Number.isFinite) || sensor.radius < 0) throw new RangeError('Provide finite sensor motion and a nonnegative radius.');
-    const dx = point.position.x - sensor.position.x, dy = point.position.y - sensor.position.y;
+    const px = point.position.x + point.velocity.x * (from - (point.origin ?? from)), py = point.position.y + point.velocity.y * (from - (point.origin ?? from));
+    const sx = sensor.position.x + sensor.velocity.x * (from - (sensor.origin ?? from)), sy = sensor.position.y + sensor.velocity.y * (from - (sensor.origin ?? from));
+    const dx = px - sx, dy = py - sy;
     const wx = (point.velocity.x - sensor.velocity.x) * duration, wy = (point.velocity.y - sensor.velocity.y) * duration;
     if (![dx, dy, wx, wy, dx + wx, dy + wy].every(Number.isFinite)) throw new UnsupportedVisibilityNumericError();
     if (map && sensor.radius >= Math.hypot(map.width / 2, map.height / 2)) return [{ from, through }];

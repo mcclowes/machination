@@ -3,6 +3,8 @@
  * purpose: Touch-selectable belt chart with ownership, transfer trajectories, and accessible rock controls.
  * ---
  */
+import { DriftCourse } from './DriftCourse';
+import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, Text, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Circle, Ellipse, G, Line, Path, Text as SvgText } from 'react-native-svg';
@@ -17,13 +19,13 @@ import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulatio
 
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
 
-import { mapOffsets, wrappedBounds, type MapGeometry } from '../game/geometry';
+import { mapOffsets, wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import { chartPosition, chartRoute } from '../game/chart-projection';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
 export type { MapCamera } from '../game/chart-camera';
-type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
-export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
+type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
+export function BeltMap<T extends ChartRock>({ game, selected, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
@@ -129,6 +131,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       <Circle cx="204" cy="243" r="14" fill="#9c744a" opacity="0.06" />
       <Circle cx="204" cy="243" r="5" fill="#c9a06b" opacity="0.65" />
       <SvgText x="204" y="265" textAnchor="middle" fill="#6b746c" fontSize="7" letterSpacing="2">SOL / 04</SvgText>
+      {game.rocks.filter(r => r.drift).map(site => <DriftCourse key={`drift-${site.id}`} site={site} sx={sx} sy={sy} selected={site.id === selected || site.id === destination} />)}
       {game.fleets.map(f => {
         const { from: a, to: b } = flightEndpoints(game, f);
         const position = fleetPosition(game, f);
@@ -143,7 +146,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
         const source = game.rocks.find(r => r.id === selected);
         const target = game.rocks.find(r => r.id === destination);
         if (!source || !target) return null;
-        const { from: a, to: b } = chartRoute(game, source, target);
+        const { from: a, to: b } = transferRoute ?? (source.drift || target.drift ? stationCourse(game, source, target, 8, game.hour + 1 / 6).route : chartRoute(game, source, target));
         return <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={identity(player ?? 'you').color} strokeDasharray="5 4" />;
       })()}
       </G>)}
@@ -155,15 +158,16 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       const active = selected === rock.id || destination === rock.id || drag?.from.id === rock.id || drag?.target?.id === rock.id;
       const location = position({ x: rock.x + offset.x, y: rock.y + offset.y });
       if (location.x < -15 || location.x > 115 || location.y < -15 || location.y > 115) return null;
-      return <Pressable key={`${tile}-${rock.id}`} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      return <Pressable key={`${tile}-${rock.id}`} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: color, borderWidth: active ? 3 : 1, backgroundColor: active ? `${color}10` : 'transparent' }]}>
-          <View style={[styles.stone, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
+          <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
             <Text style={{ color, fontSize: 11 }}>{rock.destroyed ? '×' : rock.kind === 'unknown' ? '?' : rock.coreOf || rock.kind === 'core' ? '◈' : rock.kind === 'reactor' || rock.kind === 'generator' ? 'ϟ' : rock.kind === 'factory' ? '▥' : '·'}</Text>
           </View>
           {!!rock.owner && <View style={styles.ownerEmblem}><FactionEmblem faction={rock.owner} size={12} /><Text style={[styles.ownerCode, { color }]}>{FACTIONS[rock.owner].code}</Text></View>}
         </View>
         {rock.known !== false && rock.shieldMax !== undefined && <Text style={[styles.defense, { color: rock.shieldsDisabled ? '#9ca79c' : '#e0d7ad' }]}>{rock.shieldsDisabled ? 'Shield off' : `◇ ${Math.floor(rock.shield ?? 0)}`}</Text>}
         {(!destination || active) && <><Text style={[styles.name, { color: active ? '#eff4e9' : color }]}>{rock.name}</Text>
+        {rock.drift && <Text style={styles.driftLabel}>↗ drifting asteroid</Text>}
         <Text style={[styles.count, { color }]}>{rock.known === false ? '?' : Math.floor(rock.drones ?? 0)}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}{rock.specialists?.length ? ` · ${rock.specialists.length}u` : ''}</Text></>}
       </Pressable>;
     }))}
@@ -203,6 +207,7 @@ const styles = StyleSheet.create({
   ring: { width: 44, height: 44, borderRadius: 30, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   ownerEmblem: { position: 'absolute', right: 0, bottom: 0, backgroundColor: '#0b1412', borderRadius: 2, flexDirection: 'row', alignItems: 'center' }, ownerCode: { fontSize: 7 },
   stone: { width: 23, height: 23, borderRadius: 7, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  asteroid: { width: 17, height: 15, borderRadius: 4, borderTopLeftRadius: 9, borderBottomRightRadius: 7 }, driftLabel: { color: '#d5b987', fontSize: 8 },
   defense: { position: 'absolute', top: 0, right: 0, fontSize: 10, backgroundColor: '#0b1412' },
   name: { fontSize: 10, letterSpacing: 0.5, marginTop: 1 }, count: { position: 'absolute', left: 66, top: 16, fontSize: 16, fontWeight: '600', fontVariant: ['tabular-nums'] },
   coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 }, coord: { fontSize: 11, color: '#a0af9e' },

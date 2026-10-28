@@ -2,7 +2,7 @@
 import { wrappedBounds, type GeometryWorld, type Point } from '../game/geometry';
 
 export type NumericFlight = { from: Point; to: Point; departed: number; arrives: number };
-export type NumericMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number };
+export type NumericMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number; wrapped?: boolean };
 type Bounds = [number, number];
 const bits = new DataView(new ArrayBuffer(8));
 export function ordinal(value: number): bigint {
@@ -94,8 +94,8 @@ export function distanceBounds(world: GeometryWorld, point: NumericMotion, senso
     if (!a && !b && point.position[key] === sensor.position[key] && point.velocity[key] === sensor.velocity[key] && (point.origin ?? origin) === (sensor.origin ?? origin)) return [0, 0];
     let pb = ordered(p[0]![key], p[1]![key]), sb = ordered(s[0]![key], s[1]![key]);
     // Only fleetPosition wraps coordinates; plain affine callers use unwrapped coordinates.
-    if (size !== undefined && point.source) pb = wrap(pb, size);
-    if (size !== undefined && sensor.source) sb = wrap(sb, size);
+    if (size !== undefined && (point.source || point.wrapped)) pb = wrap(pb, size);
+    if (size !== undefined && (sensor.source || sensor.wrapped)) sb = wrap(sb, size);
     return distanceAxis(pb, sb, size);
   }
   const x = axis('x', map?.width), y = axis('y', map?.height);

@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { positionSites, stationCourse, type Drift } from './drift';
 import { mechanicsVersion } from './rules';
 import { tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
 import { wrappedBounds, worldDistance, type GeometryWorld } from './geometry';
@@ -29,7 +30,7 @@ import { FACTIONS, playersIn, type Faction, type PlayerValues } from './players'
 import { victoryProgress, victoryTarget, type GameRules } from './rules';
 export { FACTIONS, type Faction } from './players';
 export type Rock = {
-  id: string; name: string; x: number; y: number;
+  id: string; name: string; x: number; y: number; drift?: Drift;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator';
   shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number; miningInterval?: number;
   specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
@@ -86,6 +87,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   const speed = specialistSpeed(game, owner, manifest, to.owner === owner);
   const duration = game.version === 2 ? Math.max(1e-6, worldDistance(game, from, to) / speed) : travelHours(from, to, module, game.version);
   const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
+  const course = game.version === 2 && (from.drift || to.drift) ? stationCourse(game, from, to, speed, departed) : undefined;
   return {
     ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0),
     rocks: game.rocks.map(r => {
@@ -94,7 +96,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
       if (carryModule) delete departure.module;
       return departure;
     }),
-    fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: departed + duration, ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
+    fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: course?.arrives ?? departed + duration, ...(course ? { route: course.route } : {}), ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
@@ -136,6 +138,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
       else rock.drones = inventoryUnits(rock.drones + LEGACY_PRODUCTION * elapsed);
     }
     game.hour = next;
+    positionSites(game);
     if (trace && spanFrom) trace({ type: 'span', from: spanFrom, to: traceSnapshot(game) });
     if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
     if (game.version === 2) resolveRouteEncounters(game, trace, contacts);

@@ -1,3 +1,4 @@
+import { sitePosition, validDrift } from '../game/drift';
 import { CHARACTER_IDS } from '../game/characters';
 import { isModule } from '../game/modules';
 import { isSpecialistKind } from '../game/specialist-catalog';
@@ -73,7 +74,7 @@ function rules(v: unknown) {
   object(v, ['players', 'mode', 'victoryTarget', 'map'], ['portraits', 'mechanicsVersion']);
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5]));
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6]));
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));
@@ -93,11 +94,12 @@ function scene(v: unknown) : asserts v is ReplayScene {
   }
   array(v.rocks, L.sites); const sites = new Set<string>();
   for (const r of v.rocks) {
-    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists']);
+    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift']);
     text(r.id); text(r.name); need(!sites.has(r.id)); sites.add(r.id); coord(r.x); coord(r.y); one(r.known, [true, false]);
     one(r.kind, ['core', 'reactor', 'mine', 'factory', 'generator', 'unknown']);
+    if (r.drift !== undefined) { need(v.rules?.mechanicsVersion === 6 && validDrift(r.drift, v)); const expected = sitePosition(v, { x: r.x, y: r.y, drift: r.drift }, v.hour); need(Math.hypot(r.x - expected.x, r.y - expected.y) < 1e-8); }
     optional(r, 'owner', n => { if (n !== null) member(n); });
-    if (!r.known) need(Object.keys(r).every(k => ['id', 'name', 'x', 'y', 'known', 'kind', 'owner'].includes(k)));
+    if (!r.known) need(Object.keys(r).every(k => ['id', 'name', 'x', 'y', 'known', 'kind', 'owner', 'drift'].includes(k)));
     else { need(r.kind !== 'unknown' && own(r, 'drones')); num(r.drones); }
     optional(r, 'destroyed', n => one(n, [true])); optional(r, 'coreOf', member);
     optional(r, 'shield', num); optional(r, 'shieldMax', num); optional(r, 'shieldsDisabled', n => one(n, [true, false]));
@@ -114,7 +116,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
     optional(f, 'intercept', i => { object(i, ['home'], ['target']); need(sites.has(i.home)); optional(i, 'target', n => integer(n, 1)); });
   }
   for (const f of v.fleets) if (f.intercept && own(f.intercept, 'target')) need(fleetIds.has(f.intercept.target));
-  array(v.coverage, L.sites + L.fleets); for (const c of v.coverage) { object(c, ['x', 'y', 'radius']); coord(c.x); coord(c.y); num(c.radius, 0, L.coordinate); }
+  array(v.coverage, L.sites + L.fleets); for (const c of v.coverage) { object(c, ['x', 'y', 'radius'], ['drift']); if (c.drift !== undefined) { need(v.rules?.mechanicsVersion === 6 && validDrift(c.drift, v)); const expected = sitePosition(v, { x: c.x, y: c.y, drift: c.drift }, v.hour); need(Math.hypot(c.x - expected.x, c.y - expected.y) < 1e-8); } coord(c.x); coord(c.y); num(c.radius, 0, L.coordinate); }
   object(v.cargo, [], roster); Object.values(v.cargo).forEach(n => num(n));
   optional(v, 'standings', s => { object(s, [], roster); for (const n of Object.values(s)) { object(n, ['cargo', 'funders']); num(n.cargo); integer(n.funders); } });
   array(v.eliminated, factions.length); v.eliminated.forEach(member); unique(v.eliminated); if (v.winner !== null) member(v.winner);
@@ -122,14 +124,16 @@ function scene(v: unknown) : asserts v is ReplayScene {
 function validate(value: unknown): asserts value is SharedReplay {
   inspect(value);
   object(value, ['kind', 'schemaVersion', 'presentationVersion', 'history', 'perspective', 'from', 'through', 'groups', 'spans']);
-  one(value.kind, ['machination.observed-timeline']); one(value.schemaVersion, [1]); one(value.presentationVersion, [1]); one(value.history, ['canonical-events']); faction(value.perspective);
+  one(value.kind, ['machination.observed-timeline']); one(value.schemaVersion, [1, 2]); one(value.presentationVersion, [1]); one(value.history, ['canonical-events']); faction(value.perspective);
   num(value.from); num(value.through); need(value.through >= value.from);
   array(value.groups); array(value.spans); need(value.groups.length > 0 && value.spans.length === value.groups.length - 1);
   const perspective = value.perspective;
+  const schemaVersion = value.schemaVersion;
   let chart: string | undefined, publicRules: string | undefined;
   function frame(s: unknown, hour: number) {
     scene(s); need(s.hour === hour);
-    const nextChart = fingerprint(s.rocks.map(r => ({ id: r.id, name: r.name, x: r.x, y: r.y })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    need((schemaVersion === 2) === s.rocks.some(r => !!r.drift));
+    const nextChart = fingerprint(s.rocks.map(r => ({ id: r.id, name: r.name, ...(r.drift ? { drift: r.drift } : { x: r.x, y: r.y }) })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const nextRules = fingerprint(s.rules ?? null);
     if (chart === undefined) { chart = nextChart; publicRules = nextRules; }
     need(chart === nextChart && publicRules === nextRules);

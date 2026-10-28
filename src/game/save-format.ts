@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validDrift, sitePosition } from './drift';
 import { validateScheduledAction } from './future-actions';
 import { mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
 import { playersIn } from './players';
@@ -75,6 +76,7 @@ export function decodeSave(raw: string): Save {
       || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || rules && (r.x < 0 || r.y < 0 || r.x > rules.map.width || r.y > rules.map.height) || !nonnegative(r.drones)
       || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
+    if (r.drift !== undefined && (mechanicsVersion({ rules }) < 6 || !validDrift(r.drift, { rules }) || !finite(g.hour) || Math.hypot(r.x - sitePosition({ rules }, r as Rock, g.hour).x, r.y - sitePosition({ rules }, r as Rock, g.hour).y) > 1e-8)) return fail();
     if (rules?.mode === 'domination' && r.kind === 'mine') return fail();
     if (mechanicsVersion({ rules }) >= 2 && r.destroyed && (r.drones !== 0 || r.shield !== 0 || r.coreOf !== undefined || r.module !== undefined || !Array.isArray(r.specialists) || r.specialists.length)) return fail();
     if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)
@@ -88,7 +90,8 @@ export function decodeSave(raw: string): Save {
   if (g.version === 2 && (!record(g.minesDrilled) || !factions.every(f => Number.isSafeInteger((g.minesDrilled as Record<string, unknown>)[f as string]) && ((g.minesDrilled as Record<string, number>)[f as string] ?? -1) >= 0))) return fail();
   const fleetIds = new Set<number>();
   for (const f of g.fleets) {
-    if (!record(f) || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)
+    if (!record(f) || g.rocks.some(r => (r.id === f.from || r.id === f.to) && r.drift) && !record(f.route)
+      || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)
       || !isFaction(f.owner) || g.version === 1 && g.eliminated.includes(f.owner) || !ids.has(f.from as string) || !ids.has(f.to as string) || f.from === f.to && !f.route
       || !Number.isInteger(f.drones) || (f.drones as number) < (g.version === 2 && Array.isArray(f.specialists) && f.specialists.length ? 0 : 1) || !nonnegative(f.departed) || (f.departed > g.hour && !(g.version === 2 && f.preparing === true && f.departed <= (g.hour as number) + 1 / 6 + 1e-9))
       || !(f.interceptionReturn === undefined || g.version === 2 && mechanicsVersion({ rules }) >= 3 && f.interceptionReturn === true && f.returning === true && f.intercept === undefined)

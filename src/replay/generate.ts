@@ -1,4 +1,5 @@
 /** Build public presentation records from one validated, frozen private event trace. */
+import { moveReplayScene } from './motion';
 import type { LocalOperation } from '../game/operation-save';
 import { decodeReplay } from '../game/replay-save';
 import { exportArchive, traceReplayTo } from '../game/replay';
@@ -23,7 +24,7 @@ function cost(value: unknown): Cost {
   }
   return { records, bytes };
 }
-const law = (scene: ReplayScene) => JSON.stringify({ ...scene, hour: 0 });
+const law = (scene: ReplayScene) => JSON.stringify(moveReplayScene(scene, 0));
 
 /** The caller owns authentication and must supply a retained authoritative frontier. */
 export function generateSharedReplay(operation: LocalOperation, perspective: Faction, from: number, through: number): SharedReplay {
@@ -33,7 +34,7 @@ export function generateSharedReplay(operation: LocalOperation, perspective: Fac
   if (operation.game.version !== 2) throw new Error('Continuous version-one economy is not yet supported by shared replays.');
   const archive = decodeReplay(data, operation.game, data.rivals);
   const aliases = createReplayAliases();
-  const result: SharedReplay = { kind: 'machination.observed-timeline', schemaVersion: 1, presentationVersion: 1,
+  const result: SharedReplay = { kind: 'machination.observed-timeline', schemaVersion: operation.game.rocks.some(r => r.drift) ? 2 : 1, presentationVersion: 1,
     history: 'canonical-events', perspective, from, through, groups: [], spans: [] };
   const keys = new WeakMap<ReplayScene, string>();
   const costs = new WeakMap<ReplayScene, Cost>();
@@ -92,7 +93,7 @@ export function generateSharedReplay(operation: LocalOperation, perspective: Fac
       // All analytic visibility boundaries are retained; this selects the fixed open-span membership.
       const interior = a + (b - a) / 2;
       const first = project(record.from, a);
-      const scene = { ...project(record.from, interior), hour: a };
+      const scene = moveReplayScene(project(record.from, interior), a);
       const last = project(record.from, b);
       span(first, last, scene);
     }

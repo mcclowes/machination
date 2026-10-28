@@ -3,6 +3,7 @@
  * purpose: Specialist manifests, doubled-speed interception, shared contact rules, and nearest-site return missions.
  * ---
  */
+import { sitePosition } from './drift';
 import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
@@ -29,7 +30,7 @@ export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId
   const course = interceptionCourse(game, source, target, speed, departed);
   if (!course) throw new Error('This hauler cannot be reached before its current leg ends.');
   const fleet: Fleet = { id: fleetId ?? game.nextId, owner, from: fromId, to: fromId, drones, specialists: units, speed, preparing: true, departed, arrives: course.arrives,
-    route: { from: { x: source.x, y: source.y }, to: course.point }, intercept: { target: targetId, home: fromId } };
+    route: { from: sitePosition(game, source, departed), to: course.point }, intercept: { target: targetId, home: fromId } };
   return { ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0), rocks: game.rocks.map(r => r.id === fromId ? { ...r, drones: r.drones - drones, specialists: r.specialists!.filter(u => !selected.includes(u.id)) } : r), fleets: [...game.fleets, fleet],
     events: recentEvents([{ hour: game.hour, audience: [owner], message: `${source.name}: interception preparing with ${drones} drones.` }, ...game.events]),
   };
