@@ -48,10 +48,12 @@ import type { ObjectReference, Snapshot } from './protocol';
 import { copyableReference, focusReferenceCamera, referenceInspectionHour, resolveReference, type ReferenceFrame } from './reference-inspection';
 import { encodeObjectReference } from './object-references';
 import { CopyObjectReference } from '../components/CopyObjectReference';
+import { ReplayExport } from '../components/ReplayExport';
+import { exportSharedReplay } from './shared-replay';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
 }
-export function OnlineOperation() {
+export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void } = {}) {
   const [section, setSection] = useState<OperationSection | null>(null);
   const [mapCamera, setMapCamera] = useState({ scale: 1, x: 0, y: 0 });
   const [session, setSession] = useState<Session | null>(null);
@@ -274,7 +276,7 @@ export function OnlineOperation() {
     {snapshot?.game.eliminated.includes(snapshot.faction) && <Text style={s.detail}>You are eliminated. Sensors and chat remain available.</Text>}
     {snapshot?.inactivity && <><Text style={s.detail}>After 48 hours of inactivity, you are automatically resigned. Opening this operation in the foreground, issuing orders, or chatting counts as activity. Background refreshes do not.</Text><Text style={s.detail}>{inactivityRemaining(snapshot.inactivity.expiresAt, snapshot.serverTime)} until automatic resignation without further activity. Deadline: {new Date(snapshot.inactivity.expiresAt).toLocaleString()}.</Text></>}
     <ResignationControl key={`${mode}:${session?.url}:${session?.id}:${session?.token}:${snapshot?.faction}:${snapshot?.status}:${snapshot?.game.eliminated.includes(snapshot.faction)}`} enabled={!!immediate && snapshot?.game.version === 2} onConfirm={() => { if (snapshot) submit({ kind: 'resign', body: { requestId: commandId(), revision: snapshot.revision } }); }} />
-  </View>{connection}</>;
+  </View>{snapshot?.history && session?.id && <ReplayExport key={referenceIdentity} historyStart={snapshot.history.from} hour={snapshot.game.hour} disabled={busy || !!session.pending} createReplay={(from, through) => exportSharedReplay(session, from, through)} />}{onOpenReplays && <Action text="Open shared replay" onPress={onOpenReplays} />}{connection}</>;
   const timeline = snapshot && <TimeMachine forecastUncertain={game?.forecastUncertain} fleets={orders?.fleets} plans={orders?.scheduled} rocks={snapshot.game.rocks} compact hour={snapshot.game.hour} historyStart={snapshot.history?.from} inspectedHour={inspectedHour} onChange={inspectTime} events={[...(game?.events.map(event => event.hour) ?? []), ...(game?.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]) ?? []), ...(orders?.scheduled.map(p => p.executeAt) ?? [])]} online />;
   if (snapshot && past && !game) {
     const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => inspectTime(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;

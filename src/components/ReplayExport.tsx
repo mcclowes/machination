@@ -62,7 +62,7 @@ export function ReplayExport({ historyStart, hour, createReplay, disabled = fals
   const button = (label: string, onPress: () => void, blocked = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onPress} style={s.button}><Text style={s.text}>{label}</Text></Pressable>;
   return <View style={s.panel}>
     <Text style={s.title}>Export observed replay</Text>
-    <Text style={s.text}>Retained history starts at {historyStart}. Frozen upper frontier: {frontier}.</Text>
+    <Text style={s.text}>Available hours: {historyStart}–{frontier}. Reopen this panel to include newer history.</Text>
     <Text style={s.text}>From hour</Text><TextInput accessibilityLabel="Replay from hour" keyboardType="numeric" value={fromText} editable={!disabled && !saving.current} onChangeText={value => { invalidate(); setFrom(value); }} style={s.input} />
     <Text style={s.text}>Through hour</Text><TextInput accessibilityLabel="Replay through hour" keyboardType="numeric" value={throughText} editable={!disabled && !saving.current} onChangeText={value => { invalidate(); setThrough(value); }} style={s.input} />
     {!valid && <Text style={s.text}>{boundsError}</Text>}
@@ -70,7 +70,7 @@ export function ReplayExport({ historyStart, hour, createReplay, disabled = fals
     {shareable && <View style={s.panel}>
       <PlayerPortraits.Provider value={artifact.replay.groups[0]?.states[0]?.rules?.portraits}><PlayerIdentity faction={artifact.replay.perspective} detail={`Recorded perspective: ${artifact.replay.perspective}`} /></PlayerPortraits.Provider>
       <Text style={s.text}>Included interval: {artifact.replay.from} through {artifact.replay.through}. Size: {artifact.bytes} bytes.</Text>
-      <Text style={s.text}>Visible event boundaries: {artifact.replay.groups.length}. First: {artifact.replay.groups[0]?.hour}. Last: {artifact.replay.groups[artifact.replay.groups.length - 1]?.hour}.</Text>
+      <Text style={s.text}>Timeline points: {artifact.replay.groups.length}.</Text>
       <Text style={s.text}>Recipients can inspect and redistribute the recorded observed chart. Queues, recruitment, private funding, chat, and credentials are excluded.</Text>
       {button('Save replay', save, disabled || busy)}
     </View>}

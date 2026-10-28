@@ -45,7 +45,7 @@ test('export requires disclosure, preserves gesture and bytes, and rejects stale
     assert.equal(calls, 0); assert.equal(saves, 0); assert.equal(button('Save replay'), undefined);
     const original = fixture(); source = () => original;
     await press('Prepare replay'); assert.equal(calls, 1); assert.equal(saves, 0);
-    assert.match(visible(), /Recipients can inspect and redistribute/); assert.match(visible(), /Included interval: 0 through 2/); assert.match(visible(), /Visible event boundaries: 2/);
+    assert.match(visible(), /Recipients can inspect and redistribute/); assert.match(visible(), /Included interval: 0 through 2/); assert.match(visible(), /Timeline points: 2/);
     assert.ok(hosts('Image').length > 0);
     original.perspective = 'vesper'; original.groups[0]!.states[0]!.cargo.you = 99;
     await flush(() => renderer.update(React.createElement(ReplayExport, { ...props, hour: 8 })));

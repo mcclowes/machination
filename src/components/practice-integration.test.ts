@@ -26,6 +26,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     storage: { getItem: async (name: string) => { reads.push(name); return bytes.get(name) ?? null; }, setItem: async (name: string, value: string) => { writes.push(name); bytes.set(name, value); } },
     subscribe: (name: string) => { subscriptions.push(name); return { remove() {} }; },
     online: () => { mounts++; throw new Error('Online boundary mounted during practice'); },
+    replayFile: () => { throw new Error('Replay file boundary reached before an explicit action'); },
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   const originalNow = Date.now, originalInterval = globalThis.setInterval, originalFetch = globalThis.fetch;
@@ -51,8 +52,9 @@ test('App practice isolates live lifecycles and awards only actual capture, with
           'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'practice-host' }));
+        builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'practice-host' }));
         builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'practice-host' }));
-        builder.onLoad({ filter: /.*/, namespace: 'practice-host' }, args => ({ contents: args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : stubs[args.path]! }));
+        builder.onLoad({ filter: /.*/, namespace: 'practice-host' }, args => ({ contents: args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : args.path === 'replay-files' ? `export const pickSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile(),saveSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile();` : stubs[args.path]! }));
       } }],
     });
     const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
@@ -84,6 +86,9 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.match(visible(), /Machination/); assert.deepEqual(reads, ['machination.briefing.v1']); assert.deepEqual(writes, []);
     assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel?.startsWith('Foundry,')), false);
     quiet();
+    await press('Open shared replay');
+    assert.match(visible(), /Shared replays/); quiet();
+    await press('Exit replay library');
     await press('Practice');
     await press('Start: Open a foothold');
     assert.match(visible(), /Launch drones from Foundry/);
