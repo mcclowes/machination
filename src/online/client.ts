@@ -56,3 +56,5 @@ export async function sendChannelMessage(session: Session, body: ChannelTransmis
   if (!session.id) throw new Error('Connect to an operation first.');
   return api(session, `games/${session.id}/channel-messages`, body);
 }
+
+export { exportSharedReplay } from './shared-replay';

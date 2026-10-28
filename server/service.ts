@@ -3,6 +3,9 @@
  * purpose: Serialize multiplayer transactions, persist snapshots, authorize seats, and settle server time.
  * ---
  */
+import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
+import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
+import type { SharedReplay } from '../src/replay/timeline';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -290,6 +293,26 @@ export class GameService {
   }
   snapshot(id: string, token: string): Promise<Snapshot> {
     return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); return this.view(r, f); });
+  }
+  async sharedReplay(id: string, token: string, from: number, through: number): Promise<SharedReplay> {
+    requireThat(Number.isFinite(from) && Number.isFinite(through) && from >= 0 && through >= from,
+      400, 'replay.validation.bounds', 'Choose a finite, ordered historical interval.');
+    const frozen = await this.transaction(db => {
+      const room = this.room(db, id); const perspective = this.seat(room, token);
+      this.settle(room);
+      requireThat(room.startedAt !== null && room.replay, 409, 'replay.conflict.lobby', 'Replay history begins when the operation starts.');
+      // Return validation failures as data so normal engine settling still persists.
+      if (from < room.replay.baseline.hour || through > room.game.hour) return null;
+      return { game: room.game, replay: room.replay, perspective };
+    });
+    requireThat(frozen, 400, 'replay.validation.bounds', 'Choose an interval within the available operation history.');
+    try {
+      return generateSharedReplay({ game: frozen.game, archive: restoreArchive(frozen.replay) }, frozen.perspective, from, through);
+    } catch (error) {
+      if (error instanceof SharedReplayCapacityError) throw new Failure(413, error.code, 'This observed timeline is too large. Choose a shorter interval.');
+      if (error instanceof UnsupportedVisibilityNumericError) throw new Failure(422, error.code, 'This server cannot safely export the requested visibility timeline.');
+      throw error;
+    }
   }
   history(id: string, token: string, hour: number): Promise<HistorySnapshot> {
     return this.transaction(db => {

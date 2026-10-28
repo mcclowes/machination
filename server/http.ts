@@ -64,10 +64,19 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
         result = await service.join(input.invite, token);
       } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover))?$/);
+        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover))?$/);
         if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
         const id = match[1]!; const action = match[2];
         if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
+        else if (req.method === 'GET' && action === 'replay') {
+          const bounds = ['from', 'through'].map(key => url.searchParams.get(key));
+          if ([...url.searchParams.keys()].some(key => key !== 'from' && key !== 'through')
+            || ['from', 'through'].some(key => url.searchParams.getAll(key).length !== 1)
+            || bounds.some(value => !value?.trim() || !Number.isFinite(Number(value)))) {
+            throw new Failure(400, 'replay.validation.bounds', 'Provide exactly one finite from and through, with no other query parameters.');
+          }
+          result = await service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]));
+        }
         else if (req.method === 'GET' && action === 'history') {
           const hour = url.searchParams.get('hour');
           if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
