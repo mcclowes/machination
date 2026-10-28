@@ -43,7 +43,7 @@ Potential module mappings: scavenger rig, routing daemon, conversion virus, and 
 2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Offline seat recovery codes are implemented. Public hosting and email-based account recovery remain.
 3. Diplomacy: private bilateral messages and voluntary drone/module gifts are implemented. Alliances, group channels, and push notifications remain.
 4. Strategic depth: modules and server-filtered sensor visibility are implemented. Scheduled transfers are implemented. Moving-hauler interception is implemented. Map generation and balance sessions remain.
-5. Mobile release: physical-device testing, accessible controls, onboarding, native icons, signing, privacy disclosures, and store submissions.
+5. Mobile release: onboarding and original native icon/launch resources are implemented. Physical-device testing, accessible controls, signing, privacy disclosures, and store submissions remain.
 
 Use original assets, writing, and implementation. The design takes inspiration from slow multiplayer strategy; it doesn't use Subterfuge assets or code.
 

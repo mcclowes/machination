@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>Machination core</title>
+  <path d="M768 412V660L512 808L256 660V364L512 216L688 318" fill="none" stroke="#6b8a62" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M320 690V350H378L512 501L646 350H704V690H618V493L512 610L406 493V690Z" fill="#b8e986"/>
+  <circle cx="768" cy="364" r="28" fill="#e9a775"/>
+</svg>

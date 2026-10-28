@@ -5,20 +5,37 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "backgroundColor": "#080f0d",
+    "icon": "./assets/brand/icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mcclowes.machination"
     },
     "android": {
-      "package": "com.mcclowes.machination"
+      "package": "com.mcclowes.machination",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/adaptive-foreground.png",
+        "monochromeImage": "./assets/brand/adaptive-monochrome.png",
+        "backgroundColor": "#080f0d"
+      }
     },
     "web": {
       "bundler": "metro",
       "name": "Machination",
-      "description": "Slow orbits. Cold decisions."
+      "description": "Slow orbits. Cold decisions.",
+      "favicon": "./assets/brand/icon.png"
     },
     "plugins": [
       "expo-secure-store",
+      "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/brand/splash.png",
+          "imageWidth": 200,
+          "backgroundColor": "#080f0d"
+        }
+      ],
       "./plugins/withMinimumIosTarget.cjs",
       "./plugins/withIosScenes.cjs"
     ]
