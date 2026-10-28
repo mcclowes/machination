@@ -13,6 +13,7 @@ import { advance, createGame, type Faction, type Game } from '../src/game/simula
 import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
+import { mapActionUnits, plannedUnitIds, validateFutureAction } from '../src/game/future-actions';
 import { observe } from '../src/game/visibility';
 import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayData } from '../src/game/replay';
 import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
@@ -39,6 +40,30 @@ function requireThat(condition: unknown, status: number, code: string, message: 
 const isHash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const matchesHash = (expected: string | undefined, actual: string) => expected !== undefined && timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(actual, 'hex'));
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
+function canonicalSchedule(input: unknown): ScheduleOrder {
+  const invalid = () => new Failure(400, 'schedule.validation.payload', 'Provide a supported future order.');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
+  const value = input as Record<string, unknown>;
+  const action = Object.hasOwn(value, 'action');
+  const required = ['requestId', 'revision', 'executeAt', ...(action ? ['action'] : ['from', 'to', 'drones'])];
+  const allowed = [...required, ...(action ? [] : ['specialists', 'carryModule'])];
+  if (!required.every(key => Object.hasOwn(value, key)) || Object.keys(value).some(key => !allowed.includes(key))
+    || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(value.requestId)
+    || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0
+    || typeof value.executeAt !== 'number' || !Number.isFinite(value.executeAt)) throw invalid();
+  const base = { requestId: value.requestId, revision: value.revision as number, executeAt: value.executeAt };
+  if (action) {
+    try { return { ...base, action: validateFutureAction(value.action) }; }
+    catch { throw invalid(); }
+  }
+  if (typeof value.from !== 'string' || typeof value.to !== 'string' || !Number.isSafeInteger(value.drones)
+    || value.carryModule !== undefined && typeof value.carryModule !== 'boolean'
+    || value.specialists !== undefined && (!Array.isArray(value.specialists) || value.specialists.length > 10000
+      || value.specialists.some(id => typeof id !== 'string') || new Set(value.specialists).size !== value.specialists.length)) throw invalid();
+  return { ...base, from: value.from, to: value.to, drones: value.drones as number,
+    ...(value.carryModule !== undefined ? { carryModule: value.carryModule as boolean } : {}),
+    ...(value.specialists !== undefined ? { specialists: [...value.specialists as string[]] } : {}) };
+}
 export class GameService {
   private queue: Promise<unknown> = Promise.resolve();
   private constructor(private file: string, private database: Database, private now: () => number, private initialGame?: typeof createGame) {}
@@ -281,6 +306,15 @@ export class GameService {
       return unit.id;
     });
   }
+  private futureUnit(room: Room, owner: Faction, id: string, ownedOnly = false): string {
+    const visible = observe(room.game, owner);
+    const available = [...visible.rocks, ...visible.fleets].flatMap(asset => asset.specialists ?? [])
+      .filter(unit => !ownedOnly || unit.owner === owner).map(unit => unit.id);
+    const canonical = [...available, ...plannedUnitIds(room.game, owner)]
+      .find(unit => String(this.identify(room, owner, 'unit', unit)) === id);
+    requireThat(canonical, 409, 'schedule.conflict.unit', 'Choose a currently observed module or one of your planned recruits.');
+    return canonical;
+  }
   specialist(id: string, token: string, command: SpecialistOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
@@ -397,14 +431,24 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  schedule(id: string, token: string, command: ScheduleOrder): Promise<Snapshot> {
+  async schedule(id: string, token: string, input: ScheduleOrder): Promise<Snapshot> {
+    const command = canonicalSchedule(input);
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
-      const payload = JSON.stringify(['schedule', command.from, command.to, command.drones, command.revision, command.executeAt, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]);
+      const payload = 'action' in command
+        ? JSON.stringify(['schedule-action', command.action, command.revision, command.executeAt])
+        : JSON.stringify(['schedule', command.from, command.to, command.drones, command.revision, command.executeAt, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before scheduling.');
-      try { this.act(r, { type: 'schedule', owner: f, plan: { id: command.requestId, from: command.from, to: command.to, drones: command.drones, executeAt: command.executeAt, carryModule: command.carryModule, specialists: this.manifest(r, f, command.from, command.specialists) } }); }
+      try {
+        if ('action' in command) this.act(r, { type: 'schedule-action', owner: f, plan: {
+          id: command.requestId, executeAt: command.executeAt,
+          action: mapActionUnits(command.action, unit => this.futureUnit(r, f, unit)),
+        } });
+        else this.act(r, { type: 'schedule', owner: f, plan: { id: command.requestId, from: command.from, to: command.to, drones: command.drones, executeAt: command.executeAt, carryModule: command.carryModule,
+          specialists: command.specialists?.map(unit => this.futureUnit(r, f, unit, true)) ?? [] } });
+      }
       catch (e) { throw new Failure(409, 'schedule.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;

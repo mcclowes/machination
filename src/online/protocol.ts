@@ -1,3 +1,4 @@
+import type { FutureAction } from '../game/future-actions';
 import type { SpecialistKind } from '../game/specialist-catalog';
 import type { HaulerChange } from '../game/transport';
 import type { ModuleKind } from '../game/modules';
@@ -24,7 +25,7 @@ export type ResignOrder = { requestId: string; revision: number };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; specialists?: string[]; carryModule?: boolean };
 export type GiftOrder = Order & { recipient: Faction };
 export type InterceptOrder = { requestId: string; revision: number; from: string; target: number; drones: number; specialists?: string[] };
-export type ScheduleOrder = Order & { executeAt: number };
+export type ScheduleOrder = (Order & { executeAt: number }) | { requestId: string; revision: number; executeAt: number; action: FutureAction };
 export type CancelSchedule = { requestId: string; revision: number; planId: string };
 export type SpecialistOrder = { requestId: string; revision: number } & ({ action: 'hire'; kind: SpecialistKind } | { action: 'promote' | 'release'; unit: string });
 export type ModuleOrder = { requestId: string; revision: number; rock: string; module: ModuleKind };
