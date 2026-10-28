@@ -4,7 +4,7 @@
  * ---
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
@@ -41,6 +41,20 @@ export function OnlineOperation() {
   const [recoveryInput, setRecoveryInput] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const lock = useRef(false);
+  const scroll = useRef<ScrollView>(null);
+  const privateEditor = useRef<TextInput>(null);
+  const composer = useRef<View>(null);
+  function revealComposer() {
+    if (!privateEditor.current?.isFocused()) return;
+    // Insets make room; explicitly reveal the entire composer, including its send button.
+    scroll.current?.getNativeScrollRef()?.measureInWindow((_x, top) => {
+      if (privateEditor.current?.isFocused() && composer.current) scroll.current?.scrollResponderScrollNativeHandleToKeyboard(composer.current, top + 16, true);
+    });
+  }
+  useEffect(() => {
+    const keyboard = Keyboard.addListener('keyboardDidShow', revealComposer);
+    return () => keyboard.remove();
+  }, []);
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true; setBusy(true);
@@ -132,7 +146,7 @@ export function OnlineOperation() {
   const rock = game?.rocks.find(r => r.id === selected);
   const target = game?.rocks.find(r => r.id === destination);
   const operational = snapshot?.status === 'game.active' && !snapshot.game.eliminated.includes(snapshot.faction) && !session?.pending && !busy && !forecast;
-  return <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
+  return <ScrollView ref={scroll} onContentSizeChange={() => { if (Keyboard.isVisible()) revealComposer(); }} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" contentContainerStyle={s.page} keyboardShouldPersistTaps="handled">
     <Text style={s.title}>Machination / uplink</Text><Text style={s.detail}>Three intelligences. One belt. No corporate oversight.</Text>
     {!!error && <View style={s.panel}><Text accessibilityRole="alert" style={s.error}>{error}</Text></View>}
     {session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>
@@ -170,8 +184,10 @@ export function OnlineOperation() {
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View>
       <View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
         {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}
-        <TextInput key="private-transmission" secureTextEntry={false} accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />
-        <Text style={s.detail}>Visible only to you and {FACTIONS[recipient].name}. Stored by the game server.</Text><Action text="Transmit" disabled={busy || !!session?.pending || !draft.trim() || !snapshot.members.includes(recipient) || recipient === snapshot.faction} onPress={() => submit({ kind: 'messages', body: { requestId: commandId(), to: recipient, text: draft } })} />
+        <View ref={composer} collapsable={false} style={{ gap: 12 }}>
+          <TextInput ref={privateEditor} onFocus={() => { if (Keyboard.isVisible()) revealComposer(); }} key="private-transmission" secureTextEntry={false} accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />
+          <Text style={s.detail}>Visible only to you and {FACTIONS[recipient].name}. Stored by the game server.</Text><Action text="Transmit" disabled={busy || !!session?.pending || !draft.trim() || !snapshot.members.includes(recipient) || recipient === snapshot.faction} onPress={() => submit({ kind: 'messages', body: { requestId: commandId(), to: recipient, text: draft } })} />
+        </View>
       </View>
       <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View>
     </>}
