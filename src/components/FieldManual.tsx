@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 const ACKNOWLEDGED = 'machination.briefing.v1';
 const sections = [
@@ -38,7 +38,7 @@ export function FieldManual() {
   return <>
     <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={s.trigger}><Text style={s.triggerText}>Manual</Text></Pressable>
     <Modal visible={visible} animationType="slide" onRequestClose={close}>
-      <SafeAreaView style={s.safe}>
+      <SafeAreaProvider><SafeAreaView style={s.safe}>
         <View style={s.header}><Text accessibilityRole="header" style={s.title}>{briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
         <ScrollView contentContainerStyle={s.content}>
           <Text style={s.intro}>Your corporation is too far away to interfere. Start with a solo operation to learn the belt, then negotiate with human rivals.</Text>
@@ -46,7 +46,7 @@ export function FieldManual() {
           {briefing && <Pressable accessibilityRole="button" onPress={() => setBriefing(false)} style={s.trigger}><Text style={s.triggerText}>Read the full field manual</Text></Pressable>}
           <Pressable accessibilityRole="button" onPress={close} style={s.begin}><Text style={s.beginText}>Return to command</Text></Pressable>
         </ScrollView>
-      </SafeAreaView>
+      </SafeAreaView></SafeAreaProvider>
     </Modal>
   </>;
 }
