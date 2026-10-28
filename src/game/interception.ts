@@ -17,7 +17,7 @@ export function dispatchIntercept(game: Game, fromId: string, targetId: number, 
   const target = game.fleets.find(f => f.id === targetId);
   if (!from || from.owner !== owner || from.module !== 'scavenger') throw new Error('Select a controlled rock with a scavenger rig.');
   if (!Number.isSafeInteger(drones) || drones < 1 || drones > from.drones) throw new Error('Drone count exceeds available inventory.');
-  if (!target || target.owner === owner || requireContact && !inRange(sensors(game, owner), fleetPosition(game, target))) throw new Error('Select an observed enemy hauler.');
+  if (!target || target.owner === owner || requireContact && !inRange(sensors(game, owner), fleetPosition(game, target), game)) throw new Error('Select an observed enemy hauler.');
   const course = interceptionCourse(game, from, target);
   if (!course) throw new Error('This hauler cannot be reached before its current leg ends.');
   const rig: Fleet = { id: game.nextId, owner, from: fromId, to: fromId, drones, departed: game.hour, arrives: course.arrives,

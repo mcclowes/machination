@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { wrappedBounds, worldDistance, type GeometryWorld } from './geometry';
 import { resolveSpecialistInterceptions } from './specialist-interception';
 import { reconcileFunding, type Funding } from './funding';
 import { refreshMining } from './mining';
@@ -56,8 +57,8 @@ function inventoryUnits(value: number): number {
   return Math.abs(value - whole) < INVENTORY_ROUNDING_TOLERANCE ? whole : value;
 }
 export { createGame } from './world';
-export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind, version: 1 | 2 = 1): number {
-  return transferDuration(from, to, module, version);
+export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind, version: 1 | 2 = 1, world: GeometryWorld = {}): number {
+  return transferDuration(from, to, module, version, world);
 }
 export function installModule(game: Game, rockId: string, kind: ModuleKind, owner: Faction): Game {
   if (game.version === 2) throw new Error('Recruit modules at your core using time credits.');
@@ -80,7 +81,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   if (typeof carryModule !== 'boolean' || carryModule && !from.module) throw new Error('There is no module available to load.');
   const module = carryModule ? from.module : undefined;
   const speed = specialistSpeed(game, owner, manifest, to.owner === owner);
-  const duration = game.version === 2 ? Math.max(1e-6, Math.hypot(from.x - to.x, from.y - to.y) / speed) : travelHours(from, to, module, game.version);
+  const duration = game.version === 2 ? Math.max(1e-6, worldDistance(game, from, to) / speed) : travelHours(from, to, module, game.version);
   const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
   return {
     ...game, nextId: game.nextId + 1,
@@ -202,8 +203,9 @@ function actRivals(input: Game): Game {
     const source = sources[0];
     if (!source) continue;
     const available = Math.floor(source.drones * 0.65);
-    const destination = game.rocks.filter(r => !r.destroyed && r.owner !== faction && r.drones + (r.owner && r.kind !== 'mine' ? LEGACY_PRODUCTION * travelHours(source, r) : 0) < available)
-      .sort((a, b) => travelHours(source, a) - travelHours(source, b) || a.drones - b.drones)[0];
+    const travel = (to: Rock) => wrappedBounds(game) ? travelHours(source, to, undefined, game.version, game) : travelHours(source, to);
+    const destination = game.rocks.filter(r => !r.destroyed && r.owner !== faction && r.drones + (r.owner && r.kind !== 'mine' ? LEGACY_PRODUCTION * travel(r) : 0) < available)
+      .sort((a, b) => travel(a) - travel(b) || a.drones - b.drones)[0];
     if (destination) game = dispatch(game, source.id, destination.id, available, faction);
   }
   return game;

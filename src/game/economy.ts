@@ -3,6 +3,7 @@
  * purpose: Industry cycles, power capacity, mining construction, and shield recharge for version-two operations.
  * ---
  */
+import { worldDistance } from './geometry';
 import type { Faction, Game, Rock } from './simulation';
 import { fundingCount, reconcileFunding, FUNDING_OUTPUT, FUNDING_POWER } from './funding';
 import { miningInterval, MINING_DAY } from './mining';
@@ -72,7 +73,7 @@ export function settleEconomy(game: Game): void {
       rock.shieldAt = game.hour + SHIELD_RECHARGE / max;
     }
     if (rock.kind === 'factory' && rock.productionAt! <= game.hour + 1e-9) {
-      const foremen = game.rocks.filter(r => r.owner === rock.owner && Math.hypot(r.x - rock.x, r.y - rock.y) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
+      const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
       const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
       const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
       rock.drones += Math.max(0, Math.min(output, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));

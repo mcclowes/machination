@@ -3,6 +3,7 @@
  * purpose: Exact encounters between opposing ordinary haulers traveling the same outpost route.
  * ---
  */
+import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
 import { flightEndpoints, fleetPosition } from './flight';
 import type { Fleet, Game } from './simulation';
@@ -17,14 +18,18 @@ function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   if (Math.abs(va.x * vb.y - va.y * vb.x) > 1e-6) return Infinity;
   const start = Math.max(a.departed, b.departed);
   const pa = fleetPosition({ ...game, hour: start }, a); const pb = fleetPosition({ ...game, hour: start }, b);
-  const dx = pa.x - pb.x; const dy = pa.y - pb.y;
   const vx = va.x - vb.x; const vy = va.y - vb.y;
   const speed2 = vx * vx + vy * vy;
   if (speed2 < CONTACT_TOLERANCE) return Infinity;
-  const elapsed = -(dx * vx + dy * vy) / speed2;
-  const hour = start + elapsed;
-  if (a.lastContacts?.some(c => c.id === b.id && Math.abs(c.hour - hour) < 1e-9)) return Infinity;
-  return elapsed >= -CONTACT_TOLERANCE && Math.hypot(dx + vx * elapsed, dy + vy * elapsed) < 1e-6 && hour < Math.min(a.arrives, b.arrives) - CONTACT_TOLERANCE ? hour : Infinity;
+  let earliest = Infinity;
+  for (const offset of mapOffsets(game)) {
+    const dx = pa.x - pb.x - offset.x, dy = pa.y - pb.y - offset.y;
+    const elapsed = -(dx * vx + dy * vy) / speed2;
+    const hour = start + elapsed;
+    if (a.lastContacts?.some(c => c.id === b.id && Math.abs(c.hour - hour) < 1e-9)) continue;
+    if (elapsed >= -CONTACT_TOLERANCE && Math.hypot(dx + vx * elapsed, dy + vy * elapsed) < 1e-6 && hour < Math.min(a.arrives, b.arrives) - CONTACT_TOLERANCE) earliest = Math.min(earliest, hour);
+  }
+  return earliest;
 }
 export function nextRouteEncounter(game: Game): number {
   let next = Infinity;

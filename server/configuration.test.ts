@@ -17,6 +17,7 @@ test('ten-seat domination rooms preserve immutable setup, authorize every seat, 
   assert.deepEqual(created.game.rules!.players, ALL_PLAYERS);
   assert.equal(created.game.rules!.mode, 'domination'); assert.equal(created.game.rules!.victoryTarget, 50);
   assert.equal(created.game.rocks.length, 100);
+  assert.equal(created.game.rules!.map.topology, 'torus');
   assert.equal(JSON.stringify(created).includes('"seed"'), false);
   assert.deepEqual((await service.create(tokens[0]!, options)).game, created.game);
   await assert.rejects(() => service.create(tokens[0]!, { playerCount: 2, mode: 'mining' }));

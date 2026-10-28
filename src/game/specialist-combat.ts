@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { worldDistance } from './geometry';
 import { playersIn } from './players';
 import { sendUnitsHome, returnHauler } from './specialist-travel';
 import { applyCombatAbilities } from './combat-abilities';
@@ -26,7 +27,7 @@ export function reconcileLeadership(game: Game, previous: readonly (Faction | { 
     const candidates = [
       ...game.rocks.filter(r => r.owner === owner).flatMap(r => (r.specialists ?? []).filter(u => u.owner === owner && !u.captive && u.kind === 'princess').map(unit => ({ unit, point: r }))),
       ...game.fleets.filter(f => f.owner === owner).flatMap(f => (f.specialists ?? []).filter(u => u.owner === owner && !u.captive && u.kind === 'princess').map(unit => ({ unit, point: fleetPosition(game, f) }))),
-    ].sort((a, b) => Math.hypot(a.point.x - lostAt.x, a.point.y - lostAt.y) - Math.hypot(b.point.x - lostAt.x, b.point.y - lostAt.y) || a.unit.id.localeCompare(b.unit.id));
+    ].sort((a, b) => worldDistance(game, a.point, lostAt) - worldDistance(game, b.point, lostAt) || a.unit.id.localeCompare(b.unit.id));
     if (candidates[0]) {
       candidates[0].unit.kind = 'queen';
       game.events.unshift({ hour: game.hour, audience: [owner], message: 'Fallback core promoted. Operational control preserved.' });

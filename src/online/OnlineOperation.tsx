@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
 import { presenceDue, inactivityRemaining } from './presence';
+import { worldDistance } from '../game/geometry';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
@@ -182,7 +183,7 @@ export function OnlineOperation() {
   const target = game?.rocks.find(r => r.id === destination);
   const unitManifest = rock?.known && snapshot ? (rock.specialists ?? []).filter(u => selectedUnits.includes(u.id) && u.owner === snapshot.faction && !u.captive) : [];
   const unitIds = unitManifest.map(u => u.id);
-  const duration = target && rock && game && snapshot ? game.version === 2 ? Math.max(1e-6, Math.hypot(rock.x - target.x, rock.y - target.y) / specialistSpeed(game, snapshot.faction, unitManifest, target.owner === snapshot.faction)) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
+  const duration = target && rock && game && snapshot ? game.version === 2 ? Math.max(1e-6, worldDistance(game, rock, target) / specialistSpeed(game, snapshot.faction, unitManifest, target.owner === snapshot.faction)) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const operational = !past && snapshot?.status === 'game.active' && !snapshot.game.eliminated.includes(snapshot.faction) && !session?.pending && !busy;
   const immediate = operational && !forecast;
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;

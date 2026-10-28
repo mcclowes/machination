@@ -3,6 +3,7 @@
  * purpose: Timed sentry fire and capacitor drain at exact event boundaries, independent of polling.
  * ---
  */
+import { worldDistance } from './geometry';
 import type { Game } from './simulation';
 import { unitsAtRock } from './specialists';
 import { maximumShield } from './economy';
@@ -23,7 +24,7 @@ export function settleSpecialistActions(game: Game): void {
     }
     if (unit.kind === 'sentry') {
       unit.nextActionAt = game.hour + 2;
-      const target = game.fleets.filter(f => f.owner !== unit.owner && !f.preparing && f.drones > 0 && Math.hypot(fleetPosition(game, f).x - rock.x, fleetPosition(game, f).y - rock.y) <= rockSensorRange(game, rock) / 2)
+      const target = game.fleets.filter(f => f.owner !== unit.owner && !f.preparing && f.drones > 0 && worldDistance(game, fleetPosition(game, f), rock) <= rockSensorRange(game, rock) / 2)
         .sort((a, b) => b.drones - a.drones || a.id - b.id)[0];
       if (!target) continue;
       const damage = Math.ceil(target.drones * 0.05);
@@ -46,7 +47,7 @@ export function applyStationPassives(game: Game): void {
   for (const rock of game.rocks) {
     if (!rock.owner || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
-      if (Math.hypot(holding.x - rock.x, holding.y - rock.y) > rockSensorRange(game, rock)) continue;
+      if (worldDistance(game, holding, rock) > rockSensorRange(game, rock)) continue;
       for (const unit of [...(holding.specialists ?? [])]) if (unit.owner === rock.owner && unit.captive && game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) {
         holding.specialists = holding.specialists!.filter(u => u.id !== unit.id);
         delete unit.captive;

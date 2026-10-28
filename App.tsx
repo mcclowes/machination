@@ -8,6 +8,7 @@ import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View, Moda
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
+import { worldDistance } from './src/game/geometry';
 import { flightDestination } from './src/game/flight';
 import { InterceptionTargets } from './src/components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
@@ -114,7 +115,7 @@ function Operation() {
   }[status];
   const unitManifest = (rock.known ? rock.specialists ?? [] : []).filter(u => selectedUnits.includes(u.id) && u.owner === 'you' && !u.captive);
   const unitIds = unitManifest.map(u => u.id);
-  const duration = target ? game.version === 2 ? Math.max(1e-6, Math.hypot(rock.x - target.x, rock.y - target.y) / specialistSpeed(shown, 'you', unitManifest, target.owner === 'you')) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
+  const duration = target ? game.version === 2 ? Math.max(1e-6, worldDistance(shown, rock, target) / specialistSpeed(shown, 'you', unitManifest, target.owner === 'you')) : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const count = Number(amount);
   const preparation = game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;

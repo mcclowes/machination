@@ -3,6 +3,7 @@
  * purpose: Specialist manifests, doubled-speed interception, shared contact rules, and nearest-site return missions.
  * ---
  */
+import { worldDistance } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, flightEndpoints, interceptionCourse } from './flight';
 import { manifestUnits } from './specialists';
@@ -42,7 +43,7 @@ export function resolveSpecialistInterceptions(game: Game, unknown: readonly num
     }
     const target = game.fleets.find(f => f.id === rig.intercept!.target);
     const point = flightEndpoints(game, rig).to;
-    if (target && target.owner !== rig.owner && Math.hypot(fleetPosition(game, target).x - point.x, fleetPosition(game, target).y - point.y) <= 1e-6) resolveHaulerContact(game, rig, target);
+    if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target);
     if (game.fleets.some(f => f.id === rig.id) && rig.intercept) returnHauler(game, rig);
   }
 }

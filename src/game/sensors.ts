@@ -3,6 +3,7 @@
  * purpose: Shared geometric sensor policy for authoritative observations and event audiences.
  * ---
  */
+import { worldDistance, type GeometryWorld } from './geometry';
 import { playersIn } from './players';
 import { unitCount, unitsAtRock } from './specialists';
 import { fleetPosition } from './flight';
@@ -20,8 +21,8 @@ export function sensors(game: Game, faction: Faction): Sensor[] {
     ...(game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).map(f => ({ ...fleetPosition(game, f), radius: HAULER_SENSOR_RANGE }))),
   ];
 }
-export function inRange(coverage: Sensor[], point: { x: number; y: number }): boolean {
-  return coverage.some(s => Math.hypot(s.x - point.x, s.y - point.y) <= s.radius);
+export function inRange(coverage: Sensor[], point: { x: number; y: number }, world: GeometryWorld = {}): boolean {
+  return coverage.some(s => worldDistance(world, s, point) <= s.radius);
 }
 export function canObserveHauler(game: Game, faction: Faction, fleet: Fleet, coverage = sensors(game, faction)): boolean {
   if (fleet.owner === faction) return true;
@@ -29,8 +30,8 @@ export function canObserveHauler(game: Game, faction: Faction, fleet: Fleet, cov
   const incoming = game.version === 2 && (fleet.intercept
     ? game.fleets.some(target => target.id === fleet.intercept!.target && target.owner === faction)
     : game.rocks.some(rock => rock.id === fleet.to && rock.owner === faction));
-  return incoming || inRange(coverage, fleetPosition(game, fleet));
+  return incoming || inRange(coverage, fleetPosition(game, fleet), game);
 }
 export function observers(game: Game, point: { x: number; y: number }): Faction[] {
-  return (playersIn(game)).filter(f => inRange(sensors(game, f), point));
+  return (playersIn(game)).filter(f => inRange(sensors(game, f), point, game));
 }

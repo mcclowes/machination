@@ -3,6 +3,7 @@
  * purpose: Authorized navigator course changes with continuous geometry and a shared eight-hour cooldown.
  * ---
  */
+import { nearestImage, worldDistance } from './geometry';
 import type { Faction, Game } from './simulation';
 import { fleetPosition } from './flight';
 import { specialistSpeed } from './specialist-effects';
@@ -26,8 +27,8 @@ export function changeCourse(game: Game, fleetId: number, owner: Faction, destin
   const specialists = fleet.specialists!.map(u => navigators.includes(u) ? { ...u, lastCourseAt: game.hour } : { ...u });
   const speed = specialistSpeed(game, owner, specialists, destination.owner === owner);
   const changed = { ...fleet, specialists, to: destinationId, speed,
-    route: { from: point, to: { x: destination.x, y: destination.y } },
-    departed: game.hour, arrives: game.hour + Math.max(1e-6, Math.hypot(destination.x - point.x, destination.y - point.y) / speed) };
+    route: { from: point, to: nearestImage(game, point, destination) },
+    departed: game.hour, arrives: game.hour + Math.max(1e-6, worldDistance(game, point, destination) / speed) };
   delete changed.intercept;
   delete changed.returning;
   delete changed.preparing;

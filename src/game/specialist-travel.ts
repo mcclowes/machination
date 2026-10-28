@@ -3,6 +3,7 @@
  * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
  * ---
  */
+import { nearestImage, worldDistance, wrappedBounds, wrapPoint } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, type Point } from './flight';
 import type { Specialist } from './specialists';
@@ -10,11 +11,11 @@ import { specialistSpeed, withUnitEffects } from './specialist-effects';
 
 export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: Specialist[]): Fleet | undefined {
   if (!units.length) return;
-  const home = game.rocks.filter(r => r.owner === owner && !r.destroyed).sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y) || a.id.localeCompare(b.id))[0];
+  const home = game.rocks.filter(r => r.owner === owner && !r.destroyed).sort((a, b) => worldDistance(game, a, point) - worldDistance(game, b, point) || a.id.localeCompare(b.id))[0];
   if (!home) return;
   const speed = specialistSpeed(game, owner, units, true, 'return');
   const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed,
-    route: { from: { ...point }, to: { x: home.x, y: home.y } }, departed: game.hour, arrives: game.hour + Math.max(1e-6, Math.hypot(home.x - point.x, home.y - point.y) / speed), returning: true };
+    route: { from: wrappedBounds(game) ? wrapPoint(game, point) : { ...point }, to: nearestImage(game, wrapPoint(game, point), home) }, departed: game.hour, arrives: game.hour + Math.max(1e-6, worldDistance(game, point, home) / speed), returning: true };
   game.fleets.push(fleet);
   return fleet;
 }
@@ -32,11 +33,11 @@ export function releaseSpecialist(input: Game, owner: Faction, id: string): Game
 }
 export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   const point = fleetPosition(game, fleet);
-  const home = game.rocks.filter(r => r.owner === fleet.owner && !r.destroyed).sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y) || a.id.localeCompare(b.id))[0];
+  const home = game.rocks.filter(r => r.owner === fleet.owner && !r.destroyed).sort((a, b) => worldDistance(game, a, point) - worldDistance(game, b, point) || a.id.localeCompare(b.id))[0];
   if (!home) { game.fleets = game.fleets.filter(f => f.id !== fleet.id); return; }
   const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], true, 'return');
-  fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: { x: home.x, y: home.y } };
-  fleet.departed = game.hour; fleet.arrives = game.hour + Math.max(1e-6, Math.hypot(home.x - point.x, home.y - point.y) / speed);
+  fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: nearestImage(game, point, home) };
+  fleet.departed = game.hour; fleet.arrives = game.hour + Math.max(1e-6, worldDistance(game, point, home) / speed);
   fleet.returning = true; fleet.speed = speed;
   if (locked) fleet.courseLocked = true;
   delete fleet.intercept; delete fleet.preparing;
