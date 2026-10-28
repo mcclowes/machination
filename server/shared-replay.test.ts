@@ -76,14 +76,12 @@ test('authenticated exports preserve canonical order, private archives, presence
     assert.equal(capacity.status, 413);
     assert.equal((await capacity.json()).issues[0].issue, 'replay-capacity');
   } finally { Object.defineProperty(SHARED_REPLAY_LIMITS, 'records', { value: records }); }
-  const nativeHypot = Math.hypot;
+  const runtime = Object.getOwnPropertyDescriptor(process.versions, 'v8')!;
   try {
-    Math.hypot = (...values) => nativeHypot(...values);
-    const unsupported = await get('from=0&through=1');
-    assert.equal(unsupported.status, 422);
-    const failure = await unsupported.json();
-    assert.equal(failure.issues[0].issue, 'unsupported-visibility-numeric');
-    assert.ok(!JSON.stringify(failure).includes('numeric-support.ts'));
-  } finally { Math.hypot = nativeHypot; }
+    Object.defineProperty(process.versions, 'v8', { ...runtime, value: 'another-js-engine' });
+    const portable = await get('from=0&through=1');
+    assert.equal(portable.status, 200);
+    assert.deepEqual(await portable.json(), replay);
+  } finally { Object.defineProperty(process.versions, 'v8', runtime); }
 
 });

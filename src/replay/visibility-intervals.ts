@@ -48,7 +48,8 @@ function circleWindow(dx: number, dy: number, wx: number, wy: number, radius: nu
   return from <= through ? [from, through] : undefined;
 }
 
-function analyticVisibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
+/** Portable continuous geometry. Binary64 rounding plateaus are a separate diagnostic below. */
+export function continuousVisibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
   if (![from, through, point.position.x, point.position.y, point.velocity.x, point.velocity.y].every(Number.isFinite) || from < 0 || through < from) throw new RangeError('Provide a finite ordered motion span.');
   const map = wrappedBounds(world);
   if (map && (![map.width, map.height].every(Number.isFinite) || map.width <= 0 || map.height <= 0)) throw new RangeError('Provide finite positive wrapped dimensions.');
@@ -91,7 +92,7 @@ function analyticVisibilityIntervals(world: GeometryWorld, point: AffineMotion, 
  */
 export function visibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
   requireNumericRuntime();
-  const candidates = analyticVisibilityIntervals(world, point, sensors, from, through);
+  const candidates = continuousVisibilityIntervals(world, point, sensors, from, through);
   const cuts = [...new Set([from, through, ...candidates.flatMap(w => [w.from, w.through]).filter(t => Number.isFinite(t) && t >= from && t <= through)])].sort((a, b) => a - b);
   const result: VisibilityInterval[] = [];
   let regions = 0;

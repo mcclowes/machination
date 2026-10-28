@@ -1,7 +1,7 @@
 /** Private binary64 support inside one fixed state span; never serialize motion sources. */
 import { canObserveHauler, HAULER_SENSOR_RANGE, rockSensorRange } from '../game/sensors';
 import type { Faction, Game } from '../game/simulation';
-import { flightMotionSpans, visibilityIntervals, type AffineMotion, type MotionSpan, type MovingSensor, type VisibilityInterval } from './visibility-intervals';
+import { continuousVisibilityIntervals, flightMotionSpans, visibilityIntervals, type AffineMotion, type MotionSpan, type MovingSensor, type VisibilityInterval } from './visibility-intervals';
 
 export type ObservationIntervals = { sites: Map<string, VisibilityInterval[]>; fleets: Map<number, VisibilityInterval[]> };
 const still = (x: number, y: number): AffineMotion => ({ position: { x, y }, velocity: { x: 0, y: 0 } });
@@ -18,19 +18,20 @@ function merge(windows: VisibilityInterval[]): VisibilityInterval[] {
   return merged;
 }
 
-export function observationIntervals(game: Game, faction: Faction, through: number): ObservationIntervals {
+export function observationIntervals(game: Game, faction: Faction, through: number, precision: 'continuous' | 'binary64' = 'binary64'): ObservationIntervals {
   if (!Number.isFinite(through) || through < game.hour) throw new RangeError('Choose an ordered fixed observation span.');
   const from = game.hour;
+  const intervals = precision === 'continuous' ? continuousVisibilityIntervals : visibilityIntervals;
   const whole = (): VisibilityInterval[] => [{ from, through }];
   const fixed: MovingSensor[] = game.rocks.filter(r => r.owner === faction).map(r => ({ ...still(r.x, r.y), radius: rockSensorRange(game, r) }));
   const mobile = game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).flatMap(f => flightMotionSpans(game, f, from, through));
   function support(pieces: MotionSpan[]): VisibilityInterval[] {
     const windows: VisibilityInterval[] = [];
     for (const piece of pieces) {
-      windows.push(...visibilityIntervals(game, piece.motion, fixed, piece.from, piece.through));
+      windows.push(...intervals(game, piece.motion, fixed, piece.from, piece.through));
       for (const sensor of mobile) {
         const start = Math.max(piece.from, sensor.from), end = Math.min(piece.through, sensor.through);
-        if (start <= end) windows.push(...visibilityIntervals(game, shifted(piece, start), [{ ...shifted(sensor, start), radius: HAULER_SENSOR_RANGE }], start, end));
+        if (start <= end) windows.push(...intervals(game, shifted(piece, start), [{ ...shifted(sensor, start), radius: HAULER_SENSOR_RANGE }], start, end));
       }
     }
     return merge(windows);

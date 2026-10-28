@@ -1,10 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flightMotionSpans, VisibilityCapacityError, UnsupportedVisibilityNumericError, visibilityIntervals } from './visibility-intervals';
+import { continuousVisibilityIntervals, flightMotionSpans, VisibilityCapacityError, UnsupportedVisibilityNumericError, visibilityIntervals } from './visibility-intervals';
 import { fleetPosition } from '../game/flight';
 import { atOrdinal, ordinal, motionPosition, nextHour, previousHour } from './numeric-support';
 import { inRange } from '../game/sensors';
 import { worldDistance, wrapPoint } from '../game/geometry';
+
+test('portable continuous geometry retains tangent points without requiring a runtime profile', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(process.versions, 'v8')!;
+  try {
+    Object.defineProperty(process.versions, 'v8', { ...descriptor, value: 'another-js-engine' });
+    const tangent = continuousVisibilityIntervals({}, { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } }, [{ position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, radius: 1 }], 7, 8);
+    assert.deepEqual(tangent, [{ from: 7.5, through: 7.5 }]);
+  } finally { Object.defineProperty(process.versions, 'v8', descriptor); }
+});
 
 test('an entire short contact survives between sampled endpoints', () => {
   const point = { position: { x: -10, y: 0 }, velocity: { x: 4, y: 0 } };
