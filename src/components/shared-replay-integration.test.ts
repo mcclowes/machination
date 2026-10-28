@@ -77,6 +77,8 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await flush(() => timeline.props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } })); assert.match(visible(), /State 1 of 2/);
     await press('4×'); await press('1×');
     await press('Play'); assert.equal(starts, 1);
+    await press('Playback options'); assert.equal(timer, undefined, 'Opening precise seek pauses the changing clock');
+    await press('Close playback options'); await press('Play'); assert.equal(starts, 2);
     now = Infinity; await flush(() => timer!()); assert.match(visible(), /D01 · 00:00/);
     now = 2000; await flush(() => timer!()); assert.match(visible(), /D01 · 00:00/);
     now = 3000; await flush(() => timer!()); assert.match(visible(), /D01 · 01:00/);
