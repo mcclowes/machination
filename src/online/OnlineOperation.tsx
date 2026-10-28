@@ -4,7 +4,7 @@
  * ---
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
 import { LaunchTiming, ScheduledOrders } from '../components/ScheduledOrders';
@@ -19,12 +19,13 @@ import { HaulerOrders } from '../components/HaulerOrders';
 import { SiteControls, siteDescription } from '../components/SiteControls';
 import { LAUNCH_PREPARATION } from '../game/transport';
 import { cargoTarget, mineCost } from '../game/economy';
+import { useDiplomacyPanel } from './DiplomacyPanel';
 import { FundingPanel } from '../components/FundingPanel';
 import { OperationShell, type OperationSection } from '../components/OperationShell';
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionOffset, orderHour } from '../game/time-machine';
 import { forecastObservation } from '../game/visibility';
-import { FACTIONS, travelHours, type Faction } from '../game/simulation';
+import { FACTIONS, travelHours } from '../game/simulation';
 import { commandId, connect, newCredential, newSession, restoreSession, storeSession, type Pending, type Session } from './client';
 import { api, RejectedCommand } from './network';
 import { parseRecoveryCode, formatRecoveryCode } from './recovery';
@@ -50,26 +51,12 @@ export function OnlineOperation() {
   const [navigating, setNavigating] = useState<number>();
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const forecast = inspectionOffset(snapshot?.game.hour ?? 0, inspectedHour);
-  const [recipient, setRecipient] = useState<Faction>('vesper');
-  const [draft, setDraft] = useState('');
+  const [acknowledged, setAcknowledged] = useState<string>();
   const [disconnect, setDisconnect] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const lock = useRef(false);
   const scroll = useRef<ScrollView>(null);
-  const privateEditor = useRef<TextInput>(null);
-  const composer = useRef<View>(null);
-  function revealComposer() {
-    if (!privateEditor.current?.isFocused()) return;
-    // Insets make room; explicitly reveal the entire composer, including its send button.
-    scroll.current?.getNativeScrollRef()?.measureInWindow((_x, top) => {
-      if (privateEditor.current?.isFocused() && composer.current) scroll.current?.scrollResponderScrollNativeHandleToKeyboard(composer.current, top + 16, true);
-    });
-  }
-  useEffect(() => {
-    const keyboard = Keyboard.addListener('keyboardDidShow', revealComposer);
-    return () => keyboard.remove();
-  }, []);
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true; setBusy(true);
@@ -84,7 +71,6 @@ export function OnlineOperation() {
     if (saved.pending?.kind === 'recover') { await complete(saved, saved.pending); return; }
     const result = await connect(saved); setSession(result.session); accept(result.snapshot);
     setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
-    setRecipient(result.snapshot.faction === 'vesper' ? 'you' : 'vesper');
   }); }, []);
   useEffect(() => {
     if (!session?.id || session.pending?.kind === 'recover') return;
@@ -99,7 +85,6 @@ export function OnlineOperation() {
       await storeSession(created); setSession(created);
       const result = await connect(created); setSession(result.session); accept(result.snapshot);
       setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
-      setRecipient(result.snapshot.faction === 'vesper' ? 'you' : 'vesper');
     });
   }
   async function complete(saved: Session, pending: Pending) {
@@ -110,10 +95,12 @@ export function OnlineOperation() {
       if (pending.kind === 'recovery') setRecoveryCode(formatRecoveryCode(saved.id!, pending.body.secret));
       if (pending.kind === 'recover') {
         setSelected((next.game.rocks.find(r => r.owner === next.faction) ?? next.game.rocks[0]!).id);
-        setRecipient(next.faction === 'vesper' ? 'you' : 'vesper'); setRecoveryInput('');
+        setRecoveryInput('');
       }
-      if (pending.kind === 'messages') setDraft('');
-      else { setSection(null); setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); setSelectedUnits([]); setNavigating(undefined); }
+      if (pending.kind === 'messages' || pending.kind === 'channel-messages' || pending.kind === 'groups') setAcknowledged(pending.body.requestId);
+      else if (pending.kind === 'orders' || pending.kind === 'schedules' || pending.kind === 'gifts' || pending.kind === 'intercepts' || pending.kind === 'recover' || pending.kind === 'haulers' && pending.body.action === 'course') {
+        setSection(null); setDestination(undefined); setPlanning(false); setCarry(false); setDelay(0); setSelectedUnits([]); setNavigating(undefined);
+      }
     } catch (error) {
       if (error instanceof RejectedCommand) {
         const cleared = { ...saved, pending: undefined };
@@ -170,6 +157,7 @@ export function OnlineOperation() {
   const immediate = operational && !forecast;
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = snapshot ? Math.max(snapshot.game.hour, inspectedHour ?? snapshot.game.hour) + delay : 0;
+  const diplomacy = useDiplomacyPanel({ snapshot, disabled: busy || !!session?.pending, acknowledged, scroll, onSubmit: submit });
   const connection = <>{session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>
       {session.pending && <><Text style={s.error}>Request awaiting confirmation. Retry repeats the saved request.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
       {recoveryPending && <Text style={s.error}>Confirm this recovery request before removing the connection. The saved request may be needed to keep access to your seat.</Text>}
@@ -181,7 +169,7 @@ export function OnlineOperation() {
       <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
-  return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll} onPanelResize={() => { if (Keyboard.isVisible()) revealComposer(); }}
+  return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
     status={<><View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}</>}
     chart={<BeltMap fill player={snapshot.faction} onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
     hint={(planning || navigating !== undefined) ? <><Text style={s.detail}>{navigating !== undefined ? 'Choose a new course destination.' : `From ${rock?.name}: choose a destination.`}</Text><Action text="Cancel selection" onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
@@ -203,13 +191,7 @@ export function OnlineOperation() {
       <ScheduledOrders plans={snapshot.game.scheduled} hour={snapshot.game.hour} rocks={game.rocks} disabled={!operational} onCancel={planId => submit({ kind: 'cancel-schedule', body: { requestId: commandId(), revision: snapshot.revision, planId } })} />
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View></> },
       units: { title: `Modules · ${rock?.name ?? ''}`, content: <><Action text="Go to core site" onPress={() => { const home = game.rocks.find(r => r.known && r.coreOf === snapshot.faction && r.owner === snapshot.faction); if (home) { setSelected(home.id); setSelectedUnits([]); setDestination(undefined); setPlanning(false); } }} />{rock ? <>{game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay game={game} rock={rock} owner={snapshot.faction} enabled={!!immediate} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'hire', kind } })} onPromote={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'promote', unit } })} onRelease={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'release', unit } })} />}</> : null}</> },
-      signals: { title: 'Diplomacy and signals', content: <><View style={s.panel}><Text style={s.title}>Private channel</Text><View style={s.row}>{snapshot.members.filter(f => f !== snapshot.faction).map(f => <View key={f} style={{ flex: 1 }}><Action text={`${recipient === f ? '● ' : ''}${FACTIONS[f].name}`} onPress={() => setRecipient(f)} /></View>)}</View>
-        {snapshot.messages.filter(m => m.from === recipient || m.to === recipient).slice(-30).map(m => <View key={m.id} style={s.message}><Text style={s.label}>{FACTIONS[m.from].name} → {FACTIONS[m.to].name}</Text><Text selectable style={s.messageText}>{m.text}</Text></View>)}
-        <View ref={composer} collapsable={false} style={{ gap: 12 }}>
-          <TextInput ref={privateEditor} onFocus={() => { if (Keyboard.isVisible()) revealComposer(); }} key="private-transmission" secureTextEntry={false} accessibilityLabel="Private transmission" multiline maxLength={300} value={draft} onChangeText={setDraft} style={[s.input, { minHeight: 80 }]} placeholder="Alliance proposed…" placeholderTextColor="#647960" />
-          <Text style={s.detail}>Visible only to you and {FACTIONS[recipient].name}. Stored by the game server.</Text><Action text="Transmit" disabled={busy || !!session?.pending || !draft.trim() || !snapshot.members.includes(recipient) || recipient === snapshot.faction} onPress={() => submit({ kind: 'messages', body: { requestId: commandId(), to: recipient, text: draft } })} />
-        </View>
-      </View>
+      signals: { title: 'Diplomacy and signals', content: <>{diplomacy}
       <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View></> },
       intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{snapshot.status.replace('game.', '')} · {snapshot.members.length}/3 seats · hour {game.hour.toFixed(2)}</Text>
         <Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>

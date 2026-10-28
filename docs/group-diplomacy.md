@@ -47,3 +47,9 @@ Named private groups and a public room channel follow the requested scope. Fixed
 `node --import tsx --test server/*.test.ts src/online/*.test.ts` passed all 23 tests, including five new diplomacy scenarios covering HTTP authorization, member filtering, public separation, idempotency and reused IDs, recovery, restart, old-room migration, failed durable writes, eliminated-seat chat, participant caps, and independent retention. HTTP tests require permission to bind localhost in the sandbox.
 
 `npm run typecheck` passed after concurrent parent-owned funding model changes landed. The initial run reported funding errors; those files were left untouched.
+
+## Integrated UI
+
+The Signals drawer now separates public, bilateral, and named group threads, labels their audiences, creates fixed-member groups, and uses durable pending commands. Each thread keeps its own draft while switching drawers; accepted messages clear only the text actually submitted, preserving edits made while awaiting confirmation. Group creation selects the new thread after acknowledgment. Account/room changes clear local draft state. Chat remains available after elimination.
+
+Safari verified public delivery, private-thread separation, private draft retention after switching to Intel and back, explicit group selection, group creation, and group delivery. Independent HTTP snapshots from the two local test seats confirmed that the selected member received the group while the excluded seat saw neither its metadata nor messages; both received the public transmission. These were isolated, locally controlled test seats. Native keyboard/touch acceptance remains open.

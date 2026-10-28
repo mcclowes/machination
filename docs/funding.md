@@ -13,3 +13,5 @@ Forecasts preserve the player's known grants and use public cargo standings. Oth
 Funding is controlled from the Intel drawer in solo and multiplayer. It does not transfer cargo, create an enforced alliance, or share sonar.
 
 Verification: all 140 tests pass, including exact threshold, per-sponsor bonuses, withdrawal, elimination, split polling, save validation, scoped observations, forecasting, HTTP authorization, retry, restart, and offline expiry. TypeScript and rendered UI acceptance are checked separately during integration.
+
+Safari integration verified public cargo totals, eligibility at exactly 20 cargo, granting support, updated sponsor count, and withdrawal. Management actions retain their drawer so the result stays visible. Native interaction acceptance remains open.
