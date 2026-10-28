@@ -32,7 +32,7 @@ export type Rock = {
   specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; courseLocked?: true };
+export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
 export type Game = {
   version: 1 | 2; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   rules?: GameRules; cargo: PlayerValues<number>; eliminated: Faction[]; nextId: number;

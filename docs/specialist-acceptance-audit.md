@@ -47,3 +47,8 @@ Existing tests establish particular scenarios, not the whole interaction matrix:
 - [ ] Resolve the interpretation rows before claiming faithful specialist parity. Re-run focused acceptance cases against the parent's integrated commit. Mine-loss and wreck ownership remain the parent's separate verification responsibility.
 
 No issue comments, recursive delegation, engine edits, test edits, or UI edits were made. The earlier `specialist-parity-review.md` remains historical; its follow-up records the previous corrections rather than new open defects.
+
+
+## Implementation follow-up
+
+The parent implemented [mission-scoped Pirate returns](pirate-missions.md) for mechanics version 3 after this audit. New behavior distinguishes released captives and ordinary route victories from genuine interception returns, persists return context, and clears it on Navigator redirection. Focused engine and durable server scenarios cover these cases. Older mechanics preserve their recorded behavior. The five interpretation gaps and remaining acceptance checklist above remain unresolved; this follow-up isn't full matrix or original-client certification.

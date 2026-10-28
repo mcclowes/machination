@@ -90,6 +90,7 @@ export function decodeSave(raw: string): Save {
     if (!record(f) || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)
       || !isFaction(f.owner) || g.version === 1 && g.eliminated.includes(f.owner) || !ids.has(f.from as string) || !ids.has(f.to as string) || f.from === f.to && !f.route
       || !Number.isInteger(f.drones) || (f.drones as number) < (g.version === 2 && Array.isArray(f.specialists) && f.specialists.length ? 0 : 1) || !nonnegative(f.departed) || (f.departed > g.hour && !(g.version === 2 && f.preparing === true && f.departed <= (g.hour as number) + 1 / 6 + 1e-9))
+      || !(f.interceptionReturn === undefined || g.version === 2 && mechanicsVersion({ rules }) >= 3 && f.interceptionReturn === true && f.returning === true && f.intercept === undefined)
       || !(f.courseLocked === undefined || g.version === 2 && f.courseLocked === true)
       || !(f.giftAt === undefined || g.version === 2 && nonnegative(f.giftAt) && f.giftAt <= (g.hour as number) + 1 / 6 + 1e-9)
       || !(f.preparing === undefined || g.version === 2 && f.preparing === true && (f.departed as number) > (g.hour as number))

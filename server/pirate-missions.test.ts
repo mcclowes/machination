@@ -1,0 +1,47 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { GameService } from './service';
+import { createConfiguredGame } from '../src/game/world';
+import { advance } from '../src/game/simulation';
+import { forecastObservation } from '../src/game/visibility';
+
+test('interception return missions survive authoritative retries, forecast, history, and restart', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-pirate-mission-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'world.json'); let now = 0;
+  const initial = () => {
+    const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 54);
+    const source = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
+    const enemy = game.rocks.find(r => r.owner === 'vesper' && !r.coreOf)!;
+    Object.assign(source, { x: 10, y: 50, drones: 40 }); Object.assign(enemy, { x: 30, y: 50, drones: 40 });
+    source.specialists!.push({ id: 'durable-pirate', kind: 'pirate', owner: 'you' });
+    return advance(game, 0);
+  };
+  let service = await GameService.open(file, () => now, initial);
+  const tokens = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];
+  const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!); await service.start(room.id, tokens[0]!);
+  const rival = await service.snapshot(room.id, tokens[1]!);
+  const source = rival.game.rocks.find(r => r.x === 10)!; const enemy = rival.game.rocks.find(r => r.x === 30)!;
+  await service.order(room.id, tokens[1]!, { requestId: randomUUID(), revision: rival.revision, from: enemy.id, to: source.id, drones: 10 });
+  now = 0.2 * 3_600_000;
+  const host = await service.snapshot(room.id, tokens[0]!);
+  const pirate = host.game.rocks.find(r => r.id === source.id)!.specialists!.find(u => u.kind === 'pirate')!;
+  const command = { requestId: randomUUID(), revision: host.revision, from: source.id, target: host.game.fleets[0]!.id, drones: 20, specialists: [pirate.id] };
+  const sent = await service.intercept(room.id, tokens[0]!, command);
+  assert.equal((await service.intercept(room.id, tokens[0]!, command)).game.fleets.length, 2);
+  const rig = sent.game.fleets.find(f => f.intercept)!;
+  const forecast = forecastObservation(sent.game, 'you', rig.arrives);
+  assert.equal(forecast.fleets.find(f => f.id === rig.id)!.speed, 32);
+  now = rig.arrives * 3_600_000;
+  const met = await service.snapshot(room.id, tokens[0]!);
+  assert.equal(met.game.fleets[0]!.interceptionReturn, true);
+  assert.equal(met.game.fleets[0]!.speed, 32);
+  service = await GameService.open(file, () => now, initial);
+  assert.deepEqual((await service.snapshot(room.id, tokens[0]!)).game, met.game);
+  now += 0.05 * 3_600_000;
+  assert.equal((await service.snapshot(room.id, tokens[0]!)).game.fleets[0]!.speed, 32);
+  assert.deepEqual((await service.history(room.id, tokens[0]!, rig.arrives)).game, met.game);
+});

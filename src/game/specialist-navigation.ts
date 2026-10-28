@@ -31,6 +31,7 @@ export function changeCourse(game: Game, fleetId: number, owner: Faction, destin
     departed: game.hour, arrives: game.hour + Math.max(1e-6, worldDistance(game, point, destination) / speed) };
   delete changed.intercept;
   delete changed.returning;
+  delete changed.interceptionReturn;
   delete changed.preparing;
   return { ...game, fleets: game.fleets.map(f => f === fleet ? changed : f) };
 }

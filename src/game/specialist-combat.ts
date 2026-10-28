@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { mechanicsVersion } from './rules';
 import { worldDistance } from './geometry';
 import { playersIn } from './players';
 import { sendUnitsHome, returnHauler } from './specialist-travel';
@@ -106,7 +107,7 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet): void {
   const result = a.drones - b.drones || living(a).length - living(b).length;
   if (result === 0) {
     game.fleets = game.fleets.filter(f => f.id !== a.id && f.id !== b.id);
-    sendUnitsHome(game, point, a.owner, a.specialists ?? []); sendUnitsHome(game, point, b.owner, b.specialists ?? []);
+    sendUnitsHome(game, point, a.owner, a.specialists ?? [], a.intercept || a.interceptionReturn ? 'interception' : undefined); sendUnitsHome(game, point, b.owner, b.specialists ?? [], b.intercept || b.interceptionReturn ? 'interception' : undefined);
   } else {
     const winner = result > 0 ? a : b; const loser = result > 0 ? b : a;
     const remaining = Math.max(0, winner.drones - loser.drones);
@@ -114,7 +115,7 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet): void {
     game.fleets = game.fleets.filter(f => f.id !== loser.id);
     const captives = capture(loser.specialists ?? [], winner.owner);
     if (captives.length && !sendUnitsHome(game, point, winner.owner, captives)) winner.specialists = [...(winner.specialists ?? []), ...captives];
-    if (living(winner).some(u => u.kind === 'pirate')) returnHauler(game, winner);
+    if (living(winner).some(u => u.kind === 'pirate') && (mechanicsVersion(game) < 3 || winner.intercept)) returnHauler(game, winner);
     if (winner.drones === 0 && !winner.specialists?.length) game.fleets = game.fleets.filter(f => f.id !== winner.id);
   }
   log(game, point, [a.owner, b.owner], 'Haulers fought in transit; surviving modules returned or were captured.');

@@ -1,6 +1,6 @@
 # Mine losses and destroyed outposts
 
-New operations carry `rules.mechanicsVersion: 2`. The outer game/save format is unchanged. Operations without that field retain the previous mechanics, including fractional mine losses and cleared wreck ownership, so their command histories still reproduce the saved state. Loading doesn't change a running game's rules. A new operation uses the corrected behavior.
+Mechanics version 2 introduced this correction; new operations use the current [mechanics version](pirate-missions.md). The outer game/save format is unchanged. Operations without that field retain the previous mechanics, including fractional mine losses and cleared wreck ownership, so their command histories still reproduce the saved state. Loading doesn't change a running game's rules. A new operation uses the corrected behavior.
 
 ## Reference contract
 
