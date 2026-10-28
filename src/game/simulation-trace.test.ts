@@ -30,10 +30,11 @@ test('private replay traces the same command schedule and cannot mutate its arch
   const replayOptions = { ...options, knownThrough: 12 };
   assert.deepEqual(traceReplayTo(archive, 12, replayOptions, r => records.push(r)), replayTo(archive, 12, replayOptions));
   assert.equal(records.filter(r => r.type === 'point' && r.phase === 'command:before').length, 1);
-  traceReplayTo(archive, 12, replayOptions, r => {
+  const mutatedSinkResult = traceReplayTo(archive, 12, replayOptions, r => {
     const game = r.type === 'point' ? r.game : r.to;
     game.rocks[0]!.owner = null; game.cargo.you = -999;
   });
+  assert.deepEqual(mutatedSinkResult, replayTo(archive, 12, replayOptions));
   assert.deepEqual(exportArchive(archive), before);
 });
 
