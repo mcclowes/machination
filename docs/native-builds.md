@@ -69,6 +69,8 @@ On the fresh iPhone 18 Pro simulator, the same signed universal build installs a
 
 The ordinary-phone full manual also reaches its later forecast, schedule, and diplomacy sections with Close clear of the status area; Return to command preserves the operation. Two native six-hour advances then match the earlier twelve-hour forecast: Morrow belongs to Vesper with 24 drones, the player core has 118 drones, cargo is 1/300, and two rival haulers remain in transit. This verifies the native solo arrival path with competing rival orders, rather than assuming the player's first transfer captures its destination.
 
+Scheduled solo transfers also pass on that phone. A twelve-drone reinforcement from Mnemosyne to Suture queued for +1h leaves the core at 118 drones. Cancel removes the plan without a charge. Requeuing and cold relaunch preserve the order and both stations' inventories. Advancing six hours executes the one-hour delay and four-hour journey: the queue empties, the log records the twelve-drone dispatch, Mnemosyne reaches 130 drones (118 + 24 produced − 12 sent), and Suture reaches 120 (84 + 24 produced + 12 received). Native multiplayer scheduling and Android interaction remain separate verification boundaries.
+
 The first Android compile stopped before APK creation because NDK 27.1.12297006 is missing and its license is not accepted. Install that component through Android Studio, then rerun the playtest command. No Android device is connected and no Android emulator is configured. Android native gameplay remains unverified.
 
 ## Native identity
