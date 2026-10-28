@@ -3,6 +3,7 @@
  * purpose: Validate and cancel private future transfer plans without reserving resources.
  * ---
  */
+import { mechanicsVersion } from './rules';
 import type { Faction, Game } from './simulation';
 import { recentEvents } from './events';
 import type { ModuleKind } from './modules';
@@ -20,6 +21,7 @@ export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
   if (!Array.isArray(plan.specialists ?? []) || new Set(plan.specialists).size !== (plan.specialists?.length ?? 0)) throw new Error('Choose each planned module once.');
   if (!Number.isSafeInteger(plan.drones) || plan.drones < (game.version === 2 && plan.specialists?.length ? 0 : 1)) throw new Error('A transfer needs a positive whole number of drones.');
   const from = game.rocks.find(r => r.id === plan.from);
+  if (mechanicsVersion(game) >= 2 && (from?.destroyed || game.rocks.find(r => r.id === plan.to)?.destroyed)) throw new Error('Destroyed sites cannot send or receive haulers.');
   if (!from || from.owner !== plan.owner || plan.from === plan.to || !game.rocks.some(r => r.id === plan.to)) throw new Error('Select a controlled departure rock and a different destination.');
   if (plan.specialists?.some(id => !from.specialists?.some(u => u.id === id && u.owner === plan.owner && !u.captive))) throw new Error('Planned modules must be available at the departure site.');
   if (plan.carryModule !== undefined && typeof plan.carryModule !== 'boolean' || plan.carryModule && !from.module) throw new Error('There is no module available to plan for transport.');

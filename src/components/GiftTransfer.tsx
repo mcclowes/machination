@@ -9,8 +9,9 @@ export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onG
   specialists?: Specialist[]; legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
 }) {
   const [review, setReview] = useState(false);
+  const blocked = disabled || !!from.destroyed || !!to.destroyed;
   const payload = `${drones} drones${carry && from.module ? ` and ${MODULES[from.module].name}` : ''}${specialists.length ? ` and ${specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`;
-  const button = (text: string, onPress: () => void) => <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
+  const button = (text: string, onPress: () => void) => <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onPress} style={[s.button, blocked && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
   return <View style={s.panel}>
     <Text style={s.title}>Voluntary support / {FACTIONS[recipient].name}</Text>
     {review ? <>

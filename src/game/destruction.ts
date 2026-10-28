@@ -3,6 +3,7 @@
  * purpose: Area destruction that preserves chart locations while removing sites, manifests, and specialists.
  * ---
  */
+import { mechanicsVersion } from './rules';
 import { worldDistance } from './geometry';
 import type { Game } from './simulation';
 import type { Point } from './flight';
@@ -15,8 +16,11 @@ export function detonate(game: Game, point: Point): void {
   const hit = game.fleets.filter(f => { const p = fleetPosition(game, f); return worldDistance(game, p, point) <= radius; });
   const audience = [...new Set([...observers(game, point), ...affected.flatMap(r => r.owner ? [r.owner] : []), ...hit.map(f => f.owner)])];
   for (const rock of affected) {
-    if (rock.kind === 'mine' && rock.owner) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) * 0.8;
-    rock.destroyed = true; rock.owner = null; rock.drones = 0; rock.shield = 0; rock.specialists = [];
+    if (mechanicsVersion(game) < 2) {
+      if (rock.kind === 'mine' && rock.owner) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) * 0.8;
+      rock.owner = null;
+    }
+    rock.destroyed = true; rock.drones = 0; rock.shield = 0; rock.specialists = [];
     delete rock.coreOf; delete rock.module;
   }
   game.fleets = game.fleets.filter(f => !hit.includes(f));

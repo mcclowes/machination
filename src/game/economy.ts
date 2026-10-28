@@ -20,10 +20,10 @@ export function droneInventory(game: Pick<Game, 'rocks' | 'fleets'>, owner: Fact
   return game.rocks.filter(r => r.owner === owner).reduce((n, r) => n + r.drones, 0) + game.fleets.filter(f => f.owner === owner).reduce((n, f) => n + f.drones, 0);
 }
 export function powerCapacity(game: Pick<Game, 'rocks' | 'fleets' | 'funding'>, owner: Faction): number {
-  return 150 * Math.min(1, unitCount(game, owner, 'queen')) + FUNDING_POWER * fundingCount(game, owner) + 50 * game.rocks.filter(r => r.owner === owner && r.kind === 'generator').length + 300 * unitCount(game, owner, 'energy')
+  return 150 * Math.min(1, unitCount(game, owner, 'queen')) + FUNDING_POWER * fundingCount(game, owner) + 50 * game.rocks.filter(r => r.owner === owner && !r.destroyed && r.kind === 'generator').length + 300 * unitCount(game, owner, 'energy')
     + game.rocks.filter(r => r.owner === owner).reduce((n, rock) => n + 3 * maximumShield(rock) * unitsAtRock(game, rock.id).filter(u => u.owner === owner && u.kind === 'tinkerer').length, 0);
 }
-export function maximumShield(rock: Rock): number { return Math.max(0, (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0) + (rock.shieldBonus ?? 0)); }
+export function maximumShield(rock: Rock): number { return rock.destroyed ? 0 : Math.max(0, (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0) + (rock.shieldBonus ?? 0)); }
 export function mineCost(game: Pick<Game, 'minesDrilled'>, owner: Faction): number {
   const built = game.minesDrilled?.[owner] ?? 0;
   return built === 0 ? 50 : built * 100;
@@ -32,7 +32,7 @@ export function drillMine(game: Game, id: string, owner: Faction): Game {
   if (game.rules?.mode === 'domination') throw new Error('Mines are unavailable in domination operations.');
   if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Mine construction is unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
-  if (!rock || rock.owner !== owner || !['factory', 'generator'].includes(rock.kind)) throw new Error('Choose a controlled factory or generator.');
+  if (!rock || rock.destroyed || rock.owner !== owner || !['factory', 'generator'].includes(rock.kind)) throw new Error('Choose a controlled factory or generator.');
   const cost = mineCost(game, owner);
   if (rock.drones < cost) throw new Error(`This mine needs ${cost} drones on station.`);
   return { ...game, minesDrilled: { ...game.minesDrilled!, [owner]: (game.minesDrilled![owner] ?? 0) + 1 },
@@ -43,7 +43,7 @@ export function drillMine(game: Game, id: string, owner: Faction): Game {
 export function setShields(game: Game, id: string, owner: Faction, disabled: boolean): Game {
   if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Shield controls are unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
-  if (!rock || rock.owner !== owner || typeof disabled !== 'boolean') throw new Error('Choose a controlled rock and a shield state.');
+  if (!rock || rock.destroyed || rock.owner !== owner || typeof disabled !== 'boolean') throw new Error('Choose a controlled rock and a shield state.');
   return { ...game, rocks: game.rocks.map(r => r.id === id ? { ...r, shieldsDisabled: disabled } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: shields ${disabled ? 'disabled' : 'enabled'}.` }, ...game.events]),
   };
@@ -57,16 +57,16 @@ export function absorbShields(game: Game, rock: Rock, attackers: number): number
   return attackers - absorbed;
 }
 export function nextEconomyEvent(game: Game): number {
-  return Math.min(...game.rocks.filter(r => r.owner).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
+  return Math.min(...game.rocks.filter(r => r.owner && !r.destroyed).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
 }
 export function settleEconomy(game: Game): void {
-  for (const rock of game.rocks) if (rock.owner && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
+  for (const rock of game.rocks) if (rock.owner && !rock.destroyed && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
     if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) + 1;
     rock.miningAt = game.hour + (rock.miningInterval ?? MINING_DAY);
   }
   reconcileFunding(game);
   for (const rock of game.rocks) {
-    if (!rock.owner) continue;
+    if (!rock.owner || rock.destroyed) continue;
     const max = maximumShield(rock);
     if ((rock.shield ?? 0) < max && rock.shieldAt! <= game.hour + 1e-9) {
       rock.shield = (rock.shield ?? 0) + 1;

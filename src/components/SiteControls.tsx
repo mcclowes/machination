@@ -9,11 +9,13 @@ import { maximumShield } from '../game/economy';
 import { gameClock } from '../game/time-machine';
 import type { Rock } from '../game/simulation';
 
-export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf'>): string {
+export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf' | 'destroyed'>): string {
+  if (rock.destroyed) return 'Destroyed site';
   const type = { core: 'Core · +4 drones / h', reactor: 'Reactor · +4 drones / h', mine: 'Extraction site', factory: 'Factory · 6 drones / 8h', generator: 'Generator · +50 power capacity' }[rock.kind];
   return `${type}${rock.coreOf && rock.kind !== 'core' ? ' · intelligence core' : ''}`;
 }
 export function SiteControls({ rock, cost, enabled, minesAllowed = true, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; minesAllowed?: boolean; onMine: () => void; onShields: () => void }) {
+  if (rock.destroyed) return <View style={s.section}><Text style={s.detail}>Sonar remains. This wreck has no production, power, mining, or shields and cannot receive haulers.</Text></View>;
   return <View style={s.section}>
     <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
     <Control label={rock.shieldsDisabled ? 'Enable shields' : 'Disable shields'} disabled={!enabled} onPress={onShields} />

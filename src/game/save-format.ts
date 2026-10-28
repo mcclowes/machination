@@ -3,7 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
-import { validateRules, OUTPOSTS_PER_PLAYER } from './rules';
+import { mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
 import { playersIn } from './players';
 import type { ReplayData } from './replay';
 import { upgradeSpecialists } from './specialists';
@@ -75,11 +75,12 @@ export function decodeSave(raw: string): Save {
       || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
     if (rules?.mode === 'domination' && r.kind === 'mine') return fail();
+    if (mechanicsVersion({ rules }) >= 2 && r.destroyed && (r.drones !== 0 || r.shield !== 0 || r.coreOf !== undefined || r.module !== undefined || !Array.isArray(r.specialists) || r.specialists.length)) return fail();
     if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)
       || (r.shield as number) > maximumShield(r as Rock) || typeof r.shieldsDisabled !== 'boolean' || !nonnegative(r.shieldAt)
       || r.owner && (r.shield as number) < maximumShield(r as Rock) && (r.shieldAt as number) <= (g.hour as number)
-      || r.kind === 'factory' && (!nonnegative(r.productionAt) || r.owner && r.productionAt <= (g.hour as number))
-      || r.kind === 'mine' && (!nonnegative(r.miningAt) || r.owner && r.miningAt <= (g.hour as number)))) return fail();
+      || r.kind === 'factory' && (!nonnegative(r.productionAt) || r.owner && !r.destroyed && r.productionAt <= (g.hour as number))
+      || r.kind === 'mine' && (!nonnegative(r.miningAt) || r.owner && !r.destroyed && r.miningAt <= (g.hour as number)))) return fail();
     if (!(r.productionInterval === undefined || finite(r.productionInterval) && r.productionInterval > 0) || !(r.miningInterval === undefined || g.version === 2 && finite(r.miningInterval) && r.miningInterval >= MINING_DAY / g.rocks.length && r.miningInterval <= MINING_DAY) || !validUnits(r.specialists) || !(r.shieldBonus === undefined || finite(r.shieldBonus)) || !(r.destroyed === undefined || r.destroyed === true)) return fail();
     ids.add(r.id);
   }
