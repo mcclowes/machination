@@ -4,6 +4,7 @@
  * ---
  */
 import { unitCount, type Recruitment } from './specialists';
+import { fundingCount, type Funding } from './funding';
 import { HIRE_KINDS } from './specialist-catalog';
 import type { ScheduledTransfer } from './orders';
 import { EVENTS_PER_OBSERVER } from './events';
@@ -12,6 +13,7 @@ import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: never; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
+  funding?: Funding[]; standings?: Record<Faction, { cargo: number; funders: number }>; fundingUncertain?: boolean;
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>;
   version?: 1 | 2; minesDrilled?: Partial<Record<Faction, number>>;
   hour: number; epoch: number; rocks: ObservedRock[]; fleets: Fleet[];
@@ -26,6 +28,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; return visible; };
   const units = (asset: { specialists?: Game['rocks'][number]['specialists'] }) => asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u, id: identifyUnit(u.id) })) } : {};
   return {
+    ...(game.version === 2 ? { funding: (game.funding ?? []).filter(f => f.from === faction || f.to === faction).map(f => ({ ...f })), standings: Object.fromEntries((['you', 'vesper', 'null'] as const).map(f => [f, { cargo: game.cargo[f], funders: fundingCount(game, f) }])) as NonNullable<GameView['standings']> } : {}),
     ...(game.recruitment ? { recruitment: { [faction]: { used: game.recruitment[faction].used, offers: [...game.recruitment[faction].offers] } } } : {}),
     version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
     hour: game.hour, epoch: game.epoch,
@@ -52,7 +55,8 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
     rocks: view.rocks.map(r => r.known ? { ...r } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind === 'unknown' ? 'factory' : r.kind, owner: null, drones: 0 }),
     fleets: orderedFleets.map(f => ({ ...f })),
     scheduled: view.scheduled.map(p => ({ ...p })),
-    cargo: { you: 0, vesper: 0, null: 0, [faction]: view.cargo[faction] ?? 0 },
+    funding: view.funding?.map(f => ({ ...f })),
+    cargo: { you: view.standings?.you.cargo ?? 0, vesper: view.standings?.vesper.cargo ?? 0, null: view.standings?.null.cargo ?? 0, [faction]: view.cargo[faction] ?? 0 },
     eliminated: [...view.eliminated], winner: view.winner, ...(view.draw ? { draw: true } : {}),
     nextId: Math.max(0, ...orderedFleets.map(f => f.id)) + 1,
     events: view.events.map(e => ({ ...e, audience: [faction] })),
@@ -65,5 +69,13 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   projected.rocks = projected.rocks.map(r => unknown.has(r.id) ? { ...view.rocks.find(original => original.id === r.id)! } : r);
   projected.uncertain = [...new Set([...view.uncertain, ...predicted.events.filter(e => e.unresolvedDestination).map(e => e.unresolvedDestination!)])];
   projected.interceptionUncertain = view.interceptionUncertain || predicted.events.some(e => e.unresolvedInterception);
+  projected.fundingUncertain = view.fundingUncertain || !!view.funding?.length && unknown.size > 0;
+  for (const f of ['you', 'vesper', 'null'] as const) {
+    const anonymous = Math.max(0, (view.standings?.[f].funders ?? 0) - fundingCount(view, f));
+    if (anonymous) {
+      projected.fundingUncertain = true;
+      if (projected.standings && !projected.eliminated.includes(f)) projected.standings[f].funders += anonymous;
+    }
+  }
   return projected;
 }

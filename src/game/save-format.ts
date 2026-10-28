@@ -4,6 +4,7 @@
  * ---
  */
 import { upgradeSpecialists } from './specialists';
+import { FUNDING_LEAD } from './funding';
 import { isSpecialistKind, SPECIALISTS, HIRE_CATEGORIES } from './specialist-catalog';
 import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION } from './orders';
 import { MAX_STORED_EVENTS } from './events';
@@ -52,6 +53,12 @@ export function decodeSave(raw: string): Save {
         || !record(state.pool) || !Object.entries(state.pool).every(([k, v]) => isSpecialistKind(k) && Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 3)
         || !Array.isArray(state.offers) || state.offers.length !== 3 || !state.offers.every((k, i) => isSpecialistKind(k) && SPECIALISTS[k].category === HIRE_CATEGORIES[i] && ((state.pool as Record<string, number>)[k] ?? 0) > 0)) return fail();
     }
+  }
+  if (g.funding !== undefined) {
+    const eliminated = g.eliminated;
+    if (g.version !== 2 || !Array.isArray(g.funding) || g.funding.length > factions.length * (factions.length - 1)
+      || !g.funding.every(f => record(f) && isFaction(f.from) && isFaction(f.to) && f.from !== f.to && !eliminated.includes(f.from) && !eliminated.includes(f.to) && (g.cargo as Record<string, number>)[f.from]! - (g.cargo as Record<string, number>)[f.to]! >= FUNDING_LEAD)
+      || new Set(g.funding.map(f => `${f.from}:${f.to}`)).size !== g.funding.length) return fail();
   }
   const ids = new Set<string>();
   for (const r of g.rocks) {

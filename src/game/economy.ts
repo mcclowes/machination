@@ -4,6 +4,7 @@
  * ---
  */
 import type { Faction, Game, Rock } from './simulation';
+import { fundingCount, reconcileFunding, FUNDING_OUTPUT, FUNDING_POWER } from './funding';
 import { unitCount, unitsAtRock } from './specialists';
 import { rockSensorRange, observers } from './sensors';
 import { recentEvents } from './events';
@@ -17,8 +18,8 @@ export function cargoTarget(game: { version?: number }): number { return game.ve
 export function droneInventory(game: Pick<Game, 'rocks' | 'fleets'>, owner: Faction): number {
   return game.rocks.filter(r => r.owner === owner).reduce((n, r) => n + r.drones, 0) + game.fleets.filter(f => f.owner === owner).reduce((n, f) => n + f.drones, 0);
 }
-export function powerCapacity(game: Pick<Game, 'rocks' | 'fleets'>, owner: Faction): number {
-  return 150 + 50 * game.rocks.filter(r => r.owner === owner && r.kind === 'generator').length + 300 * unitCount(game, owner, 'energy')
+export function powerCapacity(game: Pick<Game, 'rocks' | 'fleets' | 'funding'>, owner: Faction): number {
+  return 150 * Math.min(1, unitCount(game, owner, 'queen')) + FUNDING_POWER * fundingCount(game, owner) + 50 * game.rocks.filter(r => r.owner === owner && r.kind === 'generator').length + 300 * unitCount(game, owner, 'energy')
     + game.rocks.filter(r => r.owner === owner).reduce((n, rock) => n + 3 * maximumShield(rock) * unitsAtRock(game, rock.id).filter(u => u.owner === owner && u.kind === 'tinkerer').length, 0);
 }
 export function maximumShield(rock: Rock): number { return Math.max(0, (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0) + (rock.shieldBonus ?? 0)); }
@@ -57,6 +58,11 @@ export function nextEconomyEvent(game: Game): number {
   return Math.min(...game.rocks.filter(r => r.owner).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
 }
 export function settleEconomy(game: Game): void {
+  for (const rock of game.rocks) if (rock.owner && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
+    if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += game.rocks.filter(r => r.owner === rock.owner).length;
+    rock.miningAt = game.hour + MINING_CYCLE;
+  }
+  reconcileFunding(game);
   for (const rock of game.rocks) {
     if (!rock.owner) continue;
     const max = maximumShield(rock);
@@ -67,13 +73,9 @@ export function settleEconomy(game: Game): void {
     if (rock.kind === 'factory' && rock.productionAt! <= game.hour + 1e-9) {
       const foremen = game.rocks.filter(r => r.owner === rock.owner && Math.hypot(r.x - rock.x, r.y - rock.y) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
       const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
-      const output = Math.max(0, FACTORY_OUTPUT + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
+      const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
       rock.drones += Math.max(0, Math.min(output, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
       rock.productionAt = game.hour + (rock.productionInterval ?? FACTORY_CYCLE);
-    }
-    if (rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
-      if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += game.rocks.filter(r => r.owner === rock.owner).length;
-      rock.miningAt = game.hour + MINING_CYCLE;
     }
   }
 }

@@ -16,6 +16,8 @@ import { dispatchIntercept } from '../src/game/interception';
 import { giftTransfer } from '../src/game/gifts';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
+import { setFunding } from '../src/game/funding';
+import type { FundingOrder } from '../src/online/protocol';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
 import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
@@ -353,6 +355,19 @@ export class GameService {
       catch (e) { throw new Failure(409, 'schedule.conflict.missing', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  funding(id: string, token: string, command: FundingOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['funding', command.recipient, command.enabled, command.revision]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'funding.conflict.stale', 'Your orders changed. Refresh before changing funding.');
+      requireThat(r.seats.some(s => s.faction === command.recipient), 400, 'funding.validation.recipient', 'Choose a joined intelligence.');
+      try { r.game = setFunding(r.game, f, command.recipient, command.enabled); }
+      catch (e) { throw new Failure(409, 'funding.conflict.invalid', (e as Error).message); }
+      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);
     });
   }

@@ -6,6 +6,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Failure, GameService } from './service';
+import type { FundingOrder } from '../src/online/protocol';
 import type { CreateGroup, ChannelTransmission, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/online/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new Failure(415, 'request.validation.content_type', 'Send JSON content.');
@@ -58,7 +59,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
         result = await service.join(input.invite, token);
       } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|cancel-schedule|intercepts|recovery|recover))?$/);
+        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|cancel-schedule|intercepts|recovery|recover))?$/);
         if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
         const id = match[1]!; const action = match[2];
         if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
@@ -76,6 +77,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
           else if (action === 'schedules') result = await service.schedule(id, token, input as ScheduleOrder);
           else if (action === 'cancel-schedule') result = await service.cancelSchedule(id, token, input as CancelSchedule);
           else if (action === 'modules') result = await service.install(id, token, input as ModuleOrder);
+          else if (action === 'funding') result = await service.funding(id, token, input as FundingOrder);
           else if (action === 'groups') result = await service.createGroup(id, token, input as CreateGroup);
           else if (action === 'channel-messages') result = await service.channelMessage(id, token, input as ChannelTransmission);
           else if (action === 'messages') result = await service.message(id, token, input as Transmission);

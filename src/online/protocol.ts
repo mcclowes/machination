@@ -26,6 +26,7 @@ export type SpecialistOrder = { requestId: string; revision: number } & ({ actio
 export type ModuleOrder = { requestId: string; revision: number; rock: string; module: ModuleKind };
 export type HaulerOrder = HaulerChange & { requestId: string; revision: number };
 export type SiteOrder = { requestId: string; revision: number; rock: string } & ({ action: 'mine' } | { action: 'shields'; disabled: boolean });
+export type FundingOrder = { requestId: string; revision: number; recipient: Faction; enabled: boolean };
 export type Transmission = { requestId: string; to: Faction; text: string };
 export type Issue = { issue: string; severity: 'error'; correlationId: string; dateTime: string; message: { title: string; detail: string } };
 

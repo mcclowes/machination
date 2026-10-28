@@ -19,6 +19,7 @@ import { HaulerOrders } from '../components/HaulerOrders';
 import { SiteControls, siteDescription } from '../components/SiteControls';
 import { LAUNCH_PREPARATION } from '../game/transport';
 import { cargoTarget, mineCost } from '../game/economy';
+import { FundingPanel } from '../components/FundingPanel';
 import { OperationShell, type OperationSection } from '../components/OperationShell';
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionOffset, orderHour } from '../game/time-machine';
@@ -217,7 +218,7 @@ export function OnlineOperation() {
         {snapshot.status === 'game.lobby' && <Text style={s.detail}>Share the invitation with two players. Time begins when the host starts.</Text>}
         {game.draw && <Text style={s.code}>All cores offline. The operation ended in a draw.</Text>}
         {game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}
-        <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction] ?? 0)} / {cargoTarget(game)}</Text>
+        <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction] ?? 0)} / {cargoTarget(game)}</Text><FundingPanel game={game} owner={snapshot.faction} enabled={!!immediate} onChange={(recipient, enabled) => submit({ kind: 'funding', body: { requestId: commandId(), revision: snapshot.revision, recipient, enabled } })} />
       </View> },
       settings: { title: 'Connection and recovery', content: connection },
     }} />;

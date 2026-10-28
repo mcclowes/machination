@@ -6,6 +6,7 @@
  * ---
  */
 import { resolveSpecialistInterceptions } from './specialist-interception';
+import { reconcileFunding, type Funding } from './funding';
 import { applyStationPassives, nextSpecialistEvent, settleSpecialistActions } from './specialist-actions';
 import { resolveStationArrival } from './specialist-combat';
 import { refreshUnitEffects, specialistSpeed } from './specialist-effects';
@@ -33,6 +34,7 @@ export type Game = {
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
   specialistVersion?: 1;
   recruitment?: Record<Faction, Recruitment>;
+  funding?: Funding[];
   minesDrilled?: Record<Faction, number>;
   scheduled?: ScheduledTransfer[]; events: GameEvent[]; winner: Faction | null; draw?: true;
 };
@@ -104,6 +106,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
     cargo: { ...input.cargo }, eliminated: [...input.eliminated], events: input.events.map(e => ({ ...e })),
   };
   if (game.winner || game.draw) return game;
+  reconcileFunding(game);
   refreshUnitEffects(game);
   if (game.version === 2) { applyStationPassives(game); refreshUnitEffects(game); }
   while (game.hour < targetHour && !game.winner && !game.draw) {
@@ -180,7 +183,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
         delete rock.coreOf;
       }
     }
-    if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); }
+    if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); reconcileFunding(game); }
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= cargoTarget(game)) ?? (factions.length === 1 ? factions[0]! : null);
     if (factions.length === 0) { game.draw = true; game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: 'All cores lost. The operation ended in a draw.' }); }
