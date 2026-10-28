@@ -6,6 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { FACTIONS, type Faction } from '../game/simulation';
+import { PlayerIdentity } from '../components/PlayerIdentity';
 import { commandId, type Pending } from './client';
 import { DIPLOMACY_LIMITS, type ObjectReference, type Snapshot } from './protocol';
 import { ReferenceText } from '../components/ReferenceText';
@@ -81,7 +82,7 @@ export function useDiplomacyPanel({ snapshot, disabled, acknowledged, scroll, on
     <Text accessibilityRole="header" style={s.title}>{available.find(item => item.id === thread)?.label ?? 'Choose a channel'}</Text>
     {validThread && <Text style={s.detail}>{thread === 'public' ? 'Public room · all joined players can read this.' : 'Private · fixed audience.'} {audience.map(f => FACTIONS[f].name).join(', ')}.</Text>}
     {messages.length > limit && <Action text="Show earlier messages" onPress={() => setLimit(current => current + 100)} />}
-    {messages.slice(-limit).map(m => <View key={m.id} style={s.message}><Text style={[s.detail, { color: FACTIONS[m.from].color }]}>{FACTIONS[m.from].name} · {new Date(m.sentAt).toLocaleString()}</Text><ReferenceText text={m.text} onInspect={onInspectReference} /></View>)}
+    {messages.slice(-limit).map(m => <View key={m.id} style={s.message}><PlayerIdentity faction={m.from} detail={new Date(m.sentAt).toLocaleString()} size={32} /><ReferenceText text={m.text} onInspect={onInspectReference} /></View>)}
     {validThread && messages.length === 0 && <Text style={s.detail}>No transmissions in this channel.</Text>}
     <View ref={composer} collapsable={false} onLayout={() => { if (Keyboard.isVisible()) revealComposer(); }} style={s.group}>
       <TextInput ref={editor} accessibilityLabel={recipient ? 'Private transmission' : thread === 'public' ? 'Public transmission' : 'Group transmission'} onFocus={() => { if (Keyboard.isVisible()) revealComposer(); }} multiline maxLength={DIPLOMACY_LIMITS.text} value={draft} onChangeText={text => setDrafts(current => ({ ...current, [thread]: text }))} style={[s.input, { minHeight: 90 }]} placeholder="Write a transmission…" placeholderTextColor="#647960" />

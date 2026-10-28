@@ -54,7 +54,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   const players = ALL_PLAYERS.slice(0, settings.playerCount);
   const { rocks, width, height } = generateWorld(players, mapSeed);
   return { ...createGame(epoch, seeds), rocks,
-    rules: { mechanicsVersion: 4, players, mode: settings.mode, victoryTarget: settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    rules: { mechanicsVersion: 4, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
     recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0)])),

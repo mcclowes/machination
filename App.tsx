@@ -15,6 +15,7 @@ import { selectableLaunchUnits } from './src/components/launch-manifest';
 import { remoteSiteDescription } from './src/components/site-observation';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
 import { GameSetup } from './src/components/GameSetup';
+import { playerAppearance } from './src/game/players';
 import { createConfiguredGame } from './src/game/world';
 import { DEFAULT_GAME_OPTIONS, victoryProgress, victoryTarget, type GameOptions } from './src/game/rules';
 import { ResignationControl } from './src/components/ResignationControl';
@@ -179,7 +180,7 @@ function Operation({ practice }: { practice?: PracticeAttempt } = {}) {
   function skip() { advanceClock(6); }
 
   return <View style={s.safe}>
-    <OperationShell section={section} onSection={setSection}
+    <OperationShell portraits={shown.rules?.portraits} section={section} onSection={setSection}
       status={<>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
 {!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
       chart={<BeltMap fill timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={shown} selected={selected} destination={destination} onSelect={select} />}
@@ -189,7 +190,7 @@ function Operation({ practice }: { practice?: PracticeAttempt } = {}) {
         asset: { title: planning ? 'Transfer order' : rock.name, content: <View style={s.panel}>
             {!!shown.uncertain.length && <Text style={s.small}>Arrival outcomes unknown outside observed sensors. Refresh live observations before relying on this forecast.</Text>}
             {shown.interceptionUncertain && <Text style={s.small}>Interception outcome unknown. The target is outside current observations.</Text>}
-            <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner === undefined ? 'UNKNOWN' : rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
+            <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? playerAppearance(rock.owner, shown.rules?.portraits).color : '#819082' }]}>{rock.owner === undefined ? 'UNKNOWN' : rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
             <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.known ? siteDescription(rock) : remoteSiteDescription(rock)}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{rock.known ? Math.floor(rock.drones) : '—'}</Text><Text style={s.small}>drones on station</Text></View>
             {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}

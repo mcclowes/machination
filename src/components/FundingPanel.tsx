@@ -10,6 +10,7 @@ import { playersIn } from '../game/players';
 import { FACTIONS, type Faction, type Game } from '../game/simulation';
 import type { GameView } from '../game/visibility';
 import { FUNDING_LEAD, FUNDING_OUTPUT, FUNDING_POWER, fundingCount } from '../game/funding';
+import { PlayerIdentity } from './PlayerIdentity';
 
 type Props = { game: Game | GameView; owner: Faction; enabled: boolean; scheduledAt?: number; onChange: (to: Faction, enabled: boolean) => void };
 export function FundingPanel({ game, owner, enabled, scheduledAt, onChange }: Props) {
@@ -25,7 +26,7 @@ export function FundingPanel({ game, owner, enabled, scheduledAt, onChange }: Pr
       const sponsors = standings?.[f]?.funders ?? fundingCount(game, f);
       const eligible = f !== owner && !game.eliminated.includes(f) && cargo(owner) !== undefined && cargo(f) !== undefined && cargo(owner)! - cargo(f)! >= FUNDING_LEAD;
       const incoming = game.funding?.filter(edge => edge.to === f && edge.from === owner || edge.to === owner && edge.from === f) ?? [];
-      return <View key={f} style={s.entry}><Text style={[s.name, { color: FACTIONS[f].color }]}>{FACTIONS[f].name}{f === owner ? ' · you' : ''}{game.eliminated.includes(f) ? ' · eliminated' : ''}</Text>
+      return <View key={f} style={s.entry}><PlayerIdentity faction={f} detail={[f === owner ? 'You' : '', game.eliminated.includes(f) ? 'Eliminated' : ''].filter(Boolean).join(' · ')} />
         <Text style={s.detail}>{cargo(f) === undefined ? 'Cargo unknown' : `${Math.floor(cargo(f)!)} cargo`} · {sponsors} {sponsors === 1 ? 'sponsor' : 'sponsors'}</Text>
         {incoming.some(edge => edge.to === owner) && <Text style={s.detail}>Funding your intelligence</Text>}
         {f !== owner && <Pressable accessibilityRole="button" accessibilityLabel={label(`${outgoing ? 'Withdraw funding from' : 'Fund'} ${FACTIONS[f].name}`)} accessibilityState={{ disabled: !active || !outgoing && !eligible }} disabled={!active || !outgoing && !eligible} onPress={() => onChange(f, !outgoing)} style={[s.button, (!active || !outgoing && !eligible) && s.disabled]}><Text style={s.action}>{label(outgoing ? 'Withdraw funding' : eligible ? 'Fund intelligence · free' : `Requires a ${FUNDING_LEAD}-cargo lead`)}</Text></Pressable>}

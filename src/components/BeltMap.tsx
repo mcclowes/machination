@@ -12,6 +12,7 @@ import { MODULES } from '../game/modules';
 import { arrivalInspection } from '../game/time-machine';
 import { remoteSiteDescription } from './site-observation';
 import { CopyObjectReference } from './CopyObjectReference';
+import { FactionEmblem, PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
@@ -23,6 +24,7 @@ type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] 
 export type { MapCamera } from '../game/chart-camera';
 type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
 export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
+  const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
   const camera = constrainCamera(game, viewport?.camera ?? localCamera);
@@ -64,7 +66,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       {Array.from({ length: 65 }, (_, i) => <Circle key={i} cx={(i * 137.5) % 400} cy={(i * 79.7) % 480} r={i % 4 === 0 ? 1 : 0.5} fill="#b5c7bd" opacity={0.12 + (i % 3) * 0.09} />)}
       <G transform={`translate(${200 + camera.x * 4}, ${240 + camera.y * 4.8}) scale(${camera.scale}) translate(-200, -240)`}>
       {offsets.map((offset, tile) => <G key={tile} transform={`translate(${offset.x * sx}, ${offset.y * sy})`}>
-      {game.coverage?.map((sensor, i) => <Ellipse key={`sensor-${i}`} cx={sensor.x * sx} cy={sensor.y * sy} rx={sensor.radius * sx} ry={sensor.radius * sy} fill="#b8e986" fillOpacity="0.025" stroke="#b8e986" strokeOpacity="0.12" strokeWidth="0.7" />)}
+      {game.coverage?.map((sensor, i) => <Ellipse key={`sensor-${i}`} cx={sensor.x * sx} cy={sensor.y * sy} rx={sensor.radius * sx} ry={sensor.radius * sy} fill={identity(player ?? 'you').color} fillOpacity="0.025" stroke={identity(player ?? 'you').color} strokeOpacity="0.12" strokeWidth="0.7" />)}
       {[90, 150, 215, 285].map(r => <Ellipse key={r} cx="204" cy="243" rx={r} ry={r * 0.91} stroke="#26332e" strokeWidth="0.7" fill="none" strokeDasharray="3 7" />)}
       <Circle cx="204" cy="243" r="30" fill="#9c744a" opacity="0.025" />
       <Circle cx="204" cy="243" r="14" fill="#9c744a" opacity="0.06" />
@@ -75,9 +77,9 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
         const position = fleetPosition(game, f);
         const x = position.x * sx; const y = position.y * sy;
         return <React.Fragment key={f.id}>
-          <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={FACTIONS[f.owner].color} opacity="0.35" strokeDasharray="3 4" />
-          {f.intercept && <Circle cx={x} cy={y} r="6" fill="none" stroke={FACTIONS[f.owner].color} strokeWidth="0.7" />}
-          <Path d={`M ${x} ${y - 4} l 4 8 l -8 0 Z`} fill={FACTIONS[f.owner].color} />
+          <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={identity(f.owner).color} opacity="0.35" strokeDasharray="3 4" />
+          {f.intercept && <Circle cx={x} cy={y} r="6" fill="none" stroke={identity(f.owner).color} strokeWidth="0.7" />}
+          <Path d={`M ${x} ${y - 4} l 4 8 l -8 0 Z`} fill={identity(f.owner).color} />
         </React.Fragment>;
       })}
       {destination && (() => {
@@ -85,13 +87,13 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
         const target = game.rocks.find(r => r.id === destination);
         if (!source || !target) return null;
         const { from: a, to: b } = chartRoute(game, source, target);
-        return <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke="#b8e986" strokeDasharray="5 4" />;
+        return <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={identity(player ?? 'you').color} strokeDasharray="5 4" />;
       })()}
       </G>)}
       </G>
     </Svg>
     {offsets.flatMap((offset, tile) => game.rocks.map(rock => {
-      const color = rock.owner ? FACTIONS[rock.owner].color : '#7d8b83';
+      const color = rock.owner ? identity(rock.owner).color : '#7d8b83';
       const active = selected === rock.id || destination === rock.id;
       const location = position({ x: rock.x + offset.x, y: rock.y + offset.y });
       if (location.x < -15 || location.x > 115 || location.y < -15 || location.y > 115) return null;
@@ -100,6 +102,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
           <View style={[styles.stone, { borderColor: color, backgroundColor: `${color}18`, transform: [{ rotate: rock.kind === 'core' ? '0deg' : '25deg' }] }]}>
             <Text style={{ color, fontSize: 11 }}>{rock.destroyed ? '×' : rock.kind === 'unknown' ? '?' : rock.coreOf || rock.kind === 'core' ? '◈' : rock.kind === 'reactor' || rock.kind === 'generator' ? 'ϟ' : rock.kind === 'factory' ? '▥' : '·'}</Text>
           </View>
+          {!!rock.owner && <View style={styles.ownerEmblem}><FactionEmblem faction={rock.owner} size={12} /><Text style={[styles.ownerCode, { color }]}>{FACTIONS[rock.owner].code}</Text></View>}
         </View>
         <Text style={[styles.name, { color: active ? '#eff4e9' : color }]}>{rock.name}</Text>
         <Text style={[styles.count, { color }]}>{rock.known === false ? '?' : Math.floor(rock.drones ?? 0).toString().padStart(2, '0')}{rock.module ? ` · ${MODULES[rock.module].code}` : ''}{rock.specialists?.length ? ` · ${rock.specialists.length}u` : ''}</Text>
@@ -109,11 +112,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       const point = fleetPosition(game, f);
       const location = position({ x: point.x + offset.x, y: point.y + offset.y });
       if (location.x < -10 || location.x > 110 || location.y < -10 || location.y > 110) return null;
-      return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? FACTIONS[f.owner].color : 'transparent' }]} /></Pressable>;
+      return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? identity(f.owner).color : 'transparent' }]} /></Pressable>;
     }))}
     <View style={styles.zoom}><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5))} /><MapControl label="Focus your territory" text="Home" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="Fit" onPress={() => move(1, 0, 0)} /></View>
     {fleet && <View style={styles.inspector}>
-      <View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
+      <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
       <Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text>
       <Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text>
@@ -139,6 +142,7 @@ const styles = StyleSheet.create({
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#0b1412', borderWidth: 1, borderColor: '#25322b' },
   rock: { position: 'absolute', width: 78, height: 70, marginLeft: -39, marginTop: -26, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 38, height: 38, borderRadius: 30, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  ownerEmblem: { position: 'absolute', right: 0, bottom: 0, backgroundColor: '#0b1412', borderRadius: 2, flexDirection: 'row', alignItems: 'center' }, ownerCode: { fontSize: 7 },
   stone: { width: 23, height: 23, borderRadius: 7, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 9, letterSpacing: 0.5, marginTop: 1 }, count: { fontSize: 10, fontVariant: ['tabular-nums'], marginTop: 2 },
   coordinates: { position: 'absolute', top: 15, left: 15, gap: 4 }, coord: { fontSize: 8, letterSpacing: 1.4, color: '#5e7366' },

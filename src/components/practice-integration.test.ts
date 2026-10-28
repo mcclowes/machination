@@ -32,12 +32,12 @@ test('App practice isolates live lifecycles and awards only actual capture, with
   let renderer: any;
   try {
     const output = await build({
-      entryPoints: [new URL('../../App.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node',
+      entryPoints: [new URL('../../App.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' },
       plugins: [{ name: 'practice-native-hosts', setup(builder) {
         builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
         const stubs: Record<string, string> = {
           'react-native': `import React from 'react';
-            export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView';
+            export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView';
             export const Modal=({visible,children,...props})=>visible?React.createElement('Modal',props,children):null;
             export const StyleSheet={create:x=>x,absoluteFillObject:{},hairlineWidth:1},Platform={OS:'web',select:x=>x.web??x.default};
             export const useWindowDimensions=()=>({width:1200,height:800,scale:1,fontScale:1});
