@@ -118,7 +118,7 @@ test('fleet geometry uses disclosed routes, shortest fallback legs, and torus wr
   delete fleet.route; assert.deepEqual(replayFleetPosition(s, fleet), { x: 50, y: 40 });
   fleet.preparing = true; s.hour = 0; assert.deepEqual(replayFleetPosition(s, fleet), { x: 95, y: 75 });
   fleet.arrives = fleet.departed; s.hour = fleet.departed;
-  const zero = replayFleetPosition(s, fleet); assert.ok(Number.isNaN(zero.x) && Number.isNaN(zero.y));
+  assert.throws(() => replayFleetPosition(s, fleet), /duration/i);
   assert.equal(encodeSharedReplay(replay), before);
 });
 

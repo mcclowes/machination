@@ -53,8 +53,9 @@ export function nextReplayStep(replay: SharedReplay, position: ReplayPosition): 
   return next ? { hour: next.hour, ordinal: 0 } : null;
 }
 
-/** Matches flight.ts arithmetic, including NaN at an instantaneous flight's exact departure. */
+/** Matches valid flight.ts arithmetic using only disclosed geometry. */
 export function replayFleetPosition(scene: ReplayScene, fleet: ReplayFleet): Point {
+  if (!Number.isFinite(fleet.arrives - fleet.departed) || fleet.arrives <= fleet.departed) throw new RangeError('Replay flight duration must be positive and finite');
   let leg = fleet.route;
   if (!leg) {
     const from = scene.rocks.find(r => r.id === fleet.from);

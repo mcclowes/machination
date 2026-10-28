@@ -129,6 +129,7 @@ test('scene capacities and malformed nested shapes fail explicitly', () => {
     (s: any) => { s.fleets[0].route.to.y = '1'; },
     (s: any) => { delete s.standings.you.funders; },
     (s: any) => { s.fleets[0].arrives = -1; },
+    (s: any) => { s.fleets[0].arrives = s.fleets[0].departed; },
     (s: any) => { s.coverage[0].radius = null; },
     (s: any) => { s.fleets[0].preparing = false; },
     (s: any) => { s.rules.players = ['you', 'you']; },

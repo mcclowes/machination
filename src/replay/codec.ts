@@ -107,7 +107,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
   for (const f of v.fleets) {
     object(f, ['id', 'owner', 'from', 'to', 'drones', 'departed', 'arrives'], ['preparing', 'returning', 'giftAt', 'module', 'specialists', 'speed', 'route', 'intercept']);
     integer(f.id, 1); need(!fleetIds.has(f.id)); fleetIds.add(f.id); member(f.owner); need(sites.has(f.from) && sites.has(f.to));
-    num(f.drones); num(f.departed); num(f.arrives); need(f.arrives >= f.departed);
+    num(f.drones); num(f.departed); num(f.arrives); need(f.arrives > f.departed);
     optional(f, 'preparing', n => one(n, [true])); optional(f, 'returning', n => one(n, [true])); optional(f, 'giftAt', num);
     optional(f, 'module', n => need(isModule(n))); optional(f, 'specialists', manifest); optional(f, 'speed', n => num(n, Number.MIN_VALUE));
     optional(f, 'route', r => { object(r, ['from', 'to']); point(r.from); point(r.to); });
