@@ -9,14 +9,14 @@ import { manifestUnits } from './specialists';
 import { specialistSpeed } from './specialist-effects';
 import { returnHauler } from './specialist-travel';
 import { resolveHaulerContact } from './specialist-combat';
-import { inRange, sensors } from './sensors';
+import { canObserveHauler } from './sensors';
 import { recentEvents } from './events';
 
 export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact: boolean, ids?: string[]): Game {
   if (game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   const source = game.rocks.find(r => r.id === fromId && r.owner === owner && !r.destroyed);
   const target = game.fleets.find(f => f.id === targetId && f.owner !== owner && !f.preparing);
-  if (!source || !target || requireContact && !inRange(sensors(game, owner), fleetPosition(game, target))) throw new Error('Choose a controlled departure and an observed traveling enemy hauler.');
+  if (!source || !target || requireContact && !canObserveHauler(game, owner, target)) throw new Error('Choose a controlled departure and an observed traveling enemy hauler.');
   const selected = ids ?? source.specialists?.filter(u => u.kind === 'pirate' && u.owner === owner && !u.captive).slice(0, 1).map(u => u.id) ?? [];
   const units = manifestUnits(source, owner, selected);
   if (!units.some(u => u.kind === 'pirate')) throw new Error('An interception manifest needs a scavenger rig.');

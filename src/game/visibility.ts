@@ -9,7 +9,7 @@ import type { ScheduledTransfer } from './orders';
 import { EVENTS_PER_OBSERVER } from './events';
 import { advance, type Faction, type Fleet, type Game, type Rock } from './simulation';
 import { fleetPosition } from './flight';
-import { inRange, sensors, type Sensor } from './sensors';
+import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: never; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>;
@@ -20,10 +20,7 @@ export type GameView = {
 };
 export function observe(game: Game, faction: Faction, identify: (id: number) => number = id => id, identifyUnit: (id: string) => string = id => id): GameView {
   const coverage = sensors(game, faction);
-  const incoming = (fleet: Fleet) => game.version === 2 && (fleet.intercept
-    ? game.fleets.some(target => target.id === fleet.intercept!.target && target.owner === faction)
-    : game.rocks.some(rock => rock.id === fleet.to && rock.owner === faction));
-  const contacts = game.fleets.filter(f => f.owner === faction || !f.preparing && (incoming(f) || inRange(coverage, fleetPosition(game, f)))).sort((a, b) => a.id - b.id);
+  const contacts = game.fleets.filter(f => canObserveHauler(game, faction, f, coverage)).sort((a, b) => a.id - b.id);
   const remoteTypes = game.version !== 2 || unitCount(game, faction, 'intelligence') > 0;
   const visibleIds = new Set(contacts.map(f => f.id));
   const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; return visible; };

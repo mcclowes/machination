@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { advance, createGame, dispatch } from './simulation';
 import { dispatchIntercept } from './interception';
 import { decodeSave } from './save-format';
+import { observe } from './visibility';
+import { fleetPosition } from './flight';
+import { inRange, sensors } from './sensors';
 
 test('scavenger specialists intercept at double speed and return to the nearest friendly site at quadruple speed without salvage', () => {
   const base = createGame(0);
@@ -25,4 +28,15 @@ test('scavenger specialists intercept at double speed and return to the nearest 
   const nearest = met.rocks.filter(r => r.owner === 'you').sort((a, b) => Math.hypot(a.x - point.x, a.y - point.y) - Math.hypot(b.x - point.x, b.y - point.y))[0]!;
   assert.equal(survivor.to, nearest.id);
   assert.ok(!survivor.intercept);
+});
+
+test('an incoming hauler outside sonar can be targeted through its visible contact', () => {
+  const base = createGame(0);
+  base.rocks.find(r => r.id === 'c')!.specialists!.push({ id: 'incoming-pirate', owner: 'you', kind: 'pirate' });
+  const game = advance(dispatch(base, 'f', 'c', 10, 'vesper'), 0.2, { rivals: false });
+  const target = game.fleets[0]!;
+  assert.equal(inRange(sensors(game, 'you'), fleetPosition(game, target)), false);
+  assert.equal(observe(game, 'you').fleets.length, 1);
+  const launched = dispatchIntercept(game, 'c', target.id, 20, 'you', true, ['incoming-pirate']);
+  assert.equal(launched.fleets.length, 2);
 });

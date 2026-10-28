@@ -5,7 +5,7 @@
  */
 import { unitCount, unitsAtRock } from './specialists';
 import { fleetPosition } from './flight';
-import type { Faction, Game } from './simulation';
+import type { Faction, Fleet, Game } from './simulation';
 export const ROCK_SENSOR_RANGE = 32;
 export const HAULER_SENSOR_RANGE = 16;
 export type Sensor = { x: number; y: number; radius: number };
@@ -21,6 +21,14 @@ export function sensors(game: Game, faction: Faction): Sensor[] {
 }
 export function inRange(coverage: Sensor[], point: { x: number; y: number }): boolean {
   return coverage.some(s => Math.hypot(s.x - point.x, s.y - point.y) <= s.radius);
+}
+export function canObserveHauler(game: Game, faction: Faction, fleet: Fleet, coverage = sensors(game, faction)): boolean {
+  if (fleet.owner === faction) return true;
+  if (fleet.preparing) return false;
+  const incoming = game.version === 2 && (fleet.intercept
+    ? game.fleets.some(target => target.id === fleet.intercept!.target && target.owner === faction)
+    : game.rocks.some(rock => rock.id === fleet.to && rock.owner === faction));
+  return incoming || inRange(coverage, fleetPosition(game, fleet));
 }
 export function observers(game: Game, point: { x: number; y: number }): Faction[] {
   return (['you', 'vesper', 'null'] as const).filter(f => inRange(sensors(game, f), point));
