@@ -23,9 +23,12 @@ function payload(v: Record<string, unknown>): boolean {
     && (v.specialists === undefined || Array.isArray(v.specialists) && v.specialists.length <= 10_000 && v.specialists.every(text) && new Set(v.specialists).size === v.specialists.length);
 }
 function command(v: unknown): boolean {
-  if (!record(v) || !owner(v.owner)) return false;
+  if (!record(v)) return false;
+  if (v.type === 'inactivity') return shape(v, ['type', 'owners']) && Array.isArray(v.owners) && v.owners.length > 0 && v.owners.length <= 3 && v.owners.every(owner) && new Set(v.owners).size === v.owners.length;
+  if (!owner(v.owner)) return false;
   const keys = ['type', 'owner'];
   switch (v.type) {
+    case 'resign': return shape(v, keys);
     case 'dispatch': case 'gift': return shape(v, [...keys, 'from', 'to', 'drones', ...(v.type === 'gift' ? ['recipient'] : [])], ['specialists', 'carryModule']) && payload(v) && (v.type !== 'gift' || owner(v.recipient));
     case 'intercept': return shape(v, [...keys, 'from', 'target', 'drones'], ['specialists']) && payload({ ...v, to: v.from }) && count(v.target) && v.target !== 0;
     case 'hauler': {

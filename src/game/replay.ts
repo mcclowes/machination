@@ -14,6 +14,7 @@ import { hireSpecialist, promoteSpecialist } from './specialists';
 import { releaseSpecialist } from './specialist-travel';
 import { drillMine, setShields } from './economy';
 import { setFunding } from './funding';
+import { resign, resignInactive } from './retirement';
 import type { ModuleKind } from './modules';
 import type { SpecialistKind } from './specialist-catalog';
 
@@ -30,7 +31,8 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'shields'; rock: string; disabled: boolean }
   | { type: 'funding'; to: Faction; enabled: boolean }
   | { type: 'install-module'; rock: string; kind: ModuleKind }
-);
+  | { type: 'resign' }
+) | { type: 'inactivity'; owners: Faction[] };
 
 // Plain engine data only; preserve undefined and numeric values without structuredClone.
 function clone<T>(value: T): T {
@@ -44,6 +46,8 @@ export function executeCommand(input: Game, command: GameCommand): Game {
   const game = clone(input);
   const c = clone(command);
   switch (c.type) {
+    case 'resign': return resign(game, c.owner);
+    case 'inactivity': return resignInactive(game, c.owners);
     case 'dispatch': return dispatch(game, c.from, c.to, c.drones, c.owner, c.carryModule, c.specialists);
     case 'gift': return giftTransfer(game, c.from, c.to, c.drones, c.owner, c.recipient, c.carryModule, c.specialists);
     case 'intercept': return dispatchIntercept(game, c.from, c.target, c.drones, c.owner, true, c.specialists);
@@ -111,7 +115,7 @@ export function replayTo(handle: ReplayArchive, targetHour: number, options: Rep
 /** Apply only at the trusted live frontier; publish both returned values atomically. */
 export function applyCommand(handle: ReplayArchive, command: GameCommand, options: ReplayOptions): { archive: ReplayArchive; game: Game } {
   const history = historyOf(handle);
-  if (history.rivals && command.owner !== 'you') throw new Error('Automatic rival decisions must not be logged as player commands.');
+  if (history.rivals && (command.type === 'inactivity' || command.owner !== 'you')) throw new Error('Automatic rival decisions must not be logged as player commands.');
   const current = replayTo(handle, options.knownThrough, options);
   if (current.hour !== options.knownThrough) throw new Error('The operation ended before this command hour.');
   const canonical = clone(command);
