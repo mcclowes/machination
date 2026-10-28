@@ -6,6 +6,7 @@
 import { resolve } from 'node:path';
 import { GameService } from './service';
 import { createApi } from './http';
+import { clerkAuthentication } from './auth';
 const SHUTDOWN_GRACE_MS = 15_000;
 async function main() {
   const host = process.env.MACHINATION_HOST?.trim() || '127.0.0.1';
@@ -13,7 +14,8 @@ async function main() {
   const port = Number(portValue);
   if (!/^\d+$/.test(portValue) || !Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be an integer from 0 to 65535.');
   const service = await GameService.open(resolve(process.env.MACHINATION_DATA ?? '.data/games.json'));
-  const server = createApi(service, process.env.MACHINATION_ORIGINS?.split(',').map((s: string) => s.trim()));
+  const origins = process.env.MACHINATION_ORIGINS?.split(',').map((s: string) => s.trim()).filter(Boolean) ?? ['http://localhost:8081', 'http://localhost:8082'];
+  const server = createApi(service, origins, clerkAuthentication({ CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY, CLERK_JWT_KEY: process.env.CLERK_JWT_KEY, CLERK_ISSUER: process.env.CLERK_ISSUER }, origins));
   server.once('error', error => { console.error('Game service listener failed:', error.message); process.exitCode = 1; });
   let closing = false;
   function shutdown() {

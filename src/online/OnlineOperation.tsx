@@ -6,6 +6,9 @@
 import { GameSetup } from '../components/GameSetup';
 import { DEFAULT_GAME_OPTIONS, victoryProgress, victoryTarget, type GameOptions } from '../game/rules';
 import { playersIn } from '../game/players';
+import { MultiplayerAccount } from './MultiplayerAccount';
+import type { AccountAccess } from './account-auth';
+import { accountSessionApi } from './network';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
@@ -56,7 +59,10 @@ import { playSound, useSoundCues } from '../audio/sound';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={() => { playSound('tap'); onPress(); }} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
 }
-export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void } = {}) {
+export function OnlineOperation(props: { onOpenReplays?: () => void } = {}) {
+  return <MultiplayerAccount>{account => <ConnectedOperation {...props} account={account} />}</MultiplayerAccount>;
+}
+function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => void; account?: AccountAccess }) {
   const [section, setSection] = useState<OperationSection | null>(null);
   const [mapCamera, setMapCamera] = useState({ scale: 1, x: 0, y: 0 });
   const [session, setSession] = useState<Session | null>(null);
@@ -111,8 +117,10 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
     latestSnapshot.current = next; setSnapshot(next);
   }
   useEffect(() => { void run(async () => {
-    const saved = await restoreSession();
-    if (!saved) return;
+    const stored = account ? await restoreSession(account.accountId) ?? await restoreSession() : await restoreSession();
+    if (!stored) { if (account) await restoreAccountSeat(); return; }
+    const saved = stored.accountId && account ? { ...stored, ...account } : stored;
+    setUrl(saved.url);
     setSession(saved);
     if (saved.pending?.kind === 'recover') { await complete(saved, saved.pending); return; }
     const result = await connect(saved); setSession(result.session); accept(result.snapshot);
@@ -131,9 +139,25 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
     const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(true); });
     return () => { clearInterval(timer); subscription.remove(); };
   }, [session]);
+  async function restoreAccountSeat() {
+    if (!account) return;
+    const fresh = { ...await newSession(url), ...account };
+    const restored = await accountSessionApi(fresh);
+    if (!restored) { setSession(null); setSnapshot(undefined); return; }
+    const connected = { ...fresh, id: restored.id };
+    await storeSession(connected); setSession(connected); accept(restored);
+    setSelected((restored.game.rocks.find(r => r.owner === restored.faction) ?? restored.game.rocks[0]!).id);
+  }
+  async function linkAccountSeat() {
+    if (!session?.id || !account || session.pending) return;
+    const linked = { ...session, ...account };
+    const snapshot = await api(linked, 'account/link', { id: session.id, token: session.token });
+    await storeSession(linked); await storeSession(null);
+    setSession(linked); accept(snapshot); setRecoveryCode('');
+  }
   async function enter(join: boolean) {
     await run(async () => {
-      const created = await newSession(url, join ? invite : undefined, join ? undefined : options);
+      const created = { ...await newSession(url, join ? invite : undefined, join ? undefined : options), ...account };
       await storeSession(created); setSnapshot(undefined); setInspectedHour(null); setSession(created);
       const result = await connect(created); setSession(result.session); accept(result.snapshot);
       setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
@@ -268,14 +292,16 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
   const roster = rulesGame ? playersIn(rulesGame) : [];
   const joined = snapshot ? roster.filter(f => snapshot.members.includes(f)).length : 0;
   const rulesSummary = rulesGame && <Text style={s.detail}>{rulesGame.rules?.mode === 'domination' ? 'Domination' : 'Mining'} · {roster.length} players · {victoryTarget(rulesGame)} {rulesGame.rules?.mode === 'domination' ? 'outposts to control' : 'cargo quota'}</Text>;
-  const connection = <>{session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>{rulesSummary}{!snapshot && session.options && <Text style={s.detail}>Saved creation: {session.options.playerCount} players · {session.options.mode}. Reconnect repeats these options.</Text>}
+  const connection = <>{session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>{session.accountId ? 'Connected to your account' : 'Connection retained on this device'}</Text><Text style={s.detail}>{session.url}</Text>{rulesSummary}{!snapshot && session.options && <Text style={s.detail}>Saved creation: {session.options.playerCount} players · {session.options.mode}. Reconnect repeats these options.</Text>}
       {session.pending && <><Text style={s.error}>Request awaiting confirmation. Retry repeats the saved request.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
       {recoveryPending && <Text style={s.error}>Confirm this recovery request before removing the connection. The saved request may be needed to keep access to your seat.</Text>}
       <Action text="Reconnect / refresh" disabled={busy || session.pending?.kind === 'recover'} onPress={() => void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); })} />
-      {!!snapshot && <><Text style={s.label}>Seat recovery</Text><Text style={s.detail}>{snapshot.recoveryEnabled ? 'A recovery code is active. Generating another replaces it.' : 'Save a recovery code before leaving this device. Each code works once and replaces the old connection when used.'}</Text><Action text={snapshot.recoveryEnabled ? 'Replace recovery code' : 'Generate recovery code'} disabled={busy || !!session.pending} onPress={createRecovery} /></>}
+      {account && !session.accountId && <><Text style={s.detail}>Link this device’s seat to your account to return on another device. Linking revokes the old device token and recovery codes.</Text><Action text="Link seat to my account" disabled={busy || !!session.pending || !session.id} onPress={() => void run(linkAccountSeat)} /></>}
+      {!!snapshot && !session.accountId && <><Text style={s.label}>Seat recovery</Text><Text style={s.detail}>{snapshot.recoveryEnabled ? 'A recovery code is active. Generating another replaces it.' : 'Save a recovery code before leaving this device. Each code works once and replaces the old connection when used.'}</Text><Action text={snapshot.recoveryEnabled ? 'Replace recovery code' : 'Generate recovery code'} disabled={busy || !!session.pending} onPress={createRecovery} /></>}
       {!!recoveryCode && <><Text style={s.detail}>Save this code with the server address in a private place, such as a password manager. It controls your seat. This app only shows it until you leave this screen.</Text><Text selectable style={s.code}>{recoveryCode}</Text><Action text="Hide recovery code" onPress={() => setRecoveryCode('')} /></>}
-      {disconnect ? <><Text style={s.error}>Disconnecting removes this device's seat credential. You can return only with a recovery code saved earlier. The server operation continues.</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy || recoveryPending} onPress={() => void run(async () => { await storeSession(null); setSession(null); setSnapshot(undefined); setDisconnect(false); setRecoveryCode(''); })} /></> : <Action text="Disconnect…" disabled={busy || recoveryPending} onPress={() => setDisconnect(true)} />}
+      {disconnect ? <><Text style={s.error}>{session.accountId ? 'Removing this connection keeps the operation on your account. Use Restore account operation to return.' : "Disconnecting removes this device's seat credential. You can return only with a recovery code saved earlier. The server operation continues."}</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy || recoveryPending} onPress={() => void run(async () => { await storeSession(null, session.accountId); setSession(null); setSnapshot(undefined); setDisconnect(false); setRecoveryCode(''); })} /></> : <Action text="Disconnect…" disabled={busy || recoveryPending} onPress={() => setDisconnect(true)} />}
     </View> : <View key="connection-entry" style={s.panel}><Text style={s.label}>Game server</Text><TextInput key="server-url" secureTextEntry={false} accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
+      {account && <Action text="Restore account operation" disabled={busy} onPress={() => void run(restoreAccountSeat)} />}
       <Text style={s.label}>New operation</Text><GameSetup value={options} onChange={setOptions} disabled={busy} /><Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
   const setup = <><View style={s.panel}><Text style={s.title}>Operation participation</Text>

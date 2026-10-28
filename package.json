@@ -2,7 +2,7 @@
   "name": "machination",
   "version": "0.1.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
@@ -23,10 +23,13 @@
     "test:server-image": "node scripts/test-server-image.mjs"
   },
   "dependencies": {
+    "@clerk/backend": "3.26.4",
+    "@clerk/expo": "4.14.4",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~55.0.0",
     "expo-asset": "~55.0.20",
     "expo-audio": "~55.0.18",
+    "expo-auth-session": "~55.0.19",
     "expo-clipboard": "~55.0.17",
     "expo-crypto": "~55.0.19",
     "expo-document-picker": "55.0.17",
@@ -36,6 +39,7 @@
     "expo-splash-screen": "~55.0.25",
     "expo-status-bar": "~55.0.0",
     "expo-system-ui": "~55.0.22",
+    "expo-web-browser": "~55.0.20",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.10",

@@ -1,9 +1,10 @@
+import { authorization, type RequestSession } from './account-auth';
 import { decodeSharedReplay, utf8Size } from '../replay/codec';
 import { SHARED_REPLAY_LIMITS, type SharedReplay } from '../replay/timeline';
 import { RejectedCommand } from './network';
 
 /** Authenticated read only; never uses the command queue or updates presence. */
-export async function exportSharedReplay(session: { url: string; token: string; id?: string }, from: number, through: number, signal?: AbortSignal): Promise<SharedReplay> {
+export async function exportSharedReplay(session: RequestSession & { id?: string }, from: number, through: number, signal?: AbortSignal): Promise<SharedReplay> {
   if (!session.id) throw new Error('Connect to an operation first.');
   if (!Number.isFinite(from) || !Number.isFinite(through) || from < 0 || through < from) throw new Error('Choose a finite, ordered historical interval.');
   const controller = new AbortController();
@@ -12,8 +13,10 @@ export async function exportSharedReplay(session: { url: string; token: string; 
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 15000);
   try {
+    const bearer = session.accountId ? await authorization(session) : `Bearer ${session.token}`;
+    controller.signal.throwIfAborted();
     const response = await fetch(`${session.url}/v1/games/${session.id}/replay?from=${encodeURIComponent(from)}&through=${encodeURIComponent(through)}`,
-      { headers: { Authorization: `Bearer ${session.token}`, Accept: 'application/json' }, signal: controller.signal });
+      { headers: { Authorization: bearer, Accept: 'application/json' }, signal: controller.signal });
     const limit = response.ok ? SHARED_REPLAY_LIMITS.bytes : 8192;
     const length = response.headers.get('content-length');
     if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {

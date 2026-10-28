@@ -46,7 +46,14 @@
           "recordAudioAndroid": false,
           "enableBackgroundPlayback": false
         }
-      ]
+      ],
+      [
+        "@clerk/expo",
+        {
+          "appleSignIn": false
+        }
+      ],
+      "expo-web-browser"
     ]
   }
 }

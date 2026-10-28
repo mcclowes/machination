@@ -7,11 +7,11 @@ import { request as httpRequest } from 'node:http';
 import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto';
 
-async function start(entry, dataFile) {
+async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -113,4 +113,31 @@ test('invalid host port configuration fails explicitly before listening', async 
       timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: port, MACHINATION_HOST: '127.0.0.1' },
     }), error => error.code === 1 && /PORT must be an integer/.test(error.stderr));
   }
+});
+
+
+test('standalone bundle verifies Clerk sessions and restores an account without runtime dependencies', { timeout: 20_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-clerk-bundle-'));
+  const entry = join(dir, 'main.mjs');
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const issuer = 'https://clerk.example.com';
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'bundle-test' })).toString('base64url');
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({ iss: issuer, sub: 'user_bundle', sid: 'sess_bundle', iat: now, nbf: now - 1, exp: now + 60 })).toString('base64url');
+  const unsigned = `${header}.${payload}`;
+  const token = `${unsigned}.${sign('RSA-SHA256', Buffer.from(unsigned), privateKey).toString('base64url')}`;
+  let runtime;
+  try {
+    await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+    runtime = await start(entry, join(dir, 'games.json'), { CLERK_ISSUER: issuer, CLERK_JWT_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString(), MACHINATION_ORIGINS: 'https://belt.example.com' });
+    const anonymous = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(anonymous.status, 401);
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const created = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers, body: '{}' });
+    const snapshot = await created.json();
+    assert.equal(created.status, 200, JSON.stringify(snapshot));
+    const restored = await fetch(`${runtime.origin}/v1/account/session`, { headers });
+    assert.equal(restored.status, 200);
+    assert.equal((await restored.json()).snapshot.id, snapshot.id);
+  } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });

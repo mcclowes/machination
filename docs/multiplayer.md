@@ -2,6 +2,8 @@
 
 The app now supports invite-only operations with three human players. Solo operations stay local and continue using rival AI.
 
+For shared Marginal Utility login, account restoration, and legacy seat linking, see [account setup](accounts.md). The local review below uses device tokens when Clerk is not configured.
+
 ## Local review
 
 ```sh
@@ -21,7 +23,7 @@ Private messages are returned only to their sender and recipient. They are store
 
 ## HTTP contract
 
-Base path: `/v1`. All game endpoints except `/games/:id/recover` use the **seat token** scheme: `Authorization: Bearer <64 lowercase hex characters>`. A client generates this token from 32 cryptographically random bytes and saves it before bootstrap. The server stores only its SHA-256 hash. Possession of the token controls that seat. A player can opt into offline seat recovery, described below. No email-based identity or account recovery is provided. `/health` is public.
+Base path: `/v1`. When Clerk is not configured, all game endpoints except `/games/:id/recover` use the **seat token** scheme: `Authorization: Bearer <64 lowercase hex characters>`. A client generates this token from 32 cryptographically random bytes and saves it before bootstrap. The server stores only its SHA-256 hash. Possession of the token controls that seat. A player can opt into offline seat recovery, described below. With Clerk configured, new and linked seats use [verified account sessions](accounts.md#http-authentication); Clerk provides account recovery. `/health` is public.
 
 | Method | Path | JSON body | Result |
 | --- | --- | --- | --- |

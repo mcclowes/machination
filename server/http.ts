@@ -6,6 +6,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Failure, GameService } from './service';
+import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/online/protocol';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/online/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
@@ -22,7 +23,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
     return parsed;
   } catch { throw new Failure(400, 'request.validation.json', 'Send a JSON object.'); }
 }
-export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082']) {
+export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication) {
   const limits = new Map<string, { count: number; resets: number }>();
   return createServer({ requestTimeout: 10000, headersTimeout: 10000, maxHeaderSize: 8192 }, async (req, res) => {
     const correlationId = randomUUID();
@@ -52,7 +53,24 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
       const url = new URL(req.url ?? '/', 'http://localhost');
       const path = url.pathname;
       if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
-      const token = req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1] ?? '';
+      const bearer = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1] ?? '';
+      const legacy = /^[a-f0-9]{64}$/.test(bearer);
+      const account = authenticate && !legacy ? await authenticate(bearer, origin) : undefined;
+      const token = account ?? (legacy ? bearer : '');
+      if (path === '/v1/account/session' || path === '/v1/account/link') {
+        if (!authenticate) throw new Failure(503, 'account.unavailable.configuration', 'Account login is not configured on this server.');
+        if (!account) throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Marginal Utility account.');
+        if (path === '/v1/account/session' && req.method === 'GET') {
+          res.end(JSON.stringify({ snapshot: await service.accountSession(account) })); return;
+        }
+        if (path === '/v1/account/link' && req.method === 'POST') {
+          const input = await body(req);
+          if (typeof input.id !== 'string' || !/^[a-f0-9]{24}$/.test(input.id) || typeof input.token !== 'string' || Object.keys(input).some(key => !['id', 'token'].includes(key))) throw new Failure(400, 'account.validation.seat', 'Provide the existing operation and seat credential.');
+          res.end(JSON.stringify(await service.linkAccount(input.id, input.token, account))); return;
+        }
+        throw new Failure(405, 'request.validation.method', 'Method not allowed.');
+      }
+      if (authenticate && !account && req.method === 'POST' && (path === '/v1/games' || path === '/v1/join')) throw new Failure(401, 'account.unauthorized.session', 'Sign in to create or join an operation.');
       let result: unknown;
       if (req.method === 'POST' && path === '/v1/games') {
         const input = await body(req);

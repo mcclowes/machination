@@ -1,3 +1,4 @@
+import type { RequestSession } from './account-auth';
 import { validateOptions, type GameOptions } from '../game/rules';
 import type { ResignOrder, CreateGroup, ChannelTransmission } from './protocol';
 import type { FundingOrder } from './protocol';
@@ -7,20 +8,27 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from './protocol';
 export type Pending = { kind: 'edit-schedule'; body: EditSchedule } | { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
-export type Session = { url: string; token: string; id?: string; invite?: string; options?: GameOptions; pending?: Pending };
+export type Session = RequestSession & { id?: string; invite?: string; options?: GameOptions; pending?: Pending };
 const KEY = 'machination.online.v1';
-export async function storeSession(session: Session | null) {
+function sessionKey(accountId?: string) {
+  if (accountId && !/^user_[a-zA-Z0-9]+$/.test(accountId)) throw new Error('Invalid account identity.');
+  return accountId ? `${KEY}.${accountId}` : KEY;
+}
+export async function storeSession(session: Session | null, accountId?: string) {
+  const key = sessionKey(session?.accountId ?? accountId);
   const value = session ? JSON.stringify(session) : null;
   if (Platform.OS === 'web') {
-    if (value) sessionStorage.setItem(KEY, value); else sessionStorage.removeItem(KEY);
-  } else if (value) await SecureStore.setItemAsync(KEY, value);
-  else await SecureStore.deleteItemAsync(KEY);
+    if (value) sessionStorage.setItem(key, value); else sessionStorage.removeItem(key);
+  } else if (value) await SecureStore.setItemAsync(key, value);
+  else await SecureStore.deleteItemAsync(key);
 }
-export async function restoreSession(): Promise<Session | null> {
-  const raw = Platform.OS === 'web' ? sessionStorage.getItem(KEY) : await SecureStore.getItemAsync(KEY);
+export async function restoreSession(accountId?: string): Promise<Session | null> {
+  const key = sessionKey(accountId);
+  const raw = Platform.OS === 'web' ? sessionStorage.getItem(key) : await SecureStore.getItemAsync(key);
   if (!raw) return null;
   const s = JSON.parse(raw) as Session;
   if (!s || typeof s.url !== 'string' || !/^[a-f0-9]{64}$/.test(s.token)) throw new Error('Saved connection is invalid.');
+  if (s.accountId !== accountId) throw new Error('Saved connection belongs to another account.');
   if (s.options !== undefined) s.options = validateOptions(s.options);
   return s;
 }

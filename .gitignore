@@ -13,3 +13,8 @@ dist/
 /ios/
 
 /dist-server/
+
+# Local account and service configuration.
+.env
+.env.*
+!.env.example

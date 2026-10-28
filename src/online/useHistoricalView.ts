@@ -1,11 +1,12 @@
+import type { RequestSession } from './account-auth';
 import { useEffect, useState } from 'react';
 import { historicalApi } from './network';
 import type { HistorySnapshot } from './protocol';
 
-type Seat = { url: string; token: string; id: string; faction: HistorySnapshot['faction'] };
+type Seat = RequestSession & { id: string; faction: HistorySnapshot['faction'] };
 type Result = { key: string; frame?: HistorySnapshot; error?: string };
 export function historyKey(seat: Seat, hour: number): string {
-  return JSON.stringify([seat.url, seat.id, seat.token, seat.faction, hour]);
+  return JSON.stringify([seat.url, seat.id, seat.token, seat.accountId, seat.faction, hour]);
 }
 export function useHistoricalView(seat: Seat | undefined, hour: number | null) {
   const key = seat && hour !== null ? historyKey(seat, hour) : undefined;

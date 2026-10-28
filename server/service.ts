@@ -30,10 +30,12 @@ import { DIPLOMACY_LIMITS } from '../src/online/protocol';
 import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS = ALL_PLAYERS;
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
+export type AccountCredential = { accountId: string };
+type Credential = string | AccountCredential;
 type Room = {
   referenceKey?: string;
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
+  seats: { accountId?: string; faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
   receipts: Record<string, string>; diplomacy?: Diplomacy; replay?: ReplayData;
 };
 type Database = { version: 1; rooms: Room[] };
@@ -104,6 +106,7 @@ export class GameService {
           || !r.messages.every(m => Number.isSafeInteger(m.id) && playersIn(r.game).includes(m.from) && playersIn(r.game).includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
         if (r.referenceKey !== undefined && !isHash(r.referenceKey)) throw new Error('Damaged object reference key.');
         for (const seat of r.seats) {
+          if (seat.accountId !== undefined && (typeof seat.accountId !== 'string' || !/^user_[a-zA-Z0-9]+$/.test(seat.accountId))) throw new Error('Damaged account identity.');
           if (seat.lastActiveHour !== undefined && (r.startedAt === null || r.game.version !== 2 || !Number.isFinite(seat.lastActiveHour) || seat.lastActiveHour < 0 || seat.lastActiveHour > r.game.hour)
             || seat.identityHash !== undefined && !isHash(seat.identityHash)
             || seat.recoveryHash !== undefined && !isHash(seat.recoveryHash)
@@ -134,6 +137,8 @@ export class GameService {
         ids.add(r.id);
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+    const accounts = database.rooms.flatMap(r => r.seats.flatMap(s => s.accountId ? [s.accountId] : []));
+    if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
     const service = new GameService(file, database, now, initialGame);
     if (database.rooms.some(r => r.referenceKey === undefined)) {
       await service.transaction(db => {
@@ -156,17 +161,25 @@ export class GameService {
     this.queue = result.catch(() => undefined);
     return result;
   }
-  private credential(token: string): string {
+  private credential(token: Credential): string {
+    if (typeof token !== 'string') {
+      requireThat(/^user_[a-zA-Z0-9]+$/.test(token.accountId), 401, 'account.unauthorized.identity', 'A valid account is required.');
+      return hash(`clerk:${token.accountId}`);
+    }
     requireThat(/^[a-f0-9]{64}$/.test(token), 401, 'seat.unauthorized.token', 'A valid seat token is required.');
     return hash(token);
+  }
+  private matchesCredential(seat: Room['seats'][number], token: Credential): boolean {
+    const credential = this.credential(token);
+    return typeof token === 'string' ? !seat.accountId && seat.hash === credential : seat.accountId === token.accountId;
   }
   private room(db: Database, id: string): Room {
     const room = db.rooms.find(r => r.id === id);
     requireThat(room, 404, 'game.not_found', 'Operation not found.');
     return room;
   }
-  private seat(room: Room, token: string): Faction {
-    const seat = room.seats.find(s => s.hash === this.credential(token));
+  private seat(room: Room, token: Credential): Faction {
+    const seat = room.seats.find(s => this.matchesCredential(s, token));
     requireThat(seat, 401, 'seat.unauthorized.token', 'This token does not control a seat in this operation.');
     return seat.faction;
   }
@@ -229,40 +242,62 @@ export class GameService {
       ...(room.replay ? { history: { from: room.replay.baseline.hour, through: room.game.hour } } : {}),
       visibility: 'sensors.v1', ...this.observation(room, faction), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
-  create(token: string, options?: unknown): Promise<Snapshot> {
+  accountSession(account: AccountCredential): Promise<Snapshot | null> {
+    return this.transaction(db => {
+      this.credential(account);
+      const room = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, account)));
+      if (!room) return null;
+      this.settle(room); return this.view(room, this.seat(room, account));
+    });
+  }
+  linkAccount(id: string, token: string, account: AccountCredential): Promise<Snapshot> {
+    return this.transaction(db => {
+      this.credential(account);
+      const room = this.room(db, id);
+      const seat = room.seats.find(s => s.hash === this.credential(token));
+      requireThat(seat, 401, 'seat.unauthorized.token', 'The existing seat credential is required.');
+      requireThat(!seat.accountId || seat.accountId === account.accountId, 409, 'account.conflict.owner', 'This seat belongs to another account.');
+      requireThat(!db.rooms.some(r => r.seats.some(s => s !== seat && s.accountId === account.accountId)), 409, 'account.conflict.assigned', 'Your account already controls another operation.');
+      seat.accountId = account.accountId;
+      delete seat.recoveryHash; delete seat.recoveryReceipt;
+      this.settle(room); return this.view(room, seat.faction);
+    });
+  }
+  create(token: Credential, options?: unknown): Promise<Snapshot> {
     let requested: GameOptions | undefined;
     try { requested = options === undefined ? undefined : validateOptions(options); }
     catch (e) { return Promise.reject(new Failure(400, 'game.validation.options', (e as Error).message)); }
     return this.transaction(db => {
       const credential = this.credential(token);
-      const existing = db.rooms.find(r => r.seats.some(s => s.hash === credential));
+      const existing = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
         requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === (existing.game.rules?.mechanicsVersion === 6) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
         this.settle(existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
+        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential, ...(typeof token !== 'string' ? token : {}) }], messages: [], receipts: {} };
       db.rooms.push(room);
       return this.view(room, 'you');
     });
   }
-  join(invite: string, token: string): Promise<Snapshot> {
+  join(invite: string, token: Credential): Promise<Snapshot> {
     return this.transaction(db => {
       const credential = this.credential(token);
       const room = db.rooms.find(r => r.invite === invite);
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
-      const existing = room.seats.find(s => s.hash === credential);
+      const existing = room.seats.find(s => this.matchesCredential(s, token));
       if (existing) { this.settle(room); return this.view(room, existing.faction); }
-      requireThat(!db.rooms.some(r => r.seats.some(s => s.hash === credential)), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
+      requireThat(!db.rooms.some(r => r.seats.some(s => this.matchesCredential(s, token))), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
       requireThat(room.startedAt === null && room.seats.length < playersIn(room.game).length, 409, 'game.conflict.closed', 'This operation is no longer accepting players.');
       const faction = playersIn(room.game)[room.seats.length]!;
-      room.seats.push({ faction, hash: credential }); room.revision++;
+      room.seats.push({ faction, hash: credential, ...(typeof token !== 'string' ? token : {}) }); room.revision++;
       return this.view(room, faction);
     });
   }
-  setRecovery(id: string, token: string, command: RecoverySetup): Promise<Snapshot> {
+  setRecovery(id: string, token: Credential, command: RecoverySetup): Promise<Snapshot> {
     return this.transaction(db => {
+      requireThat(typeof token === 'string', 409, 'recovery.conflict.account', 'Sign in to restore an account seat.');
       const room = this.room(db, id); const faction = this.seat(room, token); this.settle(room);
       requireThat(typeof command.secret === 'string' && /^[a-f0-9]{64}$/.test(command.secret), 400, 'recovery.validation.secret', 'Provide a valid recovery secret.');
       const secretHash = hash(command.secret); const seat = room.seats.find(s => s.faction === faction)!;
@@ -276,25 +311,26 @@ export class GameService {
       return this.view(room, faction);
     });
   }
-  recover(id: string, token: string, command: RecoverSeat): Promise<Snapshot> {
+  recover(id: string, token: Credential, command: RecoverSeat): Promise<Snapshot> {
     return this.transaction(db => {
+      requireThat(typeof token === 'string', 409, 'recovery.conflict.account', 'Restore a device seat before linking it to your account.');
       const credential = this.credential(token);
       requireThat(typeof command.secret === 'string' && /^[a-f0-9]{64}$/.test(command.secret), 401, 'recovery.unauthorized.code', 'Recovery code is invalid, replaced, or already used.');
       const secretHash = hash(command.secret); const room = db.rooms.find(r => r.id === id);
-      const seat = room?.seats.find(s => matchesHash(s.recoveryHash, secretHash) || matchesHash(s.recoveryReceipt?.secretHash, secretHash) && s.recoveryReceipt?.credentialHash === credential && s.hash === credential);
+      const seat = room?.seats.find(s => !s.accountId && (matchesHash(s.recoveryHash, secretHash) || matchesHash(s.recoveryReceipt?.secretHash, secretHash) && s.recoveryReceipt?.credentialHash === credential && s.hash === credential));
       requireThat(room && seat, 401, 'recovery.unauthorized.code', 'Recovery code is invalid, replaced, or already used.');
       if (seat.recoveryReceipt?.secretHash === secretHash && seat.hash === credential) { this.settle(room); return this.view(room, seat.faction); }
-      requireThat(credential !== seat.hash && !db.rooms.some(r => r.seats.some(s => s.hash === credential)), 409, 'recovery.conflict.credential', 'Restore with a fresh connection credential.');
+      requireThat(credential !== seat.hash && !db.rooms.some(r => r.seats.some(s => this.matchesCredential(s, token))), 409, 'recovery.conflict.credential', 'Restore with a fresh connection credential.');
       seat.identityHash ??= seat.hash;
       seat.hash = credential; delete seat.recoveryHash;
       seat.recoveryReceipt = { secretHash, credentialHash: credential };
       this.settle(room); return this.view(room, seat.faction);
     });
   }
-  snapshot(id: string, token: string): Promise<Snapshot> {
+  snapshot(id: string, token: Credential): Promise<Snapshot> {
     return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); return this.view(r, f); });
   }
-  async sharedReplay(id: string, token: string, from: number, through: number): Promise<SharedReplay> {
+  async sharedReplay(id: string, token: Credential, from: number, through: number): Promise<SharedReplay> {
     requireThat(Number.isFinite(from) && Number.isFinite(through) && from >= 0 && through >= from,
       400, 'replay.validation.bounds', 'Choose a finite, ordered historical interval.');
     const frozen = await this.transaction(db => {
@@ -314,7 +350,7 @@ export class GameService {
       throw error;
     }
   }
-  history(id: string, token: string, hour: number): Promise<HistorySnapshot> {
+  history(id: string, token: Credential, hour: number): Promise<HistorySnapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       requireThat(r.replay, 409, 'history.conflict.lobby', 'History begins when the operation starts.');
@@ -324,10 +360,10 @@ export class GameService {
         ...this.observation(r, f, game) };
     });
   }
-  activity(id: string, token: string): Promise<Snapshot> {
+  activity(id: string, token: Credential): Promise<Snapshot> {
     return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); this.touch(r, f); return this.view(r, f); });
   }
-  resign(id: string, token: string, command: ResignOrder): Promise<Snapshot> {
+  resign(id: string, token: Credential, command: ResignOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['resign', command.revision]))) return this.view(r, f);
@@ -339,7 +375,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  start(id: string, token: string): Promise<Snapshot> {
+  start(id: string, token: Credential): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
@@ -386,7 +422,7 @@ export class GameService {
       ? 'Choose a currently observed enemy hauler.' : 'Choose one of your haulers or queued launches.');
     return canonical;
   }
-  specialist(id: string, token: string, command: SpecialistOrder): Promise<Snapshot> {
+  specialist(id: string, token: Credential, command: SpecialistOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       const payload = JSON.stringify(['specialist', command.action, command.action === 'hire' ? command.kind : command.unit, command.revision]);
@@ -409,7 +445,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  order(id: string, token: string, order: Order): Promise<Snapshot> {
+  order(id: string, token: Credential, order: Order): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, order.requestId, JSON.stringify(['order', order.from, order.to, order.drones, order.revision, ...(order.carryModule === undefined || order.carryModule === false ? [] : [order.carryModule]), ...(order.specialists?.length ? [order.specialists] : [])]))) return this.view(r, f);
@@ -422,7 +458,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  gift(id: string, token: string, command: GiftOrder): Promise<Snapshot> {
+  gift(id: string, token: Credential, command: GiftOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['gift', command.from, command.to, command.drones, command.recipient, command.revision, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
@@ -435,7 +471,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  install(id: string, token: string, command: ModuleOrder): Promise<Snapshot> {
+  install(id: string, token: Credential, command: ModuleOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['module', command.rock, command.module, command.revision]))) return this.view(r, f);
@@ -448,7 +484,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  hauler(id: string, token: string, command: HaulerOrder): Promise<Snapshot> {
+  hauler(id: string, token: Credential, command: HaulerOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       const payload = JSON.stringify(['hauler', command.fleet, command.action, command.action === 'edit-launch' ? command.drones : null, command.revision, ...(command.action === 'course' ? [command.to] : []), ...(command.action === 'edit-launch' && command.specialists?.length ? [command.specialists] : [])]);
@@ -468,7 +504,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  site(id: string, token: string, command: SiteOrder): Promise<Snapshot> {
+  site(id: string, token: Credential, command: SiteOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       const payload = JSON.stringify(['site', command.rock, command.action, command.action === 'shields' ? command.disabled : null, command.revision]);
@@ -485,7 +521,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  intercept(id: string, token: string, command: InterceptOrder): Promise<Snapshot> {
+  intercept(id: string, token: Credential, command: InterceptOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['intercept', command.from, command.target, command.drones, command.revision, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
@@ -502,7 +538,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  async schedule(id: string, token: string, input: ScheduleOrder): Promise<Snapshot> {
+  async schedule(id: string, token: Credential, input: ScheduleOrder): Promise<Snapshot> {
     const command = canonicalSchedule(input);
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
@@ -528,7 +564,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  async editSchedule(id: string, token: string, input: EditSchedule): Promise<Snapshot> {
+  async editSchedule(id: string, token: Credential, input: EditSchedule): Promise<Snapshot> {
     const invalid = () => new Failure(400, 'schedule.validation.payload', 'Provide a queued launch manifest edit.');
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
     const value = input as unknown as Record<string, unknown>;
@@ -562,7 +598,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  cancelSchedule(id: string, token: string, command: CancelSchedule): Promise<Snapshot> {
+  cancelSchedule(id: string, token: Credential, command: CancelSchedule): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['cancel-schedule', command.planId, command.revision]))) return this.view(r, f);
@@ -574,7 +610,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  funding(id: string, token: string, command: FundingOrder): Promise<Snapshot> {
+  funding(id: string, token: Credential, command: FundingOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['funding', command.recipient, command.enabled, command.revision]))) return this.view(r, f);
@@ -587,7 +623,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  createGroup(id: string, token: string, command: CreateGroup): Promise<Snapshot> {
+  createGroup(id: string, token: Credential, command: CreateGroup): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       requireThat(typeof command.name === 'string' && command.name.trim().length > 0 && command.name.length <= DIPLOMACY_LIMITS.name,
@@ -606,7 +642,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  channelMessage(id: string, token: string, command: ChannelTransmission): Promise<Snapshot> {
+  channelMessage(id: string, token: Credential, command: ChannelTransmission): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       const d = r.diplomacy ??= { groups: [], publicMessages: [] };
@@ -622,7 +658,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  message(id: string, token: string, command: Transmission): Promise<Snapshot> {
+  message(id: string, token: Credential, command: Transmission): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
       requireThat(FACTIONS.includes(command.to) && command.to !== f && r.seats.some(s => s.faction === command.to), 400, 'message.validation.recipient', 'Choose another intelligence in this operation.');
