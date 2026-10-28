@@ -96,7 +96,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(saved: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; incompleteObservation?: boolean } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null> } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
@@ -186,8 +186,11 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
     }
     if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); refreshMining(game); reconcileFunding(game); }
     const factions = playersIn(game).filter(f => !game.eliminated.includes(f));
-    // Incomplete forecasts cannot establish victory from missing economy or unresolved battles.
-    game.winner = options.incompleteObservation ? null : factions.find(f => victoryProgress(game, f) >= victoryTarget(game)) ?? (factions.length === 1 ? factions[0]! : null);
+    // Public ownership counts toward domination without activating hidden simulation assets.
+    const victoryState = game.rules?.mode === 'domination' && options.territoryOwners
+      ? { ...game, rocks: game.rocks.map(r => ({ owner: options.territoryOwners!.has(r.id) ? options.territoryOwners!.get(r.id)! : r.owner })) }
+      : game;
+    game.winner = factions.find(f => victoryProgress(victoryState, f) >= victoryTarget(game)) ?? (factions.length === 1 ? factions[0]! : null);
     if (factions.length === 0) { game.draw = true; game.events.unshift({ hour: next, audience: [...playersIn(game)], message: 'All cores lost. The operation ended in a draw.' }); }
     if (game.winner) game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${FACTIONS[game.winner].name}: ${game.rules?.mode === 'domination' ? 'domination target secured' : 'corporate quota secured'}. Contract complete.` });
     if ((game.winner || game.draw) && game.scheduled) game.scheduled = [];

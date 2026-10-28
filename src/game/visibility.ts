@@ -72,7 +72,8 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
     events: view.events.map(e => ({ ...e, audience: [faction] })),
   };
   const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain);
-  const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, incompleteObservation });
+  const territoryOwners = new Map(view.rocks.flatMap(r => !r.known && r.owner !== undefined ? [[r.id, r.owner] as const] : []));
+  const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);
   const alias = (id: number) => identities[id - 1] ?? Math.min(0, ...identities) - id;

@@ -11,8 +11,8 @@ import type { Fleet } from '../game/simulation';
 import { MAX_PLAN_DELAY } from '../game/orders';
 import { gameClock, inspectionMode, timelineHour } from '../game/time-machine';
 
-type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean };
-export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact }: Props) {
+type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean };
+export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain }: Props) {
   const [expanded, setExpanded] = useState(false);
   const mode = inspectionMode(hour, inspectedHour);
   const offset = (inspectedHour ?? hour) - hour;
@@ -49,6 +49,7 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   const position = (at: number) => Math.max(0, Math.min(100, (at - start) / span * 100));
   return <View style={[s.panel, compact && { padding: 8, gap: 0 }]}>
     <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <><Control label="Now" selected={mode === 'live'} onPress={() => onChange(null)} /><Control label={expanded ? 'Close time controls' : 'Time Machine'} onPress={() => setExpanded(!expanded)} /></> : <Text style={s.title}>Time Machine</Text>}</View>
+    {mode === 'future' && forecastUncertain && <Text style={s.detail}>Some site details are unknown. Economy, routes, and outcomes may change.</Text>}
     <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Operation timeline" accessibilityValue={{ min: Math.round(minimum * 60), max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${Math.abs(offset).toFixed(2)} hours ${offset < 0 ? 'ago' : 'ahead'}` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}>
       <View style={s.rail}><View style={[s.fill, { width: `${position(inspectedHour ?? hour)}%` }]} />{markers.map(t => <View key={t} style={[s.tick, { left: `${position(t)}%` }]} />)}<View style={[s.tick, { left: `${position(hour)}%`, backgroundColor: '#e5eadc', height: 18, top: -7 }]} /><View style={[s.thumb, { left: `${position(inspectedHour ?? hour)}%` }]} /></View>
     </View>

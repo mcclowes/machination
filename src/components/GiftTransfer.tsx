@@ -7,7 +7,7 @@ import type { Specialist } from '../game/specialists';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
 export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onGift, scheduledAt, legacy = false, specialists = [] }: {
-  specialists?: Specialist[]; scheduledAt?: number; legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
+  specialists?: Specialist[]; scheduledAt?: number; legacy?: boolean; from: Rock; to: Pick<Rock, 'id' | 'name' | 'destroyed'>; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
 }) {
   const [review, setReview] = useState(false);
   const blocked = disabled || scheduledAt !== undefined && legacy || !!from.destroyed || !!to.destroyed;

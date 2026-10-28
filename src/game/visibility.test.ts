@@ -241,21 +241,6 @@ test('v2 hidden ownership refreshes independently of private detail, including n
   assert.equal(view.rocks[1]!.owner, 'vesper');
 });
 
-test('v2 forecasts preserve the public territory ledger without inventing a domination winner', async () => {
-  const { victoryProgress } = await import('./rules');
-  const game = sensorWorld();
-  game.rules = { mechanicsVersion: 4, players: ['you', 'vesper', 'null'], mode: 'domination', victoryTarget: 2, map: { generator: 'balanced.v1', seed: 0, width: 2000, height: 2000 } };
-  game.fleets = [remoteShip(1, { owner: 'you', from: 'a' })];
-  const view = observe(game, 'you');
-  const saved = structuredClone(view);
-  const future = forecastObservation(view, 'you', 30);
-  assert.equal(victoryProgress(future, 'vesper'), victoryProgress(view, 'vesper'));
-  assert.equal(future.winner, null, 'incomplete territory cannot establish a new winner');
-  assert.equal(future.forecastUncertain, true);
-  assert.deepEqual(forecastObservation(view, 'you', 30), future);
-  assert.deepEqual(view, saved);
-});
-
 test('v2 paired hidden worlds have identical observations and repeated forecasts without private effects', () => {
   const first = sensorWorld();
   first.rocks[0]!.specialists = [{ id: 'q', owner: 'you', kind: 'queen' }];
@@ -356,19 +341,76 @@ test('v2 third-party remote capture refreshes public owner without disclosing ba
   assert.ok(!after.events.some(e => /acquired|neutralized/.test(e.message)));
 });
 
-test('only incomplete forecasts suppress new victories; authoritative and complete-world advances retain them', () => {
-  const game = sensorWorld();
-  game.rules = { mechanicsVersion: 4, players: ['you', 'vesper', 'null'], mode: 'domination', victoryTarget: 1, map: { generator: 'balanced.v1', seed: 0, width: 2000, height: 2000 } };
+test('public remote territory contributes to a supported projected domination victory', async () => {
+  const { createConfiguredGame } = await import('./world');
+  const { victoryProgress } = await import('./rules');
+  let game = createConfiguredGame({ playerCount: 3, mode: 'domination' }, 0, 733);
+  const neutral = game.rocks.filter(r => !r.owner);
+  for (const rock of neutral.slice(0, 9)) rock.owner = 'vesper';
+  for (const rock of game.rocks) {
+    rock.x = rock.owner === 'you' ? 0 : game.rules!.map.width / 2;
+    rock.y = rock.owner === 'you' ? 0 : game.rules!.map.height / 2;
+  }
+  const source = game.rocks.find(r => r.owner === 'vesper' && !r.coreOf)!;
+  source.x = 10; source.y = 0; source.drones = 10;
+  const target = neutral[9]!;
+  target.x = 20; target.y = 0; target.drones = 0;
+  game = advance(dispatch(game, source.id, target.id, 1, 'vesper'), 0.2, { rivals: false });
+  const view = observe(game, 'you');
+  const saved = structuredClone(view);
+  assert.ok(view.rocks.some(r => !r.known && r.owner === 'vesper'));
+  assert.equal(victoryProgress(view, 'vesper'), 14);
+  const arrival = game.fleets[0]!.arrives;
+  const actual = advance(game, arrival, { rivals: false });
+  const forecast = forecastObservation(view, 'you', arrival);
+  assert.equal(actual.winner, 'vesper');
+  assert.equal(forecast.winner, actual.winner);
+  assert.equal(victoryProgress(forecast, 'vesper'), 15);
+  assert.equal(forecast.rocks.find(r => r.id === target.id)!.owner, 'vesper');
+  assert.equal(forecast.forecastUncertain, true);
+  for (const rock of view.rocks.filter(r => !r.known)) assert.deepEqual(forecast.rocks.find(r => r.id === rock.id), rock);
+  assert.deepEqual(view, saved);
+  assert.deepEqual(forecastObservation(forecast, 'you', arrival + 1).winner, 'vesper');
+});
+
+test('unrelated hidden sites do not suppress a supported own mining victory', async () => {
+  const { createConfiguredGame } = await import('./world');
+  const game = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 733);
+  const mine = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
+  mine.kind = 'mine'; mine.miningInterval = 24 / 5; mine.miningAt = 0.5;
+  game.cargo.you = 199;
+  const view = observe(game, 'you');
+  assert.ok(view.rocks.some(r => !r.known));
+  const forecast = forecastObservation(view, 'you', 1);
   assert.equal(advance(game, 1, { rivals: false }).winner, 'you');
-  const hidden = observe(game, 'you');
-  const future = forecastObservation(hidden, 'you', 1);
-  assert.equal(future.winner, null);
-  assert.ok(!future.events.some(e => /Contract complete/.test(e.message)));
+  assert.equal(forecast.winner, 'you');
+  assert.equal(forecast.cargo.you, 200);
+  assert.equal(forecast.hour, 0.5);
+  assert.equal(forecast.forecastUncertain, true);
   game.winner = 'vesper';
-  assert.equal(forecastObservation(observe(game, 'you'), 'you', 1).winner, 'vesper', 'published winners remain public');
-  game.winner = null;
-  for (const rock of game.rocks) { rock.x = 0; rock.y = 0; }
-  const complete = observe(game, 'you');
-  assert.ok(complete.rocks.every(r => r.known));
-  assert.equal(forecastObservation(complete, 'you', 1).winner, 'you');
+  assert.equal(forecastObservation(observe(game, 'you'), 'you', 1).winner, 'vesper');
+});
+
+test('unresolved remote conquest cannot manufacture a domination victory', async () => {
+  const { createConfiguredGame } = await import('./world');
+  const { victoryProgress } = await import('./rules');
+  let game = createConfiguredGame({ playerCount: 3, mode: 'domination' }, 0, 733);
+  const neutral = game.rocks.filter(r => !r.owner);
+  for (const rock of neutral.slice(0, 9)) rock.owner = 'vesper';
+  for (const rock of game.rocks) {
+    rock.x = rock.owner === 'you' ? 0 : game.rules!.map.width / 2;
+    rock.y = rock.owner === 'you' ? 0 : game.rules!.map.height / 2;
+  }
+  const source = game.rocks.find(r => r.owner === 'vesper' && !r.coreOf)!;
+  source.drones = 10;
+  const target = neutral[9]!;
+  target.drones = 0;
+  game = dispatch(game, source.id, target.id, 1, 'vesper');
+  const view = observe(game, 'you');
+  const forecast = forecastObservation(view, 'you', 2);
+  assert.equal(advance(game, 2, { rivals: false }).winner, 'vesper');
+  assert.equal(forecast.winner, null);
+  assert.equal(victoryProgress(forecast, 'vesper'), 14);
+  assert.equal(forecast.rocks.find(r => r.id === target.id)!.owner, null);
+  assert.equal(forecast.forecastUncertain, true);
 });
