@@ -1,0 +1,21 @@
+# Generated charts
+
+`generateWorld(players, seed)` accepts 2–10 unique catalog factions and a uint32 seed, including zero. The first participant is the host; its core is site `a`. The result contains rocks and square bounds. It doesn't mutate participants or retain random state between calls. Its local integer sampler is independent of recruitment and engine randomness. Integration must keep the seed private rather than adding it to a public GameView.
+
+Each participant owns five sites: a queen core with zero drones and four sites with 40 drones each. Five additional dormant sites per participant have no owner, drones, or specialists. All sites begin as factories or generators, with empty shields and the supplied production and recharge clocks. There are no initial mines.
+
+The square area is `playerCount * 10 * 10000 / 30`, preserving 30 sites per 100×100 units. Rejection sampling enforces five units of separation. Starts use randomized farthest-point selection, favoring the interior to reduce boundary disadvantages. Round-robin nearest-site claims allocate ten sites per start: the first five are owned. This prevents overlapping claims and balances ownership exactly.
+
+The sampler evaluates at most 500 candidates. It minimizes the spread of neutral-site counts reached first from each player's nearest owned site, with the spread of mean distances to the three nearest neutral sites as a tie-breaker. It exits early when counts match and the distance spread is below 2% of map width. This estimates expansion opportunity; it doesn't simulate conquest orders, shields, or production. Focused scenarios cover seeds 0, 1, 73, and 4294967295 with 2, 3, and 10 players. The ten-player acceptance threshold allows four sites of expansion spread; there is no universal fairness guarantee for every seed.
+
+A shuffled ten-card industry deck contains 3–6 generators, selected per chart. A separate shuffled shield deck contains three 10-strength and seven 20-strength cards. Each participant receives the same decks in territorial order. Starting type/shield combinations, core attributes, and totals match exactly between participants. Shield strength doesn't depend on industry type. Quantized deck counts approximate the requested probabilities and keep whole-chart generator ratios within 30–60%.
+
+## Evidence and limits
+
+The [official rulebook](https://subterfuge-game.com/rulebook/) establishes five starting outposts, 160 drillers, and no initial mines.
+
+The [community generation page](https://subterfuge.fandom.com/wiki/Map_and_Content_Generation) attributes a developer explanation describing ten sites per player, repelling points, nearest-five ownership, shared industry/shield decks, and selection among 500 candidates by expansion balance. It reports 30–60% generators and approximately one-third weaker shields. This attribution is partly unverified: search indexing exposed the text, while direct access was blocked. It isn't an official algorithm specification.
+
+This implementation approximates repulsion with rejection sampling and farthest-point selection. Claims are exclusive and allocated in turns; candidate scoring uses a geometric proxy. It doesn't reproduce the proprietary generator or its reported typical two-site expansion spread. Geometry is planar. Original toroidal wrapping remains an integration gap, including distance calculations and edge travel. World creation, victory modes, persistence, public views, and UI integration belong to the caller.
+
+Run focused checks with `node --import tsx --test src/game/generated-world.test.ts`.
