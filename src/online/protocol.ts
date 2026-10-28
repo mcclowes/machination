@@ -15,8 +15,10 @@ export type Snapshot = {
   faction: Faction; host: boolean; members: Faction[]; revision: number;
   recoveryEnabled?: boolean;
   groups?: Group[]; channels?: Channel[];
+  history?: { from: number; through: number };
   visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
+export type HistorySnapshot = { id: string; faction: Faction; visibility: 'sensors.v1'; history: { from: number; through: number; at: number }; game: GameView };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; specialists?: string[]; carryModule?: boolean };
 export type GiftOrder = Order & { recipient: Faction };
 export type InterceptOrder = { requestId: string; revision: number; from: string; target: number; drones: number; specialists?: string[] };

@@ -93,7 +93,7 @@ test('failed durable writes consume neither group/message IDs nor receipts', asy
 test('old rooms migrate additively, and eliminated seats retain all chat permissions', async t => {
   const { service, file, tokens: [a, b], room, group } = await fixture(t);
   await service.message(room.id, a!, { requestId: randomUUID(), to: 'vesper', text: 'Old history' });
-  const db = JSON.parse(await readFile(file, 'utf8')); delete db.rooms[0].diplomacy;
+  const db = JSON.parse(await readFile(file, 'utf8')); delete db.rooms[0].diplomacy; delete db.rooms[0].replay;
   for (const rock of db.rooms[0].game.rocks) if (rock.owner === 'vesper') rock.owner = 'you';
   await writeFile(file, JSON.stringify(db));
   const migrated = await GameService.open(file, () => 1000, createLegacyGame);

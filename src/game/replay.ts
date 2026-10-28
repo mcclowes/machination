@@ -64,8 +64,10 @@ export function executeCommand(input: Game, command: GameCommand): Game {
 declare const archiveBrand: unique symbol;
 export type ReplayArchive = { readonly [archiveBrand]: true };
 export type ReplayOptions = { rivals: boolean; knownThrough: number };
-type Entry = { hour: number; command: GameCommand };
+export type ReplayEntry = { hour: number; command: GameCommand };
+type Entry = ReplayEntry;
 type History = { baseline: Game; entries: readonly Entry[]; rivals: boolean };
+export type ReplayData = { version: 1; rules: 1; baseline: Game; entries: ReplayEntry[]; rivals: boolean };
 const histories = new WeakMap<ReplayArchive, History>();
 function archive(history: History): ReplayArchive {
   const handle = Object.freeze({}) as ReplayArchive;
@@ -81,6 +83,15 @@ function historyOf(handle: ReplayArchive): History {
 export function createArchive(baseline: Game, options: { rivals: boolean } = { rivals: false }): ReplayArchive {
   if (!Number.isFinite(baseline.hour) || baseline.hour < 0) throw new Error('Invalid replay baseline hour.');
   return archive({ baseline: clone(baseline), entries: [], rivals: options.rivals });
+}
+
+/** Private storage only. Importers must validate this envelope before restoring it. */
+export function exportArchive(handle: ReplayArchive): ReplayData {
+  const history = historyOf(handle);
+  return clone({ version: 1, rules: 1, baseline: history.baseline, entries: [...history.entries], rivals: history.rivals });
+}
+export function restoreArchive(data: ReplayData): ReplayArchive {
+  return archive(clone({ baseline: data.baseline, entries: data.entries, rivals: data.rivals }));
 }
 
 /** Includes all successful submissions at targetHour, in original submission order. */

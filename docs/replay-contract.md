@@ -1,6 +1,6 @@
 # Private replay contract
 
-Foundation for issue #18. This module does not complete observed-history UI, server routing, local storage, or a persistence format.
+Private replay and persistence boundary for issue #18. Historical views reconstruct commands with the game engine, then apply sensor visibility at the requested time.
 
 ## API
 
@@ -32,10 +32,16 @@ Request receipts still own retry idempotency. Repeating an accepted command thro
 
 ## Persistence validation requirements
 
-No archive import/export or storage adapter is supplied in this foundation. Before shipping durable replay, define a private versioned envelope containing a complete baseline, fixed rival policy, ordered `{ hour, command }` entries, and an authoritative live frontier. Save it transactionally with the live state and request receipts. Do not attempt to JSON-serialize the handle.
+`exportArchive` produces the private version 1, rules revision 1 envelope: a complete baseline, fixed rival policy, and ordered `{ hour, command }` entries. The stored live game supplies the authoritative frontier. `restoreArchive` is a trusted adapter; external data must pass `decodeReplay` first. The loader validates shape, bounds, commands, and semantic success, then compares reconstruction against the stored live game. It rejects corrupt or unsupported histories instead of discarding them. The server persists the envelope transactionally with live state and request receipts. Local storage retains it in the existing save envelope. Never JSON-serialize the opaque handle itself.
 
-A future trusted loader must validate the baseline through the existing save validation/migration boundary, validate the envelope and engine/replay version, and reject unsupported future versions. Validate finite nonnegative hours, baseline/frontier bounds, nondecreasing entry hours, preserved equal-hour order, command discriminants and every field, faction values, IDs, integer quantities, payload sizes, and rival policy. Replay each action to validate semantic success, including contact and ownership; never silently skip invalid entries. Enforce bounded archive size and reconstruction work. Verify the reconstructed frontier against the stored live state, accounting explicitly for terminal games and migrations. A valid TypeScript type assertion is not runtime validation.
+The loader must continue to validate the baseline through the existing save validation/migration boundary, validate the envelope and engine/replay version, and reject unsupported future versions. Validate finite nonnegative hours, baseline/frontier bounds, nondecreasing entry hours, preserved equal-hour order, command discriminants and every field, faction values, IDs, integer quantities, payload sizes, and rival policy. Replay each action to validate semantic success, including contact and ownership; never silently skip invalid entries. Archives are limited to 10,000 commands and 16 Mi UTF-16 code units of serialized data. Submissions stop at this limit; commands must not be silently dropped. There are no checkpoints or automatic pruning yet. Verify the reconstructed frontier against the stored live state, accounting explicitly for terminal games and migrations. A valid TypeScript type assertion is not runtime validation.
 
 Preserve recruitment seeds, next IDs, and all timing fields exactly; never regenerate them from current time. Pin or migrate deterministic engine semantics when rules change, with old fixtures that reproduce identical historical results. Define transaction recovery, corruption handling, retention, and private access before enabling restart support. The current engine version fields alone do not version every future rule change.
 
 Resignation and inactivity are future integration needs. They currently have no canonical replay commands. Any external state changes for those features, administration, or other future rules must be modeled and validated before replay can claim complete history for them. Do not add unlogged mutations to a replay-backed live game.
+
+## Historical HTTP views
+
+`GET /v1/games/:id/history?hour=<hours>` requires the same authenticated seat as the live operation. The response includes only its scoped `GameView`, operation and faction identifiers, visibility revision, and `{ from, through, at }` history bounds. It never includes the archive, private commands, messages, credentials, recruitment seeds, or pools. Fleet and specialist aliases use the same seat-scoped HMAC mapping as live views. Requests before the baseline, beyond the authoritative frontier, or with ambiguous/nonfinite hour queries are rejected. Polls settle the live operation but never append commands.
+
+New rooms establish their baseline at operation start. Existing rooms without archives establish it at their complete saved game before offline advancement. Out-of-band edits to a replay-backed game are corruption unless explicitly migrated into a new baseline; tests that represent old rooms remove the archive as well. Older history cannot be reconstructed.

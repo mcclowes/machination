@@ -49,7 +49,8 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         limit = { count: 0, resets: now + 60000 }; limits.set(ip, limit);
       }
       if (++limit.count > 120) { res.setHeader('Retry-After', '60'); throw new Failure(429, 'request.rate_limit.exceeded', 'Too many requests. Try again in a minute.'); }
-      const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      const path = url.pathname;
       if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
       const token = req.headers.authorization?.match(/^Bearer ([a-f0-9]{64})$/)?.[1] ?? '';
       let result: unknown;
@@ -59,10 +60,15 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
         result = await service.join(input.invite, token);
       } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|cancel-schedule|intercepts|recovery|recover))?$/);
+        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|cancel-schedule|intercepts|recovery|recover))?$/);
         if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
         const id = match[1]!; const action = match[2];
         if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
+        else if (req.method === 'GET' && action === 'history') {
+          const hour = url.searchParams.get('hour');
+          if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
+          result = await service.history(id, token, Number(hour));
+        }
         else if (req.method === 'POST') {
           const input = await body(req);
           if (action === 'recovery') result = await service.setRecovery(id, token, input as RecoverySetup);
