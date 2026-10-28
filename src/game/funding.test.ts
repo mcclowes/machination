@@ -64,11 +64,11 @@ test('observers see public cargo standings and funding counts, while sponsor ide
   game = setFunding(game, 'you', 'vesper', true);
   const stranger = observe(game, 'null');
   assert.deepEqual(stranger.funding, []);
-  assert.equal(stranger.standings!.vesper.funders, 1);
-  assert.equal(stranger.standings!.you.cargo, 40);
+  assert.equal(stranger.standings!.vesper!.funders, 1);
+  assert.equal(stranger.standings!.you!.cargo, 40);
   const anonymousForecast = forecastObservation(stranger, 'null', 8);
   assert.equal(anonymousForecast.fundingUncertain, true);
-  assert.equal(anonymousForecast.standings!.vesper.funders, 1);
+  assert.equal(anonymousForecast.standings!.vesper!.funders, 1);
   assert.deepEqual(observe(game, 'vesper').funding, [{ from: 'you', to: 'vesper' }]);
   assert.deepEqual(observe(game, 'you').funding, [{ from: 'you', to: 'vesper' }]);
   const predicted = forecastObservation(observe(game, 'vesper'), 'vesper', 8);

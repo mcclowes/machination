@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { playersIn } from './players';
 import { sendUnitsHome, returnHauler } from './specialist-travel';
 import { applyCombatAbilities } from './combat-abilities';
 import type { Faction, Fleet, Game, Rock } from './simulation';
@@ -33,7 +34,7 @@ export function reconcileLeadership(game: Game, previous: readonly (Faction | { 
       game.eliminated.push(owner); game.cargo[owner] = 0;
       game.scheduled = (game.scheduled ?? []).filter(p => p.owner !== owner);
       for (const rock of game.rocks.filter(r => r.owner === owner)) defendWithPreparations(game, rock.id);
-      game.events.unshift({ hour: game.hour, audience: ['you', 'vesper', 'null'], message: `${owner}: core lost. Orders and extraction terminated; remaining assets persist.` });
+      game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: `${owner}: core lost. Orders and extraction terminated; remaining assets persist.` });
     }
   }
   refreshUnitEffects(game);
@@ -72,7 +73,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock): voi
     const remaining = fleet.drones - rock.drones;
     rock.drones = remaining + repairLosses(game, fleet, Math.max(0, originalAttacking - remaining), phase.suppressed);
     rock.specialists = [...capture(rock.specialists ?? [], fleet.owner), ...(fleet.specialists ?? [])];
-    if (rock.kind === 'mine') { if (rock.owner) game.cargo[rock.owner] *= 0.8; rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
+    if (rock.kind === 'mine') { if (rock.owner) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) * 0.8; rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
     if (!rock.owner && rock.kind === 'factory') rock.productionAt = game.hour + 8;
     rock.owner = fleet.owner; rock.shieldAt = game.hour + 48 / (rock.shieldMax ?? 10);
     log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`);

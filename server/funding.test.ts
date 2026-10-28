@@ -40,7 +40,7 @@ test('HTTP funding authorizes sponsors, hides unrelated identities, retries once
   assert.equal((await post(tokens[0]!, { ...command, recipient: 'null' })).response.status, 409);
   assert.equal((await post('0'.repeat(64), command)).response.status, 401);
   const stranger = await service.snapshot(created.id, tokens[2]!);
-  assert.deepEqual(stranger.game.funding, []); assert.equal(stranger.game.standings!.vesper.funders, 1);
+  assert.deepEqual(stranger.game.funding, []); assert.equal(stranger.game.standings!.vesper!.funders, 1);
   assert.equal((await post(tokens[2]!, { ...command, requestId: randomUUID(), revision: stranger.revision, from: 'you' })).response.status, 409);
   const recipient = await service.snapshot(created.id, tokens[1]!);
   assert.deepEqual(recipient.game.funding, [{ from: 'you', to: 'vesper' }]);
@@ -49,7 +49,7 @@ test('HTTP funding authorizes sponsors, hides unrelated identities, retries once
   now = 3_600_000;
   const expired = await service.snapshot(created.id, tokens[0]!);
   assert.deepEqual(expired.game.funding, []);
-  assert.equal(expired.game.standings!.vesper.funders, 0);
+  assert.equal(expired.game.standings!.vesper!.funders, 0);
   assert.equal(expired.game.events.filter(e => e.message.includes('Funding from you to vesper ended')).length, 1);
   assert.deepEqual((await service.funding(created.id, tokens[0]!, command)).game.funding, []);
 });

@@ -6,7 +6,7 @@
 import { newRecruitment } from './specialists';
 import type { Faction, Game, Rock } from './simulation';
 
-export function createGame(epoch = Date.now(), seeds?: Record<Faction, number>): Game {
+export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, number>>): Game {
   const site = (id: string, name: string, x: number, y: number, kind: 'factory' | 'generator', owner: Faction | null = null, core = false): Rock => ({
     id, name, x, y, kind, owner, drones: owner && !core ? 40 : 0,
     shield: 0, shieldMax: kind === 'factory' ? 10 : 20, shieldAt: 48 / ((kind === 'factory' ? 10 : 20) + (core ? 20 : 0)), shieldsDisabled: false,

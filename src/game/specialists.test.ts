@@ -221,5 +221,5 @@ test('a docked specialist can promote using an earned credit while the core is i
   game = advance(game, game.hour + 1 / 6, { rivals: false });
   const promoted = promoteSpecialist(game, 'you', 'docked-foreman');
   assert.equal(promoted.rocks.find(r => r.id === 'c')!.specialists![0]!.kind, 'engineer');
-  assert.throws(() => hireSpecialist(game, 'you', game.recruitment!.you.offers[0]!));
+  assert.throws(() => hireSpecialist(game, 'you', game.recruitment!.you!.offers[0]!));
 });

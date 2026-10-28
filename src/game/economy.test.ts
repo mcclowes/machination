@@ -76,7 +76,7 @@ test('capturing a mine removes a fifth of its former owner reserves and restarts
   game.rocks.find(r => r.id === 'c')!.drones = 100;
   const attack = dispatch(game, 'c', 'f', 100, 'you');
   const hour = attack.fleets[0]!.arrives;
-  const reserves = advance(attack, hour - 0.000001, { rivals: false }).cargo.vesper;
+  const reserves = advance(attack, hour - 0.000001, { rivals: false }).cargo.vesper!;
   const captured = advance(attack, hour, { rivals: false });
   assert.equal(captured.cargo.vesper, reserves * 0.8);
   assert.equal(captured.cargo.you, 0);

@@ -28,12 +28,13 @@ export function mineCost(game: Pick<Game, 'minesDrilled'>, owner: Faction): numb
   return built === 0 ? 50 : built * 100;
 }
 export function drillMine(game: Game, id: string, owner: Faction): Game {
+  if (game.rules?.mode === 'domination') throw new Error('Mines are unavailable in domination operations.');
   if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Mine construction is unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
   if (!rock || rock.owner !== owner || !['factory', 'generator'].includes(rock.kind)) throw new Error('Choose a controlled factory or generator.');
   const cost = mineCost(game, owner);
   if (rock.drones < cost) throw new Error(`This mine needs ${cost} drones on station.`);
-  return { ...game, minesDrilled: { ...game.minesDrilled!, [owner]: game.minesDrilled![owner] + 1 },
+  return { ...game, minesDrilled: { ...game.minesDrilled!, [owner]: (game.minesDrilled![owner] ?? 0) + 1 },
     rocks: game.rocks.map(r => r.id === id ? { ...r, kind: 'mine', drones: r.drones - cost, miningAt: game.hour + miningInterval(game, owner), miningInterval: miningInterval(game, owner) } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: mine drilled for ${cost} drones.` }, ...game.events]),
   };
@@ -59,7 +60,7 @@ export function nextEconomyEvent(game: Game): number {
 }
 export function settleEconomy(game: Game): void {
   for (const rock of game.rocks) if (rock.owner && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
-    if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += 1;
+    if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) + 1;
     rock.miningAt = game.hour + (rock.miningInterval ?? MINING_DAY);
   }
   reconcileFunding(game);

@@ -14,7 +14,7 @@ export function detonate(game: Game, point: Point): void {
   const hit = game.fleets.filter(f => { const p = fleetPosition(game, f); return Math.hypot(p.x - point.x, p.y - point.y) <= radius; });
   const audience = [...new Set([...observers(game, point), ...affected.flatMap(r => r.owner ? [r.owner] : []), ...hit.map(f => f.owner)])];
   for (const rock of affected) {
-    if (rock.kind === 'mine' && rock.owner) game.cargo[rock.owner] *= 0.8;
+    if (rock.kind === 'mine' && rock.owner) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) * 0.8;
     rock.destroyed = true; rock.owner = null; rock.drones = 0; rock.shield = 0; rock.specialists = [];
     delete rock.coreOf; delete rock.module;
   }

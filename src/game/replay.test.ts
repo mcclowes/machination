@@ -60,7 +60,7 @@ test('recruitment preserves seeded offers, unit IDs, promotions, and captive rel
   );
   const s = session(base);
   const ready = advance(base, 4, { rivals: false });
-  const kind = ready.recruitment!.you.offers[0]!;
+  const kind = ready.recruitment!.you!.offers[0]!;
   const hired = s.submit({ type: 'hire', owner: 'you', kind }, 4);
   assert.deepEqual(hired, hireSpecialist(ready, 'you', kind));
   const promoted = s.submit({ type: 'promote', owner: 'you', id: 'foreman' }, 22);
@@ -143,8 +143,8 @@ test('baselines, command arrays, executor inputs, and returned games never alias
   const result = executeCommand(repeated, { type: 'hauler', owner: 'you', change: { action: 'cancel-launch', fleet: 1 } });
   result.rocks[0]!.specialists![0]!.kind = 'martyr';
   assert.equal(JSON.stringify(repeated), original);
-  repeated.recruitment!.you.offers.length = 0;
-  assert.equal(s.replay(0).recruitment!.you.offers.length, 3);
+  repeated.recruitment!.you!.offers.length = 0;
+  assert.equal(s.replay(0).recruitment!.you!.offers.length, 3);
 });
 
 test('bounds reject missing history, future seeks, backdated submissions, and nonfinite hours', () => {

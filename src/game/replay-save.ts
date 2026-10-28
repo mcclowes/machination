@@ -31,7 +31,7 @@ function payload(v: Record<string, unknown>): boolean {
 }
 function command(v: unknown): boolean {
   if (!record(v)) return false;
-  if (v.type === 'inactivity') return shape(v, ['type', 'owners']) && Array.isArray(v.owners) && v.owners.length > 0 && v.owners.length <= 3 && v.owners.every(owner) && new Set(v.owners).size === v.owners.length;
+  if (v.type === 'inactivity') return shape(v, ['type', 'owners']) && Array.isArray(v.owners) && v.owners.length > 0 && v.owners.length <= Object.keys(FACTIONS).length && v.owners.every(owner) && new Set(v.owners).size === v.owners.length;
   if (!owner(v.owner)) return false;
   const keys = ['type', 'owner'];
   switch (v.type) {

@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { playersIn } from '../game/players';
 import { FACTIONS, type Faction, type Game } from '../game/simulation';
 import type { GameView } from '../game/visibility';
 import { FUNDING_LEAD, FUNDING_OUTPUT, FUNDING_POWER, fundingCount } from '../game/funding';
@@ -13,12 +14,12 @@ type Props = { game: Game | GameView; owner: Faction; enabled: boolean; onChange
 export function FundingPanel({ game, owner, enabled, onChange }: Props) {
   if (game.version !== 2) return null;
   const standings = 'standings' in game ? game.standings : undefined;
-  const cargo = (f: Faction) => standings?.[f].cargo ?? game.cargo[f];
+  const cargo = (f: Faction) => standings?.[f]?.cargo ?? game.cargo[f];
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   return <View style={s.panel}><Text style={s.title}>Cargo standings and funding</Text><Text style={s.detail}>A lead of {FUNDING_LEAD} cargo lets you support another intelligence for free. Each sponsor adds {FUNDING_POWER} power and {FUNDING_OUTPUT} drones per factory cycle. Support ends when the lead drops below {FUNDING_LEAD}.</Text>
-    {(Object.keys(FACTIONS) as Faction[]).map(f => {
+    {playersIn(game).map(f => {
       const outgoing = game.funding?.some(edge => edge.from === owner && edge.to === f) ?? false;
-      const sponsors = standings?.[f].funders ?? fundingCount(game, f);
+      const sponsors = standings?.[f]?.funders ?? fundingCount(game, f);
       const eligible = f !== owner && !game.eliminated.includes(f) && cargo(owner) !== undefined && cargo(f) !== undefined && cargo(owner)! - cargo(f)! >= FUNDING_LEAD;
       const incoming = game.funding?.filter(edge => edge.to === f && edge.from === owner || edge.to === owner && edge.from === f) ?? [];
       return <View key={f} style={s.entry}><Text style={[s.name, { color: FACTIONS[f].color }]}>{FACTIONS[f].name}{f === owner ? ' · you' : ''}{game.eliminated.includes(f) ? ' · eliminated' : ''}</Text>

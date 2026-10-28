@@ -3,6 +3,7 @@
  * purpose: Shared geometric sensor policy for authoritative observations and event audiences.
  * ---
  */
+import { playersIn } from './players';
 import { unitCount, unitsAtRock } from './specialists';
 import { fleetPosition } from './flight';
 import type { Faction, Fleet, Game } from './simulation';
@@ -31,5 +32,5 @@ export function canObserveHauler(game: Game, faction: Faction, fleet: Fleet, cov
   return incoming || inRange(coverage, fleetPosition(game, fleet));
 }
 export function observers(game: Game, point: { x: number; y: number }): Faction[] {
-  return (['you', 'vesper', 'null'] as const).filter(f => inRange(sensors(game, f), point));
+  return (playersIn(game)).filter(f => inRange(sensors(game, f), point));
 }

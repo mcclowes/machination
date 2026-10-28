@@ -3,6 +3,8 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validateRules, OUTPOSTS_PER_PLAYER } from './rules';
+import { playersIn } from './players';
 import type { ReplayData } from './replay';
 import { upgradeSpecialists } from './specialists';
 import { FUNDING_LEAD } from './funding';
@@ -15,8 +17,6 @@ import { createLegacyGame } from './legacy';
 import { maximumShield } from './economy';
 import { type Game, type Faction, type Rock, createGame } from './simulation';
 export type Save = { savedAt: number; game: Game; replay?: ReplayData };
-const factions: unknown[] = ['you', 'vesper', 'null'];
-const isFaction = (v: unknown): v is Faction => factions.includes(v);
 const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const nonnegative = (v: unknown): v is number => finite(v) && v >= 0;
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -26,14 +26,19 @@ export function decodeSave(raw: string): Save {
   try { save = JSON.parse(raw); } catch { return fail(); }
   if (!record(save) || !nonnegative(save.savedAt) || !record(save.game)) return fail();
   const g = save.game;
+  let rules;
+  try { rules = g.rules === undefined ? undefined : validateRules(g.rules); } catch { return fail(); }
+  if (rules && (g.version !== 2 || g.specialistVersion !== 1)) return fail();
+  const factions = playersIn({ rules });
+  const isFaction = (v: unknown): v is Faction => factions.includes(v as Faction);
   const base = g.version === 2 ? createGame(0) : createLegacyGame(0);
   if (![1, 2].includes(g.version as number) || !nonnegative(g.hour) || !nonnegative(g.epoch) || !Number.isInteger(g.nextId) || (g.nextId as number) < 1
-    || !record(g.cargo) || !factions.every(f => nonnegative((g.cargo as Record<string, unknown>)[f as string]))
+    || !record(g.cargo) || Object.keys(g.cargo).some(key => !isFaction(key)) || !factions.every(f => nonnegative((g.cargo as Record<string, unknown>)[f as string]))
     || !Array.isArray(g.eliminated) || !g.eliminated.every(isFaction) || new Set(g.eliminated).size !== g.eliminated.length
     || !(g.winner === null || isFaction(g.winner))
     || !(g.specialistVersion === undefined || g.version === 2 && g.specialistVersion === 1)
     || !(g.draw === undefined || g.version === 2 && g.draw === true && g.winner === null && Array.isArray(g.eliminated) && g.eliminated.length === factions.length)
-    || !Array.isArray(g.rocks) || g.rocks.length !== base.rocks.length
+    || !Array.isArray(g.rocks) || g.rocks.length !== (rules ? rules.players.length * OUTPOSTS_PER_PLAYER : base.rocks.length)
     || !Array.isArray(g.fleets) || !Array.isArray(g.events) || g.events.length > MAX_STORED_EVENTS) return fail();
   if (g.specialistVersion === 1 && (!record(g.recruitment) || !g.rocks.every(r => record(r) && Array.isArray(r.specialists)) || !g.fleets.every(f => record(f) && Array.isArray(f.specialists)))) return fail();
   const unitIds = new Set<string>();
@@ -48,7 +53,7 @@ export function decodeSave(raw: string): Save {
     return true;
   };
   if (g.recruitment !== undefined) {
-    if (g.version !== 2 || !record(g.recruitment)) return fail();
+    if (g.version !== 2 || !record(g.recruitment) || Object.keys(g.recruitment).some(key => !isFaction(key))) return fail();
     for (const f of factions) {
       const state = g.recruitment[f as string];
       if (!record(state) || !Number.isSafeInteger(state.used) || (state.used as number) < 0 || !Number.isSafeInteger(state.seed) || (state.seed as number) < 0 || (state.seed as number) >= 2 ** 32
@@ -56,6 +61,7 @@ export function decodeSave(raw: string): Save {
         || !Array.isArray(state.offers) || state.offers.length !== 3 || !state.offers.every((k, i) => isSpecialistKind(k) && SPECIALISTS[k].category === HIRE_CATEGORIES[i] && ((state.pool as Record<string, number>)[k] ?? 0) > 0)) return fail();
     }
   }
+  if (rules?.mode === 'domination' && Array.isArray(g.funding) && g.funding.length) return fail();
   if (g.funding !== undefined) {
     const eliminated = g.eliminated;
     if (g.version !== 2 || !Array.isArray(g.funding) || g.funding.length > factions.length * (factions.length - 1)
@@ -64,10 +70,11 @@ export function decodeSave(raw: string): Save {
   }
   const ids = new Set<string>();
   for (const r of g.rocks) {
-    if (!record(r) || typeof r.id !== 'string' || ids.has(r.id) || !base.rocks.some(b => b.id === r.id)
-      || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || !nonnegative(r.drones)
+    if (!record(r) || typeof r.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(r.id) || ids.has(r.id) || !rules && !base.rocks.some(b => b.id === r.id)
+      || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || rules && (r.x < 0 || r.y < 0 || r.x > rules.map.width || r.y > rules.map.height) || !nonnegative(r.drones)
       || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
+    if (rules?.mode === 'domination' && r.kind === 'mine') return fail();
     if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)
       || (r.shield as number) > maximumShield(r as Rock) || typeof r.shieldsDisabled !== 'boolean' || !nonnegative(r.shieldAt)
       || r.owner && (r.shield as number) < maximumShield(r as Rock) && (r.shieldAt as number) <= (g.hour as number)
