@@ -56,3 +56,45 @@ test('history preserves 401 rejection status and supports caller cancellation', 
   controller.abort();
   await assert.rejects(pending, /Canceled/);
 });
+
+test('configured seats accept catalog members and reject seats outside the operation roster', async t => {
+  const { historicalApi } = await import('./network');
+  const session = { url: 'https://belt.example', token: 'secret', id: 'generic-operation-id' };
+  const frame = { id: session.id, faction: 'zenith', visibility: 'sensors.v1', messages: [], history: { from: 0, through: 12, at: 10 }, game: { scheduled: [], rules: { players: ['you', 'zenith'] } } };
+  let response: unknown = frame;
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(response)));
+  assert.deepEqual(await api(session, 'games/generic-operation-id'), frame);
+  assert.deepEqual(await historicalApi(session, 10), frame);
+  for (const faction of ['vesper', 'inactive', 'unknown']) {
+    response = { ...frame, faction };
+    await assert.rejects(api(session, 'games/generic-operation-id'), /Unsupported server response/);
+    await assert.rejects(historicalApi(session, 10), /Unsupported historical/);
+  }
+  response = { ...frame, id: 'other-operation' };
+  await assert.rejects(historicalApi(session, 10), /Unsupported historical/);
+  for (const faction of ['you', 'vesper', 'null']) {
+    response = { ...frame, faction, game: { scheduled: [] } };
+    await api(session, 'games/generic-operation-id');
+    await historicalApi(session, 10);
+  }
+  response = { ...frame, game: { scheduled: [] } };
+  await assert.rejects(api(session, 'games/generic-operation-id'), /Unsupported server response/);
+});
+
+test('creation sends validated explicit options and preserves the legacy omitted-options request', async t => {
+  const { creationPayload } = await import('./network');
+  assert.deepEqual(creationPayload(), {});
+  const options = { playerCount: 10, mode: 'domination' as const };
+  const payload = creationPayload(options);
+  options.playerCount = 2;
+  assert.deepEqual(payload, { options: { playerCount: 10, mode: 'domination' } });
+  for (const value of [{ playerCount: 1, mode: 'mining' }, { playerCount: 11, mode: 'mining' }, { playerCount: 2.5, mode: 'mining' }, { playerCount: 3, mode: 'other' }, null]) {
+    assert.throws(() => creationPayload(value as any), /Choose 2–10 players/);
+  }
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    assert.equal(init.method, 'POST');
+    assert.deepEqual(JSON.parse(init.body as string), { options: { playerCount: 10, mode: 'domination' } });
+    return new Response(JSON.stringify({ id: 'new-operation', visibility: 'sensors.v1', faction: 'you', messages: [], game: { scheduled: [] } }));
+  });
+  await api({ url: 'https://belt.example', token: 'secret' }, 'games', payload);
+});

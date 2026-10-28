@@ -3,6 +3,9 @@
  * purpose: Invite lobby, server-authoritative orders, reconnect, and private bilateral diplomacy on mobile and web.
  * ---
  */
+import { GameSetup } from '../components/GameSetup';
+import { DEFAULT_GAME_OPTIONS, victoryProgress, victoryTarget, type GameOptions } from '../game/rules';
+import { playersIn } from '../game/players';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
@@ -20,7 +23,7 @@ import { BeltMap } from '../components/BeltMap';
 import { HaulerOrders } from '../components/HaulerOrders';
 import { SiteControls, siteDescription } from '../components/SiteControls';
 import { LAUNCH_PREPARATION } from '../game/transport';
-import { cargoTarget, mineCost } from '../game/economy';
+import { mineCost } from '../game/economy';
 import { useDiplomacyPanel } from './DiplomacyPanel';
 import { FundingPanel } from '../components/FundingPanel';
 import { OperationShell, type OperationSection } from '../components/OperationShell';
@@ -43,6 +46,7 @@ export function OnlineOperation() {
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [url, setUrl] = useState(process.env.EXPO_PUBLIC_GAME_SERVER ?? 'http://localhost:8787');
   const [invite, setInvite] = useState('');
+  const [options, setOptions] = useState<GameOptions>({ ...DEFAULT_GAME_OPTIONS });
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState('a');
@@ -102,7 +106,7 @@ export function OnlineOperation() {
   }, [session]);
   async function enter(join: boolean) {
     await run(async () => {
-      const created = await newSession(url, join ? invite : undefined);
+      const created = await newSession(url, join ? invite : undefined, join ? undefined : options);
       await storeSession(created); setSnapshot(undefined); setInspectedHour(null); setSession(created);
       const result = await connect(created); setSession(result.session); accept(result.snapshot);
       setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
@@ -183,7 +187,11 @@ export function OnlineOperation() {
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = snapshot ? Math.max(snapshot.game.hour, inspectedHour ?? snapshot.game.hour) + delay : 0;
   const diplomacy = useDiplomacyPanel({ snapshot, disabled: busy || !!session?.pending, acknowledged, scroll, onSubmit: submit });
-  const connection = <>{session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>
+  const rulesGame = snapshot?.game;
+  const roster = rulesGame ? playersIn(rulesGame) : [];
+  const joined = snapshot ? roster.filter(f => snapshot.members.includes(f)).length : 0;
+  const rulesSummary = rulesGame && <Text style={s.detail}>{rulesGame.rules?.mode === 'domination' ? 'Domination' : 'Mining'} · {roster.length} players · {victoryTarget(rulesGame)} {rulesGame.rules?.mode === 'domination' ? 'outposts to control' : 'cargo quota'}</Text>;
+  const connection = <>{session ? <View key="connected-seat" style={s.panel}><Text style={s.label}>Connection retained on this device</Text><Text style={s.detail}>{session.url}</Text>{rulesSummary}{!snapshot && session.options && <Text style={s.detail}>Saved creation: {session.options.playerCount} players · {session.options.mode}. Reconnect repeats these options.</Text>}
       {session.pending && <><Text style={s.error}>Request awaiting confirmation. Retry repeats the saved request.</Text><Action text="Retry command" disabled={busy} onPress={() => void run(() => retry())} /></>}
       {recoveryPending && <Text style={s.error}>Confirm this recovery request before removing the connection. The saved request may be needed to keep access to your seat.</Text>}
       <Action text="Reconnect / refresh" disabled={busy || session.pending?.kind === 'recover'} onPress={() => void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); })} />
@@ -191,7 +199,7 @@ export function OnlineOperation() {
       {!!recoveryCode && <><Text style={s.detail}>Save this code with the server address in a private place, such as a password manager. It controls your seat. This app only shows it until you leave this screen.</Text><Text selectable style={s.code}>{recoveryCode}</Text><Action text="Hide recovery code" onPress={() => setRecoveryCode('')} /></>}
       {disconnect ? <><Text style={s.error}>Disconnecting removes this device's seat credential. You can return only with a recovery code saved earlier. The server operation continues.</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy || recoveryPending} onPress={() => void run(async () => { await storeSession(null); setSession(null); setSnapshot(undefined); setDisconnect(false); setRecoveryCode(''); })} /></> : <Action text="Disconnect…" disabled={busy || recoveryPending} onPress={() => setDisconnect(true)} />}
     </View> : <View key="connection-entry" style={s.panel}><Text style={s.label}>Game server</Text><TextInput key="server-url" secureTextEntry={false} accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
-      <Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
+      <Text style={s.label}>New operation</Text><GameSetup value={options} onChange={setOptions} disabled={busy} /><Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
   const setup = <><View style={s.panel}><Text style={s.title}>Operation participation</Text>
     {snapshot?.game.eliminated.includes(snapshot.faction) && <Text style={s.detail}>You are eliminated. Sensors and chat remain available.</Text>}
@@ -208,7 +216,7 @@ export function OnlineOperation() {
   }
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
   return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
-    status={<><View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}</>}
+    status={<><View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
     chart={<BeltMap fill viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { submit({ kind: 'haulers', body: { requestId: commandId(), revision: snapshot.revision, action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
     hint={(planning || navigating !== undefined) ? <><Text style={s.detail}>{navigating !== undefined ? 'Choose a new course destination.' : `From ${rock?.name}: choose a destination.`}</Text><Action text="Cancel selection" onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
     timeline={timeline}
@@ -231,14 +239,14 @@ export function OnlineOperation() {
       units: { title: `Modules · ${rock?.name ?? ''}`, content: <><Action text="Go to core site" onPress={() => { const home = game.rocks.find(r => r.known && r.coreOf === snapshot.faction && r.owner === snapshot.faction); if (home) { setSelected(home.id); setSelectedUnits([]); setDestination(undefined); setPlanning(false); } }} />{rock ? <>{game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay game={game} rock={rock} owner={snapshot.faction} enabled={!!immediate} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'hire', kind } })} onPromote={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'promote', unit } })} onRelease={unit => submit({ kind: 'specialists', body: { requestId: commandId(), revision: snapshot.revision, action: 'release', unit } })} />}</> : null}</> },
       signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}
       <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {event.message}</Text>)}</View></> },
-      intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')} · {snapshot.members.length}/3 seats · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>
-        <Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
+      intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: FACTIONS[snapshot.faction].color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')} · {joined}/{roster.length} players joined · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>
+        {rulesSummary}<Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
         {snapshot.members.map(f => <Text key={f} style={{ color: FACTIONS[f].color, fontSize: 13 }}>{FACTIONS[f].name}{f === snapshot.faction ? ' / you' : ''}{game.eliminated.includes(f) ? ' / eliminated' : ''}</Text>)}
-        {snapshot.status === 'game.lobby' && snapshot.host && <Action text="Start operation" disabled={past || busy || snapshot.members.length < 3} onPress={() => { if (!past) void run(async () => accept(await api(session!, `games/${snapshot.id}/start`, {}))); }} />}
-        {snapshot.status === 'game.lobby' && <Text style={s.detail}>Share the invitation with two players. Time begins when the host starts.</Text>}
+        {snapshot.status === 'game.lobby' && snapshot.host && <Action text="Start operation" disabled={past || busy || joined < roster.length || !!session?.pending} onPress={() => { if (!past) void run(async () => accept(await api(session!, `games/${snapshot.id}/start`, {}))); }} />}
+        {snapshot.status === 'game.lobby' && <Text style={s.detail}>{Math.max(0, roster.length - joined)} players remaining. Share the invitation to fill the configured seats. Time begins when the host starts.</Text>}
         {game.draw && <Text style={s.code}>All players eliminated. The operation ended in a draw.</Text>}
-        {game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: contract complete.</Text>}
-        <Text style={s.detail}>Cargo: {Math.floor(game.cargo[snapshot.faction] ?? 0)} / {cargoTarget(game)}</Text><FundingPanel game={game} owner={snapshot.faction} enabled={!!immediate} onChange={(recipient, enabled) => submit({ kind: 'funding', body: { requestId: commandId(), revision: snapshot.revision, recipient, enabled } })} />
+        {game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}
+        <Text style={s.detail}>{game.rules?.mode === 'domination' ? 'Your territory' : 'Cargo'}: {Math.floor(victoryProgress(game, snapshot.faction))} / {victoryTarget(game)}</Text>{game.rules?.mode === 'domination' && <Text style={s.detail}>Other players’ territory totals are outside your sensor intelligence.</Text>}<FundingPanel game={game} owner={snapshot.faction} enabled={!!immediate} onChange={(recipient, enabled) => submit({ kind: 'funding', body: { requestId: commandId(), revision: snapshot.revision, recipient, enabled } })} />
       </View> },
       settings: { title: 'Setup', content: setup },
     }} />;

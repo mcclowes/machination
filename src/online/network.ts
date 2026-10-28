@@ -1,3 +1,5 @@
+import { validateOptions, type GameOptions } from '../game/rules';
+import { isFaction, playersIn } from '../game/players';
 import type { HistorySnapshot, Snapshot } from './protocol';
 
 export class RejectedCommand extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -22,13 +24,21 @@ async function request(session: { url: string; token: string }, path: string, pa
 }
 export async function api(session: { url: string; token: string }, path: string, payload?: unknown): Promise<Snapshot> {
   const data = await request(session, path, payload);
-  if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || !data.game || !Array.isArray(data.game.scheduled) || !Array.isArray(data.messages) || !['you', 'vesper', 'null'].includes(data.faction)) throw new Error('Unsupported server response.');
+  if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || !data.game || !Array.isArray(data.game.scheduled) || !Array.isArray(data.messages) || !validSeat(data)) throw new Error('Unsupported server response.');
   return data as Snapshot;
 }
 export async function historicalApi(session: { url: string; token: string; id: string }, hour: number, signal?: AbortSignal): Promise<HistorySnapshot> {
   if (!Number.isFinite(hour)) throw new Error('Choose a finite historical hour.');
   const data = await request(session, `games/${session.id}/history?hour=${encodeURIComponent(hour)}`, undefined, signal);
   const bounds = data?.history;
-  if (!data || data.visibility !== 'sensors.v1' || data.id !== session.id || !['you', 'vesper', 'null'].includes(data.faction) || !data.game || !Array.isArray(data.game.scheduled) || !bounds || ![bounds.from, bounds.through, bounds.at].every(Number.isFinite) || bounds.from > bounds.at || bounds.at > bounds.through || bounds.at !== hour) throw new Error('Unsupported historical server response.');
+  if (!data || data.visibility !== 'sensors.v1' || data.id !== session.id || !validSeat(data) || !data.game || !Array.isArray(data.game.scheduled) || !bounds || ![bounds.from, bounds.through, bounds.at].every(Number.isFinite) || bounds.from > bounds.at || bounds.at > bounds.through || bounds.at !== hour) throw new Error('Unsupported historical server response.');
   return data as HistorySnapshot;
+}
+
+function validSeat(data: any): boolean {
+  return isFaction(data.faction) && !!data.game && (!data.game.rules || Array.isArray(data.game.rules.players)) && playersIn(data.game).includes(data.faction);
+}
+
+export function creationPayload(options?: GameOptions): { options?: GameOptions } {
+  return options === undefined ? {} : { options: validateOptions(options) };
 }
