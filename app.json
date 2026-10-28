@@ -38,7 +38,15 @@
       ],
       "./plugins/withMinimumIosTarget.cjs",
       "./plugins/withIosScenes.cjs",
-      "./plugins/withIosTextInputIdentity.cjs"
+      "./plugins/withIosTextInputIdentity.cjs",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
     ]
   }
 }

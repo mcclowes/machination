@@ -51,13 +51,15 @@ import { generateSharedReplay } from './src/replay/generate';
 import { StartScreen } from './src/components/StartScreen';
 import type { LocalOperation } from './src/game/operation-save';
 import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
+import { playSound, useSoundCues } from './src/audio/sound';
+import { SoundToggle } from './src/components/SoundToggle';
 
 function operationFor(game: Game): LocalOperation { return { game, archive: createArchive(game, { rivals: true }) }; }
 function newOperation(options: GameOptions = DEFAULT_GAME_OPTIONS): LocalOperation { return operationFor(createConfiguredGame(options, Date.now(), Math.floor(Math.random() * 2 ** 32))); }
 const ink = '#e5eadc';
 const green = '#b8e986';
 function Button({ label, onPress, disabled, quiet = false }: { label: string; onPress: () => void; disabled?: boolean; quiet?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={({ pressed }) => [s.button, quiet && s.quiet, disabled && { opacity: 0.3 }, pressed && { opacity: 0.65 }]}>
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={() => { playSound('tap'); onPress(); }} style={({ pressed }) => [s.button, quiet && s.quiet, disabled && { opacity: 0.3 }, pressed && { opacity: 0.65 }]}>
     <Text style={[s.buttonText, quiet && { color: green }]}>{label}</Text>
   </Pressable>;
 }
@@ -65,7 +67,7 @@ function Label({ children }: { children: React.ReactNode }) { return <Text style
 export default function App() {
   const [mode, setMode] = useState<'solo' | 'online' | 'practice' | 'replays' | null>(null);
   if (mode === 'replays') return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><ReplayLibraryScreen onExit={() => setMode(null)} /></SafeAreaView></SafeAreaProvider>;
-  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>{(['solo', 'online', 'practice'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo' : m === 'online' ? 'Multiplayer' : 'Practice'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation onOpenReplays={() => setMode('replays')} /> : mode === 'online' ? <OnlineOperation onOpenReplays={() => setMode('replays')} /> : mode === 'practice' ? <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice> : <StartScreen><Button label="Start tactical practice" onPress={() => setMode('practice')} /><Button label="Open solo operation" quiet onPress={() => setMode('solo')} /><Button label="Open multiplayer uplink" quiet onPress={() => setMode('online')} /><Button label="Open shared replay" quiet onPress={() => setMode('replays')} /></StartScreen>}</SafeAreaView></SafeAreaProvider>;
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>{(['solo', 'online', 'practice'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo' : m === 'online' ? 'Multiplayer' : 'Practice'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<SoundToggle /><FieldManual /></View>{mode === 'solo' ? <Operation onOpenReplays={() => setMode('replays')} /> : mode === 'online' ? <OnlineOperation onOpenReplays={() => setMode('replays')} /> : mode === 'practice' ? <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice> : <StartScreen><Button label="Start tactical practice" onPress={() => setMode('practice')} /><Button label="Open solo operation" quiet onPress={() => setMode('solo')} /><Button label="Open multiplayer uplink" quiet onPress={() => setMode('online')} /><Button label="Open shared replay" quiet onPress={() => setMode('replays')} /></StartScreen>}</SafeAreaView></SafeAreaProvider>;
 }
 function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; onOpenReplays?: () => void } = {}) {
   const policy = useMemo(() => localLifecycle({ initial: () => operationFor(createGame()), create: newOperation, load: loadGame, save: saveGame }, practice?.scenario.id), [practice?.scenario.id]);
@@ -113,6 +115,8 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
     return () => { clearInterval(timer); subscription.remove(); };
   }, [ready, loadFailed]);
   const live = useMemo(() => observe(game, 'you'), [game]);
+  useSoundCues(ready ? live : undefined, 'you');
+  useEffect(() => { if (error) playSound('error'); }, [error]);
   const past = useMemo(() => inspectedHour !== null && inspectedHour < current.current.game.hour ? observe(replayTo(archive, inspectedHour, { rivals: policy.rivals, knownThrough: current.current.game.hour }), 'you') : null, [archive, inspectedHour, historical]);
   const shown = past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live);
   const orders = past ?? live;

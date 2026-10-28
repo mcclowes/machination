@@ -50,8 +50,9 @@ import { encodeObjectReference } from './object-references';
 import { CopyObjectReference } from '../components/CopyObjectReference';
 import { ReplayExport } from '../components/ReplayExport';
 import { exportSharedReplay } from './shared-replay';
+import { playSound, useSoundCues } from '../audio/sound';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={() => { playSound('tap'); onPress(); }} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
 }
 export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void } = {}) {
   const [section, setSection] = useState<OperationSection | null>(null);
@@ -86,6 +87,8 @@ export function OnlineOperation({ onOpenReplays }: { onOpenReplays?: () => void 
   useEffect(() => { setPlanning(false); setNavigating(undefined); setDestination(undefined); setCarry(false); setSelectedUnits([]); setDelay(0); }, [mode, session?.url, session?.id, session?.token]);
   useEffect(() => { if (snapshot) setMapCamera(fitPlayerCamera(snapshot.game, snapshot.faction)); }, [session?.url, session?.id, snapshot?.faction, snapshot?.game.epoch]);
   const forecast = inspectionOffset(snapshot?.game.hour ?? 0, inspectedHour);
+  useSoundCues(snapshot?.game, snapshot?.faction);
+  useEffect(() => { if (error) playSound('error'); }, [error]);
   const [acknowledged, setAcknowledged] = useState<string>();
   const [disconnect, setDisconnect] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');
