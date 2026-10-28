@@ -13,7 +13,7 @@ import { advance, createGame, type Faction, type Game } from '../src/game/simula
 import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
-import { mapActionUnits, plannedUnitIds, validateFutureAction } from '../src/game/future-actions';
+import { mapActionFleets, mapActionUnits, plannedFleetIds, plannedUnitIds, validateFutureAction } from '../src/game/future-actions';
 import { observe } from '../src/game/visibility';
 import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayData } from '../src/game/replay';
 import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
@@ -53,7 +53,21 @@ function canonicalSchedule(input: unknown): ScheduleOrder {
     || typeof value.executeAt !== 'number' || !Number.isFinite(value.executeAt)) throw invalid();
   const base = { requestId: value.requestId, revision: value.revision as number, executeAt: value.executeAt };
   if (action) {
-    try { return { ...base, action: validateFutureAction(value.action) }; }
+    try {
+      const action = validateFutureAction(value.action);
+      const manifest = 'specialists' in action && action.specialists !== undefined ? { specialists: [...action.specialists] } : {};
+      if (action.type === 'gift') return { ...base, action: { type: 'gift', from: action.from, to: action.to, drones: action.drones, recipient: action.recipient,
+        ...(action.carryModule !== undefined ? { carryModule: action.carryModule } : {}), ...manifest } };
+      if (action.type === 'intercept') return { ...base, action: { type: 'intercept', from: action.from, target: action.target, drones: action.drones, ...manifest } };
+      if (action.type === 'hauler') {
+        const c = action.change;
+        const change: HaulerChange = c.action === 'edit-launch' ? { action: c.action, fleet: c.fleet, drones: c.drones,
+          ...(c.specialists !== undefined ? { specialists: [...c.specialists] } : {}) }
+          : c.action === 'course' ? { action: c.action, fleet: c.fleet, to: c.to } : { action: c.action, fleet: c.fleet };
+        return { ...base, action: { type: 'hauler', change } };
+      }
+      return { ...base, action };
+    }
     catch { throw invalid(); }
   }
   if (typeof value.from !== 'string' || typeof value.to !== 'string' || !Number.isSafeInteger(value.drones)
@@ -315,6 +329,15 @@ export class GameService {
     requireThat(canonical, 409, 'schedule.conflict.unit', 'Choose a currently observed module or one of your planned recruits.');
     return canonical;
   }
+  private futureFleet(room: Room, owner: Faction, alias: number, enemy: boolean): number {
+    const available = enemy
+      ? observe(room.game, owner).fleets.filter(fleet => fleet.owner !== owner).map(fleet => fleet.id)
+      : [...room.game.fleets.filter(fleet => fleet.owner === owner).map(fleet => fleet.id), ...plannedFleetIds(room.game, owner)];
+    const canonical = available.find(id => this.identify(room, owner, 'hauler', id) === alias);
+    requireThat(canonical !== undefined, 409, 'schedule.conflict.fleet', enemy
+      ? 'Choose a currently observed enemy hauler.' : 'Choose one of your haulers or queued launches.');
+    return canonical;
+  }
   specialist(id: string, token: string, command: SpecialistOrder): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
@@ -444,7 +467,9 @@ export class GameService {
       try {
         if ('action' in command) this.act(r, { type: 'schedule-action', owner: f, plan: {
           id: command.requestId, executeAt: command.executeAt,
-          action: mapActionUnits(command.action, unit => this.futureUnit(r, f, unit)),
+          action: mapActionFleets(mapActionUnits(command.action, unit => this.futureUnit(r, f, unit,
+            command.action.type !== 'promote' && command.action.type !== 'release')),
+            fleet => this.futureFleet(r, f, fleet, command.action.type === 'intercept')),
         } });
         else this.act(r, { type: 'schedule', owner: f, plan: { id: command.requestId, from: command.from, to: command.to, drones: command.drones, executeAt: command.executeAt, carryModule: command.carryModule,
           specialists: command.specialists?.map(unit => this.futureUnit(r, f, unit, true)) ?? [] } });
