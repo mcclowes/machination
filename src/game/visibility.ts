@@ -3,14 +3,14 @@
  * purpose: Redact authoritative state to a player's sensor observations and forecast only those observations.
  * ---
  */
-import type { Recruitment } from './specialists';
+import { unitCount, type Recruitment } from './specialists';
 import { HIRE_KINDS } from './specialist-catalog';
 import type { ScheduledTransfer } from './orders';
 import { EVENTS_PER_OBSERVER } from './events';
 import { advance, type Faction, type Fleet, type Game, type Rock } from './simulation';
 import { fleetPosition } from './flight';
 import { inRange, sensors, type Sensor } from './sensors';
-export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'kind'> & { known: false; destroyed?: never; owner?: never; drones?: never; module?: never; specialists?: never; coreOf?: never });
+export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: never; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>;
   version?: 1 | 2; minesDrilled?: Partial<Record<Faction, number>>;
@@ -20,7 +20,11 @@ export type GameView = {
 };
 export function observe(game: Game, faction: Faction, identify: (id: number) => number = id => id, identifyUnit: (id: string) => string = id => id): GameView {
   const coverage = sensors(game, faction);
-  const contacts = game.fleets.filter(f => f.owner === faction || !f.preparing && inRange(coverage, fleetPosition(game, f))).sort((a, b) => a.id - b.id);
+  const incoming = (fleet: Fleet) => game.version === 2 && (fleet.intercept
+    ? game.fleets.some(target => target.id === fleet.intercept!.target && target.owner === faction)
+    : game.rocks.some(rock => rock.id === fleet.to && rock.owner === faction));
+  const contacts = game.fleets.filter(f => f.owner === faction || !f.preparing && (incoming(f) || inRange(coverage, fleetPosition(game, f)))).sort((a, b) => a.id - b.id);
+  const remoteTypes = game.version !== 2 || unitCount(game, faction, 'intelligence') > 0;
   const visibleIds = new Set(contacts.map(f => f.id));
   const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; return visible; };
   const units = (asset: { specialists?: Game['rocks'][number]['specialists'] }) => asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u, id: identifyUnit(u.id) })) } : {};
@@ -29,7 +33,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
     hour: game.hour, epoch: game.epoch,
     rocks: game.rocks.map(r => r.owner === faction || inRange(coverage, r)
-      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind, known: false }),
+      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: remoteTypes || r.kind === 'mine' ? r.kind : 'unknown', known: false }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: { [faction]: game.cargo[faction] }, eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
     events: game.events.filter(e => e.audience?.includes(faction)).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message })),
@@ -48,7 +52,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
     version: view.version ?? 1, ...(view.version === 2 ? { specialistVersion: 1 as const } : {}), hour: view.hour, epoch: view.epoch,
     ...(view.recruitment ? { recruitment: Object.fromEntries((['you', 'vesper', 'null'] as Faction[]).map(f => [f, { used: view.recruitment?.[f]?.used ?? 0, offers: view.recruitment?.[f]?.offers ?? [], seed: 0, pool: Object.fromEntries(HIRE_KINDS.map(k => [k, 3])) }])) as Record<Faction, Recruitment> } : {}),
     ...(view.version === 2 ? { minesDrilled: { you: 0, vesper: 0, null: 0, ...view.minesDrilled } } : {}),
-    rocks: view.rocks.map(r => r.known ? { ...r } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind, owner: null, drones: 0 }),
+    rocks: view.rocks.map(r => r.known ? { ...r } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind === 'unknown' ? 'factory' : r.kind, owner: null, drones: 0 }),
     fleets: orderedFleets.map(f => ({ ...f })),
     scheduled: view.scheduled.map(p => ({ ...p })),
     cargo: { you: 0, vesper: 0, null: 0, [faction]: view.cargo[faction] ?? 0 },

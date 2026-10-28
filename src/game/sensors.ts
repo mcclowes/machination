@@ -16,7 +16,7 @@ export function rockSensorRange(game: Game, rock: Game['rocks'][number]): number
 export function sensors(game: Game, faction: Faction): Sensor[] {
   return [
     ...game.rocks.filter(r => r.owner === faction).map(r => ({ x: r.x, y: r.y, radius: rockSensorRange(game, r) })),
-    ...game.fleets.filter(f => f.owner === faction).map(f => ({ ...fleetPosition(game, f), radius: HAULER_SENSOR_RANGE })),
+    ...(game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).map(f => ({ ...fleetPosition(game, f), radius: HAULER_SENSOR_RANGE }))),
   ];
 }
 export function inRange(coverage: Sensor[], point: { x: number; y: number }): boolean {

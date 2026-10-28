@@ -130,3 +130,92 @@ test('interception target references are scoped and a lost contact creates forec
   assert.equal(uncertain.interceptionUncertain, true);
   assert.equal(uncertain.fleets.length, 0, 'no invented return from an unobserved encounter');
 });
+
+import { createGame as createParityGame, type Fleet } from './simulation';
+import { rockSensorRange, sensors, observers } from './sensors';
+
+function sensorWorld() {
+  const game = createParityGame(0);
+  game.rocks = game.rocks.map((r, i) => ({ ...r, x: i * 100, y: 0, owner: i === 0 ? 'you' : 'vesper', kind: 'factory', specialists: [] }));
+  game.fleets = [];
+  return game;
+}
+function remoteShip(id: number, extra: Partial<Fleet> = {}): Fleet {
+  return { id, owner: 'vesper', from: 'e', to: 'b', drones: 7, departed: 0, arrives: 20, route: { from: { x: 200, y: 0 }, to: { x: 300, y: 0 } }, ...extra };
+}
+
+test('v2 sonar comes only from owned outposts, with inclusive coverage and no mobile event audience', () => {
+  const game = sensorWorld();
+  game.fleets = [remoteShip(1, { owner: 'you' })];
+  game.rocks[1]!.x = 200;
+  assert.equal(sensors(game, 'you').length, 1);
+  assert.equal(observe(game, 'you').rocks[1]!.known, false);
+  assert.ok(!observers(game, { x: 200, y: 0 }).includes('you'));
+  game.rocks[1]!.x = 32;
+  assert.equal(observe(game, 'you').rocks[1]!.known, true);
+  game.rocks[1]!.x += 0.001;
+  assert.equal(observe(game, 'you').rocks[1]!.kind, 'unknown');
+});
+
+test('v2 own and incoming ships remain visible remotely without exposing foreign preparation or stale intercept destinations', () => {
+  const game = sensorWorld();
+  game.fleets = [remoteShip(1, { owner: 'you' }), remoteShip(2, { to: 'a', giftAt: 0 }), remoteShip(3, { intercept: { home: 'e', target: 1 } }), remoteShip(4, { to: 'a', preparing: true }), remoteShip(5, { to: 'a', intercept: { home: 'e', target: 99 } }), remoteShip(6), remoteShip(7, { owner: 'you', preparing: true })];
+  const view = observe(game, 'you', id => id + 100);
+  assert.deepEqual(view.fleets.map(f => f.id), [101, 102, 103, 107]);
+  assert.equal(view.fleets[2]!.intercept!.target, 101);
+  game.rocks[0]!.owner = 'null';
+  game.fleets[0]!.owner = 'null';
+  assert.deepEqual(observe(game, 'you').fleets.map(f => f.id), [7]);
+});
+
+test('v2 remote types reveal only public mines or active Intelligence Officer knowledge', () => {
+  const game = sensorWorld();
+  game.rocks[2]!.kind = 'mine';
+  let view = observe(game, 'you');
+  assert.equal(view.rocks[1]!.kind, 'unknown');
+  assert.equal(view.rocks[2]!.kind, 'mine');
+  game.fleets = [remoteShip(1, { owner: 'you', specialists: [{ id: 'intel', kind: 'intelligence', owner: 'you' }] })];
+  view = observe(game, 'you');
+  assert.equal(view.rocks[1]!.kind, 'factory');
+  assert.equal(view.rocks[1]!.known, false);
+  assert.ok(!('owner' in view.rocks[1]!));
+  game.fleets[0]!.specialists![0]!.captive = true;
+  assert.equal(observe(game, 'you').rocks[1]!.kind, 'unknown');
+});
+
+test('v2 Princess local and Intelligence Officer global ranges include preparing units but exclude captives', () => {
+  const game = sensorWorld();
+  game.rocks[0]!.specialists = [{ id: 'p', owner: 'you', kind: 'princess' }];
+  game.fleets = [remoteShip(1, { owner: 'you', from: 'a', preparing: true, specialists: [{ id: 'i', owner: 'you', kind: 'intelligence' }] })];
+  assert.equal(rockSensorRange(game, game.rocks[0]!), 56);
+  game.rocks[1]!.x = 56;
+  assert.equal(observe(game, 'you').rocks[1]!.known, true);
+  game.rocks[0]!.specialists[0]!.captive = true;
+  assert.equal(rockSensorRange(game, game.rocks[0]!), 40);
+});
+
+test('v2 observations and forecasts are detached and preserve unknown remote types and outcomes', () => {
+  const game = sensorWorld();
+  game.rocks[0]!.specialists = [{ id: 'q', owner: 'you', kind: 'queen' }];
+  game.fleets = [remoteShip(1, { owner: 'you', from: 'a' })];
+  const saved = structuredClone(game);
+  const view = observe(game, 'you');
+  const snapshot = structuredClone(view);
+  const future = forecastObservation(view, 'you', 21);
+  assert.equal(future.rocks[1]!.kind, 'unknown');
+  assert.equal(future.rocks[1]!.known, false);
+  assert.ok(future.uncertain.includes('b'));
+  assert.deepEqual(view, snapshot);
+  view.rocks[0]!.specialists![0]!.kind = 'princess';
+  assert.deepEqual(game, saved);
+});
+
+test('v2 foreign preparation is private even inside sonar and mobile Princess has no local range effect', () => {
+  const game = sensorWorld();
+  game.fleets = [remoteShip(1, { preparing: true, route: { from: { x: 0, y: 0 }, to: { x: 10, y: 0 } } }), remoteShip(2, { owner: 'you', specialists: [{ id: 'p', owner: 'you', kind: 'princess' }] })];
+  assert.deepEqual(observe(game, 'you').fleets.map(f => f.id), [2]);
+  assert.equal(rockSensorRange(game, game.rocks[0]!), 32);
+  game.fleets[1]!.specialists = [{ id: 'i', owner: 'vesper', kind: 'intelligence' }];
+  assert.equal(observe(game, 'you').rocks[1]!.kind, 'unknown', 'foreign or mismatched officers do not reveal types');
+  assert.equal(rockSensorRange(game, game.rocks[0]!), 32);
+});
