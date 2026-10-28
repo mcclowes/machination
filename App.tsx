@@ -20,6 +20,8 @@ import { advance, createGame, dispatch, installModule, FACTIONS, operationStatus
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
+import { HaulerOrders } from './src/components/HaulerOrders';
+import { commandHauler, LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
 import { cargoTarget, drillMine, droneInventory, mineCost, powerCapacity, setShields } from './src/game/economy';
 import { TimeMachine } from './src/components/TimeMachine';
@@ -87,6 +89,7 @@ function Operation() {
     eliminated: 'Core offline. Your operation has ended.',
   }[status];
   const count = Number(amount);
+  const preparation = game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;
   const canSend = operational && !shown.winner && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count > 0 && (launchAt > game.hour || count <= Math.floor(rock.drones));
   function select(r: Rock) {
@@ -127,7 +130,7 @@ function Operation() {
             {planning && <View pointerEvents="none" style={s.mapHint}><Text style={s.mapHintText}>Select a destination rock</Text></View>}
           </View>
           <View style={s.legend}>{(Object.keys(FACTIONS) as Faction[]).map(f => <View style={s.row} key={f}><View style={[s.legendDot, { backgroundColor: FACTIONS[f].color }]} /><Text style={s.legendText}>{f === 'you' ? 'You' : FACTIONS[f].name}</Text></View>)}<View style={s.row}><View style={[s.legendDot, { backgroundColor: '#7d8b83' }]} /><Text style={s.legendText}>Unclaimed</Text></View></View>
-          <TimeMachine hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.map(f => f.arrives), ...(game.scheduled ?? []).map(p => p.executeAt)]} />
+          <TimeMachine hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...(game.scheduled ?? []).map(p => p.executeAt)]} />
         </View>
         <View style={[s.sideColumn, wide && { flex: 1, maxWidth: 400 }]}>
           <View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(shown, 'you')} / ${powerCapacity(shown, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
@@ -140,10 +143,10 @@ function Operation() {
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
             {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
-              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(launchAt + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
+              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined, game.version)}h transit · arrives {clock(launchAt + preparation + travelHours(rock, target, carry ? rock.module : undefined, game.version))}</Text>}</View>
               <LaunchTiming future={!!forecast} delay={delay} disabled={!operational} onChange={setDelay} />
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
-              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
+              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
             </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
             {game.version === 2 && rock.owner === 'you' && <SiteControls rock={rock} cost={mineCost(game, 'you')} enabled={operational && !forecast} onMine={() => { try { setGame(drillMine(game, selected, 'you')); setError(''); } catch (e) { setError((e as Error).message); } }} onShields={() => { try { setGame(setShields(game, selected, 'you', !rock.shieldsDisabled)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
             {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} disabled={!operational || !!forecast} onIntercept={intercept} />}
@@ -153,6 +156,7 @@ function Operation() {
             <View style={s.tabs}>{(['overview', 'signals'] as const).map(t => <Pressable accessibilityRole="button" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} key={t} style={[s.tab, tab === t && { borderBottomColor: green }]}><Text style={{ color: tab === t ? ink : '#7c8b80', fontSize: 12 }}>{t === 'overview' ? 'In transit' : 'Signal log'}{t === 'overview' ? ` / ${shown.fleets.length}` : ''}</Text></Pressable>)}</View>
             {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{flightDestination(shown.rocks, f)} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
           </View>
+          {game.version === 2 && <HaulerOrders fleets={game.fleets.filter(f => f.owner === 'you')} rocks={game.rocks} hour={game.hour} enabled={operational} onCommand={command => { try { setGame(commandHauler(game, 'you', command)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
           <ScheduledOrders plans={(game.scheduled ?? []).filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} />
           <View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View>
           <Text style={s.small}>Local solo operation. Time continues while you're away.</Text>

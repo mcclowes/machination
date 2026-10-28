@@ -1,3 +1,4 @@
+import type { HaulerChange } from '../game/transport';
 import type { ModuleKind } from '../game/modules';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/simulation';
@@ -14,6 +15,7 @@ export type InterceptOrder = { requestId: string; revision: number; from: string
 export type ScheduleOrder = Order & { executeAt: number };
 export type CancelSchedule = { requestId: string; revision: number; planId: string };
 export type ModuleOrder = { requestId: string; revision: number; rock: string; module: ModuleKind };
+export type HaulerOrder = HaulerChange & { requestId: string; revision: number };
 export type SiteOrder = { requestId: string; revision: number; rock: string } & ({ action: 'mine' } | { action: 'shields'; disabled: boolean });
 export type Transmission = { requestId: string; to: Faction; text: string };
 export type Issue = { issue: string; severity: 'error'; correlationId: string; dateTime: string; message: { title: string; detail: string } };

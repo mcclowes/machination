@@ -25,6 +25,8 @@ Factories deliver six drones every eight hours. Total stationed and traveling dr
 
 Sites have 10 or 20 shield capacity; the core adds 20 locally. Charge recovers over 48 hours in whole units. Shields consume attacking drones before drone combat and can be disabled to negotiate a handover. Industry, mine, and shield clocks are explicit event timestamps and survive polling and restarts.
 
+New launches reserve their manifests and prepare for ten minutes; editing and cancellation are available until departure. Travel uses continuous distance-based timing. Ordinary opposing haulers encounter on their shared route. Gifts transfer on contact, including interception by a passing hauler; gift orders take effect after a ten-minute cancellation window. Core loss removes cargo and future orders but preserves remaining sites, production, and launched haulers.
+
 Version-one saves and ongoing server rooms retain the prototype rules below. New rooms default to version two. Module, transport, leadership, and sensor parity work is tracked in [#18](https://github.com/mcclowes/machination/issues/18); this economy upgrade doesn't establish complete parity.
 
 ## Version-one first playable

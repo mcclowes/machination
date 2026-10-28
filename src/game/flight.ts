@@ -9,8 +9,9 @@ export type Point = { x: number; y: number };
 export type FlightWorld = { hour: number; rocks: readonly (Point & { id: string })[] };
 export const TRANSFER_SPEED = 8;
 const TIME_TOLERANCE = 1e-9;
-export function transferDuration(from: Point, to: Point, module?: ModuleKind): number {
-  return Math.max(1, Math.ceil(Math.hypot(from.x - to.x, from.y - to.y) / (TRANSFER_SPEED * (module === 'routing' ? ROUTING_SPEED : 1))));
+export function transferDuration(from: Point, to: Point, module?: ModuleKind, version: 1 | 2 = 1): number {
+  const duration = Math.hypot(from.x - to.x, from.y - to.y) / (TRANSFER_SPEED * (module === 'routing' ? ROUTING_SPEED : 1));
+  return version === 2 ? Math.max(1e-6, duration) : Math.max(1, Math.ceil(duration));
 }
 export function flightEndpoints(world: FlightWorld, fleet: Fleet): { from: Point; to: Point } {
   return fleet.route ?? { from: world.rocks.find(r => r.id === fleet.from)!, to: world.rocks.find(r => r.id === fleet.to)! };

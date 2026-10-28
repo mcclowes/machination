@@ -5,6 +5,8 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { nextRouteEncounter, resolveRouteEncounters } from './route-encounters';
+import { LAUNCH_PREPARATION, completePreparations, defendWithPreparations } from './transport';
 import { absorbShields, cargoTarget, nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
 import { transferDuration, type Point } from './flight';
@@ -19,7 +21,7 @@ export type Rock = {
   shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; miningAt?: number;
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true };
+export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; giftAt?: number; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true };
 export type Game = {
   version: 1 | 2; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
@@ -45,8 +47,8 @@ function inventoryUnits(value: number): number {
   return Math.abs(value - whole) < INVENTORY_ROUNDING_TOLERANCE ? whole : value;
 }
 export { createGame } from './world';
-export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind): number {
-  return transferDuration(from, to, module);
+export function travelHours(from: Pick<Rock, 'x' | 'y'>, to: Pick<Rock, 'x' | 'y'>, module?: ModuleKind, version: 1 | 2 = 1): number {
+  return transferDuration(from, to, module, version);
 }
 export function installModule(game: Game, rockId: string, kind: ModuleKind, owner: Faction): Game {
   const rock = game.rocks.find(r => r.id === rockId);
@@ -66,6 +68,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   if (!Number.isInteger(drones) || drones < 1 || drones > from.drones) throw new Error('Drone count exceeds available inventory.');
   if (typeof carryModule !== 'boolean' || carryModule && !from.module) throw new Error('There is no module available to load.');
   const module = carryModule ? from.module : undefined;
+  const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
   return {
     ...game, nextId: game.nextId + 1,
     rocks: game.rocks.map(r => {
@@ -74,8 +77,8 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
       if (carryModule) delete departure.module;
       return departure;
     }),
-    fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed: game.hour, arrives: game.hour + travelHours(from, to, module), ...(module ? { module } : {}) }],
-    events: recentEvents([{ hour: game.hour, audience: [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
+    fleets: [...game.fleets, { id: game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: departed + travelHours(from, to, module, game.version), ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}) }],
+    events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
 export function advance(input: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[] } = {}): Game {
@@ -93,7 +96,7 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
       const rate = game.rocks.filter(r => r.owner === f && r.kind === 'mine').length * LEGACY_MINING;
       return rate ? game.hour + Math.max(0, LEGACY_CARGO_TARGET - game.cargo[f]) / rate : Infinity;
     });
-    const next = Math.min(targetHour, game.version === 2 ? nextEconomyEvent(game) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
+    const next = Math.min(targetHour, game.version === 2 ? Math.min(nextEconomyEvent(game), nextRouteEncounter(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
     const elapsed = next - game.hour;
     if (game.version === 1) for (const rock of game.rocks) {
       if (!rock.owner) continue;
@@ -105,23 +108,26 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
     }
     game.hour = next;
     if (game.version === 2) settleEconomy(game);
+    if (game.version === 2) resolveRouteEncounters(game);
     resolveInterceptions(game, options.unknownInterceptions);
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);
     game.fleets = game.fleets.filter(f => f.arrives > next);
     for (const fleet of arrivals) {
-      if (game.eliminated.includes(fleet.owner)) continue;
+      if (game.version === 1 && game.eliminated.includes(fleet.owner)) continue;
       const rock = game.rocks.find(r => r.id === fleet.to)!;
       if (options.unknownDestinations?.includes(fleet.to)) {
         game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
         continue;
       }
       const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
+      if (game.version === 2 && fleet.giftAt !== undefined && fleet.giftAt <= game.hour && rock.owner) fleet.owner = rock.owner;
       if (rock.owner === fleet.owner) {
         rock.drones += fleet.drones;
         if (fleet.module && !rock.module) rock.module = fleet.module;
         else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
         continue;
       }
+      if (game.version === 2) defendWithPreparations(game, rock.id);
       if (fleet.module === 'charge') {
         const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
         rock.drones -= damage;
@@ -156,14 +162,20 @@ export function advance(input: Game, targetHour: number, options: { rivals?: boo
         game.events.unshift({ hour: next, audience, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
         if (defeated && !game.eliminated.includes(defeated)) {
           game.eliminated.push(defeated);
-          for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
-          game.fleets = game.fleets.filter(f => f.owner !== defeated);
+          if (game.version === 1) {
+            for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
+            game.fleets = game.fleets.filter(f => f.owner !== defeated);
+          } else {
+            game.cargo[defeated] = 0;
+            for (const asset of game.rocks.filter(r => r.owner === defeated)) defendWithPreparations(game, asset.id);
+          }
           if (game.scheduled) game.scheduled = game.scheduled.filter(p => p.owner !== defeated);
           game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
         }
         delete rock.coreOf;
       }
     }
+    if (game.version === 2) completePreparations(game);
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= cargoTarget(game)) ?? (factions.length === 1 ? factions[0]! : null);
     if (game.winner) game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: `${FACTIONS[game.winner].name}: corporate quota secured. Contract complete.` });

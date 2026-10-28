@@ -17,7 +17,7 @@ export type GameView = {
 };
 export function observe(game: Game, faction: Faction, identify: (id: number) => number = id => id): GameView {
   const coverage = sensors(game, faction);
-  const contacts = game.fleets.filter(f => f.owner === faction || inRange(coverage, fleetPosition(game, f))).sort((a, b) => a.id - b.id);
+  const contacts = game.fleets.filter(f => f.owner === faction || !f.preparing && inRange(coverage, fleetPosition(game, f))).sort((a, b) => a.id - b.id);
   const visibleIds = new Set(contacts.map(f => f.id));
   return {
     version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
