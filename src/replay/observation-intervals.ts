@@ -1,4 +1,4 @@
-/** Analytic support inside a fixed private span; exporter boundary semantics still require validation. */
+/** Private binary64 support inside one fixed state span; never serialize motion sources. */
 import { canObserveHauler, HAULER_SENSOR_RANGE, rockSensorRange } from '../game/sensors';
 import type { Faction, Game } from '../game/simulation';
 import { flightMotionSpans, visibilityIntervals, type AffineMotion, type MotionSpan, type MovingSensor, type VisibilityInterval } from './visibility-intervals';
@@ -6,7 +6,7 @@ import { flightMotionSpans, visibilityIntervals, type AffineMotion, type MotionS
 export type ObservationIntervals = { sites: Map<string, VisibilityInterval[]>; fleets: Map<number, VisibilityInterval[]> };
 const still = (x: number, y: number): AffineMotion => ({ position: { x, y }, velocity: { x: 0, y: 0 } });
 function shifted(piece: MotionSpan, from: number): AffineMotion {
-  return { position: { x: piece.motion.position.x + piece.motion.velocity.x * (from - piece.from), y: piece.motion.position.y + piece.motion.velocity.y * (from - piece.from) }, velocity: piece.motion.velocity };
+  return { source: piece.motion.source, position: { x: piece.motion.position.x + piece.motion.velocity.x * (from - piece.from), y: piece.motion.position.y + piece.motion.velocity.y * (from - piece.from) }, velocity: piece.motion.velocity };
 }
 function merge(windows: VisibilityInterval[]): VisibilityInterval[] {
   const merged: VisibilityInterval[] = [];

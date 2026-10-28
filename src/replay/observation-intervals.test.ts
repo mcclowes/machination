@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { createGame, type Fleet } from '../game/simulation';
 import { createLegacyGame } from '../game/legacy';
 import { observe } from '../game/visibility';
+import { previousHour, nextHour, UnsupportedVisibilityNumericError } from './numeric-support';
+import { fleetPosition } from '../game/flight';
+import { canObserveHauler, inRange, sensors } from '../game/sensors';
 import { observationIntervals } from './observation-intervals';
 
 const crossing: Fleet = { id: 100, owner: 'vesper', from: 'e', to: 'b', drones: 4, departed: 0, arrives: 1, route: { from: { x: -40, y: 0 }, to: { x: 40, y: 0 } } };
@@ -80,4 +83,53 @@ test('torus crossing support agrees with wrapped observations across both chart 
   assert.ok(Math.abs(windows[0]!.from - 0.1125) < 1e-12);
   assert.ok(Math.abs(windows[0]!.through - 0.9125) < 1e-12);
   for (const hour of [0, 0.2, 0.5, 0.8, 1]) assert.equal(windows.some(w => hour >= w.from && hour <= w.through), observe({ ...game, hour }, 'you').fleets.length > 0);
+});
+
+test('original flight clamp expression and tangent support agree with the actual sensor policy', () => {
+  const game = world();
+  game.hour = 6.9;
+  game.fleets = [{ ...crossing, departed: 7, arrives: 8, route: { from: { x: -2, y: 32 }, to: { x: 2, y: 32 } } }];
+  const intervals = observationIntervals(game, 'you', 8.1).fleets.get(100)!;
+  assert.equal(intervals.length, 1);
+  assert.ok(intervals[0]!.from < 7.5 - 1e-9 && intervals[0]!.through > 7.5 + 1e-9);
+  for (const hour of [6.9, 7, 7.5 - 1e-9, 7.5, 7.5 + 1e-9, 8, 8.1, ...intervals.flatMap(w => [previousHour(w.from), w.from, nextHour(w.from), previousHour(w.through), w.through, nextHour(w.through)])]) {
+    const at = { ...game, hour };
+    assert.equal(intervals.some(w => w.from <= hour && hour <= w.through), canObserveHauler(at, 'you', at.fleets[0]!));
+  }
+});
+
+test('fractional flight origins and moving legacy sensors retain exact boundary neighbors over repeated wraps', () => {
+  const game = createLegacyGame(0);
+  game.hour = 2.123456789;
+  game.rules = { mechanicsVersion: 4, players: ['you', 'vesper', 'null'], mode: 'mining', victoryTarget: 200, map: { generator: 'balanced.v2', topology: 'torus', width: 100, height: 100, seed: 1 } };
+  game.rocks = game.rocks.map(r => ({ ...r, owner: 'vesper', x: 20, y: 50 }));
+  game.fleets = [
+    { ...crossing, id: 101, owner: 'you', departed: 1.23456789, arrives: 6.987654321, route: { from: { x: -120, y: 50 }, to: { x: 420, y: 50 } } },
+    { ...crossing, departed: 1.23456789, arrives: 6.987654321, route: { from: { x: 20, y: 50 }, to: { x: 20, y: 50 } } },
+  ];
+  const before = structuredClone(game);
+  const support = observationIntervals(game, 'you', 8.123456789);
+  for (const windows of [support.sites.get('b')!, support.fleets.get(100)!]) {
+    assert.ok(windows.length >= 4);
+    for (const window of windows) for (const hour of [previousHour(window.from), window.from, nextHour(window.from), (window.from + window.through) / 2, previousHour(window.through), window.through, nextHour(window.through)]) {
+      if (hour < game.hour || hour > 8.123456789) continue;
+      const at = { ...game, hour };
+      const point = fleetPosition(at, at.fleets[1]!);
+      const actual = inRange(sensors(at, 'you'), point, at);
+      assert.equal(windows.some(w => w.from <= hour && hour <= w.through), actual, `${hour}`);
+    }
+  }
+  assert.deepEqual(game, before);
+});
+
+test('an unsupported rounded parallel boundary refuses the whole observation result', () => {
+  const game = createLegacyGame(0);
+  game.rocks = [];
+  game.fleets = [
+    { ...crossing, id: 101, owner: 'you', arrives: 4, route: { from: { x: 0, y: 0 }, to: { x: 16, y: 0 } } },
+    { ...crossing, arrives: 4, route: { from: { x: 16, y: 0 }, to: { x: 32, y: 0 } } },
+  ];
+  const before = structuredClone(game);
+  assert.throws(() => observationIntervals(game, 'you', 4), UnsupportedVisibilityNumericError);
+  assert.deepEqual(game, before);
 });

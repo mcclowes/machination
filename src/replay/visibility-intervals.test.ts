@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { flightMotionSpans, VisibilityCapacityError, visibilityIntervals } from './visibility-intervals';
+import { flightMotionSpans, VisibilityCapacityError, UnsupportedVisibilityNumericError, visibilityIntervals } from './visibility-intervals';
 import { fleetPosition } from '../game/flight';
+import { atOrdinal, ordinal, motionPosition, nextHour, previousHour } from './numeric-support';
+import { inRange } from '../game/sensors';
 import { worldDistance, wrapPoint } from '../game/geometry';
 
 test('an entire short contact survives between sampled endpoints', () => {
@@ -13,22 +15,26 @@ test('an entire short contact survives between sampled endpoints', () => {
 test('closed contacts retain tangency, stationary boundaries, and overlapping coverage', () => {
   const stationary = { velocity: { x: 0, y: 0 } };
   const sensor = { ...stationary, position: { x: 0, y: 0 }, radius: 1 };
-  assert.deepEqual(visibilityIntervals({}, { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } }, [sensor], 7, 8), [{ from: 7.5, through: 7.5 }]);
+  const tangent = visibilityIntervals({}, { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } }, [sensor], 7, 8);
+  assert.ok(tangent[0]!.from < 7.5 && tangent[0]!.through > 7.5);
   assert.deepEqual(visibilityIntervals({}, { ...stationary, position: { x: 1, y: 0 } }, [sensor], 7, 8), [{ from: 7, through: 8 }]);
   assert.deepEqual(visibilityIntervals({}, { ...stationary, position: { x: 1.001, y: 0 } }, [sensor], 7, 8), []);
   assert.deepEqual(visibilityIntervals({}, { ...stationary, position: { x: 0, y: 0 } }, [sensor], 7, 7), [{ from: 7, through: 7 }]);
-  assert.deepEqual(visibilityIntervals({}, { position: { x: -4, y: 0 }, velocity: { x: 1, y: 0 } }, [
+  const overlapping = visibilityIntervals({}, { position: { x: -4, y: 0 }, velocity: { x: 1, y: 0 } }, [
     { ...stationary, position: { x: -1, y: 0 }, radius: 2 },
     { ...stationary, position: { x: 1, y: 0 }, radius: 2 },
-  ], 0, 8), [{ from: 1, through: 7 }]);
+  ], 0, 8);
+  assert.equal(overlapping.length, 1);
+  assert.equal(overlapping[0]!.from, 0.9999999999999998);
+  assert.equal(overlapping[0]!.through, 7);
   assert.deepEqual(visibilityIntervals({}, { position: { x: -1, y: 0 }, velocity: { x: 2, y: 0 } }, [{ ...sensor, radius: 0 }], 0, 1), [{ from: 0.5, through: 0.5 }]);
 });
 
-test('moving legacy sensors use relative motion rather than static sample circles', () => {
+test('moving legacy sensors retain crossings and refuse uncertified rounded parallel boundaries', () => {
   const stationary = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } };
   assert.deepEqual(visibilityIntervals({}, stationary, [{ position: { x: -10, y: 0 }, velocity: { x: 4, y: 0 }, radius: 2 }], 0, 4), [{ from: 2, through: 3 }]);
   assert.deepEqual(visibilityIntervals({}, { position: { x: -10, y: 0 }, velocity: { x: 8, y: 0 } }, [{ ...stationary, velocity: { x: 4, y: 0 }, radius: 2 }], 0, 4), [{ from: 2, through: 3 }]);
-  assert.deepEqual(visibilityIntervals({}, { position: { x: 2, y: 0 }, velocity: { x: 4, y: 0 } }, [{ ...stationary, velocity: { x: 4, y: 0 }, radius: 2 }], 0, 4), [{ from: 0, through: 4 }]);
+  assert.throws(() => visibilityIntervals({}, { position: { x: 2, y: 0 }, velocity: { x: 4, y: 0 } }, [{ ...stationary, velocity: { x: 4, y: 0 }, radius: 2 }], 0, 4), UnsupportedVisibilityNumericError);
 });
 
 test('wrapped contacts cover repeated seam crossings beyond nine local images', () => {
@@ -86,4 +92,73 @@ test('invalid or excessive geometry refuses instead of truncating contact suppor
   assert.throws(() => visibilityIntervals(world, { ...point, velocity: { x: 1e9, y: 0 } }, [sensor], 0, 1), VisibilityCapacityError);
   assert.deepEqual(visibilityIntervals({ rules: { map: { width: 10, height: 100, topology: 'torus' } } }, { position: { x: 0, y: 50 }, velocity: { x: 1e15, y: 0 } }, [sensor], 0, 1), [], 'An empty image axis skips all winding work');
   assert.deepEqual(visibilityIntervals(world, point, [{ ...sensor, radius: 20 }], 0, 1), [{ from: 0, through: 1 }]);
+});
+
+
+test('current hypot tangency retains the rounded plateau and excludes exterior neighbors', () => {
+  const point = { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } };
+  const sensor = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, radius: 1 };
+  const windows = visibilityIntervals({}, point, [sensor], 7, 8);
+  for (const hour of [7.5 - 1e-9, 7.5, 7.5 + 1e-9]) {
+    assert.equal(windows.some(w => w.from <= hour && hour <= w.through), true);
+  }
+  for (const hour of [7.5 - 1e-8, 7.5 + 1e-8]) assert.equal(windows.some(w => w.from <= hour && hour <= w.through), false);
+});
+
+
+function checkNeighbors(windows: { from: number; through: number }[], predicate: (hour: number) => boolean, from: number, through: number) {
+  for (const window of windows) {
+    for (const hour of [previousHour(window.from), window.from, nextHour(window.from), previousHour(window.through), window.through, nextHour(window.through)]) {
+      if (hour >= from && hour <= through) assert.equal(windows.some(w => w.from <= hour && hour <= w.through), predicate(hour), `boundary ${hour}`);
+    }
+  }
+}
+
+test('all reported support boundaries include precisely the actual predicate neighbors', () => {
+  for (const topology of [undefined, 'torus' as const]) {
+    const world = { rules: { map: { width: 10, height: 10, ...(topology ? { topology } : {}) } } };
+    for (const point of [
+      { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } },
+      { position: { x: -3, y: 0.4 }, velocity: { x: 20, y: 0.2 } },
+      { position: { x: 1, y: 0 }, velocity: { x: 0, y: 0 } },
+    ]) {
+      const sensor = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, radius: 1 };
+      const windows = visibilityIntervals(world, point, [sensor], 7, 8);
+      const predicate = (hour: number) => inRange([{ ...motionPosition(sensor, 7, hour), radius: 1 }], motionPosition(point, 7, hour), world);
+      checkNeighbors(windows, predicate, 7, 8);
+      for (const hour of [7, 7.5 - 1e-9, 7.5, 7.5 + 1e-9, 8]) assert.equal(windows.some(w => w.from <= hour && hour <= w.through), predicate(hour));
+    }
+  }
+});
+
+test('zero-relative identical rounded motions certify without walking every time value', () => {
+  const point = { position: { x: 1, y: 3 }, velocity: { x: 1.23456789, y: -7.654321 } };
+  assert.deepEqual(visibilityIntervals({}, point, [{ ...point, radius: 0 }], 0, 10), [{ from: 0, through: 10 }]);
+});
+
+test('a near miss with no analytic roots is still classified by numeric enclosures', () => {
+  const point = { position: { x: -2, y: 1 }, velocity: { x: 4, y: 0 } };
+  const sensor = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, radius: 1 };
+  const windows = visibilityIntervals({}, point, [sensor], 7.5 + 1e-9, 7.5 + 2e-9);
+  // Reanchor to the small local interval, preserving the original expression explicitly.
+  const preserved = { ...point, origin: 7 };
+  const contact = visibilityIntervals({}, preserved, [sensor], 7.5 + 1e-9, 7.5 + 2e-9);
+  assert.deepEqual(windows, []);
+  assert.deepEqual(contact, [{ from: 7.5 + 1e-9, through: 7.5 + 2e-9 }]);
+});
+
+test('actual nonmonotone hypot boundary holes survive rather than being filled by bisection', () => {
+  const x0 = 1.1800000000000186, x1 = nextHour(x0), y = 0.731;
+  const radius = Math.hypot(x1, y);
+  assert.ok(Math.hypot(x0, y) > radius);
+  const from = atOrdinal(ordinal(x0) - 64n), through = atOrdinal(ordinal(x0) + 64n);
+  const point = { position: { x: 0, y }, velocity: { x: 1, y: 0 }, origin: 0 };
+  const sensor = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, radius };
+  const windows = visibilityIntervals({}, point, [sensor], from, through);
+  assert.ok(windows.length >= 2, 'the rounded boundary has disconnected support');
+  for (let bits = ordinal(from); bits <= ordinal(through); bits++) {
+    const hour = atOrdinal(bits);
+    assert.equal(windows.some(w => w.from <= hour && hour <= w.through), inRange([{ x: 0, y: 0, radius }], { x: hour, y }));
+  }
+  checkNeighbors(windows, hour => inRange([{ x: 0, y: 0, radius }], { x: hour, y }), from, through);
 });

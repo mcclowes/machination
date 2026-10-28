@@ -1,9 +1,11 @@
-/** Analytic contact windows inside one fixed affine-motion span. */
+/** Private sensor support over finite binary64 times in a fixed motion span. */
 import { wrappedBounds, type GeometryWorld, type Point } from '../game/geometry';
 import { flightEndpoints, type FlightWorld } from '../game/flight';
+import { atOrdinal, ordinal, nextHour, requireNumericRuntime, distanceBounds, MAX_NUMERIC_REGIONS, UnsupportedVisibilityNumericError, type NumericFlight } from './numeric-support';
+export { UnsupportedVisibilityNumericError } from './numeric-support';
 import type { Fleet } from '../game/simulation';
 
-export type AffineMotion = { position: Point; velocity: Point };
+export type AffineMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number };
 export type MovingSensor = AffineMotion & { radius: number };
 export type VisibilityInterval = { from: number; through: number };
 export type MotionSpan = VisibilityInterval & { motion: AffineMotion };
@@ -21,6 +23,7 @@ export function flightMotionSpans(world: FlightWorld, fleet: Fleet, from: number
     const moving = hour >= fleet.departed && hour < fleet.arrives;
     return { from: hour, through: boundaries[index + 1]!, motion: {
       position: { x: route.from.x + (route.to.x - route.from.x) * progress, y: route.from.y + (route.to.y - route.from.y) * progress },
+      source: { from: { ...route.from }, to: { ...route.to }, departed: fleet.departed, arrives: fleet.arrives },
       velocity: moving ? { x: (route.to.x - route.from.x) / (fleet.arrives - fleet.departed), y: (route.to.y - route.from.y) / (fleet.arrives - fleet.departed) } : { x: 0, y: 0 },
     } };
   });
@@ -45,7 +48,7 @@ function circleWindow(dx: number, dy: number, wx: number, wy: number, radius: nu
   return from <= through ? [from, through] : undefined;
 }
 
-export function visibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
+function analyticVisibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
   if (![from, through, point.position.x, point.position.y, point.velocity.x, point.velocity.y].every(Number.isFinite) || from < 0 || through < from) throw new RangeError('Provide a finite ordered motion span.');
   const map = wrappedBounds(world);
   if (map && (![map.width, map.height].every(Number.isFinite) || map.width <= 0 || map.height <= 0)) throw new RangeError('Provide finite positive wrapped dimensions.');
@@ -56,7 +59,7 @@ export function visibilityIntervals(world: GeometryWorld, point: AffineMotion, s
     if (![sensor.position.x, sensor.position.y, sensor.velocity.x, sensor.velocity.y, sensor.radius].every(Number.isFinite) || sensor.radius < 0) throw new RangeError('Provide finite sensor motion and a nonnegative radius.');
     const dx = point.position.x - sensor.position.x, dy = point.position.y - sensor.position.y;
     const wx = (point.velocity.x - sensor.velocity.x) * duration, wy = (point.velocity.y - sensor.velocity.y) * duration;
-    if (![dx, dy, wx, wy, dx + wx, dy + wy].every(Number.isFinite)) throw new RangeError('Motion exceeds finite coordinate bounds.');
+    if (![dx, dy, wx, wy, dx + wx, dy + wy].every(Number.isFinite)) throw new UnsupportedVisibilityNumericError();
     if (map && sensor.radius >= Math.hypot(map.width / 2, map.height / 2)) return [{ from, through }];
     const x0 = map ? Math.ceil((Math.min(dx, dx + wx) - sensor.radius) / map.width) : 0;
     const x1 = map ? Math.floor((Math.max(dx, dx + wx) + sensor.radius) / map.width) : 0;
@@ -79,4 +82,40 @@ export function visibilityIntervals(world: GeometryWorld, point: AffineMotion, s
     else merged.push({ ...window });
   }
   return merged;
+}
+
+/**
+ * Private finite binary64 support, using monotone coordinate and pinned V8 operation bounds.
+ * Analytic roots guide subdivision only; they never exclude rounded contacts.
+ * Unknown runtimes and unresolved regions refuse; hypot itself need not be monotone.
+ */
+export function visibilityIntervals(world: GeometryWorld, point: AffineMotion, sensors: readonly MovingSensor[], from: number, through: number): VisibilityInterval[] {
+  requireNumericRuntime();
+  const candidates = analyticVisibilityIntervals(world, point, sensors, from, through);
+  const cuts = [...new Set([from, through, ...candidates.flatMap(w => [w.from, w.through]).filter(t => Number.isFinite(t) && t >= from && t <= through)])].sort((a, b) => a - b);
+  const result: VisibilityInterval[] = [];
+  let regions = 0;
+  function visit(lo: bigint, hi: bigint): void {
+    if (lo > hi) return;
+    if (++regions > MAX_NUMERIC_REGIONS) throw new UnsupportedVisibilityNumericError();
+    const start = atOrdinal(lo), end = atOrdinal(hi);
+    let outside = true, inside = false;
+    for (const sensor of sensors) {
+      const bounds = distanceBounds(world, point, sensor, from, start, end);
+      if (bounds[1] <= sensor.radius) { inside = true; break; }
+      if (bounds[0] <= sensor.radius) outside = false;
+    }
+    if (inside) {
+      const last = result.at(-1);
+      if (last && start <= nextHour(last.through)) last.through = end;
+      else result.push({ from: start, through: end });
+    } else if (!outside) {
+      if (lo === hi) throw new UnsupportedVisibilityNumericError();
+      const mid = (lo + hi) / 2n;
+      visit(lo, mid); visit(mid + 1n, hi);
+    }
+  }
+  if (cuts.length === 1) visit(ordinal(from), ordinal(through));
+  else for (let i = 0; i < cuts.length - 1; i++) visit(ordinal(cuts[i]!) + (i ? 1n : 0n), ordinal(cuts[i + 1]!));
+  return result;
 }
