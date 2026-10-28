@@ -40,7 +40,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     <ScrollView style={s.timeline} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">{timeline}</ScrollView>
     <View accessibilityRole="tablist" style={s.navigation}>{navigation.map(([key, label, glyph]) => {
       const selected = key === null ? section === null || section === 'asset' : section === key;
-      return <Pressable key={label} accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={[s.tab, selected && s.selected]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
+      return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={[s.tab, selected && s.selected]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
     })}</View>
   </KeyboardAvoidingView></PlayerPortraits.Provider>;
 }
