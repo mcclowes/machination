@@ -19,6 +19,7 @@ import { BeltMap } from './src/components/BeltMap';
 import { advance, CARGO_TARGET, createGame, dispatch, installModule, FACTIONS, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
+import { FieldManual } from './src/components/FieldManual';
 
 const ink = '#e5eadc';
 const green = '#b8e986';
@@ -31,7 +32,7 @@ function Label({ children }: { children: React.ReactNode }) { return <Text style
 function clock(hour: number) { return `D${String(Math.floor(hour / 24) + 1).padStart(2, '0')} · ${String(Math.floor(hour % 24)).padStart(2, '0')}:${String(Math.floor(hour % 1 * 60)).padStart(2, '0')}`; }
 export default function App() {
   const [mode, setMode] = useState<'solo' | 'online'>('solo');
-  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}</View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
 }
 function Operation() {
   const { width } = useWindowDimensions();
@@ -48,7 +49,6 @@ function Operation() {
   const [amount, setAmount] = useState('45');
   const [forecast, setForecast] = useState(0);
   const [tab, setTab] = useState<'overview' | 'signals'>('overview');
-  const [guide, setGuide] = useState(false);
   const [reset, setReset] = useState(false);
   const lastTick = useRef(Date.now());
   useEffect(() => {
@@ -104,7 +104,6 @@ function Operation() {
     <ScrollView contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
       <View style={s.header}>
         <View style={s.brand}><View style={s.mark}><Text style={s.markText}>M</Text></View><View><Text style={s.title}>Machination</Text><Text style={s.tagline}>SLOW ORBITS. COLD DECISIONS.</Text></View></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => setGuide(true)} style={s.help}><Text style={s.helpText}>?</Text></Pressable>
       </View>
       <View style={s.operationBar}><View style={s.row}><View style={s.liveDot} /><Text style={s.mono}>OPERATION / THE QUIET BELT</Text></View><Text style={s.muted}>{ready ? 'Solo simulation' : 'Restoring uplink…'}</Text></View>
       {!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(game).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
@@ -152,7 +151,7 @@ function Operation() {
       </View>
       <View style={s.footer}><Text style={s.footerText}>MACHINATION / FIELD TERMINAL V0.1</Text><Text style={s.footerText}>THE CORPORATION IS TOO FAR AWAY TO INTERFERE.</Text></View>
     </ScrollView>
-    <Modal visible={guide || reset} transparent animationType="fade" onRequestClose={() => { setGuide(false); setReset(false); }}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>{reset ? 'Terminate operation' : 'Field manual / 01'}</Label><Text style={s.heading}>{reset ? 'Start again?' : 'Your mandate is simple.'}</Text><Text style={s.dialogBody}>{reset ? 'This replaces the local operation and its history. The belt will return to its starting state.' : 'Control the belt on behalf of a corporation too distant to intervene. Mine 300 cargo to fulfill your contract, or destroy both rival cores.\n\nSelect one of your rocks, plan a transfer, and choose its destination. Drones are deducted at launch. At arrival, each drone destroys one defender; surplus drones claim the rock. Ties leave ownership unchanged.\n\nCores and reactors produce 4 drones per hour. Extraction rocks produce 2 cargo per hour. Losing your core terminates your intelligence and releases all your rocks.\n\nModules cost drones and can be loaded onto haulers. Stored modules have no combat effect. Read each module description before building.\n\nHaulers cannot turn back. Rivals issue orders every 6 hours. Use the forecast to inspect consequences and +6h to accelerate this solo simulation. Forecasts assume no new orders from you.'}</Text><Button label={reset ? 'Replace operation' : 'Return to command'} onPress={() => { if (reset) { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setForecast(0); setPlanning(false); setDestination(undefined); } setReset(false); setGuide(false); }} />{reset && <Button label="Keep operation" quiet onPress={() => setReset(false)} />}</ScrollView></View></Modal>
+    <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setForecast(0); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
   </SafeAreaView>;
 }
 const s = StyleSheet.create({

@@ -47,3 +47,5 @@ Run `npm run server` and open **Multiplayer uplink** to create or join a three-p
 See [game design](docs/game-design.md) and [implementation tracking](https://github.com/mcclowes/machination/issues/1).
 
 The current dependency audit flags Zod 3 in Expo CLI ([advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)). No major-version override is applied because the CLI declares a Zod 3 dependency. Recheck upstream before distribution.
+
+A first-launch briefing introduces the objective and first transfer. Open **Manual** from either operation mode for the full rules, sensor limits, schedules, forecasts, and diplomacy. Dismissing the briefing stores a local preference separately from game saves.
