@@ -36,7 +36,9 @@ New configured operations use mechanics revision 5: settlement no longer borrows
 
 The strict public codec, frozen-trace generator, authenticated export, pure playback, viewer/import screen, and native/web file adapters are implemented. Generation removes uniform private boundaries, retains same-hour visible changes, and projects only observations inside the selected clip. Tests include a brief contact and battle absent at both hourly endpoints, zero-duration clips, identical exports despite hidden queued commands, old planar/mine-loss archives, and atomic capacity refusal. The generator currently supports discrete-economy version-two games; version-one continuous counters refuse explicitly.
 
-The repository test command includes `src/replay/*.test.ts`. Player-facing navigation/export integration and browser/native acceptance remain separate delivery gates. File adapter tests mock native boundaries; they don't establish physical-device sharing or document-picker behavior. No shared artifact has been sent to another person.
+The start screen and solo/multiplayer settings expose local replay import. Operation settings offer bounded export, followed by a disclosure preview and a separate Save action. Opening the library unmounts live operation hooks. The preview keeps its chosen upper bound while live time advances; reopening the panel offers newer history. No shared artifact has been sent to another person.
+
+Validation at `a7b1898`: 498 repository tests pass, TypeScript passes, web export succeeds, and both standalone production server checks pass. Real HTTP tests cover authenticated perspectives, strict bounds, privacy, preparation, restart, and unchanged inactivity deadlines. React lifecycle tests drive import, causal stepping, scrubbing, playback, export preview, cancellation, stale async results, and navigation isolation. File adapter tests mock native boundaries. Real browser download/import gestures, physical-device sharing/document pickers, and visual comparison with the current original client remain unverified; no browser surface was available for this acceptance run.
 
 ## Canonical file contract
 
