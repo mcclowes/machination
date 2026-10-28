@@ -7,6 +7,7 @@
  */
 import { resolveSpecialistInterceptions } from './specialist-interception';
 import { reconcileFunding, type Funding } from './funding';
+import { refreshMining } from './mining';
 import { applyStationPassives, nextSpecialistEvent, settleSpecialistActions } from './specialist-actions';
 import { resolveStationArrival } from './specialist-combat';
 import { refreshUnitEffects, specialistSpeed } from './specialist-effects';
@@ -24,7 +25,7 @@ export type Faction = 'you' | 'vesper' | 'null';
 export type Rock = {
   id: string; name: string; x: number; y: number;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator';
-  shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number;
+  shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number; miningInterval?: number;
   specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
   coreOf?: Faction; module?: ModuleKind;
 };
@@ -107,6 +108,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
   };
   if (game.winner || game.draw) return game;
   reconcileFunding(game);
+  refreshMining(game);
   refreshUnitEffects(game);
   if (game.version === 2) { applyStationPassives(game); refreshUnitEffects(game); }
   while (game.hour < targetHour && !game.winner && !game.draw) {
@@ -183,7 +185,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
         delete rock.coreOf;
       }
     }
-    if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); reconcileFunding(game); }
+    if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); refreshMining(game); reconcileFunding(game); }
     const factions = (Object.keys(FACTIONS) as Faction[]).filter(f => !game.eliminated.includes(f));
     game.winner = factions.find(f => game.cargo[f] >= cargoTarget(game)) ?? (factions.length === 1 ? factions[0]! : null);
     if (factions.length === 0) { game.draw = true; game.events.unshift({ hour: next, audience: ['you', 'vesper', 'null'], message: 'All cores lost. The operation ended in a draw.' }); }

@@ -6,6 +6,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { maximumShield } from '../game/economy';
+import { gameClock } from '../game/time-machine';
 import type { Rock } from '../game/simulation';
 
 export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf'>): string {
@@ -16,7 +17,8 @@ export function SiteControls({ rock, cost, enabled, onMine, onShields }: { rock:
   return <View style={s.section}>
     <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
     <Control label={rock.shieldsDisabled ? 'Enable shields' : 'Disable shields'} disabled={!enabled} onPress={onShields} />
-    {rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock every 24h.</Text><Control label={`Drill mine · ${cost} drones`} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
+    {rock.kind === 'mine' && rock.miningInterval !== undefined && <Text style={s.detail}>One cargo every {rock.miningInterval.toFixed(2)}h · next payout {gameClock(rock.miningAt!)}. Expansion increases the rate.</Text>}
+    {rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock per day, paid throughout the day.</Text><Control label={`Drill mine · ${cost} drones`} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
   </View>;
 }
 function Control({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {

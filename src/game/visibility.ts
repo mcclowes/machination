@@ -33,7 +33,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
     hour: game.hour, epoch: game.epoch,
     rocks: game.rocks.map(r => r.owner === faction || inRange(coverage, r)
-      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: remoteTypes || r.kind === 'mine' ? r.kind : 'unknown', known: false }),
+      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: { [faction]: game.cargo[faction] }, eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
     events: game.events.filter(e => e.audience?.includes(faction)).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message })),

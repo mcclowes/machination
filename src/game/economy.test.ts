@@ -55,7 +55,7 @@ test('factories deliver six drones per eight-hour cycle while generators supply 
   assert.equal(cycle.rocks.find(r => r.id === 'a')!.drones, 6);
 });
 
-test('mine construction replaces industry, consumes a growing drone cost, and mines daily by territory', () => {
+test('mine construction replaces industry, consumes a growing drone cost, and pays across the day by territory', () => {
   const game = createGame(0);
   game.rocks.find(r => r.id === 'c')!.drones = 50;
   assert.equal(mineCost(game, 'you'), 50);
@@ -63,7 +63,7 @@ test('mine construction replaces industry, consumes a growing drone cost, and mi
   assert.equal(mined.rocks.find(r => r.id === 'c')!.kind, 'mine');
   assert.equal(mined.rocks.find(r => r.id === 'c')!.drones, 0);
   assert.equal(mineCost(mined, 'you'), 100);
-  assert.equal(advance(mined, 23.99, { rivals: false }).cargo.you, 0);
+  assert.equal(advance(mined, 23.99, { rivals: false }).cargo.you, 4);
   assert.equal(advance(mined, 24, { rivals: false }).cargo.you, 5);
   assert.equal(game.rocks.find(r => r.id === 'c')!.kind, 'factory');
 });
@@ -76,10 +76,11 @@ test('capturing a mine removes a fifth of its former owner reserves and restarts
   game.rocks.find(r => r.id === 'c')!.drones = 100;
   const attack = dispatch(game, 'c', 'f', 100, 'you');
   const hour = attack.fleets[0]!.arrives;
+  const reserves = advance(attack, hour - 0.000001, { rivals: false }).cargo.vesper;
   const captured = advance(attack, hour, { rivals: false });
-  assert.equal(captured.cargo.vesper, 80);
+  assert.equal(captured.cargo.vesper, reserves * 0.8);
   assert.equal(captured.cargo.you, 0);
-  assert.equal(captured.rocks.find(r => r.id === 'f')!.miningAt, hour + 24);
+  assert.equal(captured.rocks.find(r => r.id === 'f')!.miningAt, hour + 24 / 6);
 });
 
 test('industry and shield clocks survive fractional polling and version-two persistence', () => {

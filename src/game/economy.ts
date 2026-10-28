@@ -5,13 +5,13 @@
  */
 import type { Faction, Game, Rock } from './simulation';
 import { fundingCount, reconcileFunding, FUNDING_OUTPUT, FUNDING_POWER } from './funding';
+import { miningInterval, MINING_DAY } from './mining';
 import { unitCount, unitsAtRock } from './specialists';
 import { rockSensorRange, observers } from './sensors';
 import { recentEvents } from './events';
 
 export const FACTORY_CYCLE = 8;
 export const FACTORY_OUTPUT = 6;
-export const MINING_CYCLE = 24;
 export const SHIELD_RECHARGE = 48;
 export const MINING_TARGET = 200;
 export function cargoTarget(game: { version?: number }): number { return game.version === 2 ? MINING_TARGET : 300; }
@@ -34,7 +34,7 @@ export function drillMine(game: Game, id: string, owner: Faction): Game {
   const cost = mineCost(game, owner);
   if (rock.drones < cost) throw new Error(`This mine needs ${cost} drones on station.`);
   return { ...game, minesDrilled: { ...game.minesDrilled!, [owner]: game.minesDrilled![owner] + 1 },
-    rocks: game.rocks.map(r => r.id === id ? { ...r, kind: 'mine', drones: r.drones - cost, miningAt: game.hour + MINING_CYCLE } : r),
+    rocks: game.rocks.map(r => r.id === id ? { ...r, kind: 'mine', drones: r.drones - cost, miningAt: game.hour + miningInterval(game, owner), miningInterval: miningInterval(game, owner) } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: mine drilled for ${cost} drones.` }, ...game.events]),
   };
 }
@@ -59,8 +59,8 @@ export function nextEconomyEvent(game: Game): number {
 }
 export function settleEconomy(game: Game): void {
   for (const rock of game.rocks) if (rock.owner && rock.kind === 'mine' && rock.miningAt! <= game.hour + 1e-9) {
-    if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += game.rocks.filter(r => r.owner === rock.owner).length;
-    rock.miningAt = game.hour + MINING_CYCLE;
+    if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] += 1;
+    rock.miningAt = game.hour + (rock.miningInterval ?? MINING_DAY);
   }
   reconcileFunding(game);
   for (const rock of game.rocks) {

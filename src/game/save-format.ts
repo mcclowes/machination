@@ -5,6 +5,7 @@
  */
 import { upgradeSpecialists } from './specialists';
 import { FUNDING_LEAD } from './funding';
+import { MINING_DAY } from './mining';
 import { isSpecialistKind, SPECIALISTS, HIRE_CATEGORIES } from './specialist-catalog';
 import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION } from './orders';
 import { MAX_STORED_EVENTS } from './events';
@@ -71,7 +72,7 @@ export function decodeSave(raw: string): Save {
       || r.owner && (r.shield as number) < maximumShield(r as Rock) && (r.shieldAt as number) <= (g.hour as number)
       || r.kind === 'factory' && (!nonnegative(r.productionAt) || r.owner && r.productionAt <= (g.hour as number))
       || r.kind === 'mine' && (!nonnegative(r.miningAt) || r.owner && r.miningAt <= (g.hour as number)))) return fail();
-    if (!(r.productionInterval === undefined || finite(r.productionInterval) && r.productionInterval > 0) || !validUnits(r.specialists) || !(r.shieldBonus === undefined || finite(r.shieldBonus)) || !(r.destroyed === undefined || r.destroyed === true)) return fail();
+    if (!(r.productionInterval === undefined || finite(r.productionInterval) && r.productionInterval > 0) || !(r.miningInterval === undefined || g.version === 2 && finite(r.miningInterval) && r.miningInterval >= MINING_DAY / g.rocks.length && r.miningInterval <= MINING_DAY) || !validUnits(r.specialists) || !(r.shieldBonus === undefined || finite(r.shieldBonus)) || !(r.destroyed === undefined || r.destroyed === true)) return fail();
     ids.add(r.id);
   }
   if (g.version === 2 && (!record(g.minesDrilled) || !factions.every(f => Number.isSafeInteger((g.minesDrilled as Record<string, unknown>)[f as string]) && ((g.minesDrilled as Record<string, number>)[f as string] ?? -1) >= 0))) return fail();
