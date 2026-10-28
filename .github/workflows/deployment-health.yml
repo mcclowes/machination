@@ -1,0 +1,19 @@
+name: Deployment health
+on:
+  deployment_status:
+permissions:
+  contents: read
+jobs:
+  health:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify the public playtest API
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 \
+            --retry-all-errors --connect-timeout 5 --max-time 10 \
+            https://machination-api-production.up.railway.app/health \
+            --output health.json
+          node -e "require('node:assert/strict').equal(require('./health.json').status, 'ok')"
