@@ -12,6 +12,8 @@ export type ChannelMessage = { id: string; from: Faction; text: string; sentAt: 
 export type Channel = { id: string; kind: 'public' | 'private'; messages: ChannelMessage[] };
 export type CreateGroup = { requestId: string; name: string; members: Faction[] };
 export type ChannelTransmission = { requestId: string; channelId: string; text: string };
+export type ObjectReference = { version: 1; gameId: string; kind: 'outpost' | 'hauler'; ref: string; hour: number };
+export type ObjectReferences = { version: 1; outposts: { id: string; ref: string }[]; haulers: { id: number; ref: string }[] };
 export type Snapshot = {
   id: string; invite: string; status: 'game.lobby' | 'game.active' | 'game.finished';
   faction: Faction; host: boolean; members: Faction[]; revision: number;
@@ -19,9 +21,10 @@ export type Snapshot = {
   inactivity?: { expiresAt: number };
   groups?: Group[]; channels?: Channel[];
   history?: { from: number; through: number };
+  references?: ObjectReferences;
   visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
-export type HistorySnapshot = { id: string; faction: Faction; visibility: 'sensors.v1'; history: { from: number; through: number; at: number }; game: GameView };
+export type HistorySnapshot = { id: string; faction: Faction; visibility: 'sensors.v1'; history: { from: number; through: number; at: number }; game: GameView; references?: ObjectReferences };
 export type ResignOrder = { requestId: string; revision: number };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; specialists?: string[]; carryModule?: boolean };
 export type GiftOrder = Order & { recipient: Faction };

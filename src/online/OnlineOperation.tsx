@@ -42,7 +42,10 @@ import { commandId, connect, newCredential, newSession, restoreSession, storeSes
 import { useHistoricalView } from './useHistoricalView';
 import { api, RejectedCommand } from './network';
 import { parseRecoveryCode, formatRecoveryCode } from './recovery';
-import type { Snapshot } from './protocol';
+import type { ObjectReference, Snapshot } from './protocol';
+import { copyableReference, focusReferenceCamera, referenceInspectionHour, resolveReference, type ReferenceFrame } from './reference-inspection';
+import { encodeObjectReference } from './object-references';
+import { CopyObjectReference } from '../components/CopyObjectReference';
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
 }
@@ -65,10 +68,17 @@ export function OnlineOperation() {
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [navigating, setNavigating] = useState<number>();
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
-  function inspectTime(hour: number | null) { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }
+  const [referenceRequest, setReferenceRequest] = useState<{ reference: ObjectReference; mode: 'observed' | 'now'; identity: string }>();
+  const [referenceNotice, setReferenceNotice] = useState('');
+  const referenceSequence = useRef(0);
+  const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
+  const referenceIdentity = JSON.stringify([session?.url, session?.id, session?.token, snapshot?.faction]);
+  function inspectTime(hour: number | null) { setReferenceRequest(undefined); setReferenceNotice(''); setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }
+  function changeSection(next: OperationSection | null) { setReferenceRequest(undefined); setReferenceNotice(''); setSection(next); }
   const mode = inspectionMode(snapshot?.game.hour ?? 0, inspectedHour);
   const past = mode === 'past';
   const history = useHistoricalView(session?.id && snapshot?.history ? { ...session, id: session.id, faction: snapshot.faction } : undefined, past ? inspectedHour : null);
+  useEffect(() => { setReferenceRequest(undefined); setReferenceNotice(''); setInspectFleet({ request: ++referenceSequence.current }); }, [referenceIdentity]);
   useEffect(() => { setPlanning(false); setNavigating(undefined); setDestination(undefined); setCarry(false); setSelectedUnits([]); setDelay(0); }, [mode, session?.url, session?.id, session?.token]);
   useEffect(() => { if (snapshot) setMapCamera(fitPlayerCamera(snapshot.game, snapshot.faction)); }, [session?.url, session?.id, snapshot?.faction, snapshot?.game.epoch]);
   const forecast = inspectionOffset(snapshot?.game.hour ?? 0, inspectedHour);
@@ -205,6 +215,34 @@ export function OnlineOperation() {
   const pendingPlan = pendingEdit && snapshot?.game.scheduled.find(plan => plan.id === pendingEdit.planId);
   const recoveryPending = session?.pending?.kind === 'recover' || session?.pending?.kind === 'recovery';
   const game = past ? history.frame?.game : snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game);
+  const referenceFrame: ReferenceFrame | undefined = forecast ? undefined : past
+    ? history.frame && { ...history.frame, at: history.frame.history.at }
+    : snapshot && { ...snapshot, at: snapshot.game.hour };
+  function inspectReference(reference: ObjectReference, mode: 'observed' | 'now') {
+    setPlanning(false); setNavigating(undefined); setDestination(undefined); setSelectedUnits([]); setCarry(false); setDelay(0);
+    if (!snapshot) return;
+    try {
+      const hour = referenceInspectionHour(snapshot, reference, mode);
+      inspectTime(hour);
+      setReferenceRequest({ reference, mode, identity: referenceIdentity });
+      setSection(null);
+    } catch (error) { setReferenceRequest(undefined); setReferenceNotice((error as Error).message); }
+  }
+  useEffect(() => {
+    if (!referenceRequest || referenceRequest.identity !== referenceIdentity || !referenceFrame) return;
+    if (referenceRequest.mode === 'observed' && referenceFrame.at !== referenceRequest.reference.hour) return;
+    const target = resolveReference(referenceFrame, referenceRequest.reference, referenceRequest.mode);
+    setReferenceRequest(undefined);
+    if (!target) { setReferenceNotice('Reference unavailable in your observations at this time.'); setSection('signals'); return; }
+    setMapCamera(camera => focusReferenceCamera(referenceFrame.game, camera, target.point));
+    setInspectFleet({ request: ++referenceSequence.current, ...(target.kind === 'hauler' ? { id: target.id } : {}) });
+    if (target.kind === 'outpost') { setSelected(target.id); setSection('asset'); } else setSection(null);
+    setReferenceNotice(referenceRequest.mode === 'observed' ? `Reference · observed at ${gameClock(referenceFrame.at)}.` : 'Reference · current observations.');
+  }, [referenceRequest, referenceIdentity, referenceFrame]);
+  function referenceText(kind: ObjectReference['kind'], id: string | number, label: string): string | undefined {
+    const reference = referenceFrame && copyableReference(referenceFrame, kind, id);
+    return reference ? `${label} ${encodeObjectReference(reference)}` : undefined;
+  }
   const orders = past ? game : snapshot?.game;
   const rock = game?.rocks.find(r => r.id === selected);
   const target = game?.rocks.find(r => r.id === destination);
@@ -215,7 +253,7 @@ export function OnlineOperation() {
   const immediate = operational && !forecast;
   const preparation = snapshot?.game.version === 2 ? LAUNCH_PREPARATION : 0;
   const launchAt = snapshot ? Math.max(snapshot.game.hour, inspectedHour ?? snapshot.game.hour) + delay : 0;
-  const diplomacy = useDiplomacyPanel({ snapshot, disabled: busy || !!session?.pending, acknowledged, scroll, onSubmit: submit });
+  const diplomacy = useDiplomacyPanel({ snapshot, origin: JSON.stringify([session?.url, session?.token]), disabled: busy || !!session?.pending, acknowledged, scroll, onSubmit: submit, onInspectReference: inspectReference });
   const rulesGame = snapshot?.game;
   const roster = rulesGame ? playersIn(rulesGame) : [];
   const joined = snapshot ? roster.filter(f => snapshot.members.includes(f)).length : 0;
@@ -237,16 +275,16 @@ export function OnlineOperation() {
   </View>{connection}</>;
   const timeline = snapshot && <TimeMachine forecastUncertain={game?.forecastUncertain} fleets={orders?.fleets} plans={orders?.scheduled} rocks={snapshot.game.rocks} compact hour={snapshot.game.hour} historyStart={snapshot.history?.from} inspectedHour={inspectedHour} onChange={inspectTime} events={[...(game?.events.map(event => event.hour) ?? []), ...(game?.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]) ?? []), ...(orders?.scheduled.map(p => p.executeAt) ?? [])]} online />;
   if (snapshot && past && !game) {
-    const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => setInspectedHour(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
-    return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
+    const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => inspectTime(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
+    return <OperationShell section={section} onSection={changeSection} panelScrollRef={scroll}
       status={<><Text style={s.label}>{FACTIONS[snapshot.faction].name} · loading history · {gameClock(inspectedHour!)}</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</>}
       chart={<View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>{waiting}</View>} timeline={timeline}
       panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Setup', content: setup } }} />;
   }
   if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
-  return <OperationShell section={section} onSection={setSection} panelScrollRef={scroll}
-    status={<><View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{pendingEdit && <Text style={s.detail}>Saved launch edit · {pendingPlan ? scheduledOrderLabel(pendingPlan, snapshot.game.rocks, snapshot.game.scheduled, snapshot.game.fleets) : 'Queued launch'} · {pendingEdit.drones} drones · awaiting confirmation. Retry repeats this saved edit.</Text>}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
-    chart={<BeltMap fill timeInspection={{ liveHour: snapshot.game.hour, historyStart: snapshot.history?.from, onInspect: inspectTime }} viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { if (navigating !== undefined) { if (!r.destroyed) siteAction({ type: 'hauler', change: { action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
+  return <OperationShell section={section} onSection={changeSection} panelScrollRef={scroll}
+    status={<>{!!referenceNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{referenceNotice}</Text>}<View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{pendingEdit && <Text style={s.detail}>Saved launch edit · {pendingPlan ? scheduledOrderLabel(pendingPlan, snapshot.game.rocks, snapshot.game.scheduled, snapshot.game.fleets) : 'Queued launch'} · {pendingEdit.drones} drones · awaiting confirmation. Retry repeats this saved edit.</Text>}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
+    chart={<BeltMap fill inspectFleet={inspectFleet} fleetReference={fleet => referenceText('hauler', fleet.id, 'Hauler')} timeInspection={{ liveHour: snapshot.game.hour, historyStart: snapshot.history?.from, onInspect: inspectTime }} viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => { setReferenceRequest(undefined); setSection(null); }} onManageFleet={() => setSection('orders')} game={game} selected={selected} destination={destination} onSelect={r => { setReferenceRequest(undefined); setReferenceNotice(''); if (navigating !== undefined) { if (!r.destroyed) siteAction({ type: 'hauler', change: { action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; } if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); } else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); if (r.known) setAmount(String(Math.floor(r.drones / 2))); } }} />}
     hint={(planning || navigating !== undefined) ? <><Text style={s.detail}>{navigating !== undefined ? 'Choose a new course destination.' : `From ${rock?.name}: choose a destination.`}</Text><Action text="Cancel selection" onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
     timeline={timeline}
     panels={{
@@ -257,6 +295,7 @@ export function OnlineOperation() {
         <Action text={snapshot && launchAt > snapshot.game.hour ? `Schedule at ${gameClock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler'} disabled={!operational || !!game.winner || !!game.draw || !!rock.destroyed || !!target?.destroyed || launchAt > snapshot.game.hour + 168 || !target || rock.owner !== snapshot.faction || !Number.isSafeInteger(Number(amount)) || Number(amount) < (unitIds.length ? 0 : 1) || launchAt <= snapshot.game.hour && Number(amount) > Math.floor(rock.drones ?? 0)} onPress={sendTransfer} />
         {rock.known && rock.owner === snapshot.faction && target && target.owner && target.owner !== snapshot.faction && !game.eliminated.includes(target.owner) && !delay && <GiftTransfer key={`${rock.id}:${target.id}:${target.owner}:${amount}:${carry}:${rock.module}:${unitIds.join(',')}`} scheduledAt={forecast ? inspectedHour! : undefined} specialists={unitManifest} legacy={game.version !== 2} from={rock} to={target} recipient={target.owner} drones={Number(amount)} carry={carry} disabled={!operational || !!game.winner || !!game.draw || game.eliminated.includes(snapshot.faction) || !Number.isSafeInteger(Number(amount)) || Number(amount) < (unitIds.length ? 0 : 1) || Number(amount) > Math.floor(rock.drones)} onGift={() => siteAction({ type: 'gift', from: rock.id, to: target.id, drones: Number(amount), specialists: unitIds, recipient: target.owner!, carryModule: carry && !!rock.module })} />}
         {game.version === 2 && rock.known && rock.owner === snapshot.faction && <SiteControls minesAllowed={game.rules?.mode !== 'domination'} rock={rock} cost={mineCost({ minesDrilled: { you: 0, vesper: 0, null: 0, ...game.minesDrilled } }, snapshot.faction)} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} scheduledAt={forecast ? inspectedHour! : undefined} onMine={() => siteAction({ type: 'drill-mine', rock: rock.id })} onShields={() => siteAction({ type: 'shields', rock: rock.id, disabled: !rock.shieldsDisabled })} />}
+        {referenceText('outpost', rock.id, rock.name) && <CopyObjectReference value={referenceText('outpost', rock.id, rock.name)!} label="Copy outpost reference" />}
         {rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} specialists={unitIds} scheduledAt={forecast ? inspectedHour! : undefined} targetIds={forecast ? observedInterceptionIds(snapshot.game, snapshot.faction) : undefined} disabled={!operational || !!game.winner || !!game.draw || game.eliminated.includes(snapshot.faction)} onIntercept={target => siteAction({ type: 'intercept', from: rock.id, target, drones: Number(amount), ...(unitIds.length ? { specialists: unitIds } : {}) })} />}
         {game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay mode="cargo" game={game} rock={rock} owner={snapshot.faction} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}
         {rock.known && rock.owner !== snapshot.faction && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.detail}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}

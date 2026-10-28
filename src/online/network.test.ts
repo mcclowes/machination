@@ -126,3 +126,34 @@ test('sensors.v1 accepts additive hidden ownership in live and history while ret
     assert.deepEqual((await historicalApi(session, 4)).game.rocks, [rock]);
   }
 });
+
+test('reference sidecars are optional but cannot identify objects outside the returned observation', async t => {
+  const { historicalApi } = await import('./network');
+  const session = { url: 'https://belt.example', token: 'seat', id: 'operation' };
+  const references = { version: 1, outposts: [{ id: 'remote', ref: 'a'.repeat(64) }], haulers: [{ id: 999, ref: 'b'.repeat(64) }] };
+  const frame = { id: session.id, faction: 'you', visibility: 'sensors.v1', messages: [], history: { from: 0, through: 4, at: 4 }, game: { hour: 4, scheduled: [], rocks: [{ id: 'remote' }], fleets: [{ id: 999 }] }, references };
+  let response: unknown = frame;
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(response)));
+  assert.deepEqual((await api(session, 'games/operation')).references, references);
+  assert.deepEqual((await historicalApi(session, 4)).references, references);
+  for (const invalid of [
+    null, { ...references, version: 2 }, { ...references, secret: 'private' },
+    { ...references, outposts: [{ id: 'not-observed', ref: 'a'.repeat(64) }] },
+    { ...references, haulers: [{ id: 1000, ref: 'b'.repeat(64) }] },
+    { ...references, haulers: [{ id: 999, ref: 'not-a-digest' }] },
+    { ...references, haulers: [...references.haulers, ...references.haulers] },
+    { ...references, outposts: [{ id: 'remote', ref: 'b'.repeat(64) }] },
+  ]) {
+    response = { ...frame, references: invalid };
+    await assert.rejects(api(session, 'games/operation'), /Unsupported server/);
+    await assert.rejects(historicalApi(session, 4), /Unsupported historical/);
+  }
+  response = { ...frame, references: undefined };
+  assert.equal((await historicalApi(session, 4)).references, undefined);
+});
+
+test('a connected operation rejects live frames from a different operation', async t => {
+  const session = { url: 'https://belt.example', token: 'seat', id: 'expected-operation' };
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ id: 'other-operation', visibility: 'sensors.v1', faction: 'you', messages: [], game: { scheduled: [] } })));
+  await assert.rejects(api(session, 'games/expected-operation'), /Unsupported server/);
+});

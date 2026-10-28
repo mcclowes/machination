@@ -9,6 +9,9 @@ import { createLegacyGame } from '../src/game/legacy';
 import { GameService } from './service';
 import { createApi } from './http';
 import type { Snapshot } from '../src/online/protocol';
+import { api as clientApi, historicalApi } from '../src/online/network';
+import { encodeObjectReference, parseObjectReference } from '../src/online/object-references';
+import { copyableReference, resolveReference } from '../src/online/reference-inspection';
 
 const secret = () => randomBytes(32).toString('hex');
 async function setup(t: TestContext) {
@@ -33,7 +36,7 @@ async function setup(t: TestContext) {
   await request('join', tokens[1]!, { invite: created.invite }); await request('join', tokens[2]!, { invite: created.invite });
   const path = `games/${created.id}`;
   await request(`${path}/start`, tokens[0]!, {});
-  return { dir, file, tokens, path, request, setHour(hour: number) { now = hour * 3_600_000; },
+  return { dir, file, tokens, path, request, get url() { return `http://127.0.0.1:${(api.address() as AddressInfo).port}`; }, setHour(hour: number) { now = hour * 3_600_000; },
     async restart() { await close(); service = await GameService.open(file, () => now, createLegacyGame); api = createApi(service); await listen(); } };
 }
 function references(frame: Snapshot) {
@@ -43,6 +46,40 @@ function references(frame: Snapshot) {
   for (const r of [...frame.references.outposts, ...frame.references.haulers]) assert.match(r.ref, /^[a-f0-9]{64}$/);
   return frame.references;
 }
+
+test('real chat copy and recipient inspection use filtered history rather than sender aliases', async t => {
+  const h = await setup(t);
+  const host = { url: h.url, id: h.path.slice(6), token: h.tokens[0]! };
+  const rival = { ...host, token: h.tokens[1]! };
+  let owner = await clientApi(rival, h.path);
+  owner = await clientApi(rival, `${h.path}/orders`, { requestId: randomUUID(), revision: owner.revision, from: 'e', to: 'a', drones: 30 });
+  const copied = copyableReference({ ...owner, at: owner.game.hour }, 'hauler', owner.game.fleets[0]!.id)!;
+  const text = encodeObjectReference(copied);
+  await clientApi(rival, `${h.path}/messages`, { requestId: randomUUID(), to: 'you', text });
+  let recipient = await clientApi(host, h.path);
+  const received = parseObjectReference(recipient.messages.at(-1)!.text)!;
+  assert.deepEqual(received, copied);
+  assert.equal(resolveReference({ ...recipient, at: recipient.game.hour }, received, 'now'), undefined);
+  recipient = await clientApi(host, `${h.path}/orders`, { requestId: randomUUID(), revision: recipient.revision, from: 'a', to: 'e', drones: 1 });
+  h.setHour(3);
+  recipient = await clientApi(host, h.path);
+  const target = resolveReference({ ...recipient, at: 3 }, received, 'now')!;
+  assert.equal(target.kind, 'hauler');
+  assert.notEqual(target.id, owner.game.fleets[0]!.id);
+  const hiddenPast = await historicalApi(host, copied.hour);
+  assert.equal(resolveReference({ ...hiddenPast, at: hiddenPast.history.at }, received, 'observed'), undefined);
+  const copiedAtThree = copyableReference({ ...recipient, at: 3 }, 'hauler', target.id)!;
+  assert.equal(copiedAtThree.ref, copied.ref);
+  const tokenAtThree = encodeObjectReference(copiedAtThree);
+  h.setHour(8);
+  const current = await clientApi(host, h.path);
+  assert.equal(resolveReference({ ...current, at: current.game.hour }, copiedAtThree, 'now'), undefined);
+  const historical = await historicalApi(host, 3);
+  assert.deepEqual(resolveReference({ ...historical, at: historical.history.at }, parseObjectReference(tokenAtThree)!, 'observed'), target);
+  await h.restart();
+  const restored = await historicalApi({ ...host, url: h.url }, 3);
+  assert.deepEqual(resolveReference({ ...restored, at: restored.history.at }, copiedAtThree, 'observed'), target);
+});
 
 test('HTTP references follow the exact recipient observation and copied historical hour', async t => {
   const h = await setup(t); const [host, rival] = h.tokens as [string, string];
