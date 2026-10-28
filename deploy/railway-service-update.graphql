@@ -1,0 +1,3 @@
+mutation ConfigureMachination($serviceId: String!, $environmentId: String!, $input: ServiceInstanceUpdateInput!) {
+  serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: $input)
+}

@@ -1,9 +1,11 @@
 **
 !Dockerfile
+!Dockerfile.railway
 !package.json
 !package-lock.json
 !scripts/
 !scripts/build-server.mjs
+!scripts/railway-entrypoint.sh
 !server/
 !server/**
 !src/

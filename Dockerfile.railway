@@ -1,0 +1,24 @@
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
+COPY scripts/build-server.mjs ./scripts/build-server.mjs
+COPY server ./server
+COPY src/game ./src/game
+COPY src/online/protocol.ts ./src/online/protocol.ts
+RUN npm run build:server
+
+FROM node:24-bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production \
+    MACHINATION_HOST=0.0.0.0 \
+    MACHINATION_DATA=/var/lib/machination/state/games.json \
+    PORT=8787
+WORKDIR /app
+COPY --from=build --chown=node:node /app/dist-server ./dist-server
+COPY --chmod=755 scripts/railway-entrypoint.sh /usr/local/bin/machination-entrypoint
+EXPOSE 8787
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8787)+'/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/local/bin/machination-entrypoint"]
+CMD ["node", "dist-server/main.mjs"]

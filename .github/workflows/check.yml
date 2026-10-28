@@ -18,6 +18,8 @@ jobs:
       - run: npm run test:server-build
       - run: npm run build:server-image
       - run: npm run test:server-image
+      - run: docker build -f Dockerfile.railway -t machination-server:railway .
+      - run: node scripts/test-railway-image.mjs
       - run: npx expo install --check
       - run: npx expo export --platform all
         env:

@@ -2,6 +2,8 @@
 
 The authoritative service builds into a standalone Node 24 program. Its runtime imports use Node built-ins; Expo and application `node_modules` aren't part of the runtime image. The mobile app still needs a reachable HTTPS service for remote play.
 
+Railway is the selected invited-playtest host. See [Railway deployment](railway.md) for the volume-compatible image, verified local checks, and provisioning status.
+
 Run one service process per data file. This backend uses serialized transactions and an atomically replaced JSON snapshot, not shared database coordination. Configure one replica and a persistent POSIX directory. Keep the same data file across releases.
 
 ## Build and check

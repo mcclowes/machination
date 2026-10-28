@@ -1,0 +1,11 @@
+{
+  "builder": "DOCKERFILE",
+  "dockerfilePath": "Dockerfile.railway",
+  "healthcheckPath": "/health",
+  "healthcheckTimeout": 120,
+  "numReplicas": 1,
+  "sleepApplication": false,
+  "overlapSeconds": 0,
+  "drainingSeconds": 20,
+  "restartPolicyType": "ALWAYS"
+}
