@@ -83,7 +83,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock): voi
   }
   game.fleets = game.fleets.filter(f => f.id !== fleet.id);
   reconcileLeadership(game, leaders, rock);
-  if (living(rock).some(u => u.kind === 'inspector')) rock.shield = maximumShield(rock);
+  if (!phase.suppressed && living(rock).some(u => u.kind === 'inspector')) rock.shield = maximumShield(rock);
 }
 
 export function repairLosses(game: Game, asset: Asset, lost: number, suppressed: boolean): number {

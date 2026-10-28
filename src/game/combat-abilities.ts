@@ -19,8 +19,8 @@ export function applyCombatAbilities(game: Game, a: Combatant, b: Combatant): { 
     const haulers = !('kind' in a) && !('kind' in b);
     if (haulers && (count(a, 'saboteur') || count(b, 'saboteur'))) {
       const redirectA = count(b, 'saboteur'); const redirectB = count(a, 'saboteur');
-      if (redirectA) returnHauler(game, a as Fleet, true);
-      if (redirectB) returnHauler(game, b as Fleet, true);
+      if (redirectA) returnHauler(game, a as Fleet);
+      if (redirectB) returnHauler(game, b as Fleet);
       return { suppressed, ended: true };
     }
     const stolenA = !('kind' in a) && count(a, 'thief') ? Math.min(b.drones, Math.ceil(b.drones * 0.15) * count(a, 'thief')) : 0;

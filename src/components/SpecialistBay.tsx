@@ -20,7 +20,8 @@ export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = e
   const status = recruitmentStatus(game, owner);
   const controlled = rock.owner === owner && !rock.destroyed;
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
-  const canRecruit = active && !!status.at && status.credits > 0;
+  const canPromote = active && status.credits > 0;
+  const canRecruit = canPromote && !!status.at;
   const coreSite = game.rocks.find(site => site.id === status.at);
   const units = rock.specialists ?? [];
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
@@ -29,7 +30,7 @@ export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = e
     <Text style={s.label}>Specialist bay</Text>
     <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
     <Text style={s.detail}>Next recruitment: hour {status.nextAt}. Hiring and promotion cost 1 credit.</Text>
-    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site. Keep the Intelligence core at a controlled site to hire or promote.` : 'Move your Intelligence core to a controlled site to hire or promote.'}</Text>
+    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
     {status.offers.map(kind => {
       const entry = SPECIALISTS[kind];
       const amount = hireAmount(kind);
@@ -57,7 +58,7 @@ export function SpecialistBay({ game, rock, owner, enabled, selectionEnabled = e
         </Pressable>}
         {!unit.captive && owned && next && <>
           <Text style={s.detail}>Promote to {SPECIALISTS[next].name}: {SPECIALISTS[next].description}</Text>
-          <Action label={`Promote · 1 credit`} accessibilityLabel={`Promote ${entry.name} to ${SPECIALISTS[next].name} for 1 credit`} disabled={!canRecruit || !controlled} onPress={() => onPromote(unit.id)} />
+          <Action label={`Promote · 1 credit`} accessibilityLabel={`Promote ${entry.name} to ${SPECIALISTS[next].name} for 1 credit`} disabled={!canPromote || !controlled} onPress={() => onPromote(unit.id)} />
         </>}
         {unit.captive && controlled && <Action label="Release captive" accessibilityLabel={`Release captive ${entry.name}`} disabled={!active} onPress={() => onRelease(unit.id)} />}
       </View>;

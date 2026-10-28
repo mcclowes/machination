@@ -213,3 +213,13 @@ test('pre-specialist interception saves migrate their rig before enforcing the n
   assert.equal(loaded.fleets[1]!.specialists![0]!.kind, 'pirate');
   assert.equal(loaded.fleets[1]!.module, undefined);
 });
+
+test('a docked specialist can promote using an earned credit while the core is in transit', () => {
+  let game = advance(createGame(0), 4, { rivals: false });
+  game.rocks.find(r => r.id === 'c')!.specialists!.push({ id: 'docked-foreman', owner: 'you', kind: 'foreman' });
+  game = dispatch(game, 'a', 'e', 0, 'you', false, ['core-you']);
+  game = advance(game, game.hour + 1 / 6, { rivals: false });
+  const promoted = promoteSpecialist(game, 'you', 'docked-foreman');
+  assert.equal(promoted.rocks.find(r => r.id === 'c')!.specialists![0]!.kind, 'engineer');
+  assert.throws(() => hireSpecialist(game, 'you', game.recruitment!.you.offers[0]!));
+});

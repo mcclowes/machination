@@ -36,9 +36,18 @@ test('diversion worms redirect their opponent before conversion or drone losses'
   const redirected = end.fleets.find(f => f.owner === 'vesper')!;
   assert.equal(redirected.drones, 30);
   assert.equal(redirected.returning, true);
-  assert.equal(redirected.courseLocked, true);
+  assert.equal(redirected.courseLocked, undefined);
   assert.equal(end.rocks.find(r => r.id === redirected.to)!.owner, 'vesper');
   assert.equal(end.fleets.find(f => f.owner === 'you')!.drones, 20);
+});
+
+test('an elder suppresses a defending inspector combat refill', () => {
+  const game = createGame(0);
+  game.rocks.find(r => r.id === 'f')!.specialists!.push({ id: 'elder-inspector', owner: 'vesper', kind: 'inspector' });
+  game.rocks.find(r => r.id === 'c')!.specialists!.push({ id: 'attacking-elder', owner: 'you', kind: 'elder' });
+  const sent = dispatch(game, 'c', 'f', 1, 'you', false, ['attacking-elder']);
+  const end = advance(sent, sent.fleets[0]!.arrives, { rivals: false });
+  assert.equal(end.rocks.find(r => r.id === 'f')!.shield, 0);
 });
 
 test('surviving haulers capture enemy modules and send them home in a real return convoy', () => {

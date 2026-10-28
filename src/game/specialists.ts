@@ -39,11 +39,12 @@ export function recruitmentStatus(game: UnitWorld & { hour: number; recruitment?
 }
 function requireRecruitment(game: Game, owner: Faction): { status: ReturnType<typeof recruitmentStatus>; state: Recruitment } {
   const status = recruitmentStatus(game, owner);
-  if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner) || !status.at || !status.credits || !game.recruitment?.[owner]) throw new Error('Recruitment needs an active core at a site and an available hiring credit.');
+  if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner) || !status.credits || !game.recruitment?.[owner]) throw new Error('Recruitment needs an active intelligence and an available hiring credit.');
   return { status, state: game.recruitment[owner] };
 }
 export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind): Game {
   const { status, state } = requireRecruitment(game, owner);
+  if (!status.at) throw new Error('Hiring needs your active core at a controlled site.');
   if (!state.offers.includes(kind)) throw new Error('Choose one of the three current recruitment offers.');
   const amount = hireAmount(kind);
   const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
