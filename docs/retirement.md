@@ -1,0 +1,21 @@
+# Resignation and inactivity
+
+Issue [#18](https://github.com/mcclowes/machination/issues/18). The [official rulebook](https://subterfuge-game.com/rulebook/) specifies voluntary resignation and automatic resignation after 48 hours of inactivity. Elimination removes cargo, mining, funding, and order authority while retaining assets, manufacturing, shields, sensors, and chat.
+
+Version-two operations expose a two-step resignation control. It submits an authenticated `POST /v1/games/:id/resign` with the caller's revision and durable request ID. The server determines the faction; request fields cannot resign another seat. Reusing the accepted ID returns the confirmed result without another action. A stale revision or invalid lifecycle is rejected. Failed persistence publishes neither the resignation nor its receipt.
+
+The canonical `resign` replay command removes queued transfers, cancels unlaunched preparations, and retains departed haulers and remaining territory. Preparation cancellation matches existing Queen-loss handling; the rulebook does not separately specify this transitional state, so it remains an explicit interpretation. Surviving factories and shields continue normally. The last active intelligence wins immediately; simultaneous inactivity of all survivors draws.
+
+## Presence boundary
+
+Private seat metadata stores the last active game hour. Successful game commands and new chat/group submissions renew it. An authenticated `POST /v1/games/:id/activity` renews only the caller's presence and returns a normal snapshot. It uses the server clock, requires no client timestamp or command receipt, and cannot revive a seat whose deadline has already passed. Routine snapshots, historical requests, duplicate command receipts, and background polling do not renew activity.
+
+The client registers foreground visits and at most one periodic foreground renewal per minute. Foreground presence is the implementation's definition of activity; the rulebook does not define individual gestures or heartbeat frequency. Native/web AppState governs foreground detection. Each snapshot includes only its caller's optional Unix-millisecond `inactivity.expiresAt`. Other seats' presence timestamps stay private. The UI calculates remaining time against `serverTime` and displays the deadline in the device's local time zone.
+
+Settlement advances the engine to each due deadline before catching up to the present. All seats due at the same instant retire in one canonical `inactivity` replay command; iteration order cannot choose a false survivor. Engine events at that instant resolve first. If those events already end the game, inactivity cannot change its result. Historical views reproduce the actual retirement hour without requiring or exposing past heartbeats. Presence renewals consume no game-history entries or gameplay revisions. A bounded reserve of three automatic retirement entries and 1 Ki serialized characters keeps deadlines enforceable even when the player history is full.
+
+New multiplayer games begin with a 48-hour window for every seat. Existing version-two games without presence metadata receive a fresh window at their first successful settlement after upgrade; earlier replay remains intact. This migration deliberately avoids retroactive elimination under a rule the old client did not implement. Finished games and lobbies do not expire. Version-one prototype games retain their old rules. Solo training supports manual resignation, with no automatic inactivity for the training player or automatic rivals.
+
+## Verification
+
+Pure scenarios cover preserved industry, shields, sonar, launched forces, funding withdrawal, canceled plans/preparations, simultaneous draws, immutable inputs, replay, and saved-archive validation. HTTP/service scenarios cover authenticated faction selection, stale revisions, retries, restart, historical state, retained chat and sensors, exact offline deadlines, late presence, migration, private timestamps, activity through commands/chat, and durable-write rollback. Foreground policy tests cover the one-minute interval, background suppression, resume events, and server-relative countdowns.

@@ -10,6 +10,13 @@ import { isSpecialistKind } from './specialist-catalog';
 import { replayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
 export const MAX_REPLAY_COMMANDS = 10_000;
 export const MAX_REPLAY_CHARACTERS = 16 * 1024 * 1024;
+const MAX_INACTIVITY_COMMANDS = Object.keys(FACTIONS).length;
+const INACTIVITY_CHARACTER_RESERVE = 1024;
+export function replayFits(data: ReplayData, systemReserve = false): boolean {
+  const automatic = data.entries.filter(entry => entry?.command?.type === 'inactivity').length;
+  return automatic <= MAX_INACTIVITY_COMMANDS && data.entries.length - automatic <= MAX_REPLAY_COMMANDS
+    && JSON.stringify(data).length <= MAX_REPLAY_CHARACTERS + (systemReserve ? INACTIVITY_CHARACTER_RESERVE : 0);
+}
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown) => typeof v === 'string' && /^[a-zA-Z0-9:-]{1,80}$/.test(v);
 const owner = (v: unknown) => typeof v === 'string' && Object.hasOwn(FACTIONS, v);
@@ -54,7 +61,7 @@ function canonical(value: unknown): string {
 }
 export function decodeReplay(input: unknown, live: Game, rivals: boolean): ReplayArchive {
   try {
-    if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals']) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS || JSON.stringify(input).length > MAX_REPLAY_CHARACTERS) throw new Error();
+    if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals']) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
     const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
     if (baseline.hour > live.hour || baseline.epoch !== live.epoch || baseline.version !== live.version) throw new Error();
     let previous = baseline.hour;

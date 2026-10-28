@@ -12,17 +12,18 @@ import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
 import { observe } from '../src/game/visibility';
 import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayData } from '../src/game/replay';
-import { decodeReplay, MAX_REPLAY_COMMANDS, MAX_REPLAY_CHARACTERS } from '../src/game/replay-save';
+import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
+import { decodeReplay, replayFits } from '../src/game/replay-save';
 import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
-import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { faction: Faction; hash: string; revision?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
+  seats: { faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
   receipts: Record<string, string>; diplomacy?: Diplomacy; replay?: ReplayData;
 };
 type Database = { version: 1; rooms: Room[] };
@@ -54,7 +55,8 @@ export class GameService {
           || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
           || !r.messages.every(m => Number.isSafeInteger(m.id) && FACTIONS.includes(m.from) && FACTIONS.includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
         for (const seat of r.seats) {
-          if (seat.identityHash !== undefined && !isHash(seat.identityHash)
+          if (seat.lastActiveHour !== undefined && (r.startedAt === null || r.game.version !== 2 || !Number.isFinite(seat.lastActiveHour) || seat.lastActiveHour < 0 || seat.lastActiveHour > r.game.hour)
+            || seat.identityHash !== undefined && !isHash(seat.identityHash)
             || seat.recoveryHash !== undefined && !isHash(seat.recoveryHash)
             || seat.recoveryReceipt !== undefined && (!seat.recoveryReceipt || !isHash(seat.recoveryReceipt.secretHash) || seat.recoveryReceipt.credentialHash !== seat.hash)) throw new Error('Damaged recovery metadata.');
           seat.revision ??= 0;
@@ -116,14 +118,29 @@ export class GameService {
   private settle(room: Room) {
     if (room.startedAt !== null) {
       room.replay ??= exportArchive(createArchive(room.game));
-      room.game = advance(room.game, Math.max(room.game.hour, (this.now() - room.startedAt) / 3_600_000), { rivals: false });
+      const target = Math.max(room.game.hour, (this.now() - room.startedAt) / HOUR_MS);
+      while (room.game.version === 2 && !room.game.winner && !room.game.draw) {
+        const active = room.seats.filter(s => !room.game.eliminated.includes(s.faction) && s.lastActiveHour !== undefined);
+        const deadline = Math.min(...active.map(s => s.lastActiveHour! + INACTIVITY_HOURS));
+        if (deadline > target) break;
+        room.game = advance(room.game, Math.max(room.game.hour, deadline), { rivals: false });
+        if (room.game.winner || room.game.draw) break;
+        const owners = active.filter(s => !room.game.eliminated.includes(s.faction) && s.lastActiveHour! + INACTIVITY_HOURS <= deadline).map(s => s.faction);
+        if (owners.length) this.act(room, { type: 'inactivity', owners });
+      }
+      room.game = advance(room.game, target, { rivals: false });
+      if (room.game.version === 2) for (const seat of room.seats) seat.lastActiveHour ??= room.game.hour;
     }
   }
   private act(room: Room, command: GameCommand): void {
     const result = applyCommand(room.replay ? restoreArchive(room.replay) : createArchive(room.game), command, { rivals: false, knownThrough: room.game.hour });
     const data = exportArchive(result.archive);
-    requireThat(data.entries.length <= MAX_REPLAY_COMMANDS && JSON.stringify(data).length <= MAX_REPLAY_CHARACTERS, 409, 'history.capacity.reached', 'This operation has reached its command history limit.');
+    requireThat(replayFits(data, command.type === 'inactivity'), 409, 'history.capacity.reached', 'This operation has reached its command history limit.');
     room.game = result.game; room.replay = data;
+    if (command.type !== 'inactivity') this.touch(room, command.owner);
+  }
+  private touch(room: Room, faction: Faction): void {
+    if (room.startedAt !== null && room.game.version === 2 && !room.game.winner && !room.game.draw && !room.game.eliminated.includes(faction)) room.seats.find(s => s.faction === faction)!.lastActiveHour = room.game.hour;
   }
   private revision(room: Room, faction: Faction): number { return room.seats.find(s => s.faction === faction)!.revision ?? 0; }
   private identify(room: Room, faction: Faction, kind: 'hauler' | 'message' | 'unit', id: number | string): number {
@@ -138,6 +155,7 @@ export class GameService {
       channels: [{ id: 'public', kind: 'public', messages: room.diplomacy?.publicMessages ?? [] },
         ...(room.diplomacy?.groups ?? []).filter(g => g.members.includes(faction)).map(g => ({ id: g.id, kind: 'private' as const, messages: g.messages }))],
       recoveryEnabled: !!room.seats.find(s => s.faction === faction)!.recoveryHash,
+      ...(room.startedAt !== null && room.game.version === 2 && !room.game.winner && !room.game.draw && !room.game.eliminated.includes(faction) && room.seats.find(s => s.faction === faction)!.lastActiveHour !== undefined ? { inactivity: { expiresAt: room.startedAt + (room.seats.find(s => s.faction === faction)!.lastActiveHour! + INACTIVITY_HOURS) * HOUR_MS } } : {}),
       ...(room.replay ? { history: { from: room.replay.baseline.hour, through: room.game.hour } } : {}),
       visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id), id => String(this.identify(room, faction, 'unit', id))), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
@@ -210,12 +228,27 @@ export class GameService {
         game: observe(game, f, id => this.identify(r, f, 'hauler', id), id => String(this.identify(r, f, 'unit', id))) };
     });
   }
+  activity(id: string, token: string): Promise<Snapshot> {
+    return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); this.touch(r, f); return this.view(r, f); });
+  }
+  resign(id: string, token: string, command: ResignOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['resign', command.revision]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'resign.conflict.stale', 'Your orders changed. Refresh before resigning.');
+      try { this.act(r, { type: 'resign', owner: f }); }
+      catch (e) { throw new Failure(409, 'resign.conflict.invalid', (e as Error).message); }
+      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
   start(id: string, token: string): Promise<Snapshot> {
     return this.transaction(db => {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
       requireThat(r.seats.length === 3, 409, 'game.conflict.seats', 'Wait for all three intelligences to join.');
-      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1; }
+      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1; }
       this.settle(r); return this.view(r, f);
     });
   }
@@ -409,6 +442,7 @@ export class GameService {
       requireThat(members.every(member => d.groups.filter(g => g.members.includes(member)).length < DIPLOMACY_LIMITS.groupsPerParticipant),
         409, 'group.capacity.reached', 'A selected participant has reached the private group limit.');
       d.groups.push({ id: randomBytes(16).toString('hex'), name: command.name.trim(), members, createdBy: f, createdAt: this.now(), messages: [] });
+      this.touch(r, f);
       return this.view(r, f);
     });
   }
@@ -424,6 +458,7 @@ export class GameService {
       const messages = group ? group.messages : d.publicMessages;
       messages.push({ id: randomBytes(16).toString('hex'), from: f, text: command.text.trim(), sentAt: this.now() });
       messages.splice(0, Math.max(0, messages.length - DIPLOMACY_LIMITS.messagesPerChannel));
+      this.touch(r, f);
       return this.view(r, f);
     });
   }
@@ -435,6 +470,7 @@ export class GameService {
       if (this.receipt(r, f, command.requestId, JSON.stringify(['message', command.to, command.text]))) return this.view(r, f);
       requireThat(r.messages.length < 5000, 409, 'message.capacity.reached', 'This operation has reached its transmission limit.');
       r.messages.push({ id: r.messages.length + 1, from: f, to: command.to, text: command.text.trim(), sentAt: this.now() });
+      this.touch(r, f);
       return this.view(r, f);
     });
   }
