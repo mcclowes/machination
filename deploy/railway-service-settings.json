@@ -1,5 +1,4 @@
 {
-  "builder": "DOCKERFILE",
   "dockerfilePath": "Dockerfile.railway",
   "healthcheckPath": "/health",
   "healthcheckTimeout": 120,

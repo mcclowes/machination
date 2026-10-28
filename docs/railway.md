@@ -4,7 +4,13 @@ Deploy one API service with one persistent volume. The mobile client uses its ge
 
 ## Account and platform status
 
-The CLI authenticated successfully on October 28, 2026, but creating `machination-playtest` was rejected with `Your trial has expired. Please select a plan to continue using Railway.` No Machination project, service, volume, or public domain was created. The account owner must select a paid workspace plan before provisioning can continue. Existing unrelated projects must remain unchanged.
+The account owner activated a paid plan on October 28, 2026. The invited-playtest API is live at **https://machination-api-production.up.railway.app**. This is a JSON API, not a web game frontend. Enter this origin in Multiplayer uplink, or set `EXPO_PUBLIC_GAME_SERVER` before building clients.
+
+Project: `61507efc-e9c6-43d4-ac4b-6c1555170576`; service: `591b78ad-6b17-42ed-86d4-a26d85ab6802`; environment: `fabc11e7-5373-4143-857e-3af3df370b65`; deployment: `2edbe45f-9154-4635-82c0-8ce6a0011ed7`. The deployed source is committed snapshot `658150f`, uploaded from an isolated archive. Later gameplay commits and concurrent edits are not automatically deployed. The unrelated existing Railway project was not modified.
+
+Live acceptance passes HTTPS health, a three-seat host start, an authorized transfer, exact retry deduplication, recipient-only private delivery, anonymous/foreign credential rejection, and rejection of an unapproved browser origin. A controlled Railway restart retains all three seats, the message, the fleet, and its retry receipt. Logs show shutdown draining and a fresh service start; Railway reports deployment success. Readback confirms one replica, sleeping disabled, `/health`, no overlap, 20-second draining, and always-restart. The volume is attached at `/var/lib/machination` and ready.
+
+**Backups remain incomplete.** Railway rejected the daily-backup request because manual backups and schedules require a Pro workspace on this account. No plan upgrade was made. The schedule query returns no enabled schedules. Independent backup download also remains unverified: Railway's file command requires SSH keys, temporary key registration failed without registering a key, and an explicit-identity SSH attempt returned a temporarily unavailable agent path. Runtime UID and permissions are proven by the local container check, not by cloud SSH inspection. Do not claim cloud backup, restore, native remote networking, or automatic client configuration from these HTTP checks.
 
 Railway also reports paused new signups and intermittent builds in US East and EU West. Check [current status](https://status.railway.com/) before provisioning. These are platform observations, not evidence that a deployment succeeded.
 
@@ -43,9 +49,9 @@ Apply the input in `deploy/railway-service-settings.json` with `deploy/railway-s
 railway api --file deploy/railway-service-update.graphql --variables @/private/tmp/machination-railway-variables.json
 ```
 
-The variables object is `{ "serviceId": "...", "environmentId": "...", "input": <settings object> }`. These API settings use the current CLI instead of creating a deprecated `railway.json` or `railway.toml`. A future IaC import can use `railway config pull`; do not install agent plugins or modify account tooling as part of deploying the service.
+The variables object is `{ "serviceId": "...", "environmentId": "...", "input": <settings object> }`. These API settings use the current CLI instead of creating a deprecated `railway.json` or `railway.toml`. Do not send `builder: "DOCKERFILE"`: Docker is detected through the Dockerfile path/variable, but that value is absent from the live API input enum and was rejected. A future IaC import can use `railway config pull`; do not install agent plugins or modify account tooling as part of deploying the service.
 
-Confirm one replica, sleeping off, `/health`, zero overlap, and a 20-second drain. Use the project's selected region for its volume and service. Do not create a second writer against the same snapshot. On the paid workspace, enable daily volume backups and take an independent restricted backup before replacements or restores. Follow the stop-and-backup procedure in [hosting](hosting.md), using `/var/lib/machination/state/games.json` for this image.
+Confirm one replica, sleeping off, `/health`, zero overlap, and a 20-second drain. Use the project's selected region for its volume and service. Do not create a second writer against the same snapshot. Railway currently requires Pro for its daily volume backups; a paid Hobby workspace is insufficient. Until that is enabled, establish an independent restricted backup before opening real player operations or replacing/restoring data. Follow the stop-and-backup procedure in [hosting](hosting.md), using `/var/lib/machination/state/games.json` for this image.
 
 Then deploy and obtain a generated HTTPS domain:
 
