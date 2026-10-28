@@ -121,3 +121,20 @@ test('fleet geometry uses disclosed routes, shortest fallback legs, and torus wr
   const zero = replayFleetPosition(s, fleet); assert.ok(Number.isNaN(zero.x) && Number.isNaN(zero.y));
   assert.equal(encodeSharedReplay(replay), before);
 });
+
+test('seek works without structuredClone and returns independently mutable nested plain data', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'structuredClone');
+  const replay = file();
+  try {
+    Object.defineProperty(globalThis, 'structuredClone', { configurable: true, value: undefined });
+    const copy = seekReplay(replay, replay.from);
+    const original = seekReplay(replay, replay.from);
+    copy.rocks[0]!.specialists![0]!.owner = 'vesper';
+    copy.coverage[0]!.radius = 999;
+    copy.rules!.map.width = 999;
+    copy.cargo.you = 999;
+    assert.deepEqual(seekReplay(replay, replay.from), original);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'structuredClone', descriptor);
+  }
+});

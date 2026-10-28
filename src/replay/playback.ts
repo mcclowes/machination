@@ -31,7 +31,8 @@ export function seekReplay(replay: SharedReplay, hour: number, ordinal?: number)
   const at = locate(replay, hour, ordinal);
   const source = at.exact ? at.group.states[at.ordinal] : replay.spans[at.index]?.scene;
   if (!source) throw new RangeError('Replay has no scene at this position');
-  const scene = structuredClone(source);
+  // Replay scenes contain validated JSON plain data; Hermes has no structuredClone.
+  const scene: ReplayScene = JSON.parse(JSON.stringify(source));
   scene.hour = at.hour;
   return scene;
 }
