@@ -19,3 +19,20 @@ Engine scenarios cover seam and corner travel, sonar, route combat with split po
 Safari verified that an existing planar training save still loads and that a fresh two-player torus lobby opens with territory framing. Further native browser interaction checks became unavailable when both Safari and Chrome bindings returned `cgWindowNotFound`. Actual seam dragging, translated-copy selection, retained camera through live history requests, physical-phone gestures, and full-match acceptance remain unverified. Pure projection tests do not substitute for those checks.
 
 The generator remains an approximation, described in [Generated charts](map-generation.md). Wrapping doesn't establish exact map-generation or travel-speed fidelity. Specialist interaction acceptance, mine-loss semantics, foreign preparation visibility, broader future actions, shared replay export, and complete matches remain tracked in #18.
+
+## Travel calibration evidence
+
+[Travel calibration (#45)](https://github.com/mcclowes/machination/issues/45) records a measurable profile discrepancy. The official [Time Machine tutorial](https://vimeo.com/114210812) at 02:00 shows 18h16m remaining for a selected 40-driller sub. The captured frame is `.fettle/shots/subterfuge-tutorial-02m00s.png`. Its historical build, complete route context, and game settings aren't established. It doesn't specify a current-client speed constant.
+
+For current stationary configured games, an ordinary shortest leg cannot exceed `hypot(width / 2, height / 2) / 8` hours. The limits are independent of generated coordinates:
+
+| Seats | Maximum ordinary leg |
+| --- | --- |
+| 2 | 7.217 hours |
+| 3 | 8.839 hours |
+| 8 | 14.434 hours |
+| 10 | 16.137 hours |
+
+Even with ten-minute preparation, that profile can't reproduce the frame's duration as an ordinary shortest leg. This identifies a calibration question, not whether speed, map scale, game settings, or historical behavior explains it. A [2015 Ron Carmel design interview](https://www.gamedeveloper.com/design/-a-brawl-and-a-race-designing-for-the-long-game-in-i-subterfuge-i-) describes roughly twelve-hour trips and matches lasting about a week, but doesn't define the trip distribution. It isn't an exact replacement-value specification.
+
+A bounded probe of seeds 0, 7, 73, and 2026 at 2/3/8/10 seats measures nearest-site medians of 1.118–1.486 hours, nearest-dormant-destination medians from owned sites of 1.449–2.685 hours, and all-pairs medians of 3.977–9.139 hours, varying with seat count. These distributions aren't interchangeable. Probe and output: `/tmp/machination-travel-calibration-probe.ts` and `/tmp/machination-travel-calibration-probe.log`. Current-client route and sonar-scale measurements remain necessary before choosing a calibrated profile. Existing saved journeys must retain their recorded rules.
