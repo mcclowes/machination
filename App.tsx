@@ -4,7 +4,7 @@
  * ---
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { AppState, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Modal, TextInput } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View, Modal, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
@@ -29,6 +29,7 @@ import { HaulerOrders } from './src/components/HaulerOrders';
 import { commandHauler, LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
 import { cargoTarget, drillMine, droneInventory, mineCost, powerCapacity, setShields } from './src/game/economy';
+import { OperationShell, type OperationSection } from './src/components/OperationShell';
 import { TimeMachine } from './src/components/TimeMachine';
 import { gameClock as clock, inspectionOffset, orderHour } from './src/game/time-machine';
 
@@ -42,11 +43,10 @@ function Button({ label, onPress, disabled, quiet = false }: { label: string; on
 function Label({ children }: { children: React.ReactNode }) { return <Text style={s.label}>{children}</Text>; }
 export default function App() {
   const [mode, setMode] = useState<'solo' | 'online'>('solo');
-  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
+  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
 }
 function Operation() {
-  const { width } = useWindowDimensions();
-  const wide = width >= 850;
+  const [section, setSection] = useState<OperationSection | null>(null);
   const [game, setGame] = useState<Game>(() => createGame());
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -61,7 +61,6 @@ function Operation() {
   const [navigating, setNavigating] = useState<number>();
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const forecast = inspectionOffset(game.hour, inspectedHour);
-  const [tab, setTab] = useState<'overview' | 'signals'>('overview');
   const [reset, setReset] = useState(false);
   const lastTick = useRef(Date.now());
   useEffect(() => {
@@ -105,12 +104,12 @@ function Operation() {
   const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones));
   function select(r: Rock) {
     if (navigating !== undefined) { try { setGame(commandHauler(game, 'you', { action: 'course', fleet: navigating, to: r.id })); setError(''); } catch (e) { setError((e as Error).message); } setNavigating(undefined); return; }
-    if (planning && r.id !== selected) setDestination(r.id);
-    else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); setAmount(String(Math.max(game.version === 2 ? 0 : 1, Math.floor(r.drones / 2)))); }
+    if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); }
+    else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); setAmount(String(Math.max(game.version === 2 ? 0 : 1, Math.floor(r.drones / 2)))); }
   }
   function send() {
     if (!canSend || !destination) return;
-    try { const executeAt = orderHour(game.hour, inspectedHour, delay); setGame(executeAt > game.hour ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt, carryModule: carry && !!rock.module, specialists: unitIds }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module, unitIds)); setDelay(0); setPlanning(false); setDestination(undefined); setCarry(false); setSelectedUnits([]); setError(''); }
+    try { const executeAt = orderHour(game.hour, inspectedHour, delay); setGame(executeAt > game.hour ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt, carryModule: carry && !!rock.module, specialists: unitIds }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module, unitIds)); setDelay(0); setPlanning(false); setSection(null); setDestination(undefined); setCarry(false); setSelectedUnits([]); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   function intercept(target: number) {
@@ -127,31 +126,15 @@ function Operation() {
     catch (e) { setError((e as Error).message); }
   }
   function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setInspectedHour(null); setPlanning(false); setDestination(undefined); }
-  return <SafeAreaView style={s.safe} edges={['bottom']}>
-    <StatusBar style="light" />
-    <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
-      <View style={s.header}>
-        <View style={s.brand}><View style={s.mark}><Text style={s.markText}>M</Text></View><View><Text style={s.title}>Machination</Text><Text style={s.tagline}>SLOW ORBITS. COLD DECISIONS.</Text></View></View>
-      </View>
-      <View style={s.operationBar}><View style={s.row}><View style={s.liveDot} /><Text style={s.mono}>OPERATION / THE QUIET BELT</Text></View><Text style={s.muted}>{ready ? 'Solo simulation' : 'Restoring uplink…'}</Text></View>
-      {!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(game).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
-      {!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}
-      <View style={[s.layout, wide && { flexDirection: 'row', alignItems: 'flex-start' }]}>
-        <View style={[s.mapColumn, wide && { flex: 1.6 }]}>
-          <View style={s.sectionHeading}><View><Label>Orbital command</Label><Text style={s.heading}>The quiet belt</Text></View><Text style={s.clock}>{clock(shown.hour)}</Text></View>
-          <View style={s.mapWrap}><BeltMap game={shown} selected={selected} destination={destination} onSelect={select} />
-            {(planning || navigating !== undefined) && <View pointerEvents="none" style={s.mapHint}><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : 'Select a destination rock'}</Text></View>}
-          </View>
-          {navigating !== undefined && <Button label="Cancel course selection" quiet onPress={() => setNavigating(undefined)} />}
-          <View style={s.legend}>{(Object.keys(FACTIONS) as Faction[]).map(f => <View style={s.row} key={f}><View style={[s.legendDot, { backgroundColor: FACTIONS[f].color }]} /><Text style={s.legendText}>{f === 'you' ? 'You' : FACTIONS[f].name}</Text></View>)}<View style={s.row}><View style={[s.legendDot, { backgroundColor: '#7d8b83' }]} /><Text style={s.legendText}>Unclaimed</Text></View></View>
-          <TimeMachine hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...(game.scheduled ?? []).map(p => p.executeAt)]} />
-        </View>
-        <View style={[s.sideColumn, wide && { flex: 1, maxWidth: 400 }]}>
-          <View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(shown, 'you')} / ${powerCapacity(shown, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
-            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(shown, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
-            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, shown.cargo.you / cargoTarget(game) * 100)}%` }]} /></View>
-          </View>
-          <View style={s.panel}>
+  return <View style={s.safe}>
+    <OperationShell section={section} onSection={setSection}
+      status={<><View style={s.between}><Text style={s.mono}>The quiet belt · solo</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(game).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
+{!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
+      chart={<BeltMap fill player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={shown} selected={selected} destination={destination} onSelect={select} />}
+      hint={(planning || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
+      timeline={<TimeMachine compact hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...(game.scheduled ?? []).map(p => p.executeAt)]} />}
+      panels={{
+        asset: { title: planning ? 'Transfer order' : rock.name, content: <View style={s.panel}>
             <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
             <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{siteDescription(rock)}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
@@ -161,30 +144,59 @@ function Operation() {
               <LaunchTiming future={!!forecast} delay={delay} disabled={!operational} onChange={setDelay} />
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
               <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
-            </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
+            </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => { setPlanning(true); setSection(null); }} />}
             {game.version === 2 && rock.owner === 'you' && <SiteControls rock={rock} cost={mineCost(game, 'you')} enabled={operational && !forecast} onMine={() => { try { setGame(drillMine(game, selected, 'you')); setError(''); } catch (e) { setError((e as Error).message); } }} onShields={() => { try { setGame(setShields(game, selected, 'you', !rock.shieldsDisabled)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
             {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} specialists={unitIds} disabled={!operational || !!forecast} onIntercept={intercept} />}
-            {game.version === 2 && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits(g => hireSpecialist(g, 'you', kind))} onPromote={id => changeUnits(g => promoteSpecialist(g, 'you', id))} onRelease={id => changeUnits(g => releaseSpecialist(g, 'you', id))} />}
+            {game.version === 2 && rock.owner === 'you' && <SpecialistBay mode="cargo" game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits(g => hireSpecialist(g, 'you', kind))} onPromote={id => changeUnits(g => promoteSpecialist(g, 'you', id))} onRelease={id => changeUnits(g => releaseSpecialist(g, 'you', id))} />}
             {rock.owner !== 'you' && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.small}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}
             {game.version === 1 && rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
-          </View>
-          <View style={s.panel}>
-            <View style={s.tabs}>{(['overview', 'signals'] as const).map(t => <Pressable accessibilityRole="button" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} key={t} style={[s.tab, tab === t && { borderBottomColor: green }]}><Text style={{ color: tab === t ? ink : '#7c8b80', fontSize: 12 }}>{t === 'overview' ? 'In transit' : 'Signal log'}{t === 'overview' ? ` / ${shown.fleets.length}` : ''}</Text></Pressable>)}</View>
-            {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{flightDestination(shown.rocks, f)} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
-          </View>
-          {game.version === 2 && <HaulerOrders fleets={game.fleets.filter(f => f.owner === 'you')} rocks={game.rocks} hour={game.hour} enabled={operational} onNavigate={id => { setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => { try { setGame(commandHauler(game, 'you', command)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
-          <ScheduledOrders plans={(game.scheduled ?? []).filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} />
-          <View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View>
-          <Text style={s.small}>Local solo operation. Time continues while you're away.</Text>
-        </View>
-      </View>
-      <View style={s.footer}><Text style={s.footerText}>MACHINATION / FIELD TERMINAL V0.1</Text><Text style={s.footerText}>THE CORPORATION IS TOO FAR AWAY TO INTERFERE.</Text></View>
-    </ScrollView>
+          </View> },
+        orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders fleets={game.fleets.filter(f => f.owner === 'you')} rocks={game.rocks} hour={game.hour} enabled={operational} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => { try { setGame(commandHauler(game, 'you', command)); setError(''); } catch (e) { setError((e as Error).message); } }} />} <ScheduledOrders plans={(game.scheduled ?? []).filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
+        units: { title: `Modules · ${rock.name}`, content: <><Button label="Go to core site" quiet onPress={() => { const home = shown.rocks.find(r => r.coreOf === 'you' && r.owner === 'you'); if (home) select(home); setSection('units'); }} />{game.version === 2 && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !forecast} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => changeUnits(g => hireSpecialist(g, 'you', kind))} onPromote={id => changeUnits(g => promoteSpecialist(g, 'you', id))} onRelease={id => changeUnits(g => releaseSpecialist(g, 'you', id))} />}</> },
+        signals: { title: 'Signal log', content: <>{shown.events.slice(0, 50).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}</> },
+        intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(shown, 'you')} / ${powerCapacity(shown, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
+            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(shown, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
+            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, shown.cargo.you / cargoTarget(game) * 100)}%` }]} /></View>
+          </View>{(Object.keys(FACTIONS) as Faction[]).map(f => <View key={f} style={s.panel}><Text style={{ color: FACTIONS[f].color }}>{FACTIONS[f].name}{shown.eliminated.includes(f) ? ' · core offline' : ''}</Text><Text style={s.small}>{shown.rocks.filter(r => r.owner === f).length} sites · {Math.floor(shown.cargo[f])} cargo</Text></View>)}</> },
+        settings: { title: 'Solo operation', content: <><View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View><Text style={s.small}>Local simulation. Time continues while you’re away. Rivals follow deterministic training orders.</Text></> },
+      }} />
     <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setSelectedUnits([]); setNavigating(undefined); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
-  </SafeAreaView>;
+  </View>;
 }
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#080f0d' }, page: { width: '100%', maxWidth: 1320, alignSelf: 'center', padding: 20, paddingBottom: 30 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, marginBottom: 20 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 14 }, mark: { borderWidth: 1, borderColor: green, width: 40, height: 43, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '8deg' }] }, markText: { color: green, fontSize: 28, fontWeight: '300', transform: [{ rotate: '-8deg' }] }, title: { color: ink, fontSize: 27, letterSpacing: -1, fontWeight: '500' }, tagline: { color: '#748679', fontSize: 8, letterSpacing: 2, marginTop: 5 }, help: { borderWidth: 1, borderColor: '#354437', width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 20 }, helpText: { color: '#98a991', fontSize: 16 },
-  operationBar: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#253128', paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 28 }, row: { flexDirection: 'row', gap: 8, alignItems: 'center' }, liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: green }, mono: { fontSize: 9, letterSpacing: 1.5, color: '#a0af9e' }, muted: { color: '#637c69', fontSize: 10 }, layout: { gap: 26 }, mapColumn: { minWidth: 0 }, sideColumn: { gap: 16, minWidth: 0 }, sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 17 }, label: { color: '#80917c', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' }, heading: { fontSize: 26, fontWeight: '400', color: ink, marginTop: 7, marginBottom: 4 }, clock: { color: green, fontSize: 12, fontVariant: ['tabular-nums'] }, mapWrap: { position: 'relative' }, mapHint: { position: 'absolute', bottom: 12, alignSelf: 'center', padding: 9, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36' }, mapHintText: { color: green, fontSize: 11 }, legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginVertical: 17 }, legendDot: { width: 5, height: 5, borderRadius: 3 }, legendText: { color: '#8a9b8c', fontSize: 9 }, timeline: { padding: 17, backgroundColor: '#0e1812', borderWidth: 1, borderColor: '#28362b' }, between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, timeOptions: { flexDirection: 'row', marginTop: 16, marginBottom: 12, gap: 6 }, timeOption: { paddingVertical: 12, flex: 1, alignItems: 'center', borderBottomWidth: 1, borderColor: '#304330' }, timeActive: { borderColor: green, backgroundColor: '#19271a' }, small: { color: '#7f9180', fontSize: 11, lineHeight: 18 }, identity: { padding: 20, borderWidth: 1, borderColor: '#34432e', backgroundColor: '#121c12' }, online: { color: green, fontSize: 8, letterSpacing: 1 }, identityName: { fontSize: 24, color: ink, marginTop: 14, marginBottom: 6 }, stats: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 24 }, statNumber: { fontSize: 27, color: ink, marginBottom: 5, fontWeight: '300', fontVariant: ['tabular-nums'] }, progress: { height: 3, backgroundColor: '#2c3a2a', marginTop: 10 }, progressFill: { height: 3, backgroundColor: green }, panel: { padding: 19, borderWidth: 1, borderColor: '#29372c', backgroundColor: '#0c1510' }, badge: { fontSize: 8, letterSpacing: 1 }, rockName: { color: ink, fontSize: 26, marginTop: 12 }, assetType: { fontSize: 11, color: '#80917c', marginTop: 5 }, inventory: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 19, marginBottom: 20 }, inventoryNumber: { fontSize: 34, fontWeight: '300', color: ink }, button: { backgroundColor: green, paddingVertical: 14, paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center', minHeight: 44 }, quiet: { backgroundColor: '#162217', borderWidth: 1, borderColor: '#30442b' }, buttonText: { color: '#182312', fontSize: 11, fontWeight: '600' }, destination: { padding: 13, borderWidth: 1, borderColor: '#2f402d', marginBottom: 15, gap: 6 }, input: { width: 85, padding: 10, color: green, backgroundColor: '#182418', borderWidth: 1, borderColor: '#435b35', fontSize: 18, textAlign: 'right', marginBottom: 10 }, tabs: { flexDirection: 'row', gap: 25, borderBottomWidth: 1, borderBottomColor: '#28372c' }, tab: { paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: 'transparent' }, empty: { paddingVertical: 24, alignItems: 'center', gap: 3 }, emptyGlyph: { fontSize: 32, color: '#55714c', marginBottom: 8 }, log: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1d2b22', gap: 5 }, eventTime: { color: '#65805c', fontSize: 9 }, eventText: { color: '#a8b7a2', fontSize: 11, lineHeight: 17 }, footer: { borderTopWidth: 1, borderColor: '#253128', marginTop: 30, paddingTop: 17, flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }, footerText: { color: '#536b57', fontSize: 8, letterSpacing: 1 }, notice: { padding: 15, borderWidth: 1, borderColor: '#705741', marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }, overlay: { flex: 1, backgroundColor: '#000b', alignItems: 'center', justifyContent: 'center', padding: 22 }, dialog: { width: '100%', maxWidth: 480, maxHeight: '90%', flexGrow: 0, backgroundColor: '#101b13', borderWidth: 1, borderColor: '#526644' }, dialogContent: { padding: 25, gap: 10 }, dialogBody: { color: '#a8b8a2', fontSize: 13, lineHeight: 21, marginVertical: 10 },
+const s = StyleSheet.create( {
+  safe: { flex: 1, backgroundColor: '#080f0d' },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  mono: { fontSize: 9, letterSpacing: 1.5, color: '#a0af9e' },
+  label: { color: '#80917c', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' },
+  heading: { fontSize: 26, fontWeight: '400', color: ink, marginTop: 7, marginBottom: 4 },
+  clock: { color: green, fontSize: 12, fontVariant: ['tabular-nums'] },
+  mapHintText: { color: green, fontSize: 11 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  small: { color: '#7f9180', fontSize: 11, lineHeight: 18 },
+  identity: { padding: 20, borderWidth: 1, borderColor: '#34432e', backgroundColor: '#121c12' },
+  online: { color: green, fontSize: 8, letterSpacing: 1 },
+  identityName: { fontSize: 24, color: ink, marginTop: 14, marginBottom: 6 },
+  stats: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 24 },
+  statNumber: { fontSize: 27, color: ink, marginBottom: 5, fontWeight: '300', fontVariant: ['tabular-nums'] },
+  progress: { height: 3, backgroundColor: '#2c3a2a', marginTop: 10 },
+  progressFill: { height: 3, backgroundColor: green },
+  panel: { padding: 19, borderWidth: 1, borderColor: '#29372c', backgroundColor: '#0c1510' },
+  badge: { fontSize: 8, letterSpacing: 1 },
+  rockName: { color: ink, fontSize: 26, marginTop: 12 },
+  assetType: { fontSize: 11, color: '#80917c', marginTop: 5 },
+  inventory: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 19, marginBottom: 20 },
+  inventoryNumber: { fontSize: 34, fontWeight: '300', color: ink },
+  button: { backgroundColor: green, paddingVertical: 14, paddingHorizontal: 13, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  quiet: { backgroundColor: '#162217', borderWidth: 1, borderColor: '#30442b' },
+  buttonText: { color: '#182312', fontSize: 11, fontWeight: '600' },
+  destination: { padding: 13, borderWidth: 1, borderColor: '#2f402d', marginBottom: 15, gap: 6 },
+  input: { width: 85, padding: 10, color: green, backgroundColor: '#182418', borderWidth: 1, borderColor: '#435b35', fontSize: 18, textAlign: 'right', marginBottom: 10 },
+  log: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1d2b22', gap: 5 },
+  eventTime: { color: '#65805c', fontSize: 9 },
+  eventText: { color: '#a8b7a2', fontSize: 11, lineHeight: 17 },
+  notice: { padding: 15, borderWidth: 1, borderColor: '#705741', marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  overlay: { flex: 1, backgroundColor: '#000b', alignItems: 'center', justifyContent: 'center', padding: 22 },
+  dialog: { width: '100%', maxWidth: 480, maxHeight: '90%', flexGrow: 0, backgroundColor: '#101b13', borderWidth: 1, borderColor: '#526644' },
+  dialogContent: { padding: 25, gap: 10 },
+  dialogBody: { color: '#a8b8a2', fontSize: 13, lineHeight: 21, marginVertical: 10 },
 });
