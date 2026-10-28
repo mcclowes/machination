@@ -4,10 +4,17 @@ import type { ModuleKind } from '../game/modules';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/simulation';
 export type Message = { id: number; from: Faction; to: Faction; text: string; sentAt: number };
+export const DIPLOMACY_LIMITS = { name: 60, text: 1000, groupsPerParticipant: 16, messagesPerChannel: 100 } as const;
+export type Group = { id: string; name: string; members: Faction[]; createdBy: Faction; createdAt: number };
+export type ChannelMessage = { id: string; from: Faction; text: string; sentAt: number };
+export type Channel = { id: string; kind: 'public' | 'private'; messages: ChannelMessage[] };
+export type CreateGroup = { requestId: string; name: string; members: Faction[] };
+export type ChannelTransmission = { requestId: string; channelId: string; text: string };
 export type Snapshot = {
   id: string; invite: string; status: 'game.lobby' | 'game.active' | 'game.finished';
   faction: Faction; host: boolean; members: Faction[]; revision: number;
   recoveryEnabled?: boolean;
+  groups?: Group[]; channels?: Channel[];
   visibility: 'sensors.v1'; game: GameView; messages: Message[]; serverTime: number;
 };
 export type Order = { requestId: string; revision: number; from: string; to: string; drones: number; specialists?: string[]; carryModule?: boolean };

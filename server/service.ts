@@ -17,12 +17,14 @@ import { giftTransfer } from '../src/game/gifts';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import { DIPLOMACY_LIMITS } from '../src/online/protocol';
+import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
+type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
   seats: { faction: Faction; hash: string; revision?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
-  receipts: Record<string, string>;
+  receipts: Record<string, string>; diplomacy?: Diplomacy;
 };
 type Database = { version: 1; rooms: Room[] };
 export class Failure extends Error {
@@ -59,6 +61,22 @@ export class GameService {
           seat.revision ??= 0;
           if (!Number.isSafeInteger(seat.revision) || seat.revision < 0) throw new Error('Damaged seat revision.');
         }
+        r.diplomacy ??= { groups: [], publicMessages: [] };
+        const d = r.diplomacy;
+        const validMessages = (messages: ChannelMessage[]) => Array.isArray(messages) && messages.length <= DIPLOMACY_LIMITS.messagesPerChannel
+          && messages.every(m => m && typeof m.id === 'string' && /^[a-f0-9]{32}$/.test(m.id) && r.seats.some(s => s.faction === m.from)
+            && typeof m.text === 'string' && m.text.trim().length > 0 && m.text.length <= DIPLOMACY_LIMITS.text && Number.isFinite(m.sentAt))
+          && new Set(messages.map(m => m.id)).size === messages.length;
+        if (!d || !Array.isArray(d.groups) || d.groups.length > FACTIONS.length * DIPLOMACY_LIMITS.groupsPerParticipant
+          || !validMessages(d.publicMessages)
+          || !d.groups.every(g => g && typeof g.id === 'string' && /^[a-f0-9]{32}$/.test(g.id)
+            && typeof g.name === 'string' && g.name.trim().length > 0 && g.name.length <= DIPLOMACY_LIMITS.name
+            && Array.isArray(g.members) && g.members.length >= 2 && g.members.length <= r.seats.length
+            && new Set(g.members).size === g.members.length && g.members.every(f => r.seats.some(s => s.faction === f))
+            && g.members.includes(g.createdBy) && Number.isFinite(g.createdAt) && validMessages(g.messages)
+            && g.messages.every(m => g.members.includes(m.from)))
+          || new Set(d.groups.map(g => g.id)).size !== d.groups.length
+          || r.seats.some(s => d.groups.filter(g => g.members.includes(s.faction)).length > DIPLOMACY_LIMITS.groupsPerParticipant)) throw new Error('Damaged diplomacy metadata.');
         ids.add(r.id);
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -104,6 +122,9 @@ export class GameService {
   private view(room: Room, faction: Faction): Snapshot {
     return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner || room.game.draw ? 'game.finished' : 'game.active',
       faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
+      groups: (room.diplomacy?.groups ?? []).filter(g => g.members.includes(faction)).map(({ messages, ...g }) => g),
+      channels: [{ id: 'public', kind: 'public', messages: room.diplomacy?.publicMessages ?? [] },
+        ...(room.diplomacy?.groups ?? []).filter(g => g.members.includes(faction)).map(g => ({ id: g.id, kind: 'private' as const, messages: g.messages }))],
       recoveryEnabled: !!room.seats.find(s => s.faction === faction)!.recoveryHash,
       visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id), id => String(this.identify(room, faction, 'unit', id))), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
@@ -332,6 +353,39 @@ export class GameService {
       catch (e) { throw new Failure(409, 'schedule.conflict.missing', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  createGroup(id: string, token: string, command: CreateGroup): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      requireThat(typeof command.name === 'string' && command.name.trim().length > 0 && command.name.length <= DIPLOMACY_LIMITS.name,
+        400, 'group.validation.name', 'Group names must contain 1 to 60 characters.');
+      requireThat(Array.isArray(command.members) && command.members.length >= 2 && command.members.length <= r.seats.length
+        && new Set(command.members).size === command.members.length && command.members.includes(f)
+        && command.members.every(member => r.seats.some(s => s.faction === member)),
+        400, 'group.validation.members', 'Choose fixed members, including yourself and at least one other seat.');
+      const members = FACTIONS.filter(member => command.members.includes(member));
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['group', command.name, members]))) return this.view(r, f);
+      const d = r.diplomacy ??= { groups: [], publicMessages: [] };
+      requireThat(members.every(member => d.groups.filter(g => g.members.includes(member)).length < DIPLOMACY_LIMITS.groupsPerParticipant),
+        409, 'group.capacity.reached', 'A selected participant has reached the private group limit.');
+      d.groups.push({ id: randomBytes(16).toString('hex'), name: command.name.trim(), members, createdBy: f, createdAt: this.now(), messages: [] });
+      return this.view(r, f);
+    });
+  }
+  channelMessage(id: string, token: string, command: ChannelTransmission): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const d = r.diplomacy ??= { groups: [], publicMessages: [] };
+      const group = d.groups.find(g => g.id === command.channelId && g.members.includes(f));
+      requireThat(command.channelId === 'public' || group, 404, 'channel.not_found', 'Channel not found.');
+      requireThat(typeof command.text === 'string' && command.text.trim().length > 0 && command.text.length <= DIPLOMACY_LIMITS.text,
+        400, 'message.validation.text', 'Transmissions must contain 1 to 1,000 characters.');
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['channel-message', command.channelId, command.text]))) return this.view(r, f);
+      const messages = group ? group.messages : d.publicMessages;
+      messages.push({ id: randomBytes(16).toString('hex'), from: f, text: command.text.trim(), sentAt: this.now() });
+      messages.splice(0, Math.max(0, messages.length - DIPLOMACY_LIMITS.messagesPerChannel));
       return this.view(r, f);
     });
   }
