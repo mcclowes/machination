@@ -36,6 +36,8 @@ npx expo install --check
 
 The simulation is pure TypeScript and independent of rendering and storage. Tests live alongside it. The command map uses SVG and shared React Native controls.
 
+Use [hosted playtest packaging](docs/hosting.md) to build the standalone service and validate its container, persistent storage, and backups. Public hosting is not provisioned by these commands.
+
 See [existing remake references](docs/remake-references.md) for reuse candidates and license findings.
 
 ## Scope

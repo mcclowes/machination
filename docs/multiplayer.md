@@ -38,6 +38,8 @@ Base path: `/v1`. All game endpoints except `/games/:id/recover` use the **seat 
 
 A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
 
+For a standalone runtime, container, health checks, and backup verification, see [hosted playtests](hosting.md).
+
 ## Persistence and operation
 
 The service uses a serialized transaction queue and a versioned JSON database. Mutations apply to a copy, write and flush a replacement file, and rename it before publishing the new in-memory state. A failed write doesn't publish a partial mutation. Startup refuses damaged or unsupported data. Snapshots, seat hashes, messages, and retry receipts survive a restart.

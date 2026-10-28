@@ -1,0 +1,106 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { request as httpRequest } from 'node:http';
+import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { randomBytes, randomUUID } from 'node:crypto';
+
+async function start(entry, dataFile) {
+  let output = '';
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile } });
+  const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
+  child.stderr.on('data', chunk => { output += chunk; });
+  let startupTimer;
+  const ready = new Promise((resolve, reject) => {
+    startupTimer = setTimeout(() => reject(new Error(`Startup timed out: ${output}`)), 10_000);
+    child.once('error', reject);
+    child.stdout.on('data', chunk => {
+      output += chunk;
+      const match = output.match(/listening on 127\.0\.0\.1:(\d+)/);
+      if (match) resolve(`http://127.0.0.1:${match[1]}`);
+    });
+    child.once('exit', () => reject(new Error(`Service exited before readiness: ${output}`)));
+  });
+  let origin;
+  try { origin = await ready; } catch (error) { child.kill('SIGKILL'); await exited; throw error; }
+  finally { clearTimeout(startupTimer); }
+  let stopping = false;
+  return { origin, async beginShutdown() {
+    const observed = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { child.stdout.off('data', inspect); reject(new Error('Shutdown was not acknowledged.')); }, 3000);
+      function inspect() { if (output.includes('draining active requests')) { clearTimeout(timer); child.stdout.off('data', inspect); resolve(); } }
+      child.stdout.on('data', inspect);
+    });
+    stopping = true; child.kill('SIGTERM'); await observed;
+  }, async stop() {
+    if (!stopping && child.exitCode === null && child.signalCode === null) { stopping = true; child.kill('SIGTERM'); }
+    let stopTimer;
+    try {
+      const result = await Promise.race([exited, new Promise((_, reject) => { stopTimer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('Graceful shutdown timed out.')); }, 5000); })]);
+      assert.deepEqual(result, { code: 0, signal: null }, output);
+    } finally { clearTimeout(stopTimer); }
+  } };
+}
+
+test('standalone bundle serves and restores an offline operation without project dependencies', { timeout: 20_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-bundle-'));
+  const entry = join(dir, 'main.mjs'), dataFile = join(dir, 'state', 'games.json');
+  let runtime;
+  try {
+    await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+    runtime = await start(entry, dataFile);
+    assert.equal((await fetch(`${runtime.origin}/health`)).status, 200);
+    const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
+    const request = async (path, seat = 0, body) => {
+      const response = await fetch(`${runtime.origin}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${tokens[seat]}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+      const snapshot = await response.json(); assert.equal(response.status, 200, JSON.stringify(snapshot)); return snapshot;
+    };
+    let view = await request('games', 0, {});
+    await request('join', 1, { invite: view.invite }); await request('join', 2, { invite: view.invite });
+    const path = `games/${view.id}`;
+    view = await request(`${path}/start`, 0, {});
+    view = await request(`${path}/schedules`, 0, { requestId: randomUUID(), revision: view.revision, from: 'a', to: 'c', drones: 5, executeAt: 1 });
+    assert.equal(view.game.scheduled.length, 1);
+    await runtime.stop(); runtime = undefined;
+    const stored = JSON.parse(await readFile(dataFile, 'utf8'));
+    stored.rooms[0].startedAt = Date.now() - 2 * 3_600_000;
+    stored.rooms[0].game.epoch = stored.rooms[0].startedAt;
+    await writeFile(dataFile, JSON.stringify(stored));
+    runtime = await start(entry, dataFile);
+    const resumed = await request(path);
+    assert.equal(resumed.id, view.id); assert.equal(resumed.faction, 'you');
+    assert.equal(resumed.visibility, 'sensors.v1');
+    assert.ok(resumed.game.hour >= 2 && resumed.game.hour < 2.1);
+    assert.equal(resumed.game.scheduled.length, 0);
+    assert.ok(resumed.game.fleets.some(f => f.owner === 'you' && f.from === 'a' && f.to === 'c' && f.drones === 5));
+    let incoming;
+    const response = new Promise((resolve, reject) => {
+      incoming = httpRequest(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${randomBytes(32).toString('hex')}`, 'Content-Type': 'application/json', 'Content-Length': '2', Expect: '100-continue', Connection: 'close' } }, result => {
+        let raw = ''; result.on('data', chunk => { raw += chunk; });
+        result.on('end', () => { try { assert.equal(result.statusCode, 200); resolve(JSON.parse(raw)); } catch (error) { reject(error); } });
+      });
+      incoming.on('error', reject);
+    });
+    try {
+      const accepted = new Promise(resolve => incoming.once('continue', resolve));
+      incoming.flushHeaders(); await accepted; incoming.write('{');
+      await runtime.beginShutdown(); incoming.end('}');
+      const completed = await response;
+      await runtime.stop(); runtime = undefined;
+      const persisted = JSON.parse(await readFile(dataFile, 'utf8'));
+      assert.ok(persisted.rooms.some(room => room.id === completed.id), 'an accepted in-flight command is durable before shutdown');
+    } finally { incoming.destroy(); }
+  } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('invalid host port configuration fails explicitly before listening', async () => {
+  for (const port of ['not-a-port', '', '-1', '65536']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: port, MACHINATION_HOST: '127.0.0.1' },
+    }), error => error.code === 1 && /PORT must be an integer/.test(error.stderr));
+  }
+});
