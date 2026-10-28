@@ -9,6 +9,7 @@ import Svg, { Circle, Ellipse, G, Line, Path, Text as SvgText } from 'react-nati
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
+import { arrivalInspection } from '../game/time-machine';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
@@ -18,13 +19,14 @@ import { chartPosition, chartRoute } from '../game/chart-projection';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
 export type { MapCamera } from '../game/chart-camera';
-type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void };
-export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, viewport, player, onInspectFleet, onManageFleet }: Props<T>) {
+type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
+export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, viewport, player, onInspectFleet, onManageFleet, timeInspection }: Props<T>) {
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
   const camera = constrainCamera(game, viewport?.camera ?? localCamera);
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
+  useEffect(() => setContact(undefined), [game.epoch, player]);
   const current = useRef({ camera, size, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera });
   current.current = { camera, size, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera };
   const start = useRef({ ...camera, pinch: 0 });
@@ -52,6 +54,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
   const offsets = mapOffsets(game);
   const position = (point: { x: number; y: number }) => chartPosition(game, camera, point);
   const fleet = game.fleets.find(f => f.id === contact);
+  const arrival = fleet && timeInspection ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
   return <View style={[styles.chart, fill && { flex: 1, height: '100%' }]} onLayout={event => setSize(event.nativeEvent.layout)} {...pan.panHandlers}>
     <Svg width="100%" height="100%" viewBox="0 0 400 480" preserveAspectRatio="none" pointerEvents="none">
       {Array.from({ length: 65 }, (_, i) => <Circle key={i} cx={(i * 137.5) % 400} cy={(i * 79.7) % 480} r={i % 4 === 0 ? 1 : 0.5} fill="#b5c7bd" opacity={0.12 + (i % 3) * 0.09} />)}
@@ -105,7 +108,19 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? FACTIONS[f.owner].color : 'transparent' }]} /></Pressable>;
     }))}
     <View style={styles.zoom}><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5))} /><MapControl label="Focus your territory" text="Home" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="Fit" onPress={() => move(1, 0, 0)} /></View>
-    {fleet && <View style={styles.inspector}><View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View><Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text><Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text><Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text><Text style={styles.contactText}>Arrives in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text>{fleet.owner === player && onManageFleet && <MapControl label="Manage this hauler" text="Manage orders" onPress={() => { onManageFleet(fleet.id); setContact(undefined); }} />}<MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} /></View>}
+    {fleet && <View style={styles.inspector}>
+      <View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
+      <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
+      <Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text>
+      <Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text>
+      <Text style={styles.contactText}>{fleet.intercept ? 'Interception' : 'Arrival'} in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text>
+      <View style={styles.actions}>
+        {timeInspection && <MapControl label={fleet.intercept ? 'Jump to interception' : 'Jump to hauler arrival'} text={fleet.intercept ? 'Jump to interception' : 'Jump to arrival'} disabled={arrival === undefined} onPress={() => { if (arrival !== undefined) { timeInspection.onInspect(arrival); setContact(undefined); } }} />}
+        {fleet.owner === player && onManageFleet && <MapControl label="Manage this hauler" text="Manage orders" onPress={() => { onManageFleet(fleet.id); setContact(undefined); }} />}
+        <MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} />
+      </View>
+      {timeInspection && <Text style={styles.contactText}>{arrival === undefined ? 'Arrival is outside the available time range.' : 'Earlier combat and new orders can change this arrival.'}</Text>}
+    </View>}
     <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>SECTOR 07—B</Text><Text style={styles.coord}>2.8 AU / OUTER BELT</Text></View>
   </View>;
 }
@@ -113,6 +128,7 @@ function MapControl({ label, text, disabled, onPress }: { label: string; text: s
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.mapControl, disabled && { opacity: 0.35 }]}><Text style={styles.contactText}>{text}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zoom: { position: 'absolute', right: 10, top: 10, flexDirection: 'row', gap: 4 }, mapControl: { minWidth: 44, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#15241a', borderWidth: 1, borderColor: '#40563a' },
   hauler: { position: 'absolute', width: 44, height: 44, marginLeft: -22, marginTop: -22, alignItems: 'center', justifyContent: 'center' }, contactRing: { width: 25, height: 25, borderWidth: 1, borderRadius: 20 }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, padding: 12, gap: 6, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#0b1412', borderWidth: 1, borderColor: '#25322b' },

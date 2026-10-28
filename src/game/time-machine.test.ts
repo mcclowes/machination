@@ -1,9 +1,10 @@
 import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance } from './simulation';
+import { advance, dispatch } from './simulation';
+import { observe, forecastObservation } from './visibility';
 import { scheduleTransfer } from './orders';
-import { orderHour, inspectionOffset, inspectionMode, timelineHour } from './time-machine';
+import { orderHour, inspectionOffset, inspectionMode, timelineHour, arrivalInspection } from './time-machine';
 
 test('an order issued in the Time Machine launches at the inspected minute using future inventory', () => {
   const live = createGame(0);
@@ -41,4 +42,37 @@ test('time inspection distinguishes read-only history, live time, and future sch
   assert.equal(timelineHour(12, undefined, 0), null);
   assert.equal(timelineHour(12, 2.001, -1), 2.001);
   assert.equal(timelineHour(12, 2, 2), 180);
+});
+
+test('arrival jumps preserve exact event time and use live history and forecast bounds', () => {
+  const arrival = 13 + 17 / 60 + 0.001;
+  assert.equal(arrivalInspection(12, 2, arrival), arrival);
+  assert.equal(arrivalInspection(12, 2, 12), null);
+  assert.equal(arrivalInspection(12, 2, 3), 3);
+  assert.equal(arrivalInspection(12, 2, 2), 2);
+  assert.equal(arrivalInspection(12, 2, 180), 180);
+  for (const target of [1.99, 180.001, NaN, Infinity]) assert.equal(arrivalInspection(12, 2, target), undefined);
+  assert.equal(arrivalInspection(12, undefined, 11), undefined);
+});
+
+test('arrival inspection resolves observed destinations without exposing an unobserved outcome', () => {
+  for (const to of ['b', 'j']) {
+    const live = observe(dispatch(createGame(0), 'a', to, 20, 'you'), 'you');
+    const arrival = arrivalInspection(live.hour, 0, live.fleets[0]!.arrives);
+    assert.equal(typeof arrival, 'number');
+    const before = structuredClone(live);
+    const frame = forecastObservation(live, 'you', arrival!);
+    assert.deepEqual(live, before);
+    assert.equal(frame.hour, arrival);
+    assert.equal(frame.fleets.length, 0);
+    const destination = frame.rocks.find(r => r.id === to)!;
+    if (to === 'b') {
+      assert.equal(destination.owner, 'you');
+      assert.ok(destination.known);
+    } else {
+      assert.equal(destination.known, false);
+      assert.equal(destination.drones, undefined);
+      assert.ok(frame.uncertain.includes(to));
+    }
+  }
 });

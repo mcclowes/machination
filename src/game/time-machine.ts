@@ -17,6 +17,11 @@ export function timelineHour(liveHour: number, historyStart: number | undefined,
 export function inspectionOffset(liveHour: number, inspectedHour: number | null): number {
   return inspectedHour === null ? 0 : Math.max(0, inspectedHour - liveHour);
 }
+export function arrivalInspection(liveHour: number, historyStart: number | undefined, arrival: number): number | null | undefined {
+  const first = Math.min(liveHour, historyStart ?? liveHour);
+  if (!Number.isFinite(liveHour) || !Number.isFinite(first) || !Number.isFinite(arrival) || arrival < first || arrival > liveHour + MAX_PLAN_DELAY) return undefined;
+  return arrival === liveHour ? null : arrival;
+}
 export function orderHour(liveHour: number, inspectedHour: number | null, delay: number): number {
   if (inspectionMode(liveHour, inspectedHour) === 'past') throw new Error('Historical views are read-only. Return to live time or inspect the future to issue an order.');
   const hour = Math.max(liveHour, inspectedHour ?? liveHour) + delay;
