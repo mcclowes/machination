@@ -46,5 +46,5 @@ const s = StyleSheet.create({
   heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#30402e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: 14, gap: 14, paddingBottom: 24 },
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
   navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#30402e', backgroundColor: '#0e1812' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: '#19271a' }, glyph: { color: '#8c9f85', fontSize: 19 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
-  hint: { position: 'absolute', top: 8, left: 10, right: 160, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36' },
+  hint: { position: 'absolute', top: 8, left: 10, right: 220, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36' },
 });

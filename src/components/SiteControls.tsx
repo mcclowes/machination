@@ -13,12 +13,13 @@ export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf'>): string {
   const type = { core: 'Core · +4 drones / h', reactor: 'Reactor · +4 drones / h', mine: 'Extraction site', factory: 'Factory · 6 drones / 8h', generator: 'Generator · +50 power capacity' }[rock.kind];
   return `${type}${rock.coreOf && rock.kind !== 'core' ? ' · intelligence core' : ''}`;
 }
-export function SiteControls({ rock, cost, enabled, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; onMine: () => void; onShields: () => void }) {
+export function SiteControls({ rock, cost, enabled, minesAllowed = true, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; minesAllowed?: boolean; onMine: () => void; onShields: () => void }) {
   return <View style={s.section}>
     <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
     <Control label={rock.shieldsDisabled ? 'Enable shields' : 'Disable shields'} disabled={!enabled} onPress={onShields} />
     {rock.kind === 'mine' && rock.miningInterval !== undefined && <Text style={s.detail}>One cargo every {rock.miningInterval.toFixed(2)}h · next payout {gameClock(rock.miningAt!)}. Expansion increases the rate.</Text>}
-    {rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock per day, paid throughout the day.</Text><Control label={`Drill mine · ${cost} drones`} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
+    {!minesAllowed && <Text style={s.detail}>No mines in domination operations.</Text>}
+    {minesAllowed && rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock per day, paid throughout the day.</Text><Control label={`Drill mine · ${cost} drones`} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
   </View>;
 }
 function Control({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {

@@ -3,7 +3,7 @@
  * purpose: Touch-selectable belt chart with ownership, transfer trajectories, and accessible rock controls.
  * ---
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, Text, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Circle, Ellipse, G, Line, Path, Text as SvgText } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
@@ -11,11 +11,14 @@ import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 
+import { fitPlayerCamera, type MapCamera } from '../game/chart-camera';
+
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
-export type MapCamera = { scale: number; x: number; y: number };
-type Props<T extends ChartRock> = { game: { hour: number; rocks: T[]; fleets: Fleet[]; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void };
+export type { MapCamera } from '../game/chart-camera';
+type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: { width: number; height: number } }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; destination?: string; onSelect: (rock: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void };
 export function BeltMap<T extends ChartRock>({ game, selected, destination, onSelect, fill, viewport, player, onInspectFleet, onManageFleet }: Props<T>) {
-  const [localCamera, setLocalCamera] = useState<MapCamera>({ scale: 1, x: 0, y: 0 });
+  const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
+  useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
   const camera = viewport?.camera ?? localCamera;
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
@@ -42,13 +45,16 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       } else move(start.current.scale, start.current.x + gesture.dx / current.current.size.width * 100, start.current.y + gesture.dy / current.current.size.height * 100);
     },
   })).current;
-  const position = (point: { x: number; y: number }) => ({ x: (point.x - 50) * camera.scale + 50 + camera.x, y: (point.y - 50) * camera.scale + 50 + camera.y });
+  const width = game.rules?.map.width ?? 100;
+  const height = game.rules?.map.height ?? 100;
+  const sx = 400 / width, sy = 480 / height;
+  const position = (point: { x: number; y: number }) => ({ x: (point.x / width * 100 - 50) * camera.scale + 50 + camera.x, y: (point.y / height * 100 - 50) * camera.scale + 50 + camera.y });
   const fleet = game.fleets.find(f => f.id === contact);
   return <View style={[styles.chart, fill && { flex: 1, height: '100%' }]} onLayout={event => setSize(event.nativeEvent.layout)} {...pan.panHandlers}>
     <Svg width="100%" height="100%" viewBox="0 0 400 480" preserveAspectRatio="none" pointerEvents="none">
       {Array.from({ length: 65 }, (_, i) => <Circle key={i} cx={(i * 137.5) % 400} cy={(i * 79.7) % 480} r={i % 4 === 0 ? 1 : 0.5} fill="#b5c7bd" opacity={0.12 + (i % 3) * 0.09} />)}
       <G transform={`translate(${200 + camera.x * 4}, ${240 + camera.y * 4.8}) scale(${camera.scale}) translate(-200, -240)`}>
-      {game.coverage?.map((sensor, i) => <Ellipse key={`sensor-${i}`} cx={sensor.x * 4} cy={sensor.y * 4.8} rx={sensor.radius * 4} ry={sensor.radius * 4.8} fill="#b8e986" fillOpacity="0.025" stroke="#b8e986" strokeOpacity="0.12" strokeWidth="0.7" />)}
+      {game.coverage?.map((sensor, i) => <Ellipse key={`sensor-${i}`} cx={sensor.x * sx} cy={sensor.y * sy} rx={sensor.radius * sx} ry={sensor.radius * sy} fill="#b8e986" fillOpacity="0.025" stroke="#b8e986" strokeOpacity="0.12" strokeWidth="0.7" />)}
       {[90, 150, 215, 285].map(r => <Ellipse key={r} cx="204" cy="243" rx={r} ry={r * 0.91} stroke="#26332e" strokeWidth="0.7" fill="none" strokeDasharray="3 7" />)}
       <Circle cx="204" cy="243" r="30" fill="#9c744a" opacity="0.025" />
       <Circle cx="204" cy="243" r="14" fill="#9c744a" opacity="0.06" />
@@ -57,9 +63,9 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       {game.fleets.map(f => {
         const { from: a, to: b } = flightEndpoints(game, f);
         const position = fleetPosition(game, f);
-        const x = position.x * 4; const y = position.y * 4.8;
+        const x = position.x * sx; const y = position.y * sy;
         return <React.Fragment key={f.id}>
-          <Line x1={a.x * 4} y1={a.y * 4.8} x2={b.x * 4} y2={b.y * 4.8} stroke={FACTIONS[f.owner].color} opacity="0.35" strokeDasharray="3 4" />
+          <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={FACTIONS[f.owner].color} opacity="0.35" strokeDasharray="3 4" />
           {f.intercept && <Circle cx={x} cy={y} r="6" fill="none" stroke={FACTIONS[f.owner].color} strokeWidth="0.7" />}
           <Path d={`M ${x} ${y - 4} l 4 8 l -8 0 Z`} fill={FACTIONS[f.owner].color} />
         </React.Fragment>;
@@ -67,7 +73,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       {destination && (() => {
         const a = game.rocks.find(r => r.id === selected)!;
         const b = game.rocks.find(r => r.id === destination)!;
-        return <Line x1={a.x * 4} y1={a.y * 4.8} x2={b.x * 4} y2={b.y * 4.8} stroke="#b8e986" strokeDasharray="5 4" />;
+        return <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke="#b8e986" strokeDasharray="5 4" />;
       })()}
       </G>
     </Svg>
@@ -89,7 +95,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, destination, onSe
       const location = position(fleetPosition(game, f));
       return <Pressable key={`contact-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? FACTIONS[f.owner].color : 'transparent' }]} /></Pressable>;
     })}
-    <View style={styles.zoom}><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => move(camera.scale - 0.5, camera.x, camera.y)} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => move(camera.scale + 0.5, camera.x, camera.y)} /><MapControl label="Fit chart" text="Fit" onPress={() => move(1, 0, 0)} /></View>
+    <View style={styles.zoom}><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => move(camera.scale - 0.5, camera.x, camera.y)} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => move(camera.scale + 0.5, camera.x, camera.y)} /><MapControl label="Focus your territory" text="Home" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="Fit" onPress={() => move(1, 0, 0)} /></View>
     {fleet && <View style={styles.inspector}><View style={styles.contactHeading}><Text style={[styles.contactTitle, { color: FACTIONS[fleet.owner].color }]}>{FACTIONS[fleet.owner].name} · hauler</Text><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View><Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text><Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text><Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text><Text style={styles.contactText}>Arrives in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text>{fleet.owner === player && onManageFleet && <MapControl label="Manage this hauler" text="Manage orders" onPress={() => { onManageFleet(fleet.id); setContact(undefined); }} />}<MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} /></View>}
     <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>SECTOR 07—B</Text><Text style={styles.coord}>2.8 AU / OUTER BELT</Text></View>
   </View>;

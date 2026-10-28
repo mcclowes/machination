@@ -12,7 +12,7 @@ import { FUNDING_LEAD, FUNDING_OUTPUT, FUNDING_POWER, fundingCount } from '../ga
 
 type Props = { game: Game | GameView; owner: Faction; enabled: boolean; onChange: (to: Faction, enabled: boolean) => void };
 export function FundingPanel({ game, owner, enabled, onChange }: Props) {
-  if (game.version !== 2) return null;
+  if (game.version !== 2 || game.rules?.mode === 'domination') return null;
   const standings = 'standings' in game ? game.standings : undefined;
   const cargo = (f: Faction) => standings?.[f]?.cargo ?? game.cargo[f];
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
