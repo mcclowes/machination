@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, dispatch, advance, travelHours, operationStatus } from './simulation';
+import { dispatch, advance, travelHours, operationStatus } from './simulation';
 
 test('dispatch reserves drones immediately and arrives only after travel time', () => {
   const game = createGame(0);

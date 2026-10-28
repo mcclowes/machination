@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, createGame } from './simulation';
+import { advance } from './simulation';
 import { scheduleTransfer } from './orders';
 import { orderHour, inspectionOffset } from './time-machine';
 

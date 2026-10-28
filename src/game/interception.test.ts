@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, createGame, dispatch, installModule } from './simulation';
+import { advance, dispatch, installModule } from './simulation';
 import { dispatchIntercept } from './interception';
 import type { ModuleKind } from './modules';
 import { interceptionCourse } from './flight';

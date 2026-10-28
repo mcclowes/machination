@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, createGame, dispatch, installModule, travelHours } from './simulation';
+import { advance, dispatch, installModule, travelHours } from './simulation';
 import { MODULES } from './modules';
 
 test('purchased routing daemon costs drones and only accelerates a loaded hauler', () => {

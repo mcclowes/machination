@@ -1,0 +1,25 @@
+/**
+ * ---
+ * purpose: Contextual industry, extraction, and defense controls for a controlled rock.
+ * ---
+ */
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { maximumShield } from '../game/economy';
+import type { Rock } from '../game/simulation';
+
+export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf'>): string {
+  const type = { core: 'Core · +4 drones / h', reactor: 'Reactor · +4 drones / h', mine: 'Extraction site', factory: 'Factory · 6 drones / 8h', generator: 'Generator · +50 power capacity' }[rock.kind];
+  return `${type}${rock.coreOf && rock.kind !== 'core' ? ' · intelligence core' : ''}`;
+}
+export function SiteControls({ rock, cost, enabled, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; onMine: () => void; onShields: () => void }) {
+  return <View style={s.section}>
+    <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
+    <Control label={rock.shieldsDisabled ? 'Enable shields' : 'Disable shields'} disabled={!enabled} onPress={onShields} />
+    {rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock every 24h.</Text><Control label={`Drill mine · ${cost} drones`} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
+  </View>;
+}
+function Control({ label, disabled, onPress }: { label: string; disabled: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.text}>{label}</Text></Pressable>;
+}
+const s = StyleSheet.create({ section: { gap: 10, marginTop: 16 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, button: { minHeight: 44, padding: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#40563a', backgroundColor: '#15241a' }, text: { color: '#d6e2cd', fontSize: 12 } });

@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('every HTTP view filters hidden state, scopes history, and isolates command
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'games.json');
   let now = 0;
-  const api = createApi(await GameService.open(file, () => now));
+  const api = createApi(await GameService.open(file, () => now, createLegacyGame));
   await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve())));
   const base = `http://127.0.0.1:${(api.address() as AddressInfo).port}/v1`;
@@ -71,6 +72,6 @@ test('every HTTP view filters hidden state, scopes history, and isolates command
   const lost = await request(path, 0);
   assert.equal(lost.game.rocks[4]!.known, false, 'scout destruction ends remote visibility');
   assert.equal(lost.revision, scout.revision);
-  const restarted = await GameService.open(file, () => now);
+  const restarted = await GameService.open(file, () => now, createLegacyGame);
   assert.deepEqual(await restarted.snapshot(created.id, tokens[0]!), lost, 'visibility and seat revisions survive restart');
 });

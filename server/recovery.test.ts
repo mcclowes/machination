@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -10,7 +11,7 @@ const unauthorized = (e: unknown) => e instanceof Failure && e.status === 401;
 test('single-use recovery preserves the seat, revokes old credentials, and safely retries after restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'machination-recovery-')); t.after(() => rm(dir, { recursive: true, force: true }));
   const file = join(dir, 'world.json'); let now = 1_000_000;
-  let service = await GameService.open(file, () => now);
+  let service = await GameService.open(file, () => now, createLegacyGame);
   const [host, rival, third, replacement, thief] = Array.from({ length: 5 }, secret) as [string,string,string,string,string];
   let view = await service.create(host);
   await service.join(view.invite, rival); await service.join(view.invite, third);
@@ -36,7 +37,7 @@ test('single-use recovery preserves the seat, revokes old credentials, and safel
   const disk = await readFile(file, 'utf8');
   for (const raw of [host, replacement, key]) assert.ok(!disk.includes(raw), 'raw credentials must not be persisted');
   assert.ok(!JSON.stringify(recovered).includes(key));
-  service = await GameService.open(file, () => now); now += 2 * 3_600_000;
+  service = await GameService.open(file, () => now, createLegacyGame); now += 2 * 3_600_000;
   const retry = await service.recover(view.id, replacement, { secret: key });
   assert.equal(retry.faction, 'you'); assert.equal(retry.game.hour, 2);
   assert.equal((await service.snapshot(view.id, replacement)).faction, 'you');

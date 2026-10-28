@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('three real HTTP clients share persistent server time, authorized orders, a
   t.after(() => rm(directory, { recursive: true, force: true }));
   let now = 1000000;
   const file = join(directory, 'games.json');
-  let api = createApi(await GameService.open(file, () => now));
+  let api = createApi(await GameService.open(file, () => now, createLegacyGame));
   await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve())));
   let base = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
@@ -69,7 +70,7 @@ test('three real HTTP clients share persistent server time, authorized orders, a
   const persisted = await readFile(file, 'utf8');
   assert.ok(tokens.every(token => !persisted.includes(token)), 'raw tokens are never stored');
   await new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve()));
-  api = createApi(await GameService.open(file, () => now));
+  api = createApi(await GameService.open(file, () => now, createLegacyGame));
   await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
   assert.deepEqual((await request(path, 0)).data, progressed, 'restart preserves game and seat');

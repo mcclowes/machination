@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, createGame, dispatch, installModule } from './simulation';
+import { advance, dispatch, installModule } from './simulation';
 import { cancelTransfer, scheduleTransfer } from './orders';
 
 test('a queued transfer uses future production and launches exactly at its scheduled hour', () => {

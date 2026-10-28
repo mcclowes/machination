@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('HTTP interception requires an observed seat-scoped target and survives ret
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'games.json');
   let now = 0;
-  let api = createApi(await GameService.open(file, () => now));
+  let api = createApi(await GameService.open(file, () => now, createLegacyGame));
   const listen = () => new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   const close = () => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve()));
   await listen(); t.after(close);
@@ -48,7 +49,7 @@ test('HTTP interception requires an observed seat-scoped target and survives ret
   assert.equal(duplicate.data.game.fleets.filter(f => f.intercept).length, 1);
   assert.equal(duplicate.data.game.rocks[0]!.drones, 28);
   await close();
-  api = createApi(await GameService.open(file, () => now)); await listen();
+  api = createApi(await GameService.open(file, () => now, createLegacyGame)); await listen();
   base = `http://127.0.0.1:${(api.address() as AddressInfo).port}/v1`;
   assert.deepEqual((await request(path, 0)).data, dispatched.data);
   now = Math.ceil(rig.arrives * 3_600_000);

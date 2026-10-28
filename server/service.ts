@@ -7,12 +7,13 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { advance, createGame, dispatch, installModule, type Faction, type Game } from '../src/game/simulation';
+import { drillMine, setShields } from '../src/game/economy';
 import { dispatchIntercept } from '../src/game/interception';
 import { giftTransfer } from '../src/game/gifts';
 import { scheduleTransfer, cancelTransfer } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
 import { decodeSave } from '../src/game/save-format';
-import type { CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS: Faction[] = ['you', 'vesper', 'null'];
 type Room = {
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
@@ -31,8 +32,8 @@ const matchesHash = (expected: string | undefined, actual: string) => expected !
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 export class GameService {
   private queue: Promise<unknown> = Promise.resolve();
-  private constructor(private file: string, private database: Database, private now: () => number) {}
-  static async open(file: string, now = Date.now): Promise<GameService> {
+  private constructor(private file: string, private database: Database, private now: () => number, private initialGame = createGame) {}
+  static async open(file: string, now = Date.now, initialGame = createGame): Promise<GameService> {
     let database: Database = { version: 1, rooms: [] };
     try {
       database = JSON.parse(await readFile(file, 'utf8'));
@@ -57,7 +58,7 @@ export class GameService {
         ids.add(r.id);
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-    return new GameService(file, database, now);
+    return new GameService(file, database, now, initialGame);
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
     const result = this.queue.then(async () => {
@@ -109,7 +110,7 @@ export class GameService {
       if (existing) { this.settle(existing); return this.view(existing, this.seat(existing, token)); }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        revision: 0, game: createGame(this.now()), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
+        revision: 0, game: this.initialGame(this.now()), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
       db.rooms.push(room);
       return this.view(room, 'you');
     });
@@ -214,6 +215,23 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
       try { r.game = installModule(r.game, command.rock, command.module, f); }
       catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
+      r.revision++;
+      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      return this.view(r, f);
+    });
+  }
+  site(id: string, token: string, command: SiteOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const payload = JSON.stringify(['site', command.rock, command.action, command.action === 'shields' ? command.disabled : null, command.revision]);
+      if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'site.conflict.stale', 'Your orders changed. Refresh before changing this site.');
+      try {
+        if (command.action === 'mine') r.game = drillMine(r.game, command.rock, f);
+        else if (command.action === 'shields') r.game = setShields(r.game, command.rock, f, command.disabled);
+        else throw new Error('Choose a mine or shield command.');
+      } catch (e) { throw new Failure(409, 'site.conflict.invalid', (e as Error).message); }
       r.revision++;
       r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
       return this.view(r, f);

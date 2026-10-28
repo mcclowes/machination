@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -13,7 +14,7 @@ test('HTTP gifts authorize observed support, deduplicate, preserve ownership acr
   const directory = await mkdtemp(join(tmpdir(), 'machination-gifts-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'game.json'); let now = 0;
-  const server = createApi(await GameService.open(file, () => now));
+  const server = createApi(await GameService.open(file, () => now, createLegacyGame));
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve())));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
@@ -49,7 +50,7 @@ test('HTTP gifts authorize observed support, deduplicate, preserve ownership acr
   assert.equal(sent.game.fleets[0]!.arrives, 7);
   assert.equal((await post(`${base}/gifts`, 0, { ...gift, drones: 21 })).status, 409);
   assert.equal((await post(`${base}/orders`, 0, gift)).status, 409, 'a gift receipt cannot be reused as an attack');
-  const resumed = await GameService.open(file, () => now);
+  const resumed = await GameService.open(file, () => now, createLegacyGame);
   const received = await resumed.snapshot(created.id, tokens[1]!);
   assert.equal(received.revision, 2, 'receiving new owned assets invalidates a previous recipient command revision');
   assert.equal(received.game.fleets[0]!.owner, 'vesper');

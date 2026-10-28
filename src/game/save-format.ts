@@ -6,7 +6,9 @@
 import { MAX_PLAN_DELAY, MAX_PLANS_PER_FACTION } from './orders';
 import { MAX_STORED_EVENTS } from './events';
 import { isModule } from './modules';
-import { type Game, type Faction, createGame } from './simulation';
+import { createLegacyGame } from './legacy';
+import { maximumShield } from './economy';
+import { type Game, type Faction, type Rock, createGame } from './simulation';
 export type Save = { savedAt: number; game: Game };
 const factions: unknown[] = ['you', 'vesper', 'null'];
 const isFaction = (v: unknown): v is Faction => factions.includes(v);
@@ -19,8 +21,8 @@ export function decodeSave(raw: string): Save {
   try { save = JSON.parse(raw); } catch { return fail(); }
   if (!record(save) || !nonnegative(save.savedAt) || !record(save.game)) return fail();
   const g = save.game;
-  const base = createGame(0);
-  if (g.version !== 1 || !nonnegative(g.hour) || !nonnegative(g.epoch) || !Number.isInteger(g.nextId) || (g.nextId as number) < 1
+  const base = g.version === 2 ? createGame(0) : createLegacyGame(0);
+  if (![1, 2].includes(g.version as number) || !nonnegative(g.hour) || !nonnegative(g.epoch) || !Number.isInteger(g.nextId) || (g.nextId as number) < 1
     || !record(g.cargo) || !factions.every(f => nonnegative((g.cargo as Record<string, unknown>)[f as string]))
     || !Array.isArray(g.eliminated) || !g.eliminated.every(isFaction) || new Set(g.eliminated).size !== g.eliminated.length
     || !(g.winner === null || isFaction(g.winner))
@@ -30,10 +32,16 @@ export function decodeSave(raw: string): Save {
   for (const r of g.rocks) {
     if (!record(r) || typeof r.id !== 'string' || ids.has(r.id) || !base.rocks.some(b => b.id === r.id)
       || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || !nonnegative(r.drones)
-      || !(r.owner === null || isFaction(r.owner)) || !['core', 'reactor', 'mine'].includes(r.kind as string)
+      || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
+    if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)
+      || (r.shield as number) > maximumShield(r as Rock) || typeof r.shieldsDisabled !== 'boolean' || !nonnegative(r.shieldAt)
+      || r.owner && (r.shield as number) < maximumShield(r as Rock) && (r.shieldAt as number) <= (g.hour as number)
+      || r.kind === 'factory' && (!nonnegative(r.productionAt) || r.owner && r.productionAt <= (g.hour as number))
+      || r.kind === 'mine' && (!nonnegative(r.miningAt) || r.owner && r.miningAt <= (g.hour as number)))) return fail();
     ids.add(r.id);
   }
+  if (g.version === 2 && (!record(g.minesDrilled) || !factions.every(f => Number.isSafeInteger((g.minesDrilled as Record<string, unknown>)[f as string]) && ((g.minesDrilled as Record<string, number>)[f as string] ?? -1) >= 0))) return fail();
   const fleetIds = new Set<number>();
   for (const f of g.fleets) {
     if (!record(f) || !Number.isInteger(f.id) || (f.id as number) < 1 || (f.id as number) >= (g.nextId as number) || fleetIds.has(f.id as number)

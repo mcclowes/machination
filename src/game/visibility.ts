@@ -10,6 +10,7 @@ import { fleetPosition } from './flight';
 import { inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'kind'> & { known: false; owner?: never; drones?: never; module?: never; coreOf?: never });
 export type GameView = {
+  version?: 1 | 2; minesDrilled?: Partial<Record<Faction, number>>;
   hour: number; epoch: number; rocks: ObservedRock[]; fleets: Fleet[];
   cargo: Partial<Record<Faction, number>>; eliminated: Faction[]; winner: Faction | null;
   scheduled: ScheduledTransfer[]; events: { hour: number; message: string }[]; coverage: Sensor[]; uncertain: string[]; interceptionUncertain: boolean;
@@ -19,6 +20,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   const contacts = game.fleets.filter(f => f.owner === faction || inRange(coverage, fleetPosition(game, f))).sort((a, b) => a.id - b.id);
   const visibleIds = new Set(contacts.map(f => f.id));
   return {
+    version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
     hour: game.hour, epoch: game.epoch,
     rocks: game.rocks.map(r => r.owner === faction || inRange(coverage, r)
       ? { ...r, known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind, known: false }),
@@ -37,7 +39,8 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   const unknownInterceptions = orderedFleets.filter(f => f.intercept && f.intercept.target === undefined).map(f => f.id);
   // Hidden destinations never participate in combat or production in a forecast.
   const simulation: Game = {
-    version: 1, hour: view.hour, epoch: view.epoch,
+    version: view.version ?? 1, hour: view.hour, epoch: view.epoch,
+    ...(view.version === 2 ? { minesDrilled: { you: 0, vesper: 0, null: 0, ...view.minesDrilled } } : {}),
     rocks: view.rocks.map(r => r.known ? { ...r } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: r.kind, owner: null, drones: 0 }),
     fleets: orderedFleets.map(f => ({ ...f })),
     scheduled: view.scheduled.map(p => ({ ...p })),

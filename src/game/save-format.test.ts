@@ -1,7 +1,8 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeSave } from './save-format';
-import { advance, createGame, dispatch } from './simulation';
+import { advance, dispatch } from './simulation';
 
 test('round-trips active and completed operations through the save boundary', () => {
   const active = advance(dispatch(createGame(0), 'a', 'b', 20, 'you'), 2);

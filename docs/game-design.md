@@ -17,7 +17,17 @@ A slow strategy game about rival intelligences operating mining concerns in the 
 
 The Director can become the corporate authority in flavor text. The core is the vulnerable operational entity on the map.
 
-## First playable
+## Faithful rules upgrade
+
+New operations use version two. Each intelligence starts with five sites: three factories and two generators. Four sites hold 40 drones each; the core's site holds none. Dormant sites are undefended and no mines exist initially.
+
+Factories deliver six drones every eight hours. Total stationed and traveling drones count toward a capacity of 150 plus 50 per controlled generator. Capacity limits production; it doesn't destroy drones after territorial losses. Mines replace factories or generators, cost 50/100/200/300… drones according to lifetime construction count, and produce one cargo per controlled site each 24-hour cycle. Capturing a mine resets its cycle and removes 20% of the former owner's cargo. The quota is 200.
+
+Sites have 10 or 20 shield capacity; the core adds 20 locally. Charge recovers over 48 hours in whole units. Shields consume attacking drones before drone combat and can be disabled to negotiate a handover. Industry, mine, and shield clocks are explicit event timestamps and survive polling and restarts.
+
+Version-one saves and ongoing server rooms retain the prototype rules below. New rooms default to version two. Module, transport, leadership, and sensor parity work is tracked in [#18](https://github.com/mcclowes/machination/issues/18); this economy upgrade doesn't establish complete parity.
+
+## Version-one first playable
 
 Three intelligences begin with a core and a second rock. Cores and reactors create four drones per hour; mines produce two cargo per hour. Reach 300 cargo or eliminate both rival cores to win.
 

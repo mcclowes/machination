@@ -1,6 +1,7 @@
+import { createLegacyGame as createGame } from './legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { advance, createGame, dispatch, installModule } from './simulation';
+import { advance, dispatch, installModule } from './simulation';
 import { forecastObservation, observe } from './visibility';
 
 test('observations omit hidden rock data, enemy cargo, unseen haulers, and global sequence numbers', () => {

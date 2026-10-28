@@ -16,10 +16,12 @@ import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders'
 import { ModuleBay } from './src/components/ModuleBay';
 import { MODULES, type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
-import { advance, CARGO_TARGET, createGame, dispatch, installModule, FACTIONS, operationStatus, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
+import { advance, createGame, dispatch, installModule, FACTIONS, operationStatus, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
+import { SiteControls, siteDescription } from './src/components/SiteControls';
+import { cargoTarget, drillMine, droneInventory, mineCost, powerCapacity, setShields } from './src/game/economy';
 import { TimeMachine } from './src/components/TimeMachine';
 import { gameClock as clock, inspectionOffset, orderHour } from './src/game/time-machine';
 
@@ -47,7 +49,7 @@ function Operation() {
   const [planning, setPlanning] = useState(false);
   const [carry, setCarry] = useState(false);
   const [delay, setDelay] = useState(0);
-  const [amount, setAmount] = useState('45');
+  const [amount, setAmount] = useState('20');
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const forecast = inspectionOffset(game.hour, inspectedHour);
   const [tab, setTab] = useState<'overview' | 'signals'>('overview');
@@ -128,13 +130,13 @@ function Operation() {
           <TimeMachine hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.map(f => f.arrives), ...(game.scheduled ?? []).map(p => p.executeAt)]} />
         </View>
         <View style={[s.sideColumn, wide && { flex: 1, maxWidth: 400 }]}>
-          <View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>Corporate instructions pending. Continue extraction.</Text>
-            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(owned.reduce((n, r) => n + r.drones, 0))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
-            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you)} / {CARGO_TARGET}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, shown.cargo.you / CARGO_TARGET * 100)}%` }]} /></View>
+          <View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(shown, 'you')} / ${powerCapacity(shown, 'you')} drones. Establish extraction to earn cargo.` : 'Legacy operation · original prototype rules.'}</Text>
+            <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(shown, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
+            <View style={s.between}><Text style={s.small}>Corporate quota</Text><Text style={s.small}>{Math.floor(shown.cargo.you)} / {cargoTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, shown.cargo.you / cargoTarget(game) * 100)}%` }]} /></View>
           </View>
           <View style={s.panel}>
             <View style={s.between}><Label>{planning ? 'Transfer order' : 'Selected asset'}</Label><Text style={[s.badge, { color: rock.owner ? FACTIONS[rock.owner].color : '#819082' }]}>{rock.owner ? rock.owner === 'you' ? 'CONTROLLED' : 'RIVAL' : 'UNCLAIMED'}</Text></View>
-            <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{rock.kind === 'core' ? 'Intelligence core · +4 drones / h' : rock.kind === 'reactor' ? 'Reactor · +4 drones / h' : 'Extraction rock · +2 cargo / h'}</Text>
+            <Text style={s.rockName}>{rock.name}</Text><Text style={s.assetType}>{siteDescription(rock)}</Text>
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
             {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
@@ -143,6 +145,7 @@ function Operation() {
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
               <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
             </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
+            {game.version === 2 && rock.owner === 'you' && <SiteControls rock={rock} cost={mineCost(game, 'you')} enabled={operational && !forecast} onMine={() => { try { setGame(drillMine(game, selected, 'you')); setError(''); } catch (e) { setError((e as Error).message); } }} onShields={() => { try { setGame(setShields(game, selected, 'you', !rock.shieldsDisabled)); setError(''); } catch (e) { setError((e as Error).message); } }} />}
             {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} disabled={!operational || !!forecast} onIntercept={intercept} />}
             {rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View>

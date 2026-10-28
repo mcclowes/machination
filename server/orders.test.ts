@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('HTTP plans remain private, cancel safely, and execute exactly once across 
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'games.json');
   let now = 0;
-  let api = createApi(await GameService.open(file, () => now));
+  let api = createApi(await GameService.open(file, () => now, createLegacyGame));
   const listen = () => new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   const close = () => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve()));
   await listen(); t.after(close);
@@ -54,7 +55,7 @@ test('HTTP plans remain private, cancel safely, and execute exactly once across 
   const pending = await request(`${path}/schedules`, 0, nextPlan);
   assert.equal(pending.status, 200);
   await close();
-  api = createApi(await GameService.open(file, () => now));
+  api = createApi(await GameService.open(file, () => now, createLegacyGame));
   await listen();
   base = `http://127.0.0.1:${(api.address() as AddressInfo).port}/v1`;
   assert.equal((await request(path, 0)).data.game.scheduled.length, 1);

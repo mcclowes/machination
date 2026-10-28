@@ -1,3 +1,4 @@
+import { createLegacyGame } from '../src/game/legacy';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('HTTP module construction is authorized, charged once, transported, and per
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, 'game.json');
   let now = 0;
-  const api = createApi(await GameService.open(file, () => now));
+  const api = createApi(await GameService.open(file, () => now, createLegacyGame));
   await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => api.close(e => e ? reject(e) : resolve())));
   const url = `http://127.0.0.1:${(api.address() as AddressInfo).port}/v1`;
@@ -48,7 +49,7 @@ test('HTTP module construction is authorized, charged once, transported, and per
   assert.equal(sent.data.game.rocks[0]!.module, undefined);
   assert.equal((await post(`${base}/orders`, 0, order)).data.game.fleets.length, 1);
   assert.equal((await post(`${base}/orders`, 0, { ...order, carryModule: false })).status, 409);
-  const resumed = await GameService.open(file, () => now);
+  const resumed = await GameService.open(file, () => now, createLegacyGame);
   assert.equal((await resumed.snapshot(created.id, tokens[0]!)).game.fleets[0]!.module, 'routing');
   now = 2 * 3_600_000;
   const arrival = await resumed.snapshot(created.id, tokens[0]!);
