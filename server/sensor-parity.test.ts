@@ -50,8 +50,9 @@ test('v2 HTTP snapshots scope remote incoming ships, private preparation, unknow
   assert.ok(!('lastContacts' in remote));
   assert.equal(you.game.fleets.find(f => f.intercept)!.intercept!.target, you.game.fleets.find(f => f.owner === 'you')!.id);
   const hidden = you.game.rocks.find(r => r.id === 'e')!;
-  assert.deepEqual(Object.keys(hidden).sort(), ['id', 'kind', 'known', 'name', 'x', 'y']);
+  assert.deepEqual(Object.keys(hidden).sort(), ['id', 'kind', 'known', 'name', 'owner', 'x', 'y']);
   assert.equal(hidden.kind, 'unknown');
+  assert.equal(hidden.owner, 'vesper');
   assert.equal(you.game.rocks.find(r => r.id === 'j')!.kind, 'mine');
   assert.deepEqual(you.game.cargo, { you: 0 });
   const original = structuredClone(you);

@@ -114,3 +114,15 @@ test('pending schedule edits send authenticated manifests with omitted and empty
     assert.deepEqual(await api(session, `games/${session.id}/${pending.kind}`, pending.body), frame);
   }
 });
+
+test('sensors.v1 accepts additive hidden ownership in live and history while retaining legacy omission', async t => {
+  const { historicalApi } = await import('./network');
+  const session = { url: 'https://belt.example', token: 'seat', id: 'operation' };
+  for (const owner of [undefined, null, 'vesper']) {
+    const rock = { id: 'remote', name: 'Remote', x: 90, y: 90, known: false, kind: 'unknown', ...(owner === undefined ? {} : { owner }) };
+    const frame = { id: session.id, faction: 'you', visibility: 'sensors.v1', messages: [], history: { from: 0, through: 4, at: 4 }, game: { scheduled: [], rocks: [rock] } };
+    t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(frame)));
+    assert.deepEqual((await api(session, 'games/operation')).game.rocks, [rock]);
+    assert.deepEqual((await historicalApi(session, 4)).game.rocks, [rock]);
+  }
+});
