@@ -25,7 +25,7 @@ Choose a launch time from now to seven days ahead and manage private plans in **
 
 In multiplayer, support another intelligence by selecting its observed rock and reviewing a gift with the launch delay set to Now. Confirmation gives the recipient ownership of the hauler, drones, any loaded module, and its sensors immediately. Gifts cannot be recalled; normal transfers still attack rivals.
 
-Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The timeline forecasts known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
+Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The Time Machine scrubs up to seven days ahead, accepts minute-precision inspection, and schedules transfers directly from that future context. Tap haulers to inspect them; pinch or use chart controls to zoom, then drag to pan. Forecasts include known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
 ## Check
 

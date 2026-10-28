@@ -7,9 +7,9 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MODULES } from '../game/modules';
 import type { ScheduledTransfer } from '../game/orders';
-type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void };
-export function LaunchTiming({ delay, disabled, onChange }: TimingProps) {
-  return <View style={s.section}><Text style={s.label}>Launch timing</Text><View style={s.options}>{[0, 1, 6, 12, 24, 48, 72, 168].map(h => <Pressable key={h} accessibilityRole="button" accessibilityState={{ selected: delay === h, disabled }} disabled={disabled} onPress={() => onChange(h)} style={[s.option, delay === h && s.selected, disabled && s.disabled]}><Text style={s.text}>{h ? h >= 24 ? `+${h / 24}d` : `+${h}h` : 'Now'}</Text></Pressable>)}</View>{delay > 0 && <Text style={s.detail}>Drones aren't reserved. Ownership, inventory, and the selected module must still permit a full launch at execution time.</Text>}</View>;
+type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean };
+export function LaunchTiming({ delay, disabled, onChange, future }: TimingProps) {
+  return <View style={s.section}><Text style={s.label}>Launch timing</Text><View style={s.options}>{[0, 1, 6, 12, 24, 48, 72, 168].map(h => <Pressable key={h} accessibilityRole="button" accessibilityState={{ selected: delay === h, disabled }} disabled={disabled} onPress={() => onChange(h)} style={[s.option, delay === h && s.selected, disabled && s.disabled]}><Text style={s.text}>{h ? h >= 24 ? `+${h / 24}d` : `+${h}h` : future ? 'At forecast' : 'Now'}</Text></Pressable>)}</View>{delay > 0 && <Text style={s.detail}>Drones aren't reserved. Ownership, inventory, and the selected module must still permit a full launch at execution time.</Text>}</View>;
 }
 type QueueProps = { plans: ScheduledTransfer[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void };
 export function ScheduledOrders({ plans, hour, rocks, disabled, onCancel }: QueueProps) {

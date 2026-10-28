@@ -70,3 +70,9 @@ Acceptance scenarios:
 6. Phone, web, server, persistence, replay, and complete-match acceptance checks.
 
 Keep this issue open and the goal active until the outstanding contracts are implemented and verified. Passing prototype tests alone isn't completion.
+
+## Progress
+
+The first UI slice replaces fixed forecast offsets with a shared Time Machine: minute-precision inspection, seven-day scrubbing, event markers/jumps, stable inspected timestamps, and transfers scheduled directly from the forecast. The chart now supports pinch/button zoom, drag panning while zoomed, and contextual hauler inspection. Future module construction, interception scheduling, observed-history replay, and persistent map navigation remain outstanding.
+
+Verification: baseline 72 tests; new future-inventory scheduling and timestamp/horizon scenarios; TypeScript; web export. Chrome verified a +6.5h transfer of all 116 predicted drones, its private live queue, projected fleet, hauler inspector, and zoom controls. Native gestures and complete UI parity remain unverified.

@@ -20,6 +20,8 @@ import { advance, CARGO_TARGET, createGame, dispatch, installModule, FACTIONS, o
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
+import { TimeMachine } from './src/components/TimeMachine';
+import { gameClock as clock, inspectionOffset, orderHour } from './src/game/time-machine';
 
 const ink = '#e5eadc';
 const green = '#b8e986';
@@ -29,7 +31,6 @@ function Button({ label, onPress, disabled, quiet = false }: { label: string; on
   </Pressable>;
 }
 function Label({ children }: { children: React.ReactNode }) { return <Text style={s.label}>{children}</Text>; }
-function clock(hour: number) { return `D${String(Math.floor(hour / 24) + 1).padStart(2, '0')} · ${String(Math.floor(hour % 24)).padStart(2, '0')}:${String(Math.floor(hour % 1 * 60)).padStart(2, '0')}`; }
 export default function App() {
   const [mode, setMode] = useState<'solo' | 'online'>('solo');
   return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top', 'left', 'right']}><StatusBar style="light" /><View style={[s.row, { paddingHorizontal: 20, paddingTop: 8 }]}>{(['solo', 'online'] as const).map(m => <View key={m} style={{ flex: 1 }}><Button label={m === 'solo' ? 'Solo operation' : 'Multiplayer uplink'} quiet={mode !== m} onPress={() => setMode(m)} /></View>)}<FieldManual /></View>{mode === 'solo' ? <Operation /> : <OnlineOperation />}</SafeAreaView></SafeAreaProvider>;
@@ -47,7 +48,8 @@ function Operation() {
   const [carry, setCarry] = useState(false);
   const [delay, setDelay] = useState(0);
   const [amount, setAmount] = useState('45');
-  const [forecast, setForecast] = useState(0);
+  const [inspectedHour, setInspectedHour] = useState<number | null>(null);
+  const forecast = inspectionOffset(game.hour, inspectedHour);
   const [tab, setTab] = useState<'overview' | 'signals'>('overview');
   const [reset, setReset] = useState(false);
   const lastTick = useRef(Date.now());
@@ -83,14 +85,15 @@ function Operation() {
     eliminated: 'Core offline. Your operation has ended.',
   }[status];
   const count = Number(amount);
-  const canSend = operational && !forecast && rock.owner === 'you' && !!target && Number.isSafeInteger(count) && count > 0 && (delay > 0 || count <= Math.floor(rock.drones));
+  const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;
+  const canSend = operational && !shown.winner && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count > 0 && (launchAt > game.hour || count <= Math.floor(rock.drones));
   function select(r: Rock) {
     if (planning && r.id !== selected) setDestination(r.id);
     else if (!planning) { setSelected(r.id); setDestination(undefined); setCarry(false); setAmount(String(Math.max(1, Math.floor(r.drones / 2)))); }
   }
   function send() {
     if (!canSend || !destination) return;
-    try { setGame(delay ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt: game.hour + delay, carryModule: carry && !!rock.module }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module)); setDelay(0); setPlanning(false); setDestination(undefined); setCarry(false); setError(''); }
+    try { const executeAt = orderHour(game.hour, inspectedHour, delay); setGame(executeAt > game.hour ? scheduleTransfer(game, { id: Crypto.randomUUID(), owner: 'you', from: selected, to: destination, drones: count, executeAt, carryModule: carry && !!rock.module }) : dispatch(game, selected, destination, count, 'you', carry && !!rock.module)); setDelay(0); setPlanning(false); setDestination(undefined); setCarry(false); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
   function intercept(target: number) {
@@ -105,7 +108,7 @@ function Operation() {
     try { setGame(installModule(game, selected, kind, 'you')); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
-  function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setForecast(0); setPlanning(false); setDestination(undefined); }
+  function skip() { lastTick.current = Date.now(); setGame(g => advance(g, g.hour + 6)); setInspectedHour(null); setPlanning(false); setDestination(undefined); }
   return <SafeAreaView style={s.safe} edges={['bottom']}>
     <StatusBar style="light" />
     <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={[s.page, wide && { paddingHorizontal: 40 }]}>
@@ -122,11 +125,7 @@ function Operation() {
             {planning && <View pointerEvents="none" style={s.mapHint}><Text style={s.mapHintText}>Select a destination rock</Text></View>}
           </View>
           <View style={s.legend}>{(Object.keys(FACTIONS) as Faction[]).map(f => <View style={s.row} key={f}><View style={[s.legendDot, { backgroundColor: FACTIONS[f].color }]} /><Text style={s.legendText}>{f === 'you' ? 'You' : FACTIONS[f].name}</Text></View>)}<View style={s.row}><View style={[s.legendDot, { backgroundColor: '#7d8b83' }]} /><Text style={s.legendText}>Unclaimed</Text></View></View>
-          <View style={s.timeline}>
-            <View style={s.between}><Label>Temporal projection</Label><Text style={{ color: forecast ? green : '#8a9a8e', fontSize: 10 }}>{forecast ? `FORECAST +${forecast}H` : 'LIVE STATE'}</Text></View>
-            <View style={s.timeOptions}>{[0, 6, 12, 24].map(h => <Pressable accessibilityRole="button" accessibilityState={{ selected: forecast === h }} key={h} onPress={() => { setForecast(h); setPlanning(false); setDestination(undefined); }} style={[s.timeOption, forecast === h && s.timeActive]}><Text style={{ color: forecast === h ? green : '#819082', fontSize: 12 }}>{h ? `+${h}h` : 'Now'}</Text></Pressable>)}</View>
-            <Text style={s.small}>Forecast includes active haulers, production, and rival decisions.</Text>
-          </View>
+          <TimeMachine hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); }} events={[...game.fleets.map(f => f.arrives), ...(game.scheduled ?? []).map(p => p.executeAt)]} />
         </View>
         <View style={[s.sideColumn, wide && { flex: 1, maxWidth: 400 }]}>
           <View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>Corporate instructions pending. Continue extraction.</Text>
@@ -139,11 +138,11 @@ function Operation() {
             <View style={s.inventory}><Text style={s.inventoryNumber}>{Math.floor(rock.drones)}</Text><Text style={s.small}>drones on station</Text></View>
             {rock.owner === 'you' && <View style={s.between}><Label>Drone manifest</Label><TextInput key="solo-manifest" secureTextEntry={false} accessibilityLabel="Drones to dispatch" keyboardType="number-pad" value={amount} onChangeText={setAmount} style={s.input} /></View>}
             {planning ? <>
-              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(game.hour + delay + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
-              <LaunchTiming delay={delay} disabled={!operational || !!forecast} onChange={setDelay} />
+              <View style={s.destination}><Label>Destination</Label><Text style={{ color: ink, fontSize: 16 }}>{target?.name ?? 'Choose on the map'}</Text>{target && <Text style={s.small}>{travelHours(rock, target, carry ? rock.module : undefined)}h transit · arrives {clock(launchAt + travelHours(rock, target, carry ? rock.module : undefined))}</Text>}</View>
+              <LaunchTiming future={!!forecast} delay={delay} disabled={!operational} onChange={setDelay} />
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor(rock.drones * f)))} /></View>)}</View>
-              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={delay ? `Schedule launch +${delay}h` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
-            </> : <Button label={forecast ? 'Return to now to issue orders' : rock.owner === 'you' ? 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!forecast || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
+              <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule · ${clock(launchAt)}` : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
+            </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || rock.owner !== 'you' } onPress={() => setPlanning(true)} />}
             {rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} disabled={!operational || !!forecast} onIntercept={intercept} />}
             {rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View>
@@ -151,14 +150,14 @@ function Operation() {
             <View style={s.tabs}>{(['overview', 'signals'] as const).map(t => <Pressable accessibilityRole="button" accessibilityState={{ selected: tab === t }} onPress={() => setTab(t)} key={t} style={[s.tab, tab === t && { borderBottomColor: green }]}><Text style={{ color: tab === t ? ink : '#7c8b80', fontSize: 12 }}>{t === 'overview' ? 'In transit' : 'Signal log'}{t === 'overview' ? ` / ${shown.fleets.length}` : ''}</Text></Pressable>)}</View>
             {tab === 'overview' ? shown.fleets.length ? shown.fleets.map(f => <View key={f.id} style={s.log}><View style={s.between}><Text style={{ color: FACTIONS[f.owner].color, fontSize: 12 }}>{flightDestination(shown.rocks, f)} ↗</Text><Text style={s.small}>{(f.arrives - shown.hour).toFixed(1)}h</Text></View><Text style={s.small}>{f.drones} drones · {FACTIONS[f.owner].name}{f.module ? ` · ${MODULES[f.module].name}` : ''}</Text></View>) : <View style={s.empty}><Text style={s.emptyGlyph}>⌁</Text><Text style={s.small}>No haulers in transit.</Text><Text style={s.small}>Every move leaves a long shadow.</Text></View> : shown.events.slice(0, 8).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}
           </View>
-          <ScheduledOrders plans={(shown.scheduled ?? []).filter(p => p.owner === 'you')} hour={shown.hour} rocks={shown.rocks} disabled={!operational || !!forecast} onCancel={cancelPlan} />
+          <ScheduledOrders plans={(game.scheduled ?? []).filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} />
           <View style={s.row}><View style={{ flex: 1 }}><Button label="Advance simulation +6h" quiet disabled={!operational} onPress={skip} /></View><Button label="Reset" quiet onPress={() => setReset(true)} /></View>
           <Text style={s.small}>Local solo operation. Time continues while you're away.</Text>
         </View>
       </View>
       <View style={s.footer}><Text style={s.footerText}>MACHINATION / FIELD TERMINAL V0.1</Text><Text style={s.footerText}>THE CORPORATION IS TOO FAR AWAY TO INTERFERE.</Text></View>
     </ScrollView>
-    <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setForecast(0); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
+    <Modal visible={reset} transparent animationType="fade" onRequestClose={() => setReset(false)}><View style={s.overlay}><ScrollView style={s.dialog} contentContainerStyle={s.dialogContent}><Label>Terminate operation</Label><Text style={s.heading}>Start again?</Text><Text style={s.dialogBody}>This replaces the local operation and its history. The belt will return to its starting state.</Text><Button label="Replace operation" onPress={() => { setGame(createGame()); lastTick.current = Date.now(); setLoadFailed(false); setError(''); setSelected('a'); setInspectedHour(null); setPlanning(false); setDestination(undefined); setReset(false); }} /><Button label="Keep operation" quiet onPress={() => setReset(false)} /></ScrollView></View></Modal>
   </SafeAreaView>;
 }
 const s = StyleSheet.create({
