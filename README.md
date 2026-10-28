@@ -13,7 +13,7 @@ npm ci
 npm start
 ```
 
-Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emulator, or `npm run web` for the browser. Native launch requires the corresponding platform tooling. Expo's [SDK 55 reference](https://docs.expo.dev/versions/v55.0.0/) documents the supported native versions.
+Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emulator, or `npm run web` for the browser. These commands generate and compile native projects and require the corresponding platform tooling. See [native playtest builds](docs/native-builds.md) for the bundled Android APK command, signing limits, and device checks. Expo's [SDK 55 reference](https://docs.expo.dev/versions/v55.0.0/) documents the supported native versions.
 
 ## Play
 
