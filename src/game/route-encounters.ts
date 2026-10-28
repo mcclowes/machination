@@ -3,6 +3,7 @@
  * purpose: Exact encounters between opposing ordinary haulers traveling the same outpost route.
  * ---
  */
+import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
 import { flightEndpoints, fleetPosition } from './flight';
@@ -39,11 +40,12 @@ export function nextRouteEncounter(game: Game): number {
   }
   return next;
 }
-export function resolveRouteEncounters(game: Game): void {
+export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink): void {
   const ordered = [...game.fleets].sort((a, b) => a.id - b.id);
   for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
     const a = game.fleets.find(f => f.id === ordered[i]!.id); const b = game.fleets.find(f => f.id === ordered[j]!.id);
     if (!a || !b || Math.abs(encounterHour(game, a, b) - game.hour) > CONTACT_TOLERANCE) continue;
     resolveHaulerContact(game, a, b);
+    tracePoint(trace, 'route-contact', game);
   }
 }

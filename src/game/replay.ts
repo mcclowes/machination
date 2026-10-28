@@ -5,6 +5,7 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
+import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { scheduleAction, type ActionPlan } from './future-actions';
 import { advance, dispatch, installModule, type Faction, type Game } from './simulation';
 import { giftTransfer } from './gifts';
@@ -105,16 +106,29 @@ export function restoreArchive(data: ReplayData): ReplayArchive {
 
 /** Includes all successful submissions at targetHour, in original submission order. */
 export function replayTo(handle: ReplayArchive, targetHour: number, options: ReplayOptions): Game {
+  return reconstruct(handle, targetHour, options);
+}
+
+/** Private callbacks follow replayTo's exact advancement and submission schedule. */
+export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayOptions, sink: SimulationTraceSink): Game {
+  return reconstruct(handle, targetHour, options, sink);
+}
+function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayOptions, trace?: SimulationTraceSink): Game {
   const history = historyOf(handle);
   if (options.rivals !== history.rivals) throw new Error('Replay rival mode cannot change.');
   if (!Number.isFinite(targetHour) || !Number.isFinite(options.knownThrough) || targetHour < history.baseline.hour || targetHour > options.knownThrough || options.knownThrough < (history.entries.at(-1)?.hour ?? history.baseline.hour)) throw new Error('Replay hour is outside known history.');
   let game = clone(history.baseline);
+  tracePoint(trace, 'replay:initial', game);
   for (const entry of history.entries) {
     if (entry.hour > targetHour) break;
-    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals });
+    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals, trace });
+    tracePoint(trace, 'command:before', game);
     game = executeCommand(game, entry.command);
+    tracePoint(trace, 'command:after', game);
   }
-  return targetHour > game.hour ? advance(game, targetHour, { rivals: history.rivals }) : game;
+  if (targetHour > game.hour) game = advance(game, targetHour, { rivals: history.rivals, trace });
+  tracePoint(trace, 'replay:final', game);
+  return game;
 }
 
 /** Apply only at the trusted live frontier; publish both returned values atomically. */

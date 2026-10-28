@@ -3,6 +3,7 @@
  * purpose: Specialist manifests, doubled-speed interception, shared contact rules, and nearest-site return missions.
  * ---
  */
+import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, flightEndpoints, interceptionCourse } from './flight';
@@ -32,18 +33,20 @@ export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId
     events: recentEvents([{ hour: game.hour, audience: [owner], message: `${source.name}: interception preparing with ${drones} drones.` }, ...game.events]),
   };
 }
-export function resolveSpecialistInterceptions(game: Game, unknown: readonly number[] = []): void {
+export function resolveSpecialistInterceptions(game: Game, unknown: readonly number[] = [], trace?: SimulationTraceSink): void {
   const due = game.fleets.filter(f => f.intercept && !f.preparing && f.arrives <= game.hour + 1e-9).sort((a, b) => a.id - b.id);
   for (const rig of due) {
     if (!game.fleets.some(f => f.id === rig.id)) continue;
-    if (unknown.includes(rig.id)) {
-      game.fleets = game.fleets.filter(f => f.id !== rig.id);
-      game.events.unshift({ hour: game.hour, audience: [rig.owner], unresolvedInterception: true, message: 'Interception outcome unknown outside current observations.' });
-      continue;
-    }
-    const target = game.fleets.find(f => f.id === rig.intercept!.target);
-    const point = flightEndpoints(game, rig).to;
-    if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target);
-    if (game.fleets.some(f => f.id === rig.id) && rig.intercept) returnHauler(game, rig);
+    try {
+      if (unknown.includes(rig.id)) {
+        game.fleets = game.fleets.filter(f => f.id !== rig.id);
+        game.events.unshift({ hour: game.hour, audience: [rig.owner], unresolvedInterception: true, message: 'Interception outcome unknown outside current observations.' });
+        continue;
+      }
+      const target = game.fleets.find(f => f.id === rig.intercept!.target);
+      const point = flightEndpoints(game, rig).to;
+      if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target);
+      if (game.fleets.some(f => f.id === rig.id) && rig.intercept) returnHauler(game, rig);
+    } finally { tracePoint(trace, 'interception', game); }
   }
 }

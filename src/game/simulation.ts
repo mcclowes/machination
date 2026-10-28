@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
 import { wrappedBounds, worldDistance, type GeometryWorld } from './geometry';
 import { resolveSpecialistInterceptions } from './specialist-interception';
 import { reconcileFunding, type Funding } from './funding';
@@ -96,7 +97,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(saved: Game, targetHour: number, options: { rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
@@ -105,11 +106,13 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
     ...(input.minesDrilled ? { minesDrilled: { ...input.minesDrilled } } : {}),
     cargo: { ...input.cargo }, eliminated: [...input.eliminated], events: input.events.map(e => ({ ...e })),
   };
-  if (game.winner || game.draw) return game;
-  reconcileFunding(game);
-  refreshMining(game);
-  refreshUnitEffects(game);
-  if (game.version === 2) { applyStationPassives(game); refreshUnitEffects(game); }
+  const trace = options.trace;
+  tracePoint(trace, 'advance:initial', game);
+  if (game.winner || game.draw) { tracePoint(trace, 'advance:final', game); return game; }
+  reconcileFunding(game); tracePoint(trace, 'funding', game);
+  refreshMining(game); tracePoint(trace, 'mining', game);
+  refreshUnitEffects(game); tracePoint(trace, 'effects', game);
+  if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game); tracePoint(trace, 'effects', game); }
   while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));
     const quotaTimes = playersIn(game).filter(f => !game.eliminated.includes(f)).map(f => {
@@ -119,6 +122,7 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
     });
     const next = Math.min(targetHour, game.version === 2 ? Math.min(nextEconomyEvent(game), nextRouteEncounter(game), nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
     const elapsed = next - game.hour;
+    const spanFrom = trace ? traceSnapshot(game) : undefined;
     if (game.version === 1) for (const rock of game.rocks) {
       if (!rock.owner) continue;
       if (rock.kind === 'mine') {
@@ -128,63 +132,72 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
       else rock.drones = inventoryUnits(rock.drones + LEGACY_PRODUCTION * elapsed);
     }
     game.hour = next;
-    if (game.version === 2) { settleEconomy(game); settleSpecialistActions(game); }
-    if (game.version === 2) resolveRouteEncounters(game);
-    if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions);
-    else resolveInterceptions(game, options.unknownInterceptions);
+    if (trace && spanFrom) trace({ type: 'span', from: spanFrom, to: traceSnapshot(game) });
+    if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
+    if (game.version === 2) resolveRouteEncounters(game, trace);
+    if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace);
+    else resolveInterceptions(game, options.unknownInterceptions, trace);
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);
     if (game.version === 1) game.fleets = game.fleets.filter(f => f.arrives > next);
     for (const fleet of arrivals) {
       if (game.version === 2 && !game.fleets.some(f => f.id === fleet.id)) continue;
       if (game.version === 1 && game.eliminated.includes(fleet.owner)) continue;
-      const rock = game.rocks.find(r => r.id === fleet.to)!;
-      if (options.unknownDestinations?.includes(fleet.to)) {
-        game.fleets = game.fleets.filter(f => f.id !== fleet.id);
-        game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
-        continue;
-      }
-      if (game.version === 2) { resolveStationArrival(game, fleet, rock); continue; }
-      const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
-      if (rock.owner === fleet.owner) {
-        rock.drones += fleet.drones;
-        if (fleet.module && !rock.module) rock.module = fleet.module;
-        else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
-        continue;
-      }
-      if (fleet.module === 'charge') {
-        const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
-        rock.drones -= damage;
-        game.events.unshift({ hour: next, audience, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
-        continue;
-      }
-      if (fleet.module === 'virus') {
-        const converted = Math.min(CONVERSION_LIMIT, Math.floor(rock.drones * CONVERSION_FRACTION));
-        rock.drones -= converted; fleet.drones += converted;
-        game.events.unshift({ hour: next, audience, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
-      }
-      if (fleet.drones <= rock.drones) {
-        rock.drones -= fleet.drones;
-        game.events.unshift({ hour: next, audience, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
-      } else {
-        const defeated = rock.coreOf;
-        const recovered = fleet.module === 'scavenger' ? Math.floor(rock.drones * SALVAGE_FRACTION) : 0;
-        rock.drones = fleet.drones - rock.drones + recovered;
-        if (recovered) game.events.unshift({ hour: next, audience, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
-        rock.owner = fleet.owner;
-        delete rock.module;
-        if (fleet.module) rock.module = fleet.module;
-        game.events.unshift({ hour: next, audience, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
-        if (defeated && !game.eliminated.includes(defeated)) {
-          game.eliminated.push(defeated);
-          for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
-          game.fleets = game.fleets.filter(f => f.owner !== defeated);
-          if (game.scheduled) game.scheduled = game.scheduled.filter(p => p.owner !== defeated);
-          game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
+      try {
+        const rock = game.rocks.find(r => r.id === fleet.to)!;
+        if (options.unknownDestinations?.includes(fleet.to)) {
+          game.fleets = game.fleets.filter(f => f.id !== fleet.id);
+          game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
+          continue;
         }
-        delete rock.coreOf;
-      }
+        if (game.version === 2) { resolveStationArrival(game, fleet, rock); continue; }
+        const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
+        if (rock.owner === fleet.owner) {
+          rock.drones += fleet.drones;
+          if (fleet.module && !rock.module) rock.module = fleet.module;
+          else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
+          continue;
+        }
+        if (fleet.module === 'charge') {
+          const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
+          rock.drones -= damage;
+          game.events.unshift({ hour: next, audience, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
+          continue;
+        }
+        if (fleet.module === 'virus') {
+          const converted = Math.min(CONVERSION_LIMIT, Math.floor(rock.drones * CONVERSION_FRACTION));
+          rock.drones -= converted; fleet.drones += converted;
+          game.events.unshift({ hour: next, audience, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
+        }
+        if (fleet.drones <= rock.drones) {
+          rock.drones -= fleet.drones;
+          game.events.unshift({ hour: next, audience, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
+        } else {
+          const defeated = rock.coreOf;
+          const recovered = fleet.module === 'scavenger' ? Math.floor(rock.drones * SALVAGE_FRACTION) : 0;
+          rock.drones = fleet.drones - rock.drones + recovered;
+          if (recovered) game.events.unshift({ hour: next, audience, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
+          rock.owner = fleet.owner;
+          delete rock.module;
+          if (fleet.module) rock.module = fleet.module;
+          game.events.unshift({ hour: next, audience, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
+          if (defeated && !game.eliminated.includes(defeated)) {
+            game.eliminated.push(defeated);
+            for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;
+            game.fleets = game.fleets.filter(f => f.owner !== defeated);
+            if (game.scheduled) game.scheduled = game.scheduled.filter(p => p.owner !== defeated);
+            game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${FACTIONS[defeated].name}: core destroyed. Operations terminated.` });
+          }
+          delete rock.coreOf;
+        }
+      } finally { tracePoint(trace, 'arrival', game); }
     }
-    if (game.version === 2) { applyStationPassives(game); completePreparations(game); refreshUnitEffects(game); refreshMining(game); reconcileFunding(game); }
+    if (game.version === 2) {
+      applyStationPassives(game, trace);
+      completePreparations(game); tracePoint(trace, 'preparation', game);
+      refreshUnitEffects(game); tracePoint(trace, 'effects', game);
+      refreshMining(game); tracePoint(trace, 'mining', game);
+      reconcileFunding(game); tracePoint(trace, 'funding', game);
+    }
     const factions = playersIn(game).filter(f => !game.eliminated.includes(f));
     // Public ownership counts toward domination without activating hidden simulation assets.
     const victoryState = game.rules?.mode === 'domination' && options.territoryOwners
@@ -194,29 +207,33 @@ export function advance(saved: Game, targetHour: number, options: { rivals?: boo
     if (factions.length === 0) { game.draw = true; game.events.unshift({ hour: next, audience: [...playersIn(game)], message: 'All cores lost. The operation ended in a draw.' }); }
     if (game.winner) game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${FACTIONS[game.winner].name}: ${game.rules?.mode === 'domination' ? 'domination target secured' : 'corporate quota secured'}. Contract complete.` });
     if ((game.winner || game.draw) && game.scheduled) game.scheduled = [];
-    if (!game.winner && !game.draw) game = executeScheduled(game);
-    if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % 6 === 0) game = actRivals(game);
+    tracePoint(trace, 'victory', game);
+    if (!game.winner && !game.draw) game = executeScheduled(game, trace);
+    if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % 6 === 0) game = actRivals(game, trace);
     game.events = recentEvents(game.events);
+    tracePoint(trace, 'retention', game);
   }
+  tracePoint(trace, 'advance:final', game);
   return game;
 }
-function actRivals(input: Game): Game {
+function actRivals(input: Game, trace?: SimulationTraceSink): Game {
   let game = input;
   for (const faction of playersIn(game).filter(f => f !== 'you')) {
     if (game.eliminated.includes(faction)) continue;
     const sources = game.rocks.filter(r => r.owner === faction && r.drones > 35).sort((a, b) => b.drones - a.drones);
     const source = sources[0];
-    if (!source) continue;
+    if (!source) { tracePoint(trace, 'rival', game); continue; }
     const available = Math.floor(source.drones * 0.65);
     const travel = (to: Rock) => wrappedBounds(game) ? travelHours(source, to, undefined, game.version, game) : travelHours(source, to);
     const destination = game.rocks.filter(r => !r.destroyed && r.owner !== faction && r.drones + (r.owner && r.kind !== 'mine' ? LEGACY_PRODUCTION * travel(r) : 0) < available)
       .sort((a, b) => travel(a) - travel(b) || a.drones - b.drones)[0];
     if (destination) game = dispatch(game, source.id, destination.id, available, faction);
+    tracePoint(trace, 'rival', game);
   }
   return game;
 }
 
-function executeScheduled(input: Game): Game {
+function executeScheduled(input: Game, trace?: SimulationTraceSink): Game {
   let game = input;
   const due = (game.scheduled ?? []).filter(p => p.executeAt <= game.hour);
   if (!due.length) return game;
@@ -229,7 +246,7 @@ function executeScheduled(input: Game): Game {
       game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists, plan.fleetId);
     } catch (error) {
       game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: isActionPlan(plan) ? `${actionLabel(plan.action, game.rocks)} aborted: ${(error as Error).message}` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
-    }
+    } finally { tracePoint(trace, 'queue', game); }
   }
   return game;
 }
