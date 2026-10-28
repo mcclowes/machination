@@ -178,7 +178,8 @@ test('v2 remote types reveal only public mines or active Intelligence Officer kn
   view = observe(game, 'you');
   assert.equal(view.rocks[1]!.kind, 'factory');
   assert.equal(view.rocks[1]!.known, false);
-  assert.ok(!('owner' in view.rocks[1]!));
+  assert.equal(view.rocks[1]!.owner, 'vesper');
+  for (const rock of view.rocks.filter(r => !r.known)) assert.deepEqual(Object.keys(rock).sort(), ['id', 'kind', 'known', 'name', 'owner', 'x', 'y']);
   game.fleets[0]!.specialists![0]!.captive = true;
   assert.equal(observe(game, 'you').rocks[1]!.kind, 'unknown');
 });
@@ -218,4 +219,156 @@ test('v2 foreign preparation is private even inside sonar and mobile Princess ha
   game.fleets[1]!.specialists = [{ id: 'i', owner: 'vesper', kind: 'intelligence' }];
   assert.equal(observe(game, 'you').rocks[1]!.kind, 'unknown', 'foreign or mismatched officers do not reveal types');
   assert.equal(rockSensorRange(game, game.rocks[0]!), 32);
+});
+
+
+test('v2 hidden ownership refreshes independently of private detail, including neutral sites and wrecks', () => {
+  const game = sensorWorld();
+  game.rocks[2]!.owner = null;
+  game.rocks[3]!.destroyed = true;
+  game.rocks[3]!.kind = 'mine';
+  const view = observe(game, 'you');
+  assert.deepEqual(Object.keys(view.rocks[1]!).sort(), ['id', 'kind', 'known', 'name', 'owner', 'x', 'y']);
+  assert.equal(view.rocks[1]!.owner, 'vesper');
+  assert.equal(view.rocks[2]!.owner, null);
+  assert.equal(view.rocks[3]!.owner, 'vesper');
+  assert.equal(view.rocks[3]!.kind, 'unknown');
+  for (const rock of view.rocks.filter(r => !r.known)) assert.deepEqual(Object.keys(rock).sort(), ['id', 'kind', 'known', 'name', 'owner', 'x', 'y']);
+  game.rocks[1]!.owner = 'null';
+  const refreshed = observe(game, 'you');
+  assert.equal(refreshed.rocks[1]!.known, false);
+  assert.equal(refreshed.rocks[1]!.owner, 'null');
+  assert.equal(view.rocks[1]!.owner, 'vesper');
+});
+
+test('v2 forecasts preserve the public territory ledger without inventing a domination winner', async () => {
+  const { victoryProgress } = await import('./rules');
+  const game = sensorWorld();
+  game.rules = { mechanicsVersion: 4, players: ['you', 'vesper', 'null'], mode: 'domination', victoryTarget: 2, map: { generator: 'balanced.v1', seed: 0, width: 2000, height: 2000 } };
+  game.fleets = [remoteShip(1, { owner: 'you', from: 'a' })];
+  const view = observe(game, 'you');
+  const saved = structuredClone(view);
+  const future = forecastObservation(view, 'you', 30);
+  assert.equal(victoryProgress(future, 'vesper'), victoryProgress(view, 'vesper'));
+  assert.equal(future.winner, null, 'incomplete territory cannot establish a new winner');
+  assert.equal(future.forecastUncertain, true);
+  assert.deepEqual(forecastObservation(view, 'you', 30), future);
+  assert.deepEqual(view, saved);
+});
+
+test('v2 paired hidden worlds have identical observations and repeated forecasts without private effects', () => {
+  const first = sensorWorld();
+  first.rocks[0]!.specialists = [{ id: 'q', owner: 'you', kind: 'queen' }];
+  const second = structuredClone(first);
+  for (const r of second.rocks.slice(1)) {
+    r.kind = 'generator'; r.drones = 9000; r.shield = 100; r.shieldMax = 100;
+    r.productionAt = 1; r.miningAt = 1; r.module = 'virus'; r.coreOf = 'vesper';
+    if (r.id === second.rocks[1]!.id) r.destroyed = true;
+    r.specialists = [{ id: `secret-${r.id}`, kind: 'energy', owner: 'vesper' }];
+  }
+  const a = observe(first, 'you');
+  const b = observe(second, 'you');
+  assert.deepEqual(a, b);
+  const original = structuredClone(a);
+  for (const hour of [0, 8, 48]) {
+    const projected = forecastObservation(a, 'you', hour);
+    assert.deepEqual(projected, forecastObservation(b, 'you', hour));
+    assert.deepEqual(projected.rocks.slice(1), a.rocks.slice(1));
+    assert.equal(projected.cargo.you, 0);
+    assert.equal(projected.standings!.vesper!.cargo, 0);
+    assert.equal(projected.fleets.length, 0);
+    assert.deepEqual(forecastObservation(projected, 'you', hour + 1).rocks.slice(1), a.rocks.slice(1));
+  }
+  assert.deepEqual(a, original);
+});
+
+test('v2 hidden mine and generator clocks stay inactive even with Intelligence Officer type knowledge', () => {
+  const game = sensorWorld();
+  game.rocks[0]!.specialists = [{ id: 'i', owner: 'you', kind: 'intelligence' }];
+  game.rocks[1]!.kind = 'mine'; game.rocks[1]!.miningAt = 1;
+  game.rocks[2]!.kind = 'generator';
+  const view = observe(game, 'you');
+  const future = forecastObservation(view, 'you', 48);
+  assert.deepEqual(future.rocks.slice(1), view.rocks.slice(1));
+  assert.equal(future.standings!.vesper!.cargo, 0);
+  assert.ok(!future.events.some(e => /acquired|shield|production|quota/.test(e.message)));
+});
+
+test('v2 expanded forecast coverage cannot turn a hidden placeholder into observed detail', () => {
+  const game = sensorWorld();
+  game.rocks[1]!.x = 30;
+  game.rocks[1]!.owner = null;
+  game.rocks[1]!.drones = 0;
+  game.rocks[2]!.x = 60;
+  game.fleets = [remoteShip(1, { owner: 'you', from: 'a', to: game.rocks[1]!.id, route: undefined, drones: 40 })];
+  const view = observe(game, 'you');
+  assert.equal(view.rocks[1]!.known, true);
+  assert.equal(view.rocks[2]!.known, false);
+  const future = forecastObservation(view, 'you', 8);
+  assert.equal(future.rocks[1]!.owner, 'you');
+  assert.deepEqual(future.rocks[2], view.rocks[2]);
+  assert.deepEqual(forecastObservation(future, 'you', 16).rocks[2], view.rocks[2]);
+});
+
+test('v2 ordinary, gift, and scheduled hidden arrivals retain baseline owners while known arrivals resolve', async () => {
+  const { giftTransfer } = await import('./gifts');
+  const { scheduleTransfer } = await import('./orders');
+  const { scheduleAction } = await import('./future-actions');
+  const game = sensorWorld();
+  game.rocks[0]!.drones = 100;
+  const destination = game.rocks[1]!.id;
+  const variants = [
+    dispatch(game, 'a', destination, 10, 'you'),
+    giftTransfer(game, 'a', destination, 10, 'you', 'vesper'),
+    scheduleTransfer(game, { id: 'ownership-scheduled-01', owner: 'you', from: 'a', to: destination, drones: 10, executeAt: 1 }),
+    scheduleAction(game, { id: 'ownership-gift-plan-01', owner: 'you', executeAt: 1, action: { type: 'gift', from: 'a', to: destination, drones: 10, recipient: 'vesper' } }),
+  ];
+  for (const input of variants) {
+    const view = observe(input, 'you');
+    const future = forecastObservation(view, 'you', 30);
+    assert.equal(future.rocks[1]!.owner, 'vesper');
+    assert.equal(future.rocks[1]!.known, false);
+    assert.ok(future.uncertain.includes(destination));
+    assert.ok(!future.events.some(e => /acquired|gift received|neutralized/.test(e.message)));
+  }
+  const known = structuredClone(game);
+  known.rocks[1]!.x = 20; known.rocks[1]!.drones = 0; known.rocks[1]!.shield = 0;
+  known.rocks[1]!.shieldMax = 0;
+  const capture = forecastObservation(observe(dispatch(known, 'a', destination, 10, 'you'), 'you'), 'you', 5);
+  assert.equal(capture.rocks[1]!.owner, 'you');
+  assert.ok(!capture.uncertain.includes(destination));
+  const gift = forecastObservation(observe(giftTransfer(known, 'a', destination, 10, 'you', 'vesper'), 'you'), 'you', 5);
+  assert.equal(gift.rocks[1]!.owner, 'vesper');
+  assert.ok((gift.rocks[1]!.drones ?? 0) >= 10);
+});
+
+test('v2 third-party remote capture refreshes public owner without disclosing battle detail', () => {
+  const game = sensorWorld();
+  const remote = game.rocks[1]!;
+  remote.drones = 0; remote.shield = 0; remote.shieldMax = 0;
+  game.fleets = [remoteShip(1, { owner: 'null', from: game.rocks[2]!.id, to: remote.id, arrives: 1, speed: 8 })];
+  const before = observe(game, 'you');
+  const captured = advance(game, 2, { rivals: false });
+  assert.equal(captured.rocks[1]!.owner, 'null');
+  const after = observe(captured, 'you');
+  assert.equal(before.rocks[1]!.owner, 'vesper');
+  assert.deepEqual(after.rocks[1], { ...before.rocks[1], owner: 'null' });
+  assert.ok(!after.events.some(e => /acquired|neutralized/.test(e.message)));
+});
+
+test('only incomplete forecasts suppress new victories; authoritative and complete-world advances retain them', () => {
+  const game = sensorWorld();
+  game.rules = { mechanicsVersion: 4, players: ['you', 'vesper', 'null'], mode: 'domination', victoryTarget: 1, map: { generator: 'balanced.v1', seed: 0, width: 2000, height: 2000 } };
+  assert.equal(advance(game, 1, { rivals: false }).winner, 'you');
+  const hidden = observe(game, 'you');
+  const future = forecastObservation(hidden, 'you', 1);
+  assert.equal(future.winner, null);
+  assert.ok(!future.events.some(e => /Contract complete/.test(e.message)));
+  game.winner = 'vesper';
+  assert.equal(forecastObservation(observe(game, 'you'), 'you', 1).winner, 'vesper', 'published winners remain public');
+  game.winner = null;
+  for (const rock of game.rocks) { rock.x = 0; rock.y = 0; }
+  const complete = observe(game, 'you');
+  assert.ok(complete.rocks.every(r => r.known));
+  assert.equal(forecastObservation(complete, 'you', 1).winner, 'you');
 });

@@ -117,7 +117,8 @@ test('historical redaction uses past sonar even after later territorial knowledg
   const hidden = past.rocks.find(r => r.id === 'k')!;
   assert.equal(hidden.known, false);
   assert.equal(hidden.drones, undefined);
-  assert.equal(hidden.owner, undefined);
+  assert.equal(hidden.owner, base.rocks.find(r => r.id === 'k')!.owner);
+  assert.notEqual(hidden.owner, 'you', 'historical public ownership must not use the later conquest');
   assert.equal(past.recruitment!.vesper, undefined);
   assert.deepEqual(past.scheduled, []);
   assert.equal(JSON.stringify(s.archive), '{}');

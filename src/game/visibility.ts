@@ -14,10 +14,12 @@ import { EVENTS_PER_OBSERVER } from './events';
 import { advance, type Faction, type Fleet, type Game, type Rock } from './simulation';
 import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
-export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: never; drones?: never; module?: never; specialists?: never; coreOf?: never });
+export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: Faction | null; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
   rules?: PublicRules; funding?: Funding[]; standings?: Partial<Record<Faction, { cargo: number; funders: number }>>; fundingUncertain?: boolean;
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>; recruitmentUncertain?: boolean;
+  // Hidden territory leaves economy, routing, succession, and victory conditional.
+  forecastUncertain?: boolean;
   version?: 1 | 2; minesDrilled?: Partial<Record<Faction, number>>;
   hour: number; epoch: number; rocks: ObservedRock[]; fleets: Fleet[];
   cargo: Partial<Record<Faction, number>>; eliminated: Faction[]; winner: Faction | null; draw?: true;
@@ -37,7 +39,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     version: game.version, ...(game.minesDrilled ? { minesDrilled: { [faction]: game.minesDrilled[faction] } } : {}),
     hour: game.hour, epoch: game.epoch,
     rocks: game.rocks.map(r => r.owner === faction || inRange(coverage, r, game)
-      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false }),
+      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false, ...(game.version === 2 ? { owner: r.owner } : {}) }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: { [faction]: game.cargo[faction] }, eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
     events: game.events.filter(e => e.audience?.includes(faction)).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message })),
@@ -53,6 +55,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   const rank = (id: number) => ranks.get(id)!;
   const orderedFleets = view.fleets.map((f, index) => ({ ...f, id: index + 1, ...(f.intercept ? { intercept: { home: f.intercept.home, target: f.intercept.target === undefined ? undefined : ranks.get(f.intercept.target) } } : {}) }));
   const unknownInterceptions = orderedFleets.filter(f => f.intercept && f.intercept.target === undefined).map(f => f.id);
+  // Keep public owners in the view ledger, never on producing simulation placeholders.
   // Hidden destinations never participate in combat or production in a forecast.
   const simulation: Game = {
     ...(view.rules ? { rules: { ...view.rules, players: [...view.rules.players], map: { ...view.rules.map, seed: 0 } } } : {}),
@@ -68,7 +71,8 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
     nextId: identities.length + 1,
     events: view.events.map(e => ({ ...e, audience: [faction] })),
   };
-  const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions });
+  const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain);
+  const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, incompleteObservation });
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);
   const alias = (id: number) => identities[id - 1] ?? Math.min(0, ...identities) - id;
@@ -80,6 +84,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   }
   projected.rocks = projected.rocks.map(r => unknown.has(r.id) ? { ...view.rocks.find(original => original.id === r.id)! } : r);
   projected.uncertain = [...new Set([...view.uncertain, ...predicted.events.filter(e => e.unresolvedDestination).map(e => e.unresolvedDestination!)])];
+  if (incompleteObservation) projected.forecastUncertain = true;
   projected.interceptionUncertain = view.interceptionUncertain || predicted.events.some(e => e.unresolvedInterception);
   projected.fundingUncertain = view.fundingUncertain || !!view.funding?.length && unknown.size > 0;
   for (const f of playersIn(view)) {
