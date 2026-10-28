@@ -98,7 +98,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
     <View style={s.controls}>
       <View style={s.between}><Text style={[s.text, s.clock]}>{gameClock(position.hour)}{group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}</Text>
         <Control label="Playback options" text={`${speed}× · Options`} selected={options} onPress={() => { setPlaying(false); setOptions(value => !value); setSelected(''); setInspection(value => ({ request: value.request + 1, id: undefined })); }} /></View>
-      <View accessibilityRole="adjustable" accessibilityLabel="Replay timeline" accessibilityState={{ disabled: !next && !previous }} accessibilityValue={{ min: 0, max: 1, now: ratio, text: `${gameClock(position.hour)}${group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}` }}
+      <View accessible accessibilityRole="adjustable" accessibilityLabel="Replay timeline" accessibilityState={{ disabled: !next && !previous }} accessibilityValue={{ min: 0, max: 1, now: ratio, text: `${gameClock(position.hour)}${group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}` }}
         accessibilityActions={[{ name: 'increment', label: 'Next state' }, { name: 'decrement', label: 'Previous state' }]}
         onAccessibilityAction={event => { const target = event.nativeEvent.actionName === 'increment' ? next : previous; if (target) seek(target); }}
         onLayout={event => setWidth(Math.max(1, event.nativeEvent.layout.width))} onStartShouldSetResponder={() => true}
