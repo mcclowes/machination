@@ -63,20 +63,29 @@ test('standalone bundle serves and restores an offline operation without project
     await request('join', 1, { invite: view.invite }); await request('join', 2, { invite: view.invite });
     const path = `games/${view.id}`;
     view = await request(`${path}/start`, 0, {});
-    view = await request(`${path}/schedules`, 0, { requestId: randomUUID(), revision: view.revision, from: 'a', to: 'c', drones: 5, executeAt: 1 });
+    const from = view.game.rocks.find(r => r.owner === 'you' && r.drones >= 5);
+    assert.ok(from, 'the fixture needs an owned station with a funded manifest');
+    const to = view.game.rocks.find(r => r.owner === 'you' && r.id !== from.id);
+    assert.ok(to, 'the fixture needs a friendly reinforcement destination');
+    const elapsedHours = 1.5;
+    view = await request(`${path}/schedules`, 0, { requestId: randomUUID(), revision: view.revision, from: from.id, to: to.id, drones: 5, executeAt: 1 });
     assert.equal(view.game.scheduled.length, 1);
     await runtime.stop(); runtime = undefined;
     const stored = JSON.parse(await readFile(dataFile, 'utf8'));
-    stored.rooms[0].startedAt = Date.now() - 2 * 3_600_000;
+    stored.rooms[0].startedAt = Date.now() - elapsedHours * 3_600_000;
     stored.rooms[0].game.epoch = stored.rooms[0].startedAt;
     await writeFile(dataFile, JSON.stringify(stored));
     runtime = await start(entry, dataFile);
     const resumed = await request(path);
     assert.equal(resumed.id, view.id); assert.equal(resumed.faction, 'you');
     assert.equal(resumed.visibility, 'sensors.v1');
-    assert.ok(resumed.game.hour >= 2 && resumed.game.hour < 2.1);
+    assert.ok(resumed.game.hour >= elapsedHours && resumed.game.hour < elapsedHours + 0.1);
     assert.equal(resumed.game.scheduled.length, 0);
-    assert.ok(resumed.game.fleets.some(f => f.owner === 'you' && f.from === 'a' && f.to === 'c' && f.drones === 5));
+    const fleet = resumed.game.fleets.find(f => f.owner === 'you' && f.from === from.id && f.to === to.id);
+    assert.ok(fleet, 'the funded scheduled reinforcement survives offline catch-up');
+    assert.equal(fleet.drones, 5);
+    assert.equal(fleet.preparing, undefined);
+    assert.ok(fleet.departed >= 1 && fleet.departed < resumed.game.hour && fleet.arrives > resumed.game.hour);
     let incoming;
     const response = new Promise((resolve, reject) => {
       incoming = httpRequest(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${randomBytes(32).toString('hex')}`, 'Content-Type': 'application/json', 'Content-Length': '2', Expect: '100-continue', Connection: 'close' } }, result => {
