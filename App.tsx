@@ -25,8 +25,10 @@ import { type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
 import { advance, createGame, FACTIONS, operationStatus, travelHours, type Game, type Rock } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
-import { OnlineOperation } from './src/online/OnlineOperation';
+import { OnlineOperation } from './src/components/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
+import { futureCommandFleets, observedInterceptionIds } from './src/components/fleet-planning';
+import { GiftTransfer } from './src/components/GiftTransfer';
 import { HaulerOrders } from './src/components/HaulerOrders';
 import { LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
@@ -122,7 +124,7 @@ function Operation() {
   const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;
   const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones ?? 0));
   function select(r: ObservedRock) {
-    if (navigating !== undefined) { try { act({ type: 'hauler', owner: 'you', change: { action: 'course', fleet: navigating, to: r.id } }); setError(''); } catch (e) { setError((e as Error).message); } setNavigating(undefined); return; }
+    if (navigating !== undefined) { if (!r.destroyed) siteAction({ type: 'hauler', change: { action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); return; }
     if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); }
     else if (!planning) { setSection('asset'); setSelected(r.id); setDestination(undefined); setCarry(false); setSelectedUnits([]); setAmount(String(Math.max(game.version === 2 ? 0 : 1, Math.floor((r.drones ?? 0) / 2)))); }
   }
@@ -132,8 +134,9 @@ function Operation() {
     catch (e) { setError((e as Error).message); }
   }
   function intercept(target: number) {
-    try { act({ type: 'intercept', owner: 'you', from: selected, target, drones: count, specialists: unitIds.length ? unitIds : undefined }); setPlanning(false); setDestination(undefined); setCarry(false); setDelay(0); setError(''); }
-    catch (e) { setError((e as Error).message); }
+    if (siteAction({ type: 'intercept', from: selected, target, drones: count, ...(unitIds.length ? { specialists: unitIds } : {}) })) {
+      setPlanning(false); setDestination(undefined); setCarry(false); setDelay(0);
+    }
   }
   function cancelPlan(id: string) {
     try { act({ type: 'cancel-schedule', owner: 'you', id }); setError(''); }
@@ -147,12 +150,13 @@ function Operation() {
     replace(next);
   }
   function siteAction(action: FutureAction) {
-    if (!operational || shown.winner || shown.draw || shown.eliminated.includes('you')) return;
+    if (!operational || shown.winner || shown.draw || shown.eliminated.includes('you')) return false;
     try {
       const executeAt = orderHour(current.current.game.hour, inspectedHour, 0);
       act(executeAt > current.current.game.hour ? { type: 'schedule-action', owner: 'you', plan: { id: Crypto.randomUUID(), executeAt, action } } : { ...action, owner: 'you' });
       setError('');
-    } catch (e) { setError((e as Error).message); }
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
   }
   function changeUnits(command: GameCommand) { try { act(command); setError(''); } catch (e) { setError((e as Error).message); } }
   function buildModule(kind: ModuleKind) {
@@ -166,7 +170,7 @@ function Operation() {
 {!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</>}
       chart={<BeltMap fill player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
-      timeline={<TimeMachine compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...(historical ? shown : live).scheduled.map(p => p.executeAt)]} />}
+      timeline={<TimeMachine plans={live.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={hour => { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...live.scheduled.map(p => p.executeAt)]} />}
       panels={{
         asset: { title: planning ? 'Transfer order' : rock.name, content: <View style={s.panel}>
             {!!shown.uncertain.length && <Text style={s.small}>Arrival outcomes unknown outside observed sensors. Refresh live observations before relying on this forecast.</Text>}
@@ -181,13 +185,14 @@ function Operation() {
               <View style={s.row}>{[0.25, 0.5, 1].map(f => <View key={f} style={{ flex: 1 }}><Button label={`${f * 100}%`} quiet onPress={() => setAmount(String(Math.floor((rock.drones ?? 0) * f)))} /></View>)}</View>
               <View style={[s.row, { marginTop: 12 }]}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule at ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); }} /></View>
             </> : <Button label={rock.owner === 'you' ? forecast ? 'Plan transfer at this time ↗' : 'Plan transfer ↗' : 'Select your rock to dispatch'} disabled={!operational || !!shown.winner || !!rock.destroyed || rock.owner !== 'you' } onPress={() => { setPlanning(true); setSection(null); }} />}
+            {planning && rock.known && rock.owner === 'you' && target?.known && target.owner && target.owner !== 'you' && !shown.eliminated.includes(target.owner) && !delay && <GiftTransfer key={`${selected}:${destination}:${inspectedHour}:${count}:${unitIds.join(',')}`} scheduledAt={forecast ? inspectedHour! : undefined} specialists={unitManifest} legacy={game.version !== 2} from={rock} to={target} recipient={target.owner} drones={count} carry={carry} disabled={!operational || !!shown.winner || !!shown.draw || shown.eliminated.includes('you') || !Number.isSafeInteger(count) || count < (unitIds.length ? 0 : 1) || count > Math.floor(rock.drones)} onGift={() => { if (siteAction({ type: 'gift', from: selected, to: target.id, drones: count, recipient: target.owner!, carryModule: carry && !!rock.module, specialists: unitIds })) { setPlanning(false); setDestination(undefined); setSection(null); setCarry(false); setSelectedUnits([]); } }} />}
             {game.version === 2 && rock.known && rock.owner === 'you' && <SiteControls minesAllowed={game.rules?.mode !== 'domination'} rock={rock} cost={mineCost({ minesDrilled: { you: 0, vesper: 0, null: 0, ...shown.minesDrilled } }, 'you')} enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} scheduledAt={forecast ? inspectedHour! : undefined} onMine={() => siteAction({ type: 'drill-mine', rock: selected })} onShields={() => siteAction({ type: 'shields', rock: selected, disabled: !rock.shieldsDisabled })} />}
-            {rock.known && rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} specialists={unitIds} disabled={!operational || !!forecast} onIntercept={intercept} />}
+            {rock.known && rock.owner === 'you' && <InterceptionTargets game={shown} source={rock} owner="you" drones={count} specialists={unitIds} scheduledAt={forecast ? inspectedHour! : undefined} targetIds={forecast ? observedInterceptionIds(live, 'you') : undefined} disabled={!operational || !!shown.winner || !!shown.draw || shown.eliminated.includes('you')} onIntercept={intercept} />}
             {game.version === 2 && rock.known && rock.owner === 'you' && <SpecialistBay mode="cargo" game={shown} rock={rock} owner="you" enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}
             {rock.owner !== 'you' && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.small}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}
             {game.version === 1 && rock.known && rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View> },
-        orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders fleets={shown.fleets.filter(f => f.owner === 'you')} rocks={shown.rocks} hour={shown.hour} enabled={operational && !forecast} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={command => { try { act({ type: 'hauler', owner: 'you', change: command }); setError(''); } catch (e) { setError((e as Error).message); } }} />} <ScheduledOrders plans={(historical ? shown : live).scheduled.filter(p => p.owner === 'you')} hour={historical ? shown.hour : game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
+        orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders fleets={forecast ? futureCommandFleets(shown, live, 'you') : shown.fleets.filter(f => f.owner === 'you')} rocks={shown.rocks} hour={shown.hour} scheduledAt={forecast ? inspectedHour! : undefined} enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={change => siteAction({ type: 'hauler', change })} />} <ScheduledOrders plans={live.scheduled.filter(p => p.owner === 'you')} hour={game.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
         units: { title: `Modules · ${rock.name}`, content: <><Button label="Go to core site" quiet onPress={() => { const home = shown.rocks.find(r => r.coreOf === 'you' && r.owner === 'you'); if (home) select(home); setSection('units'); }} />{game.version === 2 && rock.known && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}</> },
         signals: { title: 'Signal log', content: <>{shown.events.slice(0, 50).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{e.message}</Text></View>)}</> },
         intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(visibleWorld, 'you')} / ${powerCapacity(visibleWorld, 'you')} drones. ${game.rules?.mode === 'domination' ? 'Expand control to reach the territorial target.' : 'Establish extraction to earn cargo.'}` : 'Legacy operation · original prototype rules.'}</Text>

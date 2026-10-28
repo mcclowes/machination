@@ -7,18 +7,28 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MODULES } from '../game/modules';
 import type { ScheduledOrder } from '../game/orders';
-import { actionLabel, isActionPlan } from '../game/future-actions';
+import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
 import { gameClock } from '../game/time-machine';
 type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean };
 export function LaunchTiming({ delay, disabled, onChange, future }: TimingProps) {
   return <View style={s.section}><Text style={s.label}>Launch timing</Text><View style={s.options}>{[0, 1, 6, 12, 24, 48, 72, 168].map(h => <Pressable key={h} accessibilityRole="button" accessibilityState={{ selected: delay === h, disabled }} disabled={disabled} onPress={() => onChange(h)} style={[s.option, delay === h && s.selected, disabled && s.disabled]}><Text style={s.text}>{h ? h >= 24 ? `+${h / 24}d` : `+${h}h` : future ? 'At forecast' : 'Now'}</Text></Pressable>)}</View>{delay > 0 && <Text style={s.detail}>Drones aren't reserved. Ownership, inventory, and the selected module must still permit a full launch at execution time.</Text>}</View>;
 }
+function queueActionLabel(action: FutureAction, rocks: { id: string; name: string }[]) {
+  if (action.type !== 'hauler') return actionLabel(action, rocks);
+  const change = action.change;
+  const labels = { 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit manifest', course: 'Change course', gift: 'Make gift', 'cancel-gift': 'Cancel gift' };
+  const destination = change.action === 'course' ? ` → ${rocks.find(r => r.id === change.to)?.name ?? change.to}` : '';
+  return `${labels[change.action]} · hauler ${change.fleet}${destination}`;
+}
+export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; name: string }[]) {
+  return isActionPlan(plan) ? queueActionLabel(plan.action, rocks) : `${rocks.find(r => r.id === plan.from)?.name ?? plan.from} → ${rocks.find(r => r.id === plan.to)?.name ?? plan.to}`;
+}
 type QueueProps = { plans: ScheduledOrder[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void };
 export function ScheduledOrders({ plans, hour, rocks, disabled, onCancel }: QueueProps) {
   return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
     const action = isActionPlan(p);
-    const label = action ? actionLabel(p.action, rocks) : `${rocks.find(r => r.id === p.from)?.name ?? p.from} → ${rocks.find(r => r.id === p.to)?.name ?? p.to}`;
-    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{!action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
+    const label = scheduledOrderLabel(p, rocks);
+    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
   }) : <Text style={s.detail}>No queued orders. Your plans remain private until execution.</Text>}</View>;
 }
 const s = StyleSheet.create({

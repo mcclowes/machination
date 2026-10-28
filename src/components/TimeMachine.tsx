@@ -5,11 +5,13 @@
  */
 import React, { useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { scheduledOrderLabel } from './ScheduledOrders';
+import type { ScheduledOrder } from '../game/orders';
 import { MAX_PLAN_DELAY } from '../game/orders';
 import { gameClock, inspectionMode, timelineHour } from '../game/time-machine';
 
-type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; online?: boolean; compact?: boolean };
-export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, online, compact }: Props) {
+type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean };
+export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], rocks = [], online, compact }: Props) {
   const [expanded, setExpanded] = useState(false);
   const mode = inspectionMode(hour, inspectedHour);
   const offset = (inspectedHour ?? hour) - hour;
@@ -35,6 +37,10 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   const markers = [...new Set(events.filter(t => t >= start && t <= hour + MAX_PLAN_DELAY))].sort((a, b) => a - b);
   const next = markers.find(t => t > (inspectedHour ?? hour) + 1 / 3600);
   const previous = [...markers].reverse().find(t => t < (inspectedHour ?? hour) - 1 / 3600);
+  const eventLabel = (at: number | undefined, fallback: string) => {
+    const plan = plans.find(p => p.executeAt === at);
+    return plan ? `${fallback}: ${scheduledOrderLabel(plan, rocks)}` : fallback;
+  };
   const parsed = Number(entry);
   const validEntry = entry.trim() !== '' && Number.isFinite(parsed) && parsed >= minimum && parsed <= MAX_PLAN_DELAY;
   const inspectEntry = () => validEntry && onChange(parsed ? Math.max(start, hour + Math.round(parsed * 60) / 60) : null);
@@ -46,10 +52,11 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
       <View style={s.rail}><View style={[s.fill, { width: `${position(inspectedHour ?? hour)}%` }]} />{markers.map(t => <View key={t} style={[s.tick, { left: `${position(t)}%` }]} />)}<View style={[s.tick, { left: `${position(hour)}%`, backgroundColor: '#e5eadc', height: 18, top: -7 }]} /><View style={[s.thumb, { left: `${position(inspectedHour ?? hour)}%` }]} /></View>
     </View>
     {(!compact || expanded) && <><View style={s.row}>{[0, 6, 24, 72, 168].map(h => <Control key={h} label={h ? `+${h < 24 ? `${h}h` : `${h / 24}d`}` : 'Now'} selected={h === 0 ? !offset : Math.abs(offset - h) < 1 / 60} onPress={() => onChange(h ? hour + h : null)} />)}</View>
-    <View style={s.row}><Control label="−1h" disabled={offset <= minimum} onPress={() => step(-1)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => step(1)} /><Control label="Previous event" disabled={previous === undefined} onPress={() => previous !== undefined && onChange(previous)} /><Control label="Next event" disabled={next === undefined} onPress={() => next !== undefined && onChange(next)} /></View>
+    <View style={s.row}><Control label="−1h" disabled={offset <= minimum} onPress={() => step(-1)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => step(1)} /><Control label={eventLabel(previous, "Previous event")} disabled={previous === undefined} onPress={() => previous !== undefined && onChange(previous)} /><Control label={eventLabel(next, "Next event")} disabled={next === undefined} onPress={() => next !== undefined && onChange(next)} /></View>
+    {plans.filter(p => Math.abs(p.executeAt - (inspectedHour ?? hour)) < 1 / 3600).map(p => <Text key={`${p.owner}:${p.id}`} style={s.detail}>{gameClock(p.executeAt)} · {scheduledOrderLabel(p, rocks)}</Text>)}
     {historyStart !== undefined && <View style={s.row}><Control label="History start" onPress={() => onChange(historyStart)} /><Text style={s.detail}>Available from {gameClock(historyStart)}</Text></View>}
     <View style={s.row}><Text style={s.detail}>Hours from now</Text><TextInput accessibilityLabel="Hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>
-    <Text style={s.detail}>{mode === 'past' ? 'Historical view · read-only. Information is limited to sensors at this time.' : mode === 'future' ? 'Schedule transfers, recruitment, promotions, captive releases, mining, shields, and funding at this time. Forecast eligibility is provisional; requirements are checked at execution. Hauler commands, interceptions, and gifts require live time.' : 'Scrub through observed history or ahead to inspect movement, production, and known outcomes.'}</Text>
+    <Text style={s.detail}>{mode === 'past' ? 'Historical view · read-only. Information is limited to sensors at this time.' : mode === 'future' ? 'Schedule transfers, recruitment, promotions, captive releases, mining, shields, and funding at this time. Forecast eligibility is provisional; requirements are checked at execution. Gifts, interceptions, launch edits and cancellations, gift changes, and course changes can also be scheduled here. Haulers need a live or stable queued identity; interception targets must be currently observed.' : 'Scrub through observed history or ahead to inspect movement, production, and known outcomes.'}</Text>
     {mode !== 'past' && <Text style={s.detail}>{online ? 'Current observations only. Hidden forces and new human orders can change this future.' : 'Current observations only. Hidden forces and training rival orders can change this future.'}</Text>}</>}
   </View>;
 }

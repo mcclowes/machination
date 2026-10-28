@@ -1,23 +1,25 @@
 /** Review voluntary support separately from an ordinary transfer or attack. */
+import { gameClock } from '../game/time-machine';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FACTIONS, type Faction, type Rock } from '../game/simulation';
 import type { Specialist } from '../game/specialists';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
-export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onGift, legacy = false, specialists = [] }: {
-  specialists?: Specialist[]; legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
+export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onGift, scheduledAt, legacy = false, specialists = [] }: {
+  specialists?: Specialist[]; scheduledAt?: number; legacy?: boolean; from: Rock; to: Rock; recipient: Faction; drones: number; carry: boolean; disabled: boolean; onGift: () => void;
 }) {
   const [review, setReview] = useState(false);
-  const blocked = disabled || !!from.destroyed || !!to.destroyed;
+  const blocked = disabled || scheduledAt !== undefined && legacy || !!from.destroyed || !!to.destroyed;
   const payload = `${drones} drones${carry && from.module ? ` and ${MODULES[from.module].name}` : ''}${specialists.length ? ` and ${specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`;
   const button = (text: string, onPress: () => void) => <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onPress} style={[s.button, blocked && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
   return <View style={s.panel}>
+    {scheduledAt !== undefined && <Text style={s.detail}>Schedule for {gameClock(scheduledAt)}. The full manifest and recipient must remain eligible at execution; otherwise the private order aborts.</Text>}
     <Text style={s.title}>Voluntary support / {FACTIONS[recipient].name}</Text>
     {review ? <>
       <Text style={s.detail}>Give {payload} from {from.name} to {FACTIONS[recipient].name}, bound for {to.name}?</Text>
       <Text style={s.detail}>{legacy ? 'Ownership and hauler sensors transfer at launch. You cannot recall this gift. It reinforces the recipient, or fights for them if the destination changes hands.' : 'The manifest prepares for ten minutes. It stays yours until contact, then transfers to the current owner of the destination or a passing hauler. Cancel the launch or gift order during preparation.'}</Text>
-      {button(legacy ? 'Confirm gift and launch now' : 'Confirm gift and prepare launch', () => { setReview(false); onGift(); })}
+      {button(scheduledAt === undefined ? legacy ? 'Confirm gift and launch now' : 'Confirm gift and prepare launch' : `Schedule gift at ${gameClock(scheduledAt)}`, () => { setReview(false); onGift(); })}
       <Pressable accessibilityRole="button" onPress={() => setReview(false)} style={s.button}><Text style={s.buttonText}>Keep drones</Text></Pressable>
     </> : <>
       <Text style={s.detail}>{legacy ? "Give this manifest and any loaded module to the destination's intelligence. Gifts launch immediately." : 'Give this manifest and any loaded module on contact. A passing hauler can accept it before the destination.'}</Text>
