@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validateScheduledAction } from './future-actions';
 import { mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
 import { playersIn } from './players';
 import type { ReplayData } from './replay';
@@ -127,11 +128,20 @@ export function decodeSave(raw: string): Save {
     for (const p of g.scheduled) {
       if (!record(p) || typeof p.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(p.id) || !isFaction(p.owner)
         || g.eliminated.includes(p.owner) || g.winner !== null || plans.has(`${p.owner}:${p.id}`)
-        || !ids.has(p.from as string) || !ids.has(p.to as string) || p.from === p.to
-        || !Number.isSafeInteger(p.drones) || (p.drones as number) < (g.version === 2 && Array.isArray(p.specialists) && p.specialists.length ? 0 : 1)
-        || !finite(p.executeAt) || p.executeAt <= g.hour || p.executeAt > g.hour + MAX_PLAN_DELAY
-        || !(p.module === undefined || isModule(p.module))) return fail();
-      if (p.specialists !== undefined && (g.version !== 2 || !Array.isArray(p.specialists) || p.specialists.length > 10000 || !p.specialists.every(u => typeof u === 'string') || new Set(p.specialists).size !== p.specialists.length)) return fail();
+        || !finite(p.executeAt) || p.executeAt <= g.hour || p.executeAt > g.hour + MAX_PLAN_DELAY) return fail();
+      if ('action' in p) {
+        try {
+          if (g.version !== 2) return fail();
+          const plan = validateScheduledAction(p);
+          if ('rock' in plan.action && !ids.has(plan.action.rock)) return fail();
+          if (plan.action.type === 'funding' && (!isFaction(plan.action.to) || plan.action.to === plan.owner) || rules?.mode === 'domination' && ['funding', 'drill-mine'].includes(plan.action.type)) return fail();
+        } catch { return fail(); }
+      } else {
+        if (!ids.has(p.from as string) || !ids.has(p.to as string) || p.from === p.to
+          || !Number.isSafeInteger(p.drones) || (p.drones as number) < (g.version === 2 && Array.isArray(p.specialists) && p.specialists.length ? 0 : 1)
+          || !(p.module === undefined || isModule(p.module))) return fail();
+        if (p.specialists !== undefined && (g.version !== 2 || !Array.isArray(p.specialists) || p.specialists.length > 10000 || !p.specialists.every(u => typeof u === 'string') || new Set(p.specialists).size !== p.specialists.length)) return fail();
+      }
       plans.add(`${p.owner}:${p.id}`);
     }
     if (factions.some(f => (g.scheduled as Record<string, unknown>[]).filter(p => p.owner === f).length > MAX_PLANS_PER_FACTION)) return fail();

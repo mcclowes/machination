@@ -5,6 +5,7 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
+import { scheduleAction, type ActionPlan } from './future-actions';
 import { advance, dispatch, installModule, type Faction, type Game } from './simulation';
 import { giftTransfer } from './gifts';
 import { dispatchIntercept } from './interception';
@@ -23,6 +24,7 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'gift'; from: string; to: string; drones: number; recipient: Faction; carryModule?: boolean; specialists?: string[] }
   | { type: 'intercept'; from: string; target: number; drones: number; specialists?: string[] }
   | { type: 'hauler'; change: HaulerChange }
+  | { type: 'schedule-action'; plan: Omit<ActionPlan, 'owner'> }
   | { type: 'schedule'; plan: Omit<TransferPlan, 'owner'> }
   | { type: 'cancel-schedule'; id: string }
   | { type: 'hire'; kind: SpecialistKind }
@@ -52,6 +54,7 @@ export function executeCommand(input: Game, command: GameCommand): Game {
     case 'gift': return giftTransfer(game, c.from, c.to, c.drones, c.owner, c.recipient, c.carryModule, c.specialists);
     case 'intercept': return dispatchIntercept(game, c.from, c.target, c.drones, c.owner, true, c.specialists);
     case 'hauler': return commandHauler(game, c.owner, c.change);
+    case 'schedule-action': return scheduleAction(game, { ...c.plan, owner: c.owner });
     case 'schedule': return scheduleTransfer(game, { ...c.plan, owner: c.owner });
     case 'cancel-schedule': return cancelTransfer(game, c.id, c.owner);
     case 'hire': return hireSpecialist(game, c.owner, c.kind);

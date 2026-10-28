@@ -3,6 +3,7 @@
  * purpose: Validate private persisted command history and prove it reconstructs the saved live operation.
  * ---
  */
+import { validateFutureAction } from './future-actions';
 import { advance, FACTIONS, type Game } from './simulation';
 import { decodeSave } from './save-format';
 import { isModule } from './modules';
@@ -45,6 +46,7 @@ function command(v: unknown): boolean {
       if (c.action === 'course') return shape(c, ['action', 'fleet', 'to']) && text(c.to);
       return ['cancel-launch', 'gift', 'cancel-gift'].includes(c.action as string) && shape(c, ['action', 'fleet']);
     }
+    case 'schedule-action': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'executeAt', 'action']) && text(v.plan.id) && finite(v.plan.executeAt) && !!validateFutureAction(v.plan.action);
     case 'schedule': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'from', 'to', 'drones', 'executeAt'], ['specialists', 'carryModule']) && text(v.plan.id) && finite(v.plan.executeAt) && payload(v.plan);
     case 'cancel-schedule': case 'promote': case 'release': return shape(v, [...keys, 'id']) && text(v.id);
     case 'hire': return shape(v, [...keys, 'kind']) && isSpecialistKind(v.kind);

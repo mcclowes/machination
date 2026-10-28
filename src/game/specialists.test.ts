@@ -194,10 +194,12 @@ test('pre-specialist queued module transfers retain their pinned cargo after mig
   game.rocks.find(r => r.id === 'c')!.module = 'routing';
   game.scheduled = [{ id: 'legacy-module-plan', owner: 'you', from: 'c', to: 'm', drones: 1, executeAt: 1, module: 'routing' }];
   const upgraded = upgradeSpecialists(game);
-  assert.equal(upgraded.scheduled![0]!.module, undefined);
+  const plan = upgraded.scheduled![0]!; assert.ok(!('action' in plan));
+  assert.equal(plan.module, undefined);
   const launched = advance(upgraded, 1, { rivals: false });
   assert.equal(launched.fleets[0]!.specialists![0]!.kind, 'helmsman');
-  assert.equal(game.scheduled[0]!.module, 'routing');
+  const original = game.scheduled[0]!; assert.ok(!('action' in original));
+  assert.equal(original.module, 'routing');
 });
 
 test('pre-specialist interception saves migrate their rig before enforcing the new manifest contract', () => {

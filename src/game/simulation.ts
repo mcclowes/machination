@@ -18,7 +18,8 @@ import { LAUNCH_PREPARATION, completePreparations } from './transport';
 import { nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
 import { transferDuration, type Point } from './flight';
-import type { ScheduledTransfer } from './orders';
+import { isActionPlan, actionLabel, executeScheduledAction } from './future-actions';
+import type { ScheduledOrder } from './orders';
 import { recentEvents, type GameEvent } from './events';
 import { observers } from './sensors';
 import { MODULES, isModule, CONVERSION_FRACTION, CONVERSION_LIMIT, SALVAGE_FRACTION, BLAST_MULTIPLIER, type ModuleKind } from './modules';
@@ -40,7 +41,7 @@ export type Game = {
   recruitment?: PlayerValues<Recruitment>;
   funding?: Funding[];
   minesDrilled?: PlayerValues<number>;
-  scheduled?: ScheduledTransfer[]; events: GameEvent[]; winner: Faction | null; draw?: true;
+  scheduled?: ScheduledOrder[]; events: GameEvent[]; winner: Faction | null; draw?: true;
 };
 export function operationStatus(game: Pick<Game, 'winner' | 'eliminated' | 'draw'>, faction: Faction): 'active' | 'victory' | 'defeat' | 'eliminated' | 'draw' {
   if (game.draw) return 'draw';
@@ -218,11 +219,12 @@ function executeScheduled(input: Game): Game {
   game = { ...game, scheduled: game.scheduled!.filter(p => p.executeAt > game.hour) };
   for (const plan of due) {
     try {
+      if (isActionPlan(plan)) { game = executeScheduledAction(game, plan); continue; }
       if (game.rocks.find(r => r.id === plan.from)?.owner !== plan.owner) throw new Error('The departure rock is no longer controlled.');
       if (plan.module && game.rocks.find(r => r.id === plan.from)?.module !== plan.module) throw new Error('The planned module is no longer in the departure bay.');
       game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists);
     } catch (error) {
-      game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
+      game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: isActionPlan(plan) ? `${actionLabel(plan.action, game.rocks)} aborted: ${(error as Error).message}` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
     }
   }
   return game;

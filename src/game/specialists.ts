@@ -3,6 +3,7 @@
  * purpose: Specialist identity, time-based recruitment, promotion, and shared active-unit queries.
  * ---
  */
+import { isActionPlan } from './future-actions';
 import { withUnitEffects } from './specialist-effects';
 import type { Faction, Fleet, Game, Rock } from './simulation';
 import { HIRE_CATEGORIES, HIRE_KINDS, SPECIALISTS, hireAmount, promotion, type SpecialistKind } from './specialist-catalog';
@@ -42,12 +43,16 @@ function requireRecruitment(game: Game, owner: Faction): { status: ReturnType<ty
   if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner) || !status.credits || !game.recruitment?.[owner]) throw new Error('Recruitment needs an active intelligence and an available hiring credit.');
   return { status, state: game.recruitment[owner] };
 }
-export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind): Game {
+export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind, ids?: readonly string[]): Game {
   const { status, state } = requireRecruitment(game, owner);
   if (!status.at) throw new Error('Hiring needs your active core at a controlled site.');
   if (!state.offers.includes(kind)) throw new Error('Choose one of the three current recruitment offers.');
   const amount = hireAmount(kind);
-  const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
+  if (ids !== undefined) {
+    const existing = new Set([...game.rocks, ...game.fleets].flatMap(asset => asset.specialists ?? []).map(unit => unit.id));
+    if (!Array.isArray(ids) || ids.length !== amount || new Set(ids).size !== amount || !Array.from(ids).every(id => typeof id === 'string' && /^[a-zA-Z0-9:-]{1,80}$/.test(id) && !existing.has(id))) throw new Error('Planned hire identities are no longer available.');
+  }
+  const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: ids?.[index] ?? `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
   return withUnitEffects({ ...game, nextId: game.nextId + amount,
     recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }) },
     rocks: game.rocks.map(r => r.id === status.at ? { ...r, specialists: [...(r.specialists ?? []), ...units] } : r),
@@ -87,7 +92,7 @@ export function upgradeSpecialists(input: Game): Game {
     delete fleet.module;
   }
   game.scheduled = game.scheduled?.map(plan => {
-    if (!plan.module) return { ...plan };
+    if (isActionPlan(plan) || !plan.module) return { ...plan };
     const { module: _module, ...rest } = plan;
     return { ...rest, specialists: [...(plan.specialists ?? []), `legacy-rock-${plan.from}`] };
   });

@@ -52,7 +52,8 @@ test('arrivals reinforce or capture departure rocks before plans at the same tim
 test('a pinned module cannot be silently substituted and cancellation is owner-only', () => {
   const equipped = installModule(createGame(0), 'a', 'routing', 'you');
   const queued = scheduleTransfer(equipped, { id: 'module-transfer-0001', owner: 'you', from: 'a', to: 'b', drones: 30, executeAt: 2, carryModule: true });
-  assert.equal(queued.scheduled![0]!.module, 'routing');
+  const plan = queued.scheduled![0]!; assert.ok(!('action' in plan));
+  assert.equal(plan.module, 'routing');
   assert.throws(() => cancelTransfer(queued, 'module-transfer-0001', 'vesper'));
   const canceled = cancelTransfer(queued, 'module-transfer-0001', 'you');
   assert.equal(advance(canceled, 3, { rivals: false }).fleets.length, 0);
