@@ -27,6 +27,7 @@ import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrd
 const FACTIONS = ALL_PLAYERS;
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 type Room = {
+  referenceKey?: string;
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
   seats: { faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
   receipts: Record<string, string>; diplomacy?: Diplomacy; replay?: ReplayData;
@@ -97,6 +98,7 @@ export class GameService {
           || new Set(r.seats.map(s => s.faction)).size !== r.seats.length || r.seats[0]?.faction !== 'you'
           || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
           || !r.messages.every(m => Number.isSafeInteger(m.id) && playersIn(r.game).includes(m.from) && playersIn(r.game).includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
+        if (r.referenceKey !== undefined && !isHash(r.referenceKey)) throw new Error('Damaged object reference key.');
         for (const seat of r.seats) {
           if (seat.lastActiveHour !== undefined && (r.startedAt === null || r.game.version !== 2 || !Number.isFinite(seat.lastActiveHour) || seat.lastActiveHour < 0 || seat.lastActiveHour > r.game.hour)
             || seat.identityHash !== undefined && !isHash(seat.identityHash)
@@ -128,7 +130,13 @@ export class GameService {
         ids.add(r.id);
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-    return new GameService(file, database, now, initialGame);
+    const service = new GameService(file, database, now, initialGame);
+    if (database.rooms.some(r => r.referenceKey === undefined)) {
+      await service.transaction(db => {
+        for (const room of db.rooms) room.referenceKey ??= randomBytes(32).toString('hex');
+      });
+    }
+    return service;
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
     const result = this.queue.then(async () => {
@@ -191,6 +199,21 @@ export class GameService {
     const key = seat.identityHash ?? seat.hash;
     return createHmac('sha256', key).update(`${kind}:${id}`).digest().readUIntBE(0, 6);
   }
+  private observation(room: Room, faction: Faction, source = room.game) {
+    const canonical = new Map<number, number>();
+    const game = observe(source, faction, id => {
+      const alias = this.identify(room, faction, 'hauler', id);
+      canonical.set(alias, id);
+      return alias;
+    }, id => String(this.identify(room, faction, 'unit', id)));
+    const reference = (kind: 'outpost' | 'hauler', id: string | number) =>
+      createHmac('sha256', Buffer.from(room.referenceKey!, 'hex'))
+        .update(JSON.stringify(['machination.object-reference', 1, room.id, kind, id])).digest('hex');
+    return { game, references: { version: 1 as const,
+      outposts: game.rocks.map(r => ({ id: r.id, ref: reference('outpost', r.id) })),
+      haulers: game.fleets.map(f => ({ id: f.id, ref: reference('hauler', canonical.get(f.id)!) })),
+    } };
+  }
   private view(room: Room, faction: Faction): Snapshot {
     return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner || room.game.draw ? 'game.finished' : 'game.active',
       faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
@@ -200,7 +223,7 @@ export class GameService {
       recoveryEnabled: !!room.seats.find(s => s.faction === faction)!.recoveryHash,
       ...(room.startedAt !== null && room.game.version === 2 && !room.game.winner && !room.game.draw && !room.game.eliminated.includes(faction) && room.seats.find(s => s.faction === faction)!.lastActiveHour !== undefined ? { inactivity: { expiresAt: room.startedAt + (room.seats.find(s => s.faction === faction)!.lastActiveHour! + INACTIVITY_HOURS) * HOUR_MS } } : {}),
       ...(room.replay ? { history: { from: room.replay.baseline.hour, through: room.game.hour } } : {}),
-      visibility: 'sensors.v1', game: observe(room.game, faction, id => this.identify(room, faction, 'hauler', id), id => String(this.identify(room, faction, 'unit', id))), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
+      visibility: 'sensors.v1', ...this.observation(room, faction), messages: room.messages.filter(m => m.from === faction || m.to === faction).map(m => ({ ...m, id: this.identify(room, faction, 'message', m.id) })), serverTime: this.now() };
   }
   create(token: string, options?: unknown): Promise<Snapshot> {
     let requested: GameOptions | undefined;
@@ -215,7 +238,7 @@ export class GameService {
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
+        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential }], messages: [], receipts: {} };
       db.rooms.push(room);
       return this.view(room, 'you');
     });
@@ -274,7 +297,7 @@ export class GameService {
       requireThat(Number.isFinite(hour) && hour >= r.replay.baseline.hour && hour <= r.game.hour, 400, 'history.validation.hour', 'Choose a time within the available operation history.');
       const game = replayTo(restoreArchive(r.replay), hour, { rivals: false, knownThrough: r.game.hour });
       return { id: r.id, faction: f, visibility: 'sensors.v1', history: { from: r.replay.baseline.hour, through: r.game.hour, at: hour },
-        game: observe(game, f, id => this.identify(r, f, 'hauler', id), id => String(this.identify(r, f, 'unit', id))) };
+        ...this.observation(r, f, game) };
     });
   }
   activity(id: string, token: string): Promise<Snapshot> {
