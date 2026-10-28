@@ -16,7 +16,7 @@ import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders'
 import { ModuleBay } from './src/components/ModuleBay';
 import { MODULES, type ModuleKind } from './src/game/modules';
 import { BeltMap } from './src/components/BeltMap';
-import { advance, CARGO_TARGET, createGame, dispatch, installModule, FACTIONS, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
+import { advance, CARGO_TARGET, createGame, dispatch, installModule, FACTIONS, operationStatus, travelHours, type Game, type Rock, type Faction } from './src/game/simulation';
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
@@ -74,7 +74,14 @@ function Operation() {
   const rock = shown.rocks.find(r => r.id === selected)!;
   const target = shown.rocks.find(r => r.id === destination);
   const owned = shown.rocks.filter(r => r.owner === 'you');
-  const operational = !game.winner && !game.eliminated.includes('you') && ready && !loadFailed;
+  const status = operationStatus(game, 'you');
+  const operational = status === 'active' && ready && !loadFailed;
+  const outcomeMessage = {
+    active: '',
+    victory: 'Contract fulfilled. The belt is yours.',
+    defeat: `Contract lost. ${game.winner ? FACTIONS[game.winner].name : 'A rival'} fulfilled the contract.`,
+    eliminated: 'Core offline. Your operation has ended.',
+  }[status];
   const count = Number(amount);
   const canSend = operational && !forecast && rock.owner === 'you' && !!target && Number.isSafeInteger(count) && count > 0 && (delay > 0 || count <= Math.floor(rock.drones));
   function select(r: Rock) {
@@ -107,7 +114,7 @@ function Operation() {
       </View>
       <View style={s.operationBar}><View style={s.row}><View style={s.liveDot} /><Text style={s.mono}>OPERATION / THE QUIET BELT</Text></View><Text style={s.muted}>{ready ? 'Solo simulation' : 'Restoring uplink…'}</Text></View>
       {!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => loadFailed ? setReset(true) : saveGame(game).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
-      {(game.winner || game.eliminated.includes('you')) && <View style={s.notice}><Text style={{ color: green, flex: 1 }}>{game.winner === 'you' ? 'Contract fulfilled. The belt is yours.' : 'Core offline. Your operation has ended.'}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}
+      {!!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}
       <View style={[s.layout, wide && { flexDirection: 'row', alignItems: 'flex-start' }]}>
         <View style={[s.mapColumn, wide && { flex: 1.6 }]}>
           <View style={s.sectionHeading}><View><Label>Orbital command</Label><Text style={s.heading}>The quiet belt</Text></View><Text style={s.clock}>{clock(shown.hour)}</Text></View>

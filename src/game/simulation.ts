@@ -23,6 +23,11 @@ export type Game = {
   cargo: Record<Faction, number>; eliminated: Faction[]; nextId: number;
   scheduled?: ScheduledTransfer[]; events: GameEvent[]; winner: Faction | null;
 };
+export function operationStatus(game: Pick<Game, 'winner' | 'eliminated'>, faction: Faction): 'active' | 'victory' | 'defeat' | 'eliminated' {
+  if (game.winner === faction) return 'victory';
+  if (game.eliminated.includes(faction)) return 'eliminated';
+  return game.winner ? 'defeat' : 'active';
+}
 export const FACTIONS = {
   you: { name: 'Mnemosyne', color: '#b8e986', code: 'MN' },
   vesper: { name: 'Vesper', color: '#e9a775', code: 'VS' },

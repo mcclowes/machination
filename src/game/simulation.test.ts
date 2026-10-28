@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, dispatch, advance, travelHours } from './simulation';
+import { createGame, dispatch, advance, travelHours, operationStatus } from './simulation';
 
 test('dispatch reserves drones immediately and arrives only after travel time', () => {
   const game = createGame(0);
@@ -64,6 +64,7 @@ test('mining quota ends an operation and freezes subsequent simulation', () => {
   game.cargo.you = 299;
   const end = advance(game, 1);
   assert.equal(end.winner, 'you');
+  assert.equal(operationStatus(end, 'you'), 'victory');
   assert.equal(end.cargo.you, 300);
   assert.deepEqual(advance(end, 100), end);
   assert.throws(() => dispatch(end, 'a', 'b', 1, 'you'));
@@ -74,4 +75,28 @@ test('quota victory occurs at the same instant regardless of time step', () => {
   game.rocks[1]!.owner = 'you';
   game.cargo.you = 299;
   assert.deepEqual(advance(game, 10), advance(game, 0.5));
+});
+
+test('a rival quota victory ends the contract without claiming the player core was lost', () => {
+  const game = createGame(0);
+  assert.equal(operationStatus(game, 'you'), 'active');
+  game.cargo.vesper = 299;
+  const end = advance(game, 1);
+  assert.equal(end.winner, 'vesper');
+  assert.equal(end.eliminated.includes('you'), false);
+  assert.equal(end.rocks.find(r => r.coreOf === 'you')!.owner, 'you');
+  assert.equal(operationStatus(end, 'you'), 'defeat');
+  assert.equal(operationStatus(end, 'vesper'), 'victory');
+});
+
+test('core elimination remains distinct while rivals continue the operation', () => {
+  let game = createGame(0);
+  game.rocks.find(r => r.id === 'a')!.drones = 0;
+  game = dispatch(game, 'e', 'a', 90, 'vesper');
+  const end = advance(game, 8, { rivals: false });
+  assert.equal(end.eliminated.includes('you'), true);
+  assert.equal(end.winner, null);
+  assert.equal(operationStatus(end, 'you'), 'eliminated');
+  assert.equal(operationStatus(end, 'vesper'), 'active');
+  assert.equal(operationStatus({ ...end, winner: 'vesper' }, 'you'), 'eliminated');
 });
