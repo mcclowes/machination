@@ -14,7 +14,7 @@ import { fleetPosition } from './flight';
 import { maximumShield, absorbShields, droneInventory, powerCapacity } from './economy';
 import { reconcileFunding } from './funding';
 import { loseMine, MINING_DAY } from './mining';
-import { activeUnits, unitCount, type Specialist } from './specialists';
+import { activeUnits, restoreControl, unitCount, type Specialist } from './specialists';
 import { refreshUnitEffects } from './specialist-effects';
 import { defendWithPreparations } from './transport';
 import { observers } from './sensors';
@@ -51,8 +51,8 @@ function finish(sink: EncounterSink | undefined, draft: EncounterDraft | undefin
   draft.outcome = outcome; draft.after = [presence(game, a), presence(game, b)];
   emitEncounter(sink, draft);
 }
-function capture(units: Specialist[], owner: Faction): Specialist[] {
-  for (const unit of units) { if (unit.owner === owner) delete unit.captive; else unit.captive = true; }
+function capture(game: Game, units: Specialist[], owner: Faction): Specialist[] {
+  for (const unit of units) { if (unit.owner === owner) restoreControl(game, unit, owner, units); else unit.captive = true; }
   return units;
 }
 function excessGiftDrones(game: Game, owner: Faction, incoming: number): number {
@@ -70,7 +70,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
   const donor = fleet.owner;
   if (fleet.giftAt !== undefined && fleet.giftAt <= game.hour && rock.owner) {
     fleet.owner = rock.owner;
-    for (const unit of fleet.specialists ?? []) { if (unit.owner !== fleet.owner && unit.kind === 'queen') unit.kind = 'princess'; unit.owner = fleet.owner; delete unit.captive; }
+    for (const unit of fleet.specialists ?? []) restoreControl(game, unit, fleet.owner, fleet.specialists);
   }
   if (fleet.owner === rock.owner) {
     game.fleets = game.fleets.filter(f => f.id !== fleet.id);
@@ -102,7 +102,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     const repaired = repairLosses(game, fleet, Math.max(0, originalAttacking - remaining), phase.suppressed);
     rock.drones = remaining + repaired;
     if (draft) { draft.winner = 0; draft.repaired = repaired; draft.captured = newlyCaptive(rock.specialists ?? [], fleet.owner); }
-    rock.specialists = [...capture(rock.specialists ?? [], fleet.owner), ...(fleet.specialists ?? [])];
+    rock.specialists = [...capture(game, rock.specialists ?? [], fleet.owner), ...(fleet.specialists ?? [])];
     if (rock.kind === 'mine') { if (rock.owner) loseMine(game, rock.owner); rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
     if (!rock.owner && rock.kind === 'factory') rock.productionAt = afterWork(game, game.hour, 8);
     rock.owner = fleet.owner; rock.shieldAt = afterWork(game, game.hour, 48 / (rock.shieldMax ?? 10));
@@ -112,7 +112,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     const repaired = repairLosses(game, rock, Math.max(0, originalDefending - remaining), phase.suppressed);
     rock.drones = remaining + repaired;
     if (draft) { draft.winner = 1; draft.repaired = repaired; draft.captured = rock.owner ? newlyCaptive(fleet.specialists ?? [], rock.owner) : []; }
-    if (rock.owner) rock.specialists = [...(rock.specialists ?? []), ...capture(fleet.specialists ?? [], rock.owner)];
+    if (rock.owner) rock.specialists = [...(rock.specialists ?? []), ...capture(game, fleet.specialists ?? [], rock.owner)];
     log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`);
   }
   game.fleets = game.fleets.filter(f => f.id !== fleet.id);
@@ -149,7 +149,7 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet, encounters?:
     winner.drones = remaining + repaired;
     if (draft) { draft.winner = result > 0 ? 0 : 1; draft.repaired = repaired; draft.captured = newlyCaptive(loser.specialists ?? [], winner.owner); }
     game.fleets = game.fleets.filter(f => f.id !== loser.id);
-    const captives = capture(loser.specialists ?? [], winner.owner);
+    const captives = capture(game, loser.specialists ?? [], winner.owner);
     if (captives.length && !sendUnitsHome(game, point, winner.owner, captives)) winner.specialists = [...(winner.specialists ?? []), ...captives];
     if (phase.redirected.includes(winner) || living(winner).some(u => u.kind === 'pirate') && (mechanicsVersion(game) < 3 || winner.intercept)) returnHauler(game, winner);
     if (winner.drones === 0 && !winner.specialists?.length) game.fleets = game.fleets.filter(f => f.id !== winner.id);
@@ -171,7 +171,7 @@ export function resolveHaulerContact(game: Game, a: Fleet, b: Fleet, encounters?
   const cappedGifts = mechanicsVersion(game) >= 8;
   const gifts: Fleet[] = [];
   for (const [fleet, owner, gift] of [[a, ownerB, giftA], [b, ownerA, giftB]] as const) if (gift) {
-    for (const unit of fleet.specialists ?? []) { if (unit.kind === 'queen' && unit.owner !== owner) unit.kind = 'princess'; unit.owner = owner; delete unit.captive; }
+    for (const unit of fleet.specialists ?? []) restoreControl(game, unit, owner, fleet.specialists);
     fleet.owner = owner; delete fleet.giftAt;
     if (cappedGifts) gifts.push(fleet); else returnHauler(game, fleet);
   }

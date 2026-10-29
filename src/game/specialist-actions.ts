@@ -9,7 +9,7 @@ import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
 import type { Game } from './simulation';
-import { unitsAtRock } from './specialists';
+import { restoreControl, unitsAtRock } from './specialists';
 import { maximumShield } from './economy';
 import { rockSensorRange, observers } from './sensors';
 import { fleetPosition } from './flight';
@@ -53,8 +53,7 @@ export function applyStationPassives(game: Game, trace?: SimulationTraceSink): v
     if (!rock.owner) continue;
     if (unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'hypnotist')) {
       for (const unit of rock.specialists ?? []) if (unit.captive) {
-        if (unit.kind === 'queen' && unit.owner !== rock.owner) unit.kind = 'princess';
-        unit.owner = rock.owner; delete unit.captive;
+        restoreControl(game, unit, rock.owner);
         tracePoint(trace, 'passive:hypnotist', game);
       }
     }
@@ -68,7 +67,7 @@ export function applyStationPassives(game: Game, trace?: SimulationTraceSink): v
       if (!inRange) continue;
       for (const unit of [...(holding.specialists ?? [])]) if (unit.owner === rock.owner && unit.captive && game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) {
         holding.specialists = holding.specialists!.filter(u => u.id !== unit.id);
-        delete unit.captive;
+        restoreControl(game, unit, unit.owner);
         sendUnitsHome(game, holding, unit.owner, [unit]);
         game.events.unshift({ hour: game.hour, audience: [...new Set([unit.owner, ...(holding.owner ? [holding.owner] : [])])], message: `${holding.name}: envoy protocol released a captive module.` });
         tracePoint(trace, 'passive:diplomat', game);

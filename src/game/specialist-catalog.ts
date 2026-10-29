@@ -5,7 +5,7 @@
  */
 type Definition = { name: string; reference: string; category: 'attack' | 'defense' | 'other' | 'promotion' | 'core'; description: string; promotesTo?: string; amount?: number; priority?: number };
 export const SPECIALISTS = {
-  queen: { name: 'Intelligence core', reference: 'Queen', category: 'core', description: 'Adds 20 local shield capacity. Recruits modules every 18h after hour four. Capture or destruction can end your operation.' },
+  queen: { name: 'Intelligence core', reference: 'Queen', category: 'core', description: 'Adds 20 local shield capacity. Recruits modules every 18h after hour four. An additional acquired core becomes a fallback core. Capture or destruction can end your operation.' },
   diplomat: { name: 'Envoy protocol', reference: 'Diplomat', category: 'other', description: 'Releases your captive modules held at sites within this site’s sensor range.' },
   elder: { name: 'Precedence kernel', reference: 'Revered Elder', category: 'defense', priority: 2, description: 'Suppresses other local combat abilities unless both sides carry a precedence kernel.' },
   foreman: { name: 'Assembler daemon', reference: 'Foreman', category: 'other', promotesTo: 'engineer', description: 'Adds 4 drones per cycle to your factories within half this site’s sensor range.' },

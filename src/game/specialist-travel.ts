@@ -9,7 +9,7 @@ import { mechanicsVersion } from './rules';
 import { nearestImage, worldDistance, wrappedBounds, wrapPoint } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, type Point } from './flight';
-import type { Specialist } from './specialists';
+import { restoreControl, type Specialist } from './specialists';
 import { refreshUnitEffects, specialistSpeed, withUnitEffects } from './specialist-effects';
 
 export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: Specialist[], mission?: 'interception'): Fleet | undefined {
@@ -30,7 +30,7 @@ export function releaseSpecialist(input: Game, owner: Faction, id: string): Game
   const unit = site?.specialists?.find(u => u.id === id);
   if (!site || !unit || !game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) throw new Error('Choose a captive module with a friendly site to return to.');
   site.specialists = site.specialists!.filter(u => u.id !== id);
-  delete unit.captive;
+  restoreControl(game, unit, unit.owner);
   sendUnitsHome(game, site, unit.owner, [unit]);
   game.events.unshift({ hour: game.hour, audience: [...new Set([owner, unit.owner])], message: `${site.name}: captive module released and returning home.` });
   if (mechanicsVersion(game) >= 11) refreshUnitEffects(game);

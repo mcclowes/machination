@@ -7,7 +7,7 @@ import { returnHauler } from './specialist-travel';
 import { detonate } from './destruction';
 import { fleetPosition } from './flight';
 import type { Fleet, Game, Rock } from './simulation';
-import { unitCount } from './specialists';
+import { restoreControl, unitCount } from './specialists';
 import { mechanicsVersion } from './rules';
 import { SPECIALISTS, type SpecialistKind } from './specialist-catalog';
 import { snapshotPair, type EncounterStep } from './combat-report';
@@ -52,7 +52,7 @@ const RESOLVERS: Record<number, (phase: Phase) => Resolution> = {
   6: ({ game, a, b, haulers }) => {
     if (!haulers || !count(a, 'doubleAgent') && !count(b, 'doubleAgent')) return 'continue';
     const owner = a.owner; a.owner = b.owner; b.owner = owner; a.drones = 0; b.drones = 0;
-    for (const asset of [a, b]) for (const unit of asset.specialists ?? []) { if (unit.kind === 'queen' && unit.owner !== asset.owner) unit.kind = 'princess'; unit.owner = asset.owner!; delete unit.captive; }
+    for (const asset of [a, b]) for (const unit of asset.specialists ?? []) restoreControl(game, unit, asset.owner!, asset.specialists);
     game.fleets = game.fleets.filter(f => f.drones > 0 || f.specialists?.length);
     return 'end';
   },

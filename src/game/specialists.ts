@@ -10,6 +10,7 @@ import type { Faction, Fleet, Game, Rock } from './simulation';
 import { HIRE_CATEGORIES, HIRE_KINDS, SPECIALISTS, hireAmount, promotion, type SpecialistKind } from './specialist-catalog';
 import { recentEvents } from './events';
 import { observers } from './sensors';
+import { mechanicsVersion } from './rules';
 
 export type Specialist = { id: string; kind: SpecialistKind; owner: Faction; captive?: true; nextActionAt?: number; lastCourseAt?: number };
 export type Recruitment = { used: number; seed: number; pool: Partial<Record<SpecialistKind, number>>; offers: SpecialistKind[] };
@@ -28,6 +29,15 @@ function drawOffers(input: Recruitment): Recruitment {
 export type UnitWorld = { rocks: readonly { id: string; owner?: Faction | null; specialists?: Specialist[] }[]; fleets: readonly { id: number; from: string; owner: Faction; preparing?: true; specialists?: Specialist[] }[] };
 export function activeUnits(game: UnitWorld, owner?: Faction): Specialist[] {
   return [...game.rocks.flatMap(a => (a.specialists ?? []).filter(u => u.owner === a.owner)), ...game.fleets.flatMap(a => (a.specialists ?? []).filter(u => u.owner === a.owner))].filter(u => !u.captive && (owner === undefined || u.owner === owner));
+}
+export function restoreControl(game: Game, unit: Specialist, owner: Faction, cargo: readonly Specialist[] = []): void {
+  if (unit.kind === 'queen') {
+    // A captured manifest may not yet belong to an asset in the world.
+    const another = (u: Specialist) => u.kind === 'queen' && u.owner === owner && !u.captive && u.id !== unit.id;
+    if (unit.owner !== owner || mechanicsVersion(game) >= 14 && (activeUnits(game, owner).some(another) || cargo.some(another))) unit.kind = 'princess';
+  }
+  unit.owner = owner;
+  delete unit.captive;
 }
 export function unitsAtRock(game: UnitWorld, id: string): Specialist[] {
   return [...(game.rocks.find(r => r.id === id)?.specialists ?? []), ...game.fleets.filter(f => f.preparing && f.from === id).flatMap(f => f.specialists ?? [])].filter(u => !u.captive);
