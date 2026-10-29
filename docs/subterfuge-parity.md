@@ -38,6 +38,8 @@ The publisher's [App Store history](https://apps.apple.com/us/app/subterfuge/id7
 
 The publisher's Crossplay trailer, Steam media 257426609 at 165.5 seconds, shows an Alerts bell beside Gift on a selected launch/sub card. The reviewed contact sheet is `/tmp/machination-recruitment/frames/crossplay/sheet-5.jpg`. That historical footage supports a contextual Alerts approach; it does not establish its sheet options or current-client behavior. No proximity, arrival, or reminder rule has been inferred from the icon. The read-only source sweep is `/tmp/machination-alerts-review/FINDINGS.md`.
 
+The [notification notes](notifications.md#reference-and-scope) now record a primary incoming-attack example found during the trailer re-review. [#80](https://github.com/mcclowes/machination/issues/80) tracks the missing implementation, including genuine closed-client settlement. This does not resolve the separate Alerts bell workflow or establish current defaults.
+
 There is no outside warning before Machination's 48-hour inactivity resignation, but the primary sources do not establish that Subterfuge sends one. Such a reminder is not a confirmed parity requirement. Long-suspend foreground refresh and signal/sound behavior remain device acceptance work. No notification permissions or delivery settings were changed during this audit.
 
 ## Reference rules

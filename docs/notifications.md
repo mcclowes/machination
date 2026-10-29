@@ -8,6 +8,10 @@ Ron Carmel's [October 15, 2015 interview](https://www.gamedeveloper.com/design/-
 
 This slice provides opt-in native notifications for incoming bilateral, private-group, and public-channel messages. Existing audience authorization applies, and senders receive no notification for their own messages. It does not establish parity for unexpected game-state changes. The separate contextual Alerts sheet remains [#75](https://github.com/mcclowes/machination/issues/75); no alarm options are inferred from its icon.
 
+The publisher-linked [launch trailer](https://www.youtube.com/watch?v=WECvxdJv3kk&t=32s) shows an incoming-attack push with attacker, drillers, and ETA; at 94 seconds it shows the same information over the chart. This is staged alpha-era footage, also reused by the 2014 trailer and Steam Crossplay. Exact firing time, defaults, rounding, and bell linkage remain unknown. [#80](https://github.com/mcclowes/machination/issues/80) tracks implementation with those limits.
+
+The server audit found a required delivery boundary: game time currently settles during HTTP transactions, while the worker only sends existing message jobs. With every client closed, a prepared attack is not materialized as a departure until the next request catches up. Incoming delivery therefore needs background settlement, observed-threat detection, typed jobs with fresh claim-time information, and consent; a new text template alone cannot provide it. The selected contract and legacy API compatibility requirements are in #80. This work is underway separately; incoming delivery is not implemented in the current shared tree.
+
 ## Device preference API
 
 Both endpoints use the existing seat credential contract: a legacy seat bearer, or the configured Clerk account bearer resolved to that room's seat. Device IDs and bodies never select a recipient faction. Preferences do not settle game time, renew inactivity, change order revisions, or enter command replay.
