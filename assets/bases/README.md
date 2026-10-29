@@ -8,19 +8,11 @@ Extraction prompt:
 
 > Use case: background-extraction. Input image: edit target, supplied three industrial base emblems. Remove only the near-black background, including the black spaces inside each emblem and black distressed cracks. Return the same three ivory emblems on actual transparent alpha, in the same left-to-right order (factory, satellite relay dish, mining crystals), in one wide sheet. Preserve their exact silhouettes, circular broken arcs, ivory color, distressed details, positions, equal spacing, and proportions. No labels or additional elements, no shadows or glow, no redesign. Preserve the 3:1 wide composition.
 
-Regenerate runtime crops with the installed `sharp` dependency:
+Regenerate runtime crops with the installed `sharp` dependency. The script centers each crop on its visible alpha bounds, so transparent sheet gutters don't shift the emblem inside the selection ring. It preserves the common crop size and artwork scale.
 
 ```sh
-node --input-type=module - <<'JS'
-import sharp from 'sharp';
-for (const [index, name] of ['factory', 'generator', 'mine'].entries()) {
-  await sharp('assets/bases/transparent-sheet.png')
-    .extract({ left: index * 724 + 80, top: 64, width: 600, height: 560 })
-    .resize(248, 248, { fit: 'contain', background: '#00000000' })
-    .extend({ top: 4, bottom: 4, left: 4, right: 4, background: '#00000000' })
-    .png().toFile(`assets/bases/${name}.png`);
-}
-JS
+node scripts/build-base-icons.mjs
+node --import tsx --test src/components/base-icons.test.ts
 ```
 
 Tracking: [issue #58](https://github.com/mcclowes/machination/issues/58).
