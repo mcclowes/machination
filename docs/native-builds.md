@@ -103,6 +103,12 @@ Desktop acceptance on October 29 completes the opening-artwork check. The curren
 
 Safari opens the replay library with the expected button role and finds the synthetic combat JSON through its real file picker. The control bridge then returns `cgWindowNotFound` before import completes, including after reconnecting its runtime. This leaves browser replay import, playback, and inspection unverified; it doesn't establish an application failure or resolve #28/#31. No live operation was mounted in the fresh test origin, and no file was sent to another person.
 
+## Publisher-rule build checkpoint
+
+The October 29 publisher-rules checkpoint rebuilds application source `8870822` as an arm64 iOS simulator Release app. The separately identified `Machination QA` app (`com.mcclowes.machination.fidelityqa`) is installed on the existing iPhone 18 Pro / iOS 27.0 simulator. Its ad-hoc signature passes deep/strict verification, and its installed `main.jsbundle` matches the rebuilt artifact: SHA-256 `c2067b6865a5bfb9fbb82fbbb64e281c94a88e7c7c06a1183b22cec38f48ea2c`. The original app remains separately installed, and its operation data was not touched. This QA artifact includes capped Engineer recovery, capacity-limited gifts, opening acceleration, and delayed Navigator orders.
+
+Local evidence: `/tmp/machination-publisher-rules-native-build.log`, `/tmp/machination-publisher-rules-native-20261029-8870822.xcresult`, and `/tmp/machination-publisher-rules-native-artifact.json`. The current QA path is recorded in `/tmp/machination-current-qa-path.txt`. This replaces the QA artifact previously rebuilt from `78261ef`; neither installation establishes runtime acceptance of the newer controls. Fresh Chrome and Device Hub bindings both return `cgWindowNotFound`, so rendered opening/Navigator controls, native interaction, Android, and physical-device acceptance remain open.
+
 ## Native identity
 
 Original icons and launch artwork are configured in `app.json`. Run `npm run build:brand` to regenerate their PNGs from the editable vector and inspect the masked and small-size preview. See [the artwork notes](../assets/brand/README.md).
