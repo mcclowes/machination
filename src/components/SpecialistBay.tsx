@@ -27,7 +27,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
   const canPromote = active && status.credits > 0;
   const units = rock.specialists ?? [];
   return <View style={s.bay}>
-    {mode !== 'cargo' && <RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} />}
+    {mode !== 'cargo' && <><ArtworkImage id="ritual-tech-clash" /><RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} /></>}
     <Text style={s.label}>At this site · {units.length}</Text>
     {units.length === 0 && <Text style={s.detail}>No specialists at this site.</Text>}
     {units.map(unit => {
@@ -64,7 +64,7 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
   const canRecruit = active && status.credits > 0 && !!coreSite;
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
   const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return <><ArtworkImage id="ritual-tech-clash" /><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
+  return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
     <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
     <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring and promotion cost 1 credit.</Text>
     <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
