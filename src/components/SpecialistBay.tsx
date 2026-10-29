@@ -25,27 +25,9 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
   const controlled = rock.owner === owner && !rock.destroyed;
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   const canPromote = active && status.credits > 0;
-  const canRecruit = canPromote && !!status.at;
-  const coreSite = game.rocks.find(site => site.id === status.at);
   const units = rock.specialists ?? [];
-  const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
-  const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return <View style={s.bay}>
-    {mode !== 'cargo' && <><ArtworkImage id="ritual-tech-clash" /><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
-    <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
-    <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring and promotion cost 1 credit.</Text>
-    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
-    {'recruitmentUncertain' in game && !!game.recruitmentUncertain && <Text style={s.detail}>A planned hire or promotion consumes the known recruitment offer. Subsequent offers are unknown; return to live time after execution to see new choices.</Text>}
-    {status.offers.map(kind => {
-      const entry = SPECIALISTS[kind];
-      const amount = hireAmount(kind);
-      return <View key={kind} style={s.card}>
-        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
-        <Text style={s.reference}>{entry.reference}</Text>
-        <Text style={s.detail}>{entry.description}</Text>
-        <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · 1 credit`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for 1 credit`)} disabled={!canRecruit || !controlled || status.at !== rock.id} onPress={() => onHire(kind)} />
-      </View>;
-    })}</>}
+    {mode !== 'cargo' && <RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} />}
     <Text style={s.label}>At this site · {units.length}</Text>
     {units.length === 0 && <Text style={s.detail}>No specialists at this site.</Text>}
     {units.map(unit => {
@@ -69,6 +51,34 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
       </View>;
     })}
   </View>;
+}
+
+export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllowed = true, onHire }: {
+  game: Game | GameView; owner: Faction; enabled: boolean; scheduledAt?: number;
+  siteAllowed?: boolean; onHire: (kind: SpecialistKind) => void;
+}) {
+  const status = recruitmentStatus(game, owner);
+  const label = (action: string) => scheduledAt === undefined ? action : `Schedule at ${gameClock(scheduledAt)}: ${action}`;
+  const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
+  const coreSite = game.rocks.find(site => site.id === status.at && !site.destroyed);
+  const canRecruit = active && status.credits > 0 && !!coreSite;
+  const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
+  const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return <><ArtworkImage id="ritual-tech-clash" /><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
+    <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
+    <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring and promotion cost 1 credit.</Text>
+    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
+    {'recruitmentUncertain' in game && !!game.recruitmentUncertain && <Text style={s.detail}>A planned hire or promotion consumes the known recruitment offer. Subsequent offers are unknown; return to live time after execution to see new choices.</Text>}
+    {status.offers.map(kind => {
+      const entry = SPECIALISTS[kind];
+      const amount = hireAmount(kind);
+      return <View key={kind} style={s.card}>
+        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
+        <Text style={s.reference}>{entry.reference}</Text>
+        <Text style={s.detail}>{entry.description}</Text>
+        <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · 1 credit`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for 1 credit`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
+      </View>;
+    })}</>;
 }
 
 function Action({ label, accessibilityLabel, disabled, onPress }: { label: string; accessibilityLabel: string; disabled: boolean; onPress: () => void }) {
