@@ -15,19 +15,20 @@ function axisBounds(values: number[], wrapped: boolean): [number, number] {
   return [start, start + 100 - gap];
 }
 
-export function constrainCamera(world: GeometryWorld, camera: MapCamera): MapCamera {
+/** `lift` lets an untiled chart pan its lower edge further up, in camera units, while a bottom overlay covers it. */
+export function constrainCamera(world: GeometryWorld, camera: MapCamera, lift = 0): MapCamera {
   const scale = Math.max(1, Math.min(4, camera.scale));
   const period = scale * 100, bound = (scale - 1) * 50;
-  const offset = (value: number) => wrappedBounds(world)
+  const offset = (value: number, extra = 0) => wrappedBounds(world)
     ? ((value + period / 2) % period + period) % period - period / 2
-    : Math.max(-bound, Math.min(bound, value)) || 0;
-  return { scale, x: offset(camera.x), y: offset(camera.y) };
+    : Math.max(-bound - extra, Math.min(bound, value)) || 0;
+  return { scale, x: offset(camera.x), y: offset(camera.y, lift) };
 }
 
-export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedScale: number): MapCamera {
+export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedScale: number, lift = 0): MapCamera {
   const scale = Math.max(1, Math.min(4, requestedScale));
   const ratio = wrappedBounds(world) ? scale / camera.scale : 1;
-  return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio });
+  return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio }, lift);
 }
 
 export function focusCamera(world: GeometryWorld, camera: MapCamera, point: Point): MapCamera {

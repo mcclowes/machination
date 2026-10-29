@@ -7,7 +7,7 @@ import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, Text, Image, StyleSheet, PanResponder } from 'react-native';
+import { View, Pressable, ScrollView, Text, Image, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Circle, G, Line } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { SPECIALISTS } from '../game/specialist-catalog';
@@ -21,7 +21,7 @@ import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulatio
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
-import { chartOffsets, chartPosition, chartRoute, chartTransform, revealAboveCamera } from '../game/chart-projection';
+import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera } from '../game/chart-projection';
 import { layoutSiteNames } from './map-labels';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
@@ -31,6 +31,7 @@ const baseIcons = {
   generator: require('../../assets/bases/generator.png'),
   mine: require('../../assets/bases/mine.png'),
 };
+const INSPECTOR_CHART_SPACE = 44 + 20;
 function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
   if (rock.destroyed || rock.kind === 'unknown') return undefined;
   const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
@@ -41,9 +42,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
-  const camera = constrainCamera(game, viewport?.camera ?? localCamera);
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
+  const fleet = game.fleets.find(f => f.id === contact);
+  const [card, setCard] = useState<{ id: number; height: number }>();
+  const lift = card && card.id === fleet?.id ? overlayLift(game, size, card.height + styles.inspector.bottom) : 0;
+  const camera = constrainCamera(game, viewport?.camera ?? localCamera, lift);
   const [mapTools, setMapTools] = useState(false);
   useEffect(() => setContact(undefined), [game.epoch, player]);
   useEffect(() => { if (inspectFleet) setContact(inspectFleet.id); }, [inspectFleet?.request]);
@@ -70,11 +74,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     const source = siteAt(x, y);
     return commands.current.onTransfer && source && source.owner === commands.current.player && !source.destroyed ? source : undefined;
   }
-  const current = useRef({ camera, size, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera });
-  current.current = { camera, size, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera };
+  const current = useRef({ camera, size, lift, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera });
+  current.current = { camera, size, lift, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera };
   const start = useRef({ ...camera, pinch: 0, dx: 0, dy: 0 });
   function move(scale: number, x: number, y: number) {
-    current.current.onChange(constrainCamera(current.current.world, { scale, x, y }));
+    current.current.onChange(constrainCamera(current.current.world, { scale, x, y }, current.current.lift));
   }
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponderCapture: event => {
@@ -106,7 +110,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         dragging.current = undefined; setDrag(undefined);
         const distance = Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
         if (!start.current.pinch) start.current = { ...current.current.camera, pinch: distance, dx: gesture.dx, dy: gesture.dy };
-        current.current.onChange(zoomCamera(current.current.world, start.current, start.current.scale * distance / start.current.pinch));
+        current.current.onChange(zoomCamera(current.current.world, start.current, start.current.scale * distance / start.current.pinch, current.current.lift));
       } else if (dragging.current) {
         const next = { ...dragging.current, x: gesture.moveX - origin.current.x, y: gesture.moveY - origin.current.y, target: siteAt(gesture.moveX, gesture.moveY) };
         dragging.current = next; setDrag(next);
@@ -139,9 +143,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     return { key: `${tile}-${rock.id}`, rock, location, active, x: location.x / 100 * size.width, y: location.y / 100 * size.height, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
   })).filter(site => site.location.x >= -15 && site.location.x <= 115 && site.location.y >= -15 && site.location.y <= 115);
   const names = layoutSiteNames(sites, size);
-  const fleet = game.fleets.find(f => f.id === contact);
   const reference = fleet && fleetReference?.(fleet);
-  const [card, setCard] = useState<{ id: number; height: number }>();
   const revealed = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!fleet) { revealed.current = undefined; return; }
@@ -201,8 +203,8 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       if (location.x < -10 || location.x > 110 || location.y < -10 || location.y > 110) return null;
       return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View></Pressable>;
     }))}
-    <View style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
-    {fleet && <View style={styles.inspector} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
+    <View style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, lift))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, lift))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
+    {fleet && <ScrollView testID="hauler-inspector" style={[styles.inspector, { maxHeight: Math.max(44, size.height - INSPECTOR_CHART_SPACE) }]} contentContainerStyle={styles.inspectorContent} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
       <Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text>
@@ -215,7 +217,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       </View>
       {timeInspection && <Text style={styles.contactText}>{arrival === undefined ? 'Arrival is outside the available time range.' : 'Earlier combat and new orders can change this arrival.'}</Text>}
       {reference && <CopyObjectReference value={reference} label="Copy hauler reference" />}
-    </View>}
+    </ScrollView>}
     {drag && <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>Release at {drag.target?.name ?? 'a destination'}</Text></View>}
   </View>;
 }
@@ -223,9 +225,10 @@ function MapControl({ label, text, disabled, onPress }: { label: string; text: s
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.mapControl, disabled && { opacity: 0.35 }]}><Text style={styles.contactText}>{text}</Text></Pressable>;
 }
 const styles = StyleSheet.create({
+  inspectorContent: { padding: 12, gap: 6 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zoom: { position: 'absolute', right: 10, top: 10, flexDirection: 'row', flexWrap: 'wrap', width: 44, gap: 4 }, mapControl: { minWidth: 44, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#15262de8', borderRadius: 22 },
-  hauler: { position: 'absolute', width: 44, height: 44, marginLeft: -22, marginTop: -22, alignItems: 'center', justifyContent: 'center' }, contactRing: { minWidth: 32, height: 24, paddingHorizontal: 4, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, fleetCount: { color: '#08100b', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, padding: 12, gap: 6, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
+  hauler: { position: 'absolute', width: 44, height: 44, marginLeft: -22, marginTop: -22, alignItems: 'center', justifyContent: 'center' }, contactRing: { minWidth: 32, height: 24, paddingHorizontal: 4, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, fleetCount: { color: '#08100b', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#101d24' },
   rock: { position: 'absolute', width: 64, height: 44, marginLeft: -32, marginTop: -22, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 38, height: 38, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

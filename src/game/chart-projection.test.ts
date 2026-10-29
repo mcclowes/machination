@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartOffsets, chartPosition, chartRoute, chartTransform, revealAboveCamera } from './chart-projection';
-import { constrainCamera, focusCamera } from './chart-camera';
+import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera } from './chart-projection';
+import { constrainCamera, focusCamera, zoomCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
 const world = { rules: { map: { width: 200, height: 80, topology: 'torus' as const } } };
@@ -90,13 +90,32 @@ test('a point already clear of the card keeps the manual camera', () => {
   assert.deepEqual(revealAboveCamera(world, camera, point, phone, 330), camera);
 });
 
-test('a bounded chart clamps the reveal instead of leaving the map, and no card leaves focus unchanged', () => {
+test('a bounded chart lifts for the card, and no card leaves focus unchanged', () => {
   const bounded = {}; const phone = { width: 393, height: 616 };
   const focused = focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 50 });
   assert.deepEqual(revealAboveCamera(bounded, focused, { x: 50, y: 50 }, phone, 0), focused);
   const nearBottom = focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 95 });
   const revealed = revealAboveCamera(bounded, nearBottom, { x: 50, y: 95 }, phone, 330);
-  // Already at the lower edge bound (scale 2 allows ±50), so the reveal cannot pan further on an untiled chart.
+  // Focus alone stops at the ordinary lower bound (scale 2 allows ±50); the reveal lifts past it for the card.
   assert.deepEqual(nearBottom, { scale: 2, x: 0, y: -50 });
-  assert.deepEqual(revealed, nearBottom);
+  assert.ok(revealed.y < nearBottom.y);
+});
+
+test('an untiled chart lifts its lower edge above a tall card so bottom-edge haulers stay clear', () => {
+  const bounded = {}; const phone = { width: 393, height: 616 }; const covered = 340;
+  const lift = overlayLift(bounded, phone, covered);
+  assert.equal(overlayLift(world, phone, covered), 0, 'tiled charts never need lift');
+  assert.equal(overlayLift(bounded, phone, 0), 0);
+  for (const y of [80, 95, 100]) for (const scale of [1, 2, 4]) {
+    const point = { x: 50, y };
+    const focused = constrainCamera(bounded, { scale, x: 0, y: (50 - y) * scale });
+    const revealed = revealAboveCamera(bounded, focused, point, phone, covered);
+    assert.equal(revealed.scale, scale);
+    assert.deepEqual(constrainCamera(bounded, revealed, lift), revealed, 'the render clamp keeps the reveal while the card is open');
+    const [shown] = screenY(bounded, revealed, point, phone);
+    assert.ok(shown! >= 22 && shown! <= phone.height - covered, `y=${y} x${scale} lands at ${shown}`);
+    assert.deepEqual(zoomCamera(bounded, revealed, scale, lift), revealed, 'starting a pinch does not discard the overlay allowance');
+  }
+  const lifted = revealAboveCamera(bounded, focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 95 }), { x: 50, y: 95 }, phone, covered);
+  assert.deepEqual(constrainCamera(bounded, lifted), { scale: 2, x: 0, y: -50 }, 'closing the card returns to the ordinary bound');
 });

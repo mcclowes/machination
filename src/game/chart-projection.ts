@@ -32,6 +32,14 @@ export function chartRoute(world: GeometryWorld, from: Point, to: Point): { from
 
 const REVEAL_MARGIN = 22;
 
+/** Camera lift that lets an untiled chart's lower edge clear a bottom overlay of `coveredBottom` pixels. */
+export function overlayLift(world: GeometryWorld, viewport: Viewport, coveredBottom: number): number {
+  if (wrappedBounds(world) || coveredBottom <= 0) return 0;
+  const width = world.rules?.map.width ?? 100, height = world.rules?.map.height ?? 100;
+  const fit = Math.min(Math.max(1, viewport.width) / width, Math.max(1, viewport.height) / height);
+  return (coveredBottom + REVEAL_MARGIN) / (height * fit) * 100;
+}
+
 /** Pans vertically so a point sits mid-way through the chart band left uncovered by a bottom overlay, unless it is already clear. */
 export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: Viewport, coveredBottom: number): MapCamera {
   const clear = Math.max(0, viewport.height - coveredBottom);
@@ -42,5 +50,5 @@ export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point
   if (nearest >= REVEAL_MARGIN && nearest <= clear - REVEAL_MARGIN) return camera;
   const fit = transform.scale / camera.scale;
   const height = world.rules?.map.height ?? 100;
-  return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 });
+  return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 }, overlayLift(world, viewport, coveredBottom));
 }
