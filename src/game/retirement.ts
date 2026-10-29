@@ -16,6 +16,7 @@ function retire(input: Game, owners: readonly Faction[], reason: 'resigned' | 'i
   for (const owner of owners) {
     game.eliminated.push(owner); game.cargo[owner] = 0;
     game.scheduled = (game.scheduled ?? []).filter(p => p.owner !== owner);
+    for (const fleet of game.fleets) if (fleet.owner === owner) delete fleet.pendingCourse;
     for (const rock of game.rocks.filter(r => r.owner === owner)) defendWithPreparations(game, rock.id);
     game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: `${FACTIONS[owner].name}: ${reason === 'inactive' ? 'automatically resigned after 48 hours of inactivity' : 'resigned'}. Orders and extraction terminated; remaining assets persist.` });
   }
@@ -28,7 +29,7 @@ function retire(input: Game, owners: readonly Faction[], reason: 'resigned' | 'i
     game.draw = true;
     game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: 'All intelligences retired. The operation ended in a draw.' });
   }
-  if (game.winner || game.draw) game.scheduled = [];
+  if (game.winner || game.draw) { game.scheduled = []; for (const fleet of game.fleets) delete fleet.pendingCourse; }
   game.events = recentEvents(game.events);
   return game;
 }

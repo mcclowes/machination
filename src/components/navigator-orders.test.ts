@@ -60,6 +60,13 @@ test('navigator orders preserve the route, expose pending timing, and enforce ca
     const { pendingCourse, ...withoutPending } = fleet;
     await render({ fleets: [withoutPending], courseDelay: undefined });
     disabled('Change course on chart', false);
+    const cooling = { ...withoutPending, specialists: [{ id: 'nav', owner: 'you' as const, kind: 'navigator' as const, lastCourseAt: 0 }] };
+    await render({ fleets: [cooling], hour: 8 - 1 / 6 - 1e-9 });
+    disabled('Change course on chart', true);
+    await render({ fleets: [cooling], hour: 8 - 1 / 6 });
+    disabled('Change course on chart', false);
+    await render({ fleets: [cooling], hour: 8 - 1 / 6, courseDelay: false });
+    disabled('Change course on chart', true);
     assert.doesNotMatch(text(renderer.root), /Course changes take effect after ten minutes|Course change requested/);
     assert.equal(button('Cancel course change'), undefined);
     assert.match(text(renderer.root), /Course changes take effect immediately, with an eight-hour cooldown/);

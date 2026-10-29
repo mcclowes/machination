@@ -40,13 +40,13 @@ test('setup starts stationary and keeps drifting bases an explicit choice across
     };
     const stationary = () => {
       const game = setup.createConfiguredGame(selected, 0, 7);
-      assert.equal(game.rules!.mechanicsVersion, 9);
+      assert.equal(game.rules!.mechanicsVersion, 10);
       assert.ok(game.rocks.every(rock => !rock.drift));
       assert.equal(control('Drifting asteroid bases').props.accessibilityState.checked, false);
     };
     const drifting = () => {
       const game = setup.createConfiguredGame(selected, 0, 7);
-      assert.equal(game.rules!.mechanicsVersion, 9);
+      assert.equal(game.rules!.mechanicsVersion, 10);
       assert.equal(game.rocks.filter(rock => rock.drift).length, selected.playerCount * 2);
       assert.ok(game.rocks.filter(rock => rock.owner).every(rock => !rock.drift));
       assert.equal(control('Drifting asteroid bases').props.accessibilityState.checked, true);

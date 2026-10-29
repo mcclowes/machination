@@ -32,7 +32,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   const contacts = game.fleets.filter(f => canObserveHauler(game, faction, f, coverage)).sort((a, b) => a.id - b.id);
   const remoteTypes = game.version !== 2 || unitCount(game, faction, 'intelligence') > 0;
   const visibleIds = new Set(contacts.map(f => f.id));
-  const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; return visible; };
+  const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; if (f.owner !== faction) delete visible.pendingCourse; else if (f.pendingCourse) visible.pendingCourse = { ...f.pendingCourse }; return visible; };
   const units = (asset: { specialists?: Game['rocks'][number]['specialists'] }) => asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u, id: identifyUnit(u.id) })) } : {};
   return {
     ...(game.rules ? { rules: publicRules(game.rules) } : {}),

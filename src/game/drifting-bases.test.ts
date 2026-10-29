@@ -128,8 +128,10 @@ test('launch edits, global speed changes, and navigator redirection preserve mov
   const destination = faster.rocks.find(r => r.drift && r.id !== target.id)!;
   const redirected = changeCourse(faster, sped.id, 'you', destination.id);
   assert.deepEqual(fleetPosition(redirected, redirected.fleets[0]!), before);
-  const fleet = redirected.fleets[0]!;
-  assert.ok(worldDistance(redirected, fleetPosition({ ...redirected, hour: fleet.arrives }, fleet), sitePosition(redirected, destination, fleet.arrives)) < 1e-8);
+  const turned = advance(redirected, redirected.fleets[0]!.pendingCourse!.executeAt, { rivals: false });
+  const fleet = turned.fleets[0]!;
+  assert.equal(fleet.to, destination.id);
+  assert.ok(worldDistance(turned, fleetPosition({ ...turned, hour: fleet.arrives }, fleet), sitePosition(turned, destination, fleet.arrives)) < 1e-8);
 });
 
 test('interceptors launch from the moving preparation position and return to a drifting friendly base', () => {

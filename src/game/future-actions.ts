@@ -45,7 +45,7 @@ export function validateFutureAction(value: unknown): FutureAction {
     if (!shape(value, ['type', 'change']) || !record(c) || !fleet(c.fleet)) throw new Error('Choose a supported future action.');
     const valid = c.action === 'edit-launch' ? shape(c, ['action', 'fleet', 'drones'], ['specialists']) && count(c.drones) && units(c.specialists)
       : c.action === 'course' ? shape(c, ['action', 'fleet', 'to']) && id(c.to)
-      : ['cancel-launch', 'gift', 'cancel-gift'].includes(c.action as string) && shape(c, ['action', 'fleet']);
+      : ['cancel-launch', 'gift', 'cancel-gift', 'cancel-course'].includes(c.action as string) && shape(c, ['action', 'fleet']);
     if (!valid) throw new Error('Choose a supported future action.');
     return { type: 'hauler', change: { ...c, ...(c.specialists ? { specialists: [...c.specialists as string[]] } : {}) } as HaulerChange };
   }
@@ -68,7 +68,7 @@ export function actionLabel(action: FutureAction, rocks: readonly { id: string; 
   switch (action.type) {
     case 'gift': return `Gift from ${name(action.from)} to ${name(action.to)}`;
     case 'intercept': return `Intercept from ${name(action.from)}`;
-    case 'hauler': return ({ 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit launch', course: 'Change course', gift: 'Gift hauler', 'cancel-gift': 'Cancel gift' })[action.change.action];
+    case 'hauler': return ({ 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit launch', course: 'Change course', gift: 'Gift hauler', 'cancel-gift': 'Cancel gift', 'cancel-course': 'Cancel course change' })[action.change.action];
     case 'hire': return `Recruit ${SPECIALISTS[action.kind].name}`;
     case 'promote': return 'Promote specialist';
     case 'release': return 'Release captive';

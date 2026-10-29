@@ -98,7 +98,10 @@ test('Navigator redirection ends the interception return bonus and its persisted
   const rig = targeted.fleets.find(f => f.intercept)!;
   const met = advance(targeted, rig.arrives);
   assert.equal(met.fleets[0]!.interceptionReturn, true);
-  const routed = changeCourse(met, rig.id, 'you', enemy.id);
+  const pending = changeCourse(met, rig.id, 'you', enemy.id);
+  assert.equal(pending.fleets[0]!.interceptionReturn, true);
+  assert.equal(advance(pending, pending.hour + .05).fleets[0]!.speed, 32);
+  const routed = advance(pending, pending.fleets[0]!.pendingCourse!.executeAt);
   assert.equal(routed.fleets[0]!.interceptionReturn, undefined);
   assert.equal(routed.fleets[0]!.returning, undefined);
   assert.equal(routed.fleets[0]!.speed, 8);

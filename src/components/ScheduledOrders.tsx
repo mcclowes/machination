@@ -21,7 +21,7 @@ export function LaunchTiming({ delay, disabled, onChange, future, compact }: Tim
 function queueActionLabel(action: FutureAction, rocks: { id: string; name: string }[], route?: string) {
   if (action.type !== 'hauler') return actionLabel(action, rocks);
   const change = action.change;
-  const labels = { 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit manifest', course: 'Change course', gift: 'Make gift', 'cancel-gift': 'Cancel gift' };
+  const labels = { 'cancel-launch': 'Cancel launch', 'edit-launch': 'Edit manifest', course: 'Change course', gift: 'Make gift', 'cancel-gift': 'Cancel gift', 'cancel-course': 'Cancel course change' };
   const destination = change.action === 'course' ? ` → ${rocks.find(r => r.id === change.to)?.name ?? change.to}` : '';
   return `${labels[change.action]}${route ? ` · ${route}` : ' · hauler unavailable'}${destination}`;
 }

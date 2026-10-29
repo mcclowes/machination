@@ -118,6 +118,12 @@ export function decodeSave(raw: string): Save {
     if (f.returning !== undefined && (f.returning !== true || !f.route || g.version === 1 && f.module !== 'scavenger')) return fail();
     if (f.lastContacts !== undefined && (g.version !== 2 || !Array.isArray(f.lastContacts) || !f.lastContacts.every(c => record(c) && Number.isSafeInteger(c.id) && (c.id as number) > 0 && (c.id as number) < (g.nextId as number) && nonnegative(c.hour) && c.hour <= (g.hour as number)))) return fail();
     if (!(f.speed === undefined || finite(f.speed) && f.speed > 0) || !validUnits(f.specialists)) return fail();
+    if (f.pendingCourse !== undefined) {
+      const pending = f.pendingCourse;
+      if (g.version !== 2 || mechanicsVersion({ rules }) < 10 || !record(pending) || Object.keys(pending).length !== 3 || !Object.keys(pending).every(k => ['owner', 'to', 'executeAt'].includes(k))
+        || pending.owner !== f.owner || !ids.has(pending.to as string) || !finite(pending.executeAt) || pending.executeAt <= g.hour || pending.executeAt > g.hour + 1 / 6 + 1e-9
+        || f.preparing || f.courseLocked || !(f.specialists as Record<string, unknown>[]).some(u => u.kind === 'navigator' && u.owner === f.owner && !u.captive)) return fail();
+    }
     fleetIds.add(f.id as number);
   }
   if (g.specialistVersion === 1) {

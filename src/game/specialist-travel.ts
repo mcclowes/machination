@@ -48,4 +48,5 @@ export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   if (interception && mechanicsVersion(game) >= 3) fleet.interceptionReturn = true; else delete fleet.interceptionReturn;
   if (locked) fleet.courseLocked = true;
   delete fleet.intercept; delete fleet.preparing;
+  delete fleet.pendingCourse;
 }

@@ -9,17 +9,18 @@ import { worldDistance } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
 import { recentEvents } from './events';
 import { observers } from './sensors';
-import { changeCourse } from './specialist-navigation';
+import { cancelCourse, changeCourse } from './specialist-navigation';
 import { manifestUnits } from './specialists';
 import { specialistSpeed, withUnitEffects } from './specialist-effects';
 import { cancelGift, markGift } from './gifts';
 
 export const LAUNCH_PREPARATION = 1 / 6;
-export type HaulerChange = { fleet: number } & ({ action: 'cancel-launch' | 'gift' | 'cancel-gift' } | { action: 'edit-launch'; drones: number; specialists?: string[] } | { action: 'course'; to: string });
+export type HaulerChange = { fleet: number } & ({ action: 'cancel-launch' | 'gift' | 'cancel-gift' | 'cancel-course' } | { action: 'edit-launch'; drones: number; specialists?: string[] } | { action: 'course'; to: string });
 export function commandHauler(game: Game, owner: Faction, command: HaulerChange): Game {
   switch (command.action) {
     case 'cancel-launch': return cancelLaunch(game, command.fleet, owner);
     case 'edit-launch': return editLaunch(game, command.fleet, owner, command.drones, command.specialists);
+    case 'cancel-course': return cancelCourse(game, command.fleet, owner);
     case 'course': return changeCourse(game, command.fleet, owner, command.to);
     case 'gift': return markGift(game, command.fleet, owner);
     case 'cancel-gift': return cancelGift(game, command.fleet, owner);

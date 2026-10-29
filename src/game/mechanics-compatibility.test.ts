@@ -9,7 +9,7 @@ import { generateSharedReplay } from '../replay/generate';
 import { decodeSharedReplay, encodeSharedReplay } from '../replay/codec';
 import { maximumShield } from './economy';
 
-for (const [revision, drift] of [[5, false], [6, true], [7, false], [7, true], [8, false], [8, true], [9, false], [9, true]] as const) {
+for (const [revision, drift] of [[5, false], [6, true], [7, false], [7, true], [8, false], [8, true], [9, false], [9, true], [10, false], [10, true]] as const) {
   test(`revision ${revision} ${drift ? 'drifting' : 'stationary'} games retain rules through saves and both replay formats`, () => {
     const start = createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: drift }, 0, 73);
     start.rules!.mechanicsVersion = revision;

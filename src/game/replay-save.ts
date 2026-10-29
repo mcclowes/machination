@@ -45,7 +45,7 @@ function command(v: unknown): boolean {
       if (!shape(v, [...keys, 'change']) || !record(c) || !count(c.fleet) || c.fleet === 0) return false;
       if (c.action === 'edit-launch') return shape(c, ['action', 'fleet', 'drones'], ['specialists']) && payload({ ...c, from: 'site', to: 'site' });
       if (c.action === 'course') return shape(c, ['action', 'fleet', 'to']) && text(c.to);
-      return ['cancel-launch', 'gift', 'cancel-gift'].includes(c.action as string) && shape(c, ['action', 'fleet']);
+      return ['cancel-launch', 'gift', 'cancel-gift', 'cancel-course'].includes(c.action as string) && shape(c, ['action', 'fleet']);
     }
     case 'schedule-action': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'executeAt', 'action']) && text(v.plan.id) && finite(v.plan.executeAt) && !!validateFutureAction(v.plan.action);
     case 'schedule': return shape(v, [...keys, 'plan']) && record(v.plan) && shape(v.plan, ['id', 'from', 'to', 'drones', 'executeAt'], ['specialists', 'carryModule']) && text(v.plan.id) && finite(v.plan.executeAt) && payload(v.plan);

@@ -33,6 +33,7 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     if (rock.owner && (max !== oldMax || (rock.shieldAt === undefined || !preserveDueClocks && rock.shieldAt <= game.hour) && rock.shield! < max)) rock.shieldAt = afterWork(game, game.hour, max > 0 ? 48 / max : 48);
   }
   for (const fleet of game.fleets) {
+    if (fleet.pendingCourse && (fleet.pendingCourse.owner !== fleet.owner || game.eliminated.includes(fleet.owner) || fleet.courseLocked || !(fleet.specialists ?? []).some(u => u.kind === 'navigator' && u.owner === fleet.owner && !u.captive))) delete fleet.pendingCourse;
     if (fleet.intercept) continue;
     const target = game.rocks.find(r => r.id === fleet.to);
     const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], target?.owner === fleet.owner, fleet.interceptionReturn ? 'interception-return' : fleet.returning ? 'return' : undefined);
