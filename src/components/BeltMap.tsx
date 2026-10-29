@@ -3,6 +3,7 @@
  * purpose: Touch-selectable belt chart with ownership, transfer trajectories, and accessible rock controls.
  * ---
  */
+import { HaulerCombat, type CombatObservation } from './HaulerCombat';
 import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
@@ -38,8 +39,8 @@ function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
   const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
   return baseIcons[kind];
 }
-type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
-export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
+type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; combatObservation?: CombatObservation; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
+export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, combatObservation, timeInspection }: Props<T>) {
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
@@ -240,6 +241,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         <MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} />
       </View>
       {timeInspection && <Text style={styles.contactText}>{arrival === undefined ? 'Arrival is outside the available time range.' : 'Earlier combat and new orders can change this arrival.'}</Text>}
+      {combatObservation && <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />}
       {reference && <CopyObjectReference value={reference} label="Copy hauler reference" />}
     </ScrollView>}
     {drag && <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>Release at {drag.target?.name ?? 'a destination'}</Text></View>}
