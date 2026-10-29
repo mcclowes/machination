@@ -1,51 +1,40 @@
 /**
  * ---
- * purpose: Serialize multiplayer transactions, persist snapshots, authorize seats, and settle server time.
+ * purpose: Authorize multiplayer seats, settle server time, and orchestrate durable game and diplomacy commands.
  * ---
  */
 import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
 import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
 import type { SharedReplay } from '../src/replay/timeline';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { DatabaseStore, type Database, type Room } from './database';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS, driftingBasesEnabled, validateOptions, type GameOptions } from '../src/game/rules';
 import { ALL_PLAYERS, playersIn } from '../src/game/players';
 import { DEFAULT_PORTRAITS } from '../src/game/characters';
-import { advance, createGame, type Faction, type Game } from '../src/game/simulation';
+import { advance, createGame, type Faction } from '../src/game/simulation';
 import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
 import { mapActionFleets, mapActionUnits, plannedFleetIds, plannedUnitIds, validateFutureAction } from '../src/game/future-actions';
 import { isScheduledLaunch, validateLaunchEdit } from '../src/game/orders';
 import { observe } from '../src/game/visibility';
-import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayData } from '../src/game/replay';
+import { applyCommand, createArchive, exportArchive, replayTo, restoreArchive, type GameCommand } from '../src/game/replay';
 import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
-import { decodeReplay, replayFits } from '../src/game/replay-save';
+import { replayFits } from '../src/game/replay-save';
 import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
-import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
-import type { Group, ChannelMessage, CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, Message, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS = ALL_PLAYERS;
-type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 export type AccountCredential = { accountId: string };
 type Credential = string | AccountCredential;
-type Room = {
-  referenceKey?: string;
-  id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { accountId?: string; faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
-  receipts: Record<string, string>; diplomacy?: Diplomacy; replay?: ReplayData;
-};
-type Database = { version: 1; rooms: Room[] };
 export class Failure extends Error {
   constructor(public status: number, public code: string, message: string) { super(message); }
 }
 function requireThat(condition: unknown, status: number, code: string, message: string): asserts condition {
   if (!condition) throw new Failure(status, code, message);
 }
-const isHash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const matchesHash = (expected: string | undefined, actual: string) => expected !== undefined && timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(actual, 'hex'));
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 function canonicalSchedule(input: unknown): ScheduleOrder {
@@ -87,79 +76,12 @@ function canonicalSchedule(input: unknown): ScheduleOrder {
     ...(value.specialists !== undefined ? { specialists: [...value.specialists as string[]] } : {}) };
 }
 export class GameService {
-  private queue: Promise<unknown> = Promise.resolve();
-  private constructor(private file: string, private database: Database, private now: () => number, private initialGame?: typeof createGame) {}
+  private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame) {}
   static async open(file: string, now = Date.now, initialGame?: typeof createGame): Promise<GameService> {
-    let database: Database = { version: 1, rooms: [] };
-    try {
-      database = JSON.parse(await readFile(file, 'utf8'));
-      if (database.version !== 1 || !Array.isArray(database.rooms)) throw new Error('Unsupported server database.');
-      const ids = new Set<string>();
-      for (const r of database.rooms) {
-        r.game = decodeSave(JSON.stringify({ savedAt: 0, game: r.game })).game;
-        if (!/^[a-f0-9]{24}$/.test(r.id) || ids.has(r.id) || !/^[a-f0-9]{24}$/.test(r.invite)
-          || !(r.startedAt === null || Number.isFinite(r.startedAt) && r.startedAt >= 0)
-          || !Number.isSafeInteger(r.revision) || r.revision < 0 || !Array.isArray(r.seats) || r.seats.length < 1 || r.seats.length > playersIn(r.game).length || r.startedAt !== null && r.seats.length !== playersIn(r.game).length
-          || !r.seats.every(s => playersIn(r.game).includes(s.faction) && /^[a-f0-9]{64}$/.test(s.hash))
-          || new Set(r.seats.map(s => s.faction)).size !== r.seats.length || r.seats[0]?.faction !== 'you'
-          || !Array.isArray(r.messages) || !r.receipts || typeof r.receipts !== 'object' || Array.isArray(r.receipts)
-          || !r.messages.every(m => Number.isSafeInteger(m.id) && playersIn(r.game).includes(m.from) && playersIn(r.game).includes(m.to) && typeof m.text === 'string' && Number.isFinite(m.sentAt))) throw new Error('Damaged server database.');
-        if (r.referenceKey !== undefined && !isHash(r.referenceKey)) throw new Error('Damaged object reference key.');
-        for (const seat of r.seats) {
-          if (seat.accountId !== undefined && (typeof seat.accountId !== 'string' || !/^user_[a-zA-Z0-9]+$/.test(seat.accountId))) throw new Error('Damaged account identity.');
-          if (seat.lastActiveHour !== undefined && (r.startedAt === null || r.game.version !== 2 || !Number.isFinite(seat.lastActiveHour) || seat.lastActiveHour < 0 || seat.lastActiveHour > r.game.hour)
-            || seat.identityHash !== undefined && !isHash(seat.identityHash)
-            || seat.recoveryHash !== undefined && !isHash(seat.recoveryHash)
-            || seat.recoveryReceipt !== undefined && (!seat.recoveryReceipt || !isHash(seat.recoveryReceipt.secretHash) || seat.recoveryReceipt.credentialHash !== seat.hash)) throw new Error('Damaged recovery metadata.');
-          seat.revision ??= 0;
-          if (!Number.isSafeInteger(seat.revision) || seat.revision < 0) throw new Error('Damaged seat revision.');
-        }
-        r.diplomacy ??= { groups: [], publicMessages: [] };
-        const d = r.diplomacy;
-        const validMessages = (messages: ChannelMessage[]) => Array.isArray(messages) && messages.length <= DIPLOMACY_LIMITS.messagesPerChannel
-          && messages.every(m => m && typeof m.id === 'string' && /^[a-f0-9]{32}$/.test(m.id) && r.seats.some(s => s.faction === m.from)
-            && typeof m.text === 'string' && m.text.trim().length > 0 && m.text.length <= DIPLOMACY_LIMITS.text && Number.isFinite(m.sentAt))
-          && new Set(messages.map(m => m.id)).size === messages.length;
-        if (!d || !Array.isArray(d.groups) || d.groups.length > FACTIONS.length * DIPLOMACY_LIMITS.groupsPerParticipant
-          || !validMessages(d.publicMessages)
-          || !d.groups.every(g => g && typeof g.id === 'string' && /^[a-f0-9]{32}$/.test(g.id)
-            && typeof g.name === 'string' && g.name.trim().length > 0 && g.name.length <= DIPLOMACY_LIMITS.name
-            && Array.isArray(g.members) && g.members.length >= 2 && g.members.length <= r.seats.length
-            && new Set(g.members).size === g.members.length && g.members.every(f => r.seats.some(s => s.faction === f))
-            && g.members.includes(g.createdBy) && Number.isFinite(g.createdAt) && validMessages(g.messages)
-            && g.messages.every(m => g.members.includes(m.from)))
-          || new Set(d.groups.map(g => g.id)).size !== d.groups.length
-          || r.seats.some(s => d.groups.filter(g => g.members.includes(s.faction)).length > DIPLOMACY_LIMITS.groupsPerParticipant)) throw new Error('Damaged diplomacy metadata.');
-        if (r.replay !== undefined) {
-          if (r.startedAt === null) throw new Error('A lobby cannot contain operation history.');
-          r.replay = exportArchive(decodeReplay(r.replay, r.game, false));
-        }
-        ids.add(r.id);
-      }
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-    const accounts = database.rooms.flatMap(r => r.seats.flatMap(s => s.accountId ? [s.accountId] : []));
-    if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
-    const service = new GameService(file, database, now, initialGame);
-    if (database.rooms.some(r => r.referenceKey === undefined)) {
-      await service.transaction(db => {
-        for (const room of db.rooms) room.referenceKey ??= randomBytes(32).toString('hex');
-      });
-    }
-    return service;
+    return new GameService(await DatabaseStore.open(file), now, initialGame);
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
-    const result = this.queue.then(async () => {
-      const next = structuredClone(this.database);
-      const value = run(next);
-      await mkdir(dirname(this.file), { recursive: true });
-      const temporary = `${this.file}.tmp`;
-      await writeFile(temporary, JSON.stringify(next), { mode: 0o600, flush: true });
-      await rename(temporary, this.file);
-      this.database = next;
-      return structuredClone(value);
-    });
-    this.queue = result.catch(() => undefined);
-    return result;
+    return this.store.transaction(run);
   }
   private credential(token: Credential): string {
     if (typeof token !== 'string') {
