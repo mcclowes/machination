@@ -10,7 +10,7 @@ import { nearestImage, worldDistance, wrappedBounds, wrapPoint } from './geometr
 import type { Faction, Fleet, Game } from './simulation';
 import { fleetPosition, type Point } from './flight';
 import type { Specialist } from './specialists';
-import { specialistSpeed, withUnitEffects } from './specialist-effects';
+import { refreshUnitEffects, specialistSpeed, withUnitEffects } from './specialist-effects';
 
 export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: Specialist[], mission?: 'interception'): Fleet | undefined {
   if (!units.length) return;
@@ -33,6 +33,7 @@ export function releaseSpecialist(input: Game, owner: Faction, id: string): Game
   delete unit.captive;
   sendUnitsHome(game, site, unit.owner, [unit]);
   game.events.unshift({ hour: game.hour, audience: [...new Set([owner, unit.owner])], message: `${site.name}: captive module released and returning home.` });
+  if (mechanicsVersion(game) >= 11) refreshUnitEffects(game);
   return game;
 }
 export function returnHauler(game: Game, fleet: Fleet, locked = false): void {

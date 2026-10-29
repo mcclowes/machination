@@ -152,7 +152,7 @@ test('a Tycoon preserves remaining factory work when its faster cycle crosses no
 
 test('fresh configured games initialize accelerated factory and shield deadlines', () => {
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 73);
-  assert.equal(game.rules!.mechanicsVersion, 10);
+  assert.equal(game.rules!.mechanicsVersion, 11);
   for (const rock of game.rocks) {
     assert.equal(rock.productionAt, 16 / 3);
     assert.equal(rock.shieldAt, (48 / maximumShield(rock)) / 1.5);
