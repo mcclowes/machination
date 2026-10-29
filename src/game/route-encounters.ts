@@ -4,7 +4,7 @@
  * ---
  */
 import { afterWork, workBetween } from './opening-clock';
-import { mechanicsVersion } from './rules';
+import { driftingBasesEnabled, mechanicsVersion } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
@@ -12,8 +12,12 @@ import { flightEndpoints, fleetPosition } from './flight';
 import type { Fleet, Game } from './simulation';
 
 const CONTACT_TOLERANCE = 1e-9;
+function ordinaryPair(a: Fleet, b: Fleet): boolean {
+  return a.from === b.from && a.to === b.to || a.from === b.to && a.to === b.from;
+}
 function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   if (a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
+  if (mechanicsVersion(game) >= 12 && !driftingBasesEnabled(game) && !a.returning && !b.returning && !a.courseChanged && !b.courseChanged && !ordinaryPair(a, b)) return Infinity;
   const aa = flightEndpoints(game, a); const bb = flightEndpoints(game, b);
   const ta = workBetween(game, a.departed, a.arrives); const tb = workBetween(game, b.departed, b.arrives);
   const va = { x: (aa.to.x - aa.from.x) / ta, y: (aa.to.y - aa.from.y) / ta };
@@ -35,10 +39,10 @@ function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   return earliest;
 }
 type RouteCandidate = { hour: number; a: Fleet; b: Fleet; aLeg: Leg; bLeg: Leg };
-type Leg = Pick<Fleet, 'departed' | 'arrives' | 'route' | 'from' | 'to' | 'owner' | 'preparing' | 'intercept'>;
+type Leg = Pick<Fleet, 'departed' | 'arrives' | 'route' | 'from' | 'to' | 'owner' | 'preparing' | 'intercept' | 'returning' | 'courseChanged'>;
 function leg(fleet: Fleet): Leg {
-  const { departed, arrives, route, from, to, owner, preparing, intercept } = fleet;
-  return { departed, arrives, route, from, to, owner, preparing, intercept };
+  const { departed, arrives, route, from, to, owner, preparing, intercept, returning, courseChanged } = fleet;
+  return { departed, arrives, route, from, to, owner, preparing, intercept, returning, courseChanged };
 }
 function sameLeg(fleet: Fleet, saved: Leg): boolean {
   return (Object.keys(saved) as (keyof Leg)[]).every(key => fleet[key] === saved[key]);

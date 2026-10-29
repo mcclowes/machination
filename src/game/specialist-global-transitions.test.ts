@@ -16,7 +16,7 @@ import type { SpecialistKind } from './specialist-catalog';
 const kinds = ['admiral', 'tycoon', 'security', 'energy', 'intelligence', 'general', 'king', 'engineer'] as const;
 type GlobalKind = typeof kinds[number];
 
-function fixture(kind: GlobalKind, revision: 10 | 11 = 11) {
+function fixture(kind: GlobalKind, revision: 10 | 11 | 12 = 12) {
   let baseline = createConfiguredGame({ playerCount: 3, mode: 'mining', driftingBases: false }, 0, 2026);
   baseline.rules!.mechanicsVersion = revision;
   baseline.hour = 24;

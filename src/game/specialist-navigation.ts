@@ -36,6 +36,7 @@ function redirectCourse(game: Game, fleetId: number, owner: Faction, destination
   const specialists = fleet.specialists!.map(u => navigators.includes(u) ? { ...u, lastCourseAt: game.hour } : { ...u });
   const speed = specialistSpeed(game, owner, specialists, destination.owner === owner);
   const changed = { ...fleet, specialists, to: destinationId, speed,
+    ...(mechanicsVersion(game) >= 12 ? { courseChanged: true as const } : {}),
     route: { from: point, to: nearestImage(game, point, destination) },
     departed: game.hour, arrives: afterWork(game, game.hour, Math.max(1e-6, worldDistance(game, point, destination) / speed)) };
   if (destination.drift) Object.assign(changed, stationCourse(game, point, destination, speed, game.hour));

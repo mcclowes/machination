@@ -96,6 +96,7 @@ export function decodeSave(raw: string): Save {
       || !Number.isInteger(f.drones) || (f.drones as number) < (g.version === 2 && Array.isArray(f.specialists) && f.specialists.length ? 0 : 1) || !nonnegative(f.departed) || (f.departed > g.hour && !(g.version === 2 && f.preparing === true && f.departed <= (g.hour as number) + 1 / 6 + 1e-9))
       || !(f.interceptionReturn === undefined || g.version === 2 && mechanicsVersion({ rules }) >= 3 && f.interceptionReturn === true && f.returning === true && f.intercept === undefined)
       || !(f.courseLocked === undefined || g.version === 2 && f.courseLocked === true)
+      || !(f.courseChanged === undefined || g.version === 2 && mechanicsVersion({ rules }) >= 12 && f.courseChanged === true && record(f.route) && !f.returning && !f.intercept && !f.preparing)
       || !(f.giftAt === undefined || g.version === 2 && nonnegative(f.giftAt) && f.giftAt <= (g.hour as number) + 1 / 6 + 1e-9)
       || !(f.preparing === undefined || g.version === 2 && f.preparing === true && (f.departed as number) > (g.hour as number))
       || !(f.module === undefined || isModule(f.module))

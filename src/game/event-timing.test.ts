@@ -116,7 +116,7 @@ test('configured worlds preserve complete states through arbitrary cuts, trace, 
   const { decodeReplay } = await import('./replay-save');
   for (const seed of [12345, 83, 987654]) {
     const game = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, seed);
-    assert.equal(game.rules!.mechanicsVersion, 11);
+    assert.equal(game.rules!.mechanicsVersion, 12);
     const home = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
     const target = game.rocks.find(r => r.owner === null)!;
     const { archive } = applyCommand(createArchive(game, { rivals: true }),
