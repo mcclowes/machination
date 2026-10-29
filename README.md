@@ -17,6 +17,8 @@ Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emul
 
 ## Play
 
+See the [specialists cheatsheet](docs/specialists-cheatsheet.md) for module effects, promotions, recruitment, and combat order.
+
 Select a controlled rock, choose **Plan transfer**, tap a destination, and launch drones. Factories produce six drones every eight hours; generators raise the fleet-wide drone capacity. Drill mines on controlled sites to produce cargo based on territory size. Shields recharge and absorb attacks before drones. Reach 200 cargo or eliminate both rival cores. Existing version-one saves retain their original economy and 300-cargo target. Losing your core ends your operation.
 
 Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs intercept moving haulers and recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
