@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { afterWork } from './opening-clock';
 import { positionSites, stationCourse, type Drift } from './drift';
 import { mechanicsVersion } from './rules';
 import { tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
@@ -96,7 +97,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
       if (carryModule) delete departure.module;
       return departure;
     }),
-    fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: course?.arrives ?? departed + duration, ...(course ? { route: course.route } : {}), ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
+    fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: course?.arrives ?? afterWork(game, departed, duration), ...(course ? { route: course.route } : {}), ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed } : {}) }],
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }

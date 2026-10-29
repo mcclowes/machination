@@ -7,11 +7,13 @@ import { createArchive, replayTo } from './replay';
 import { driftingBasesEnabled } from './rules';
 import { generateSharedReplay } from '../replay/generate';
 import { decodeSharedReplay, encodeSharedReplay } from '../replay/codec';
+import { maximumShield } from './economy';
 
-for (const [revision, drift] of [[5, false], [6, true], [7, false], [7, true], [8, false], [8, true]] as const) {
+for (const [revision, drift] of [[5, false], [6, true], [7, false], [7, true], [8, false], [8, true], [9, false], [9, true]] as const) {
   test(`revision ${revision} ${drift ? 'drifting' : 'stationary'} games retain rules through saves and both replay formats`, () => {
     const start = createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: drift }, 0, 73);
     start.rules!.mechanicsVersion = revision;
+    if (revision < 9) for (const rock of start.rocks) { rock.productionAt = 8; rock.shieldAt = 48 / maximumShield(rock); }
     if (revision < 7) delete start.rules!.driftingBases;
     assert.equal(driftingBasesEnabled(start), drift);
     const archive = createArchive(start);

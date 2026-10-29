@@ -118,7 +118,7 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
     };
     let game = baseline;
     inspect(game);
-    for (let round = 0; round < 180 && !game.winner && !game.draw; round++) {
+    for (let round = 0; round < 270 && !game.winner && !game.draw; round++) {
       for (const owner of players) {
         const memory = memories.get(owner)!;
         const view = structuredClone(observe(game, owner));
@@ -131,7 +131,7 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
       }
       previous = game;
       const hour = game.hour;
-      game = advance(game, hour + 12, trace);
+      game = advance(game, hour + 8, trace);
       assert.ok(game.hour > hour, 'round must advance');
       inspect(game);
     }

@@ -37,10 +37,11 @@ test('authoritative edge travel, sonar, forecast, and historical reconstruction 
   const request = { requestId: randomUUID(), revision: started.revision, from: source.id, to: target.id, drones: 10, carryModule: false };
   const launched = await service.order(created.id, tokens[0]!, request);
   const fleet = launched.game.fleets[0]!;
-  assert.ok(Math.abs(fleet.arrives - fleet.departed - 0.5) < 1e-9);
+  assert.ok(Math.abs(fleet.arrives - fleet.departed - 1 / 3) < 1e-9);
   assert.deepEqual((await service.order(created.id, tokens[0]!, request)).game, launched.game);
-  const forecast = forecastObservation(launched.game, 'you', 0.5);
-  now += 0.5 * 3_600_000;
+  const inspectedHour = (fleet.departed + fleet.arrives) / 2;
+  const forecast = forecastObservation(launched.game, 'you', inspectedHour);
+  now += inspectedHour * 3_600_000;
   const live = await service.snapshot(created.id, tokens[0]!);
   const point = fleetPosition(live.game, live.game.fleets[0]!);
   assert.ok(point.x > live.game.rules!.map.width - 2);
@@ -50,6 +51,6 @@ test('authoritative edge travel, sonar, forecast, and historical reconstruction 
   now += 0.5 * 3_600_000;
   const arrived = await service.snapshot(created.id, tokens[0]!);
   assert.equal(arrived.game.rocks.find(r => r.id === target.id)!.owner, 'you');
-  const past = await service.history(created.id, tokens[0]!, 0.5);
+  const past = await service.history(created.id, tokens[0]!, inspectedHour);
   assert.deepEqual(past.game, live.game);
 });

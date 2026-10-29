@@ -44,7 +44,7 @@ test('practice stops at the first assessed outcome even when a large step crosse
   operation = policy.submit(operation, { type: 'dispatch', owner: 'you', from: 'home', to: 'rival-home', drones: 0, specialists: ['core-you'] });
   const single = policy.advance(operation, 6, 'manual');
   assert.equal(policy.assess(single)?.status, 'passed');
-  assert.equal(single.game.hour, 7 / 6);
+  assert.equal(single.game.hour, operation.game.fleets.find(f => f.to === 'relay')!.arrives);
   let split = operation;
   for (let hour = 0.25; hour <= 6; hour += 0.25) split = policy.advance(split, hour, 'manual');
   assert.deepEqual(split.game, single.game);

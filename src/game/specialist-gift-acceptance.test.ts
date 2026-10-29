@@ -8,6 +8,7 @@ import { nextRouteEncounter } from './route-encounters';
 import { createArchive, executeCommand, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayEntry } from './replay';
 import { decodeSave } from './save-format';
 import type { SpecialistKind } from './specialist-catalog';
+import { workBetween } from './opening-clock';
 
 // Authority: official Subs/Combat rules and Queen, Princess, and Admiral entries.
 // https://subterfuge-game.com/rulebook/ and https://subterfuge-game.com/rulebook/Specialists.html
@@ -121,7 +122,7 @@ for (const contact of ['outpost', 'sub'] as const) {
     for (const [id, speed] of [[donorFleet.id, 8], [recipientFleet.id, 12]] as const) {
       const a = fleetPosition(atContact, atContact.fleets.find(v => v.id === id)!);
       const b = fleetPosition(f.game, f.game.fleets.find(v => v.id === id)!);
-      assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - speed * 0.1) < 1e-7);
+      assert.ok(Math.abs(Math.hypot(b.x - a.x, b.y - a.y) - speed * workBetween(atContact, hour, hour + .1)) < 1e-7);
     }
     f.check();
   });

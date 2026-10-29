@@ -3,6 +3,7 @@
  * purpose: Reconcile movable leadership and local/global shield effects after specialist changes.
  * ---
  */
+import { afterWork, workBetween } from './opening-clock';
 import { stationCourse } from './drift';
 import { mechanicsVersion, type GameRules } from './rules';
 import { nearestImage, wrappedBounds } from './geometry';
@@ -18,7 +19,7 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
   for (const rock of game.rocks) {
     if (rock.owner && rock.kind === 'factory') {
       const interval = 8 / (1 + 0.5 * unitCount(game, rock.owner, 'tycoon'));
-      if (interval !== (rock.productionInterval ?? 8)) rock.productionAt = game.hour + Math.max(0, (rock.productionAt! - game.hour) / (rock.productionInterval ?? 8)) * interval;
+      if (interval !== (rock.productionInterval ?? 8)) rock.productionAt = afterWork(game, game.hour, Math.max(0, workBetween(game, game.hour, rock.productionAt!) / (rock.productionInterval ?? 8)) * interval);
       rock.productionInterval = interval;
     }
     for (const unit of unitsAtRock(game, rock.id)) if ((unit.kind === 'sentry' || unit.kind === 'tinkerer') && (unit.nextActionAt === undefined || !preserveDueClocks && unit.nextActionAt <= game.hour)) unit.nextActionAt = game.hour + (unit.kind === 'sentry' ? 2 : 1 / 3);
@@ -29,7 +30,7 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     rock.shieldBonus = rock.owner ? 10 * unitCount(game, rock.owner, 'security') + 10 * units.filter(u => u.owner === rock.owner && u.kind === 'security').length - 20 * unitCount(game, rock.owner, 'king') : 0;
     const max = maximumShield(rock);
     rock.shield = Math.min(rock.shield ?? 0, max);
-    if (rock.owner && (max !== oldMax || (rock.shieldAt === undefined || !preserveDueClocks && rock.shieldAt <= game.hour) && rock.shield! < max)) rock.shieldAt = max > 0 ? game.hour + 48 / max : game.hour + 48;
+    if (rock.owner && (max !== oldMax || (rock.shieldAt === undefined || !preserveDueClocks && rock.shieldAt <= game.hour) && rock.shield! < max)) rock.shieldAt = afterWork(game, game.hour, max > 0 ? 48 / max : 48);
   }
   for (const fleet of game.fleets) {
     if (fleet.intercept) continue;
@@ -39,7 +40,7 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     const point = fleet.preparing ? flightEndpoints(game, fleet).from : fleetPosition(game, fleet);
     const endpoint = wrappedBounds(game) ? nearestImage(game, point, flightEndpoints(game, fleet).to) : flightEndpoints(game, fleet).to;
     if (!fleet.preparing) { fleet.route = { from: point, to: { ...endpoint } }; fleet.departed = game.hour; }
-    fleet.arrives = fleet.departed + Math.max(1e-6, Math.hypot(endpoint.x - point.x, endpoint.y - point.y) / speed);
+    fleet.arrives = afterWork(game, fleet.departed, Math.max(1e-6, Math.hypot(endpoint.x - point.x, endpoint.y - point.y) / speed));
     if (target?.drift || fleet.preparing && game.rocks.find(r => r.id === fleet.from)?.drift) {
       const source = fleet.preparing ? game.rocks.find(r => r.id === fleet.from)! : point;
       Object.assign(fleet, stationCourse(game, source, target!, speed, fleet.departed));

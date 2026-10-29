@@ -10,9 +10,10 @@ import type { ScheduledOrder } from '../game/orders';
 import type { Fleet } from '../game/simulation';
 import { MAX_PLAN_DELAY } from '../game/orders';
 import { gameClock, inspectionMode, timelineHour } from '../game/time-machine';
+import { OPENING_HOURS } from '../game/opening-clock';
 
-type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean };
-export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain }: Props) {
+type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean; opening?: boolean };
+export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain, opening }: Props) {
   const [expanded, setExpanded] = useState(false);
   const mode = inspectionMode(hour, inspectedHour);
   const offset = (inspectedHour ?? hour) - hour;
@@ -35,7 +36,7 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
     onPanResponderGrant: event => { origin.current = event.nativeEvent.locationX; scrub(origin.current); },
     onPanResponderMove: (_event, gesture) => scrub(origin.current + gesture.dx),
   })).current;
-  const markers = [...new Set(events.filter(t => t >= start && t <= hour + MAX_PLAN_DELAY))].sort((a, b) => a - b);
+  const markers = [...new Set([...events, ...(opening ? [OPENING_HOURS] : [])].filter(t => t >= start && t <= hour + MAX_PLAN_DELAY))].sort((a, b) => a - b);
   const next = markers.find(t => t > (inspectedHour ?? hour) + 1 / 3600);
   const previous = [...markers].reverse().find(t => t < (inspectedHour ?? hour) - 1 / 3600);
   const eventLabel = (at: number | undefined, fallback: string) => {
@@ -50,6 +51,7 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   return <View style={[s.panel, compact && { paddingHorizontal: 12, paddingVertical: 0, gap: 0, borderWidth: 0 }]}>
     <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => onChange(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={() => setExpanded(!expanded)} /></> : <Text style={s.title}>Time Machine</Text>}</View>
     {mode === 'future' && forecastUncertain && <Text style={s.detail}>Some site details are unknown. Economy, routes, and outcomes may change.</Text>}
+    {opening && (inspectedHour ?? hour) < OPENING_HOURS && (!compact || expanded) && <Text style={s.detail}>Opening 1.5× until {gameClock(OPENING_HOURS)}: haulers, recruitment, factories, and shield recharge.</Text>}
     {(!compact || expanded) && <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Operation timeline" accessibilityValue={{ min: Math.round(minimum * 60), max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${Math.abs(offset).toFixed(2)} hours ${offset < 0 ? 'ago' : 'ahead'}` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}>
       <View style={s.rail}><View style={[s.fill, { width: `${position(inspectedHour ?? hour)}%` }]} />{markers.map(t => <View key={t} style={[s.tick, { left: `${position(t)}%` }]} />)}<View style={[s.tick, { left: `${position(hour)}%`, backgroundColor: '#e5eadc', height: 18, top: -7 }]} /><View style={[s.thumb, { left: `${position(inspectedHour ?? hour)}%` }]} /></View>
     </View>}

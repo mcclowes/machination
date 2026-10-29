@@ -33,7 +33,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
   return <View style={s.bay}>
     {mode !== 'cargo' && <><ArtworkImage id="ritual-tech-clash" /><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
     <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
-    <Text style={s.detail}>Next recruitment: hour {status.nextAt}. Hiring and promotion cost 1 credit.</Text>
+    <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring and promotion cost 1 credit.</Text>
     <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
     {'recruitmentUncertain' in game && !!game.recruitmentUncertain && <Text style={s.detail}>A planned hire or promotion consumes the known recruitment offer. Subsequent offers are unknown; return to live time after execution to see new choices.</Text>}
     {status.offers.map(kind => {

@@ -3,6 +3,7 @@
  * purpose: Industry cycles, power capacity, mining construction, and shield recharge for version-two operations.
  * ---
  */
+import { afterWork } from './opening-clock';
 import { isDue } from './event-timing';
 import { worldDistance } from './geometry';
 import type { Faction, Game, Rock } from './simulation';
@@ -53,7 +54,7 @@ export function absorbShields(game: Game, rock: Rock, attackers: number): number
   if (rock.shieldsDisabled || !rock.owner) return attackers;
   const absorbed = Math.min(rock.shield ?? 0, attackers);
   const max = maximumShield(rock);
-  if (absorbed && rock.shield! >= max) rock.shieldAt = game.hour + SHIELD_RECHARGE / max;
+  if (absorbed && rock.shield! >= max) rock.shieldAt = afterWork(game, game.hour, SHIELD_RECHARGE / max);
   rock.shield = (rock.shield ?? 0) - absorbed;
   return attackers - absorbed;
 }
@@ -71,14 +72,14 @@ export function settleEconomy(game: Game): void {
     const max = maximumShield(rock);
     if ((rock.shield ?? 0) < max && isDue(game, rock.shieldAt!)) {
       rock.shield = (rock.shield ?? 0) + 1;
-      rock.shieldAt = game.hour + SHIELD_RECHARGE / max;
+      rock.shieldAt = afterWork(game, game.hour, SHIELD_RECHARGE / max);
     }
     if (rock.kind === 'factory' && isDue(game, rock.productionAt!)) {
       const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
       const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
       const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
       rock.drones += Math.max(0, Math.min(output, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
-      rock.productionAt = game.hour + (rock.productionInterval ?? FACTORY_CYCLE);
+      rock.productionAt = afterWork(game, game.hour, rock.productionInterval ?? FACTORY_CYCLE);
     }
   }
 }

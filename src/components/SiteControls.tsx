@@ -8,11 +8,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { maximumShield } from '../game/economy';
 import { gameClock } from '../game/time-machine';
 import type { Rock } from '../game/simulation';
+import { openingRate, type OpeningWorld } from '../game/opening-clock';
 import { ArtworkImage } from './Artwork';
 
-export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf' | 'destroyed' | 'drift'>): string {
+export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf' | 'destroyed' | 'drift'>, world?: OpeningWorld & { hour: number }): string {
   if (rock.destroyed) return 'Destroyed site';
-  const type = { core: 'Core · +4 drones / h', reactor: 'Reactor · +4 drones / h', mine: 'Extraction site', factory: 'Factory · 6 drones / 8h', generator: 'Generator · +50 power capacity' }[rock.kind];
+  const type = { core: 'Core · +4 drones / h', reactor: 'Reactor · +4 drones / h', mine: 'Extraction site', factory: world && openingRate(world, world.hour) > 1 ? 'Factory · base 6 drones / 5h 20m' : 'Factory · 6 drones / 8h', generator: 'Generator · +50 power capacity' }[rock.kind];
   return `${rock.drift ? 'Drifting asteroid base · ' : ''}${type}${rock.coreOf && rock.kind !== 'core' ? ' · intelligence core' : ''}`;
 }
 export function SiteControls({ rock, cost, enabled, minesAllowed = true, scheduledAt, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; minesAllowed?: boolean; scheduledAt?: number; onMine: () => void; onShields: () => void }) {

@@ -3,8 +3,9 @@
  * purpose: Deterministic asteroid motion and rendezvous courses shared by simulation, forecasts, and charts.
  * ---
  */
-import { mapOffsets, wrapPoint, worldDistance, type GeometryWorld, type Point } from './geometry';
+import { mapOffsets, nearestImage, wrapPoint, worldDistance, type GeometryWorld, type Point } from './geometry';
 import type { Rock } from './simulation';
+import { afterWork, openingEnabled, openingRate, OPENING_HOURS, workBetween } from './opening-clock';
 
 export type Drift = { origin: Point; velocity: Point };
 export type MovingPoint = Point & { drift?: Drift };
@@ -47,6 +48,7 @@ export function seedDriftingBases(rocks: Rock[], world: GeometryWorld): void {
 
 /** Earliest reachable image of the destination, including motion during launch preparation. */
 export function stationCourse(world: GeometryWorld, source: MovingPoint, target: MovingPoint, speed: number, departed: number): { arrives: number; route: { from: Point; to: Point } } {
+  if (openingEnabled(world)) return openingStationCourse(world, source, target, speed, departed);
   const from = sitePosition(world, source, departed);
   const to = sitePosition(world, target, departed);
   const velocity = target.drift?.velocity ?? { x: 0, y: 0 };
@@ -57,6 +59,35 @@ export function stationCourse(world: GeometryWorld, source: MovingPoint, target:
     const b = 2 * (dx * velocity.x + dy * velocity.y), c = dx ** 2 + dy ** 2;
     const duration = c === 0 ? 1e-6 : 2 * c / (Math.sqrt(b * b - 4 * a * c) - b);
     if (duration >= 0 && duration < best) {
+      best = Math.max(1e-6, duration);
+      endpoint = { x: to.x + offset.x + velocity.x * best, y: to.y + offset.y + velocity.y * best };
+    }
+  }
+  if (!Number.isFinite(best)) throw new Error('This destination cannot be reached at the selected speed.');
+  return { arrives: departed + best, route: { from, to: endpoint } };
+}
+
+function openingStationCourse(world: GeometryWorld, source: MovingPoint, target: MovingPoint, speed: number, departed: number): { arrives: number; route: { from: Point; to: Point } } {
+  const from = sitePosition(world, source, departed), to = sitePosition(world, target, departed);
+  if (!target.drift) return { arrives: afterWork(world, departed, Math.max(1e-6, worldDistance(world, from, to) / speed)), route: { from, to: nearestImage(world, from, to) } };
+  const velocity = target.drift?.velocity ?? { x: 0, y: 0 };
+  const boundary = Math.max(0, OPENING_HOURS - departed);
+  const segments = boundary ? [{ from: 0, through: boundary }, { from: boundary, through: Infinity }] : [{ from: 0, through: Infinity }];
+  let best = Infinity, endpoint = to;
+  for (const offset of mapOffsets(world)) for (const segment of segments) {
+    const dx = to.x + offset.x + velocity.x * segment.from - from.x;
+    const dy = to.y + offset.y + velocity.y * segment.from - from.y;
+    const budget = speed * workBetween(world, departed, departed + segment.from);
+    const rate = speed * openingRate(world, departed + segment.from);
+    const a = velocity.x ** 2 + velocity.y ** 2 - rate ** 2;
+    const b = 2 * (dx * velocity.x + dy * velocity.y - budget * rate), c = dx ** 2 + dy ** 2 - budget ** 2;
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) continue;
+    const q = -.5 * (b + (b < 0 ? -1 : 1) * Math.sqrt(discriminant));
+    const roots = c === 0 ? [0] : a === 0 ? [-c / b] : [q / a, q ? c / q : Infinity];
+    for (const root of roots) {
+      const duration = segment.from + root;
+      if (root < 0 || duration > segment.through || !Number.isFinite(duration) || duration >= best) continue;
       best = Math.max(1e-6, duration);
       endpoint = { x: to.x + offset.x + velocity.x * best, y: to.y + offset.y + velocity.y * best };
     }

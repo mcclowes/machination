@@ -3,6 +3,7 @@
  * purpose: Ten-minute launch preparation, manifest editing, cancellation, and public departure telemetry.
  * ---
  */
+import { afterWork } from './opening-clock';
 import { stationCourse } from './drift';
 import { worldDistance } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
@@ -51,7 +52,7 @@ export function editLaunch(game: Game, id: number, owner: Faction, drones: numbe
   const target = game.rocks.find(r => r.id === fleet.to)!;
   const speed = specialistSpeed(game, owner, units, target.owner === owner, fleet.intercept ? 'intercept' : undefined);
   const course = !fleet.intercept && (rock.drift || target.drift) ? stationCourse(game, rock, target, speed, fleet.departed) : undefined;
-  const changed = { ...fleet, drones, specialists: units, speed, ...(course ? course : {}), ...(fleet.intercept ? {} : { arrives: course?.arrives ?? fleet.departed + Math.max(1e-6, worldDistance(game, rock, target) / speed) }) };
+  const changed = { ...fleet, drones, specialists: units, speed, ...(course ? course : {}), ...(fleet.intercept ? {} : { arrives: course?.arrives ?? afterWork(game, fleet.departed, Math.max(1e-6, worldDistance(game, rock, target) / speed)) }) };
   return withUnitEffects({ ...game, fleets: game.fleets.map(f => f.id === id ? changed : f), rocks: game.rocks.map(r => r.id === rock.id ? { ...r, drones: r.drones + fleet.drones - drones, specialists: available.specialists.filter(u => !selected.has(u.id)) } : r) });
 }
 export function completePreparations(game: Game): void {

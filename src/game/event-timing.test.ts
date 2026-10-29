@@ -81,7 +81,7 @@ test('entry refresh preserves equal-hour shield and timed ability work', () => {
   const result = advance(game, .01, options).rocks.find(r => r.id === rock.id)!;
   assert.equal(result.shield, 3); // Recharge precedes drain at the same hour.
   assert.equal(result.specialists!.find(u => u.id === 'drain')!.nextActionAt, 1 / 3);
-  assert.equal(result.shieldAt, 48 / maximumShield(rock));
+  assert.equal(result.shieldAt, 48 / maximumShield(rock) / 1.5);
 });
 test('revisions 1–4 retain early production and shifted cadence', () => {
   for (const revision of [undefined, 2, 3, 4] as const) {
@@ -116,7 +116,7 @@ test('configured worlds preserve complete states through arbitrary cuts, trace, 
   const { decodeReplay } = await import('./replay-save');
   for (const seed of [12345, 83, 987654]) {
     const game = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, seed);
-    assert.equal(game.rules!.mechanicsVersion, 8);
+    assert.equal(game.rules!.mechanicsVersion, 9);
     const home = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
     const target = game.rocks.find(r => r.owner === null)!;
     const { archive } = applyCommand(createArchive(game, { rivals: true }),
@@ -139,7 +139,7 @@ test('configured worlds preserve complete states through arbitrary cuts, trace, 
   }
 });
 
-test('v5 preparation still completes exactly, with unchanged stopWhen behavior', async () => {
+test('current preparation still completes exactly, with unchanged stopWhen behavior', async () => {
   const { dispatch } = await import('./simulation');
   const game = base();
   const source = game.rocks.find(r => r.owner === 'you')!;
@@ -173,7 +173,7 @@ test('computed noninteger route contacts retain provenance and equal-hour id ord
   assert.equal(result.fleets[0]!.drones, 20);
   assert.deepEqual(partitioned(game, due + .01, [due - epsilon, due, due + epsilon]), result);
 });
-test('v5 gifts and pending identities survive save and replay without changing their preparation window', async () => {
+test('current gifts and pending identities survive save and replay without changing their preparation window', async () => {
   const { applyCommand, createArchive, exportArchive, replayTo } = await import('./replay');
   const { decodeReplay } = await import('./replay-save');
   const { decodeSave } = await import('./save-format');

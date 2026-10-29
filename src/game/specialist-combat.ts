@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { afterWork } from './opening-clock';
 import { mechanicsVersion } from './rules';
 import { worldDistance } from './geometry';
 import { playersIn } from './players';
@@ -86,8 +87,8 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock): voi
     rock.drones = remaining + repairLosses(game, fleet, Math.max(0, originalAttacking - remaining), phase.suppressed);
     rock.specialists = [...capture(rock.specialists ?? [], fleet.owner), ...(fleet.specialists ?? [])];
     if (rock.kind === 'mine') { if (rock.owner) loseMine(game, rock.owner); rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
-    if (!rock.owner && rock.kind === 'factory') rock.productionAt = game.hour + 8;
-    rock.owner = fleet.owner; rock.shieldAt = game.hour + 48 / (rock.shieldMax ?? 10);
+    if (!rock.owner && rock.kind === 'factory') rock.productionAt = afterWork(game, game.hour, 8);
+    rock.owner = fleet.owner; rock.shieldAt = afterWork(game, game.hour, 48 / (rock.shieldMax ?? 10));
     log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`);
   } else {
     const remaining = rock.drones - fleet.drones;

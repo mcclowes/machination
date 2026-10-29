@@ -3,6 +3,7 @@
  * purpose: Exact encounters between opposing ordinary haulers traveling the same outpost route.
  * ---
  */
+import { afterWork, workBetween } from './opening-clock';
 import { mechanicsVersion } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { mapOffsets } from './geometry';
@@ -14,7 +15,7 @@ const CONTACT_TOLERANCE = 1e-9;
 function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   if (a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
   const aa = flightEndpoints(game, a); const bb = flightEndpoints(game, b);
-  const ta = a.arrives - a.departed; const tb = b.arrives - b.departed;
+  const ta = workBetween(game, a.departed, a.arrives); const tb = workBetween(game, b.departed, b.arrives);
   const va = { x: (aa.to.x - aa.from.x) / ta, y: (aa.to.y - aa.from.y) / ta };
   const vb = { x: (bb.to.x - bb.from.x) / tb, y: (bb.to.y - bb.from.y) / tb };
   if (Math.abs(va.x * vb.y - va.y * vb.x) > 1e-6) return Infinity;
@@ -27,7 +28,7 @@ function encounterHour(game: Game, a: Fleet, b: Fleet): number {
   for (const offset of mapOffsets(game)) {
     const dx = pa.x - pb.x - offset.x, dy = pa.y - pb.y - offset.y;
     const elapsed = -(dx * vx + dy * vy) / speed2;
-    const hour = start + elapsed;
+    const hour = afterWork(game, start, elapsed);
     if (a.lastContacts?.some(c => c.id === b.id && Math.abs(c.hour - hour) < 1e-9)) continue;
     if (elapsed >= -CONTACT_TOLERANCE && Math.hypot(dx + vx * elapsed, dy + vy * elapsed) < 1e-6 && hour < Math.min(a.arrives, b.arrives) - CONTACT_TOLERANCE) earliest = Math.min(earliest, hour);
   }

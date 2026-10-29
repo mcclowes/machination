@@ -3,6 +3,7 @@
  * purpose: Local operation screen, transfer planning, forecast controls, and save lifecycle.
  * ---
  */
+import { openingEnabled } from './src/game/opening-clock';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View, Modal, TextInput } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -202,12 +203,12 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
 {!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</> : null}
       chart={<BeltMap fill inspecting={section === 'asset'} transferRoute={transfer?.route} timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} onTransfer={operational && !shown.winner && !shown.draw && navigating === undefined ? prepareTransfer : undefined} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning && !destination || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
-      timeline={<TimeMachine forecastUncertain={shown.forecastUncertain} fleets={orders.fleets} plans={orders.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={inspectTime} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...orders.scheduled.map(p => p.executeAt)]} />}
+      timeline={<TimeMachine opening={openingEnabled(shown)} forecastUncertain={shown.forecastUncertain} fleets={orders.fleets} plans={orders.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={inspectTime} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : [])]), ...orders.scheduled.map(p => p.executeAt)]} />}
       panels={{
         asset: { title: planning ? `${rock.name} → ${target?.name ?? 'Choose destination'}` : rock.name, footer: planning ? <View><Text style={[s.small, { color: ink, marginBottom: 6 }]}>{count} drones · {unitManifest.length ? unitManifest.map(unit => SPECIALISTS[unit.kind].name).join(', ') : 'no specialists'}</Text><View style={s.row}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule at ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); setDelay(0); }} /></View></View> : undefined, content: <View style={{ gap: 8 }}>
             {!!shown.uncertain.length && <Text style={s.small}>Arrival outcomes unknown outside observed sensors. Refresh live observations before relying on this forecast.</Text>}
             {shown.interceptionUncertain && <Text style={s.small}>Interception outcome unknown. The target is outside current observations.</Text>}
-            {!planning && <><Text style={s.small}>{rock.known ? `${rock.owner ? FACTIONS[rock.owner].name : 'Unclaimed'} · ${siteDescription(rock)}` : remoteSiteDescription(rock)}</Text><Text style={{ color: ink, fontSize: 15 }}>{rock.known ? `${Math.floor(rock.drones)} drones on site` : 'Inventory unknown'}</Text></>}
+            {!planning && <><Text style={s.small}>{rock.known ? `${rock.owner ? FACTIONS[rock.owner].name : 'Unclaimed'} · ${siteDescription(rock, shown)}` : remoteSiteDescription(rock)}</Text><Text style={{ color: ink, fontSize: 15 }}>{rock.known ? `${Math.floor(rock.drones)} drones on site` : 'Inventory unknown'}</Text></>}
             {planning && <Text style={s.small}>{target ? `${duration.toFixed(2)}h transit · arrives ${clock(launchAt + preparation + duration)}` : 'Choose a destination on the chart.'}</Text>}
             {rock.owner === 'you' && <DroneManifest compact value={amount} available={rock.drones ?? 0} disabled={!operational} onChange={setAmount} />}
             {planning ? <>

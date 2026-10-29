@@ -3,6 +3,7 @@
  * purpose: Transfer geometry and continuous rendezvous solutions for moving haulers.
  * ---
  */
+import { afterWork, travelProgress, workBetween } from './opening-clock';
 import { sitePosition, type MovingPoint } from './drift';
 import { mapOffsets, nearestImage, wrappedBounds, wrapPoint, worldDistance, type GeometryWorld, type Point } from './geometry';
 import type { Fleet } from './simulation';
@@ -27,17 +28,17 @@ export function fleetPosition(world: FlightWorld, fleet: Fleet): Point {
     if (site?.drift) return sitePosition(world, site, world.hour);
   }
   const { from, to } = flightEndpoints(world, fleet);
-  const progress = Math.max(0, Math.min(1, (world.hour - fleet.departed) / (fleet.arrives - fleet.departed)));
+  const progress = travelProgress(world, fleet.departed, fleet.arrives, world.hour);
   return wrapPoint(world, { x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress });
 }
 export function interceptionCourse(world: FlightWorld, source: MovingPoint, target: Fleet, speed = TRANSFER_SPEED, departureHour = world.hour): { arrives: number; point: Point } | null {
   source = sitePosition(world, source, departureHour);
-  const remaining = target.arrives - departureHour;
+  const remaining = workBetween(world, departureHour, target.arrives);
   if (remaining <= TIME_TOLERANCE) return null;
   const current = fleetPosition({ ...world, hour: departureHour }, target);
   const leg = flightEndpoints(world, target);
-  const vx = wrappedBounds(world) ? (leg.to.x - leg.from.x) / (target.arrives - target.departed) : (leg.to.x - current.x) / remaining;
-  const vy = wrappedBounds(world) ? (leg.to.y - leg.from.y) / (target.arrives - target.departed) : (leg.to.y - current.y) / remaining;
+  const vx = wrappedBounds(world) ? (leg.to.x - leg.from.x) / workBetween(world, target.departed, target.arrives) : (leg.to.x - current.x) / remaining;
+  const vy = wrappedBounds(world) ? (leg.to.y - leg.from.y) / workBetween(world, target.departed, target.arrives) : (leg.to.y - current.y) / remaining;
   let best: { arrives: number; point: Point } | null = null;
   for (const offset of mapOffsets(world)) {
     const dx = current.x + offset.x - source.x; const dy = current.y + offset.y - source.y;
@@ -52,7 +53,7 @@ export function interceptionCourse(world: FlightWorld, source: MovingPoint, targ
       roots = [q / a, q ? c / q : Infinity];
     }
     const duration = Math.min(...roots.filter(t => Number.isFinite(t) && t > TIME_TOLERANCE && t < remaining - TIME_TOLERANCE));
-    if (Number.isFinite(duration) && (!best || departureHour + duration < best.arrives)) best = { arrives: departureHour + duration, point: { x: current.x + offset.x + vx * duration, y: current.y + offset.y + vy * duration } };
+    if (Number.isFinite(duration) && (!best || afterWork(world, departureHour, duration) < best.arrives)) best = { arrives: afterWork(world, departureHour, duration), point: { x: current.x + offset.x + vx * duration, y: current.y + offset.y + vy * duration } };
   }
   return best;
 }

@@ -3,6 +3,7 @@
  * purpose: Specialist identity, time-based recruitment, promotion, and shared active-unit queries.
  * ---
  */
+import { workClock, workHour, type OpeningWorld } from './opening-clock';
 import { isActionPlan } from './future-actions';
 import { withUnitEffects } from './specialist-effects';
 import type { Faction, Fleet, Game, Rock } from './simulation';
@@ -32,11 +33,12 @@ export function unitsAtRock(game: UnitWorld, id: string): Specialist[] {
   return [...(game.rocks.find(r => r.id === id)?.specialists ?? []), ...game.fleets.filter(f => f.preparing && f.from === id).flatMap(f => f.specialists ?? [])].filter(u => !u.captive);
 }
 export function unitCount(game: UnitWorld, owner: Faction, kind: SpecialistKind): number { return activeUnits(game, owner).filter(u => u.kind === kind).length; }
-export function recruitmentStatus(game: UnitWorld & { hour: number; recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>> }, owner: Faction): { credits: number; offers: SpecialistKind[]; nextAt: number; at?: string } {
+export function recruitmentStatus(game: UnitWorld & OpeningWorld & { hour: number; recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>> }, owner: Faction): { credits: number; offers: SpecialistKind[]; nextAt: number; at?: string } {
   const state = game.recruitment?.[owner];
   const core = game.rocks.find(r => unitsAtRock(game, r.id).some(u => u.owner === owner && u.kind === 'queen'));
-  const earned = game.hour < 4 ? 0 : 1 + Math.floor((game.hour - 4) / 18);
-  return { credits: Math.max(0, earned - (state?.used ?? 0)), offers: state?.offers ?? [], nextAt: 4 + 18 * Math.max(earned, state?.used ?? 0), ...(core && core.owner === owner ? { at: core.id } : {}) };
+  const elapsed = workClock(game, game.hour);
+  const earned = elapsed < 4 ? 0 : 1 + Math.floor((elapsed - 4) / 18);
+  return { credits: Math.max(0, earned - (state?.used ?? 0)), offers: state?.offers ?? [], nextAt: workHour(game, 4 + 18 * Math.max(earned, state?.used ?? 0)), ...(core && core.owner === owner ? { at: core.id } : {}) };
 }
 function requireRecruitment(game: Game, owner: Faction): { status: ReturnType<typeof recruitmentStatus>; state: Recruitment } {
   const status = recruitmentStatus(game, owner);
