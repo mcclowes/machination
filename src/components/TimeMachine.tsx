@@ -4,7 +4,7 @@
  * ---
  */
 import React, { useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { scheduledOrderLabel } from './ScheduledOrders';
 import type { ScheduledOrder } from '../game/orders';
 import type { Fleet } from '../game/simulation';
@@ -24,8 +24,9 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   const [trackWidth, setTrackWidth] = useState(1);
   const track = useRef<View>(null);
   const origin = useRef(0);
-  const current = useRef({ hour, historyStart, onChange, trackWidth });
-  current.current = { hour, historyStart, onChange, trackWidth };
+  function changeTime(next: number | null) { Keyboard.dismiss(); onChange(next); }
+  const current = useRef({ hour, historyStart, onChange: changeTime, trackWidth });
+  current.current = { hour, historyStart, onChange: changeTime, trackWidth };
   function scrub(x: number) {
     const { hour: live, historyStart: first, onChange: change, trackWidth: width } = current.current;
     change(timelineHour(live, first, x / width));
@@ -45,20 +46,25 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   };
   const parsed = Number(entry);
   const validEntry = entry.trim() !== '' && Number.isFinite(parsed) && parsed >= minimum && parsed <= MAX_PLAN_DELAY;
-  const inspectEntry = () => validEntry && onChange(parsed ? Math.max(start, hour + Math.round(parsed * 60) / 60) : null);
-  const step = (delta: number) => { const nextOffset = Math.max(minimum, Math.min(MAX_PLAN_DELAY, offset + delta)); onChange(nextOffset ? hour + nextOffset : null); };
+  const inspectEntry = () => {
+    if (!validEntry) return;
+    changeTime(parsed ? Math.max(start, hour + Math.round(parsed * 60) / 60) : null);
+    if (compact) setExpanded(false);
+  };
+  const toggleExpanded = () => { if (expanded) Keyboard.dismiss(); setExpanded(!expanded); };
+  const step = (delta: number) => { const nextOffset = Math.max(minimum, Math.min(MAX_PLAN_DELAY, offset + delta)); changeTime(nextOffset ? hour + nextOffset : null); };
   const position = (at: number) => Math.max(0, Math.min(100, (at - start) / span * 100));
   return <View style={[s.panel, compact && { paddingHorizontal: 12, paddingVertical: 0, gap: 0, borderWidth: 0 }]}>
-    <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => onChange(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={() => setExpanded(!expanded)} /></> : <Text style={s.title}>Time Machine</Text>}</View>
+    <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}</View>
     {mode === 'future' && forecastUncertain && <Text style={s.detail}>Some site details are unknown. Economy, routes, and outcomes may change.</Text>}
     {opening && (inspectedHour ?? hour) < OPENING_HOURS && (!compact || expanded) && <Text style={s.detail}>Opening 1.5× until {gameClock(OPENING_HOURS)}: haulers, recruitment, factories, and shield recharge.</Text>}
     {(!compact || expanded) && <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Operation timeline" accessibilityValue={{ min: Math.round(minimum * 60), max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${Math.abs(offset).toFixed(2)} hours ${offset < 0 ? 'ago' : 'ahead'}` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}>
       <View style={s.rail}><View style={[s.fill, { width: `${position(inspectedHour ?? hour)}%` }]} />{markers.map(t => <View key={t} style={[s.tick, { left: `${position(t)}%` }]} />)}<View style={[s.tick, { left: `${position(hour)}%`, backgroundColor: '#e5eadc', height: 18, top: -7 }]} /><View style={[s.thumb, { left: `${position(inspectedHour ?? hour)}%` }]} /></View>
     </View>}
-    {(!compact || expanded) && <><View style={s.row}>{[0, 6, 24, 72, 168].map(h => <Control key={h} label={h ? `+${h < 24 ? `${h}h` : `${h / 24}d`}` : 'Now'} selected={h === 0 ? !offset : Math.abs(offset - h) < 1 / 60} onPress={() => onChange(h ? hour + h : null)} />)}</View>
-    <View style={s.row}><Control label="−1h" disabled={offset <= minimum} onPress={() => step(-1)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => step(1)} /><Control text="‹ Event" label={eventLabel(previous, "Previous event")} disabled={previous === undefined} onPress={() => previous !== undefined && onChange(previous)} /><Control text="Event ›" label={eventLabel(next, "Next event")} disabled={next === undefined} onPress={() => next !== undefined && onChange(next)} /></View>
+    {(!compact || expanded) && <><View style={s.row}>{[0, 6, 24, 72, 168].map(h => <Control key={h} label={h ? `+${h < 24 ? `${h}h` : `${h / 24}d`}` : 'Now'} selected={h === 0 ? !offset : Math.abs(offset - h) < 1 / 60} onPress={() => changeTime(h ? hour + h : null)} />)}</View>
+    <View style={s.row}><Control label="−1h" disabled={offset <= minimum} onPress={() => step(-1)} /><Control label="+1h" disabled={offset >= MAX_PLAN_DELAY} onPress={() => step(1)} /><Control text="‹ Event" label={eventLabel(previous, "Previous event")} disabled={previous === undefined} onPress={() => previous !== undefined && changeTime(previous)} /><Control text="Event ›" label={eventLabel(next, "Next event")} disabled={next === undefined} onPress={() => next !== undefined && changeTime(next)} /></View>
     {plans.filter(p => Math.abs(p.executeAt - (inspectedHour ?? hour)) < 1 / 3600).map(p => <Text key={`${p.owner}:${p.id}`} style={s.detail}>{gameClock(p.executeAt)} · {scheduledOrderLabel(p, rocks, plans, fleets)}</Text>)}
-    {historyStart !== undefined && <View style={s.row}><Control label="History start" onPress={() => onChange(historyStart)} /><Text style={s.detail}>Available from {gameClock(historyStart)}</Text></View>}
+    {historyStart !== undefined && <View style={s.row}><Control label="History start" onPress={() => changeTime(historyStart)} /><Text style={s.detail}>Available from {gameClock(historyStart)}</Text></View>}
     <View style={s.row}><Text style={s.detail}>Hours from now</Text><TextInput accessibilityLabel="Hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>
     <Text style={s.detail}>{mode === 'past' ? 'History is read-only. Only information observed at this time is available.' : mode === 'future' ? `Orders use this forecast time. Hidden forces and new ${online ? 'human' : 'rival'} orders can change the outcome.` : 'Drag through time to inspect known movement, production, and combat.'}</Text></>}
   </View>;
