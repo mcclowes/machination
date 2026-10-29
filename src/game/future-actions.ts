@@ -28,39 +28,55 @@ export function isActionPlan(plan: ScheduledOrder): plan is ScheduledAction { re
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const id = (v: unknown) => typeof v === 'string' && /^[a-zA-Z0-9:-]{1,80}$/.test(v);
 export function validateFutureAction(value: unknown): FutureAction {
-  if (!record(value)) throw new Error('Choose a supported future action.');
-  const keys = (required: string[]) => required.every(key => Object.hasOwn(value, key)) && Object.keys(value).every(key => required.includes(key));
-  const base = ['type'];
+  const invalid = () => new Error('Choose a supported future action.');
+  if (!record(value)) throw invalid();
   const shape = (v: Record<string, unknown>, required: string[], optional: string[] = []) => required.every(k => Object.hasOwn(v, k)) && Object.keys(v).every(k => required.includes(k) || optional.includes(k));
   const count = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
   const fleet = (v: unknown) => Number.isSafeInteger(v) && (v as number) > 0;
   const units = (v: unknown) => v === undefined || Array.isArray(v) && v.length <= 10000 && v.every(id) && new Set(v).size === v.length;
-  if (value.type === 'gift' || value.type === 'intercept') {
-    if (!shape(value, ['type', 'from', 'drones', ...(value.type === 'gift' ? ['to', 'recipient'] : ['target'])], ['specialists', ...(value.type === 'gift' ? ['carryModule'] : [])]) || !id(value.from) || !count(value.drones) || !units(value.specialists)
-      || (value.type === 'gift' ? !id(value.to) || !isFaction(value.recipient) || !(value.carryModule === undefined || typeof value.carryModule === 'boolean') : !fleet(value.target))) throw new Error('Choose a supported future action.');
-    return { ...value, ...(value.specialists ? { specialists: [...value.specialists as string[]] } : {}) } as FutureAction;
-  }
-  if (value.type === 'hauler') {
-    const c = value.change;
-    if (!shape(value, ['type', 'change']) || !record(c) || !fleet(c.fleet)) throw new Error('Choose a supported future action.');
-    const valid = c.action === 'edit-launch' ? shape(c, ['action', 'fleet', 'drones'], ['specialists']) && count(c.drones) && units(c.specialists)
-      : c.action === 'course' ? shape(c, ['action', 'fleet', 'to']) && id(c.to)
-      : ['cancel-launch', 'gift', 'cancel-gift', 'cancel-course'].includes(c.action as string) && shape(c, ['action', 'fleet']);
-    if (!valid) throw new Error('Choose a supported future action.');
-    return { type: 'hauler', change: { ...c, ...(c.specialists ? { specialists: [...c.specialists as string[]] } : {}) } as HaulerChange };
-  }
-  const valid = value.type === 'hire' ? keys([...base, 'kind']) && isSpecialistKind(value.kind)
-    : value.type === 'promote' || value.type === 'release' ? keys([...base, 'id']) && id(value.id)
-    : value.type === 'drill-mine' ? keys([...base, 'rock']) && id(value.rock)
-    : value.type === 'shields' ? keys([...base, 'rock', 'disabled']) && id(value.rock) && typeof value.disabled === 'boolean'
-    : value.type === 'funding' && keys([...base, 'to', 'enabled']) && isFaction(value.to) && typeof value.enabled === 'boolean';
-  if (!valid) throw new Error('Choose a supported future action.');
   switch (value.type) {
-    case 'hire': return { type: 'hire', kind: value.kind as SpecialistKind };
-    case 'promote': case 'release': return { type: value.type, id: value.id as string };
-    case 'drill-mine': return { type: 'drill-mine', rock: value.rock as string };
-    case 'shields': return { type: 'shields', rock: value.rock as string, disabled: value.disabled as boolean };
-    default: return { type: 'funding', to: value.to as Faction, enabled: value.enabled as boolean };
+    case 'gift':
+      if (!shape(value, ['type', 'from', 'drones', 'to', 'recipient'], ['specialists', 'carryModule'])
+        || !id(value.from) || !count(value.drones) || !units(value.specialists) || !id(value.to) || !isFaction(value.recipient)
+        || !(value.carryModule === undefined || typeof value.carryModule === 'boolean')) throw invalid();
+      return { ...value, ...(value.specialists ? { specialists: [...value.specialists as string[]] } : {}) } as FutureAction;
+    case 'intercept':
+      if (!shape(value, ['type', 'from', 'drones', 'target'], ['specialists'])
+        || !id(value.from) || !count(value.drones) || !units(value.specialists) || !fleet(value.target)) throw invalid();
+      return { ...value, ...(value.specialists ? { specialists: [...value.specialists as string[]] } : {}) } as FutureAction;
+    case 'hauler': {
+      const c = value.change;
+      if (!shape(value, ['type', 'change']) || !record(c) || !fleet(c.fleet)) throw invalid();
+      switch (c.action) {
+        case 'edit-launch':
+          if (!shape(c, ['action', 'fleet', 'drones'], ['specialists']) || !count(c.drones) || !units(c.specialists)) throw invalid();
+          break;
+        case 'course':
+          if (!shape(c, ['action', 'fleet', 'to']) || !id(c.to)) throw invalid();
+          break;
+        case 'cancel-launch': case 'gift': case 'cancel-gift': case 'cancel-course':
+          if (!shape(c, ['action', 'fleet'])) throw invalid();
+          break;
+        default: throw invalid();
+      }
+      return { type: 'hauler', change: { ...c, ...(c.specialists ? { specialists: [...c.specialists as string[]] } : {}) } as HaulerChange };
+    }
+    case 'hire':
+      if (!shape(value, ['type', 'kind']) || !isSpecialistKind(value.kind)) throw invalid();
+      return { type: 'hire', kind: value.kind };
+    case 'promote': case 'release':
+      if (!shape(value, ['type', 'id']) || !id(value.id)) throw invalid();
+      return { type: value.type, id: value.id as string };
+    case 'drill-mine':
+      if (!shape(value, ['type', 'rock']) || !id(value.rock)) throw invalid();
+      return { type: 'drill-mine', rock: value.rock as string };
+    case 'shields':
+      if (!shape(value, ['type', 'rock', 'disabled']) || !id(value.rock) || typeof value.disabled !== 'boolean') throw invalid();
+      return { type: 'shields', rock: value.rock as string, disabled: value.disabled };
+    case 'funding':
+      if (!shape(value, ['type', 'to', 'enabled']) || !isFaction(value.to) || typeof value.enabled !== 'boolean') throw invalid();
+      return { type: 'funding', to: value.to, enabled: value.enabled };
+    default: throw invalid();
   }
 }
 export function actionLabel(action: FutureAction, rocks: readonly { id: string; name: string }[] = []): string {
