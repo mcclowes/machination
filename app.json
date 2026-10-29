@@ -29,6 +29,15 @@
       "expo-secure-store",
       "expo-system-ui",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/brand/notification.png",
+          "color": "#b8e986",
+          "defaultChannel": "machination-messages",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/brand/splash.png",

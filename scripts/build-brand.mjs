@@ -16,22 +16,24 @@ const assets = [
   ['adaptive-foreground.png', svg(0.9), false],
   ['adaptive-monochrome.png', svg(0.9, false, '#ffffff'), false],
   ['splash.png', svg(1.1), false],
+  ['notification.png', svg(1.3, false, '#ffffff'), false, 96],
 ];
-for (const [name, vector, opaque] of assets) {
-  const image = sharp(vector);
+for (const [name, vector, opaque, size = 1024] of assets) {
+  const image = sharp(vector).resize(size, size);
   await (opaque ? image.flatten({ background }).removeAlpha() : image).png().toFile(new URL(name, directory).pathname);
   const { data, info } = await sharp(new URL(name, directory).pathname).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  assert.equal(info.width, 1024); assert.equal(info.height, 1024);
+  assert.equal(info.width, size); assert.equal(info.height, size);
+  if (!opaque) assert.equal(data[3], 0, `${name} must retain a transparent corner`);
   for (let offset = 0; offset < data.length; offset += 4) {
     const alpha = data[offset + 3];
     if (opaque) assert.equal(alpha, 255, `${name} must be opaque`);
     if (name.startsWith('adaptive-') && alpha) {
       const pixel = offset / 4, x = pixel % info.width, y = Math.floor(pixel / info.width);
       assert.ok(Math.hypot(x + 0.5 - 512, y + 0.5 - 512) <= 1024 * 33 / 108, `${name} exceeds Android's safe zone`);
-      if (name.includes('monochrome')) assert.deepEqual([...data.subarray(offset, offset + 3)], [255, 255, 255]);
     }
+    if (alpha && (name.includes('monochrome') || name === 'notification.png')) assert.deepEqual([...data.subarray(offset, offset + 3)], [255, 255, 255]);
   }
-  console.log(`Exported ${name}: 1024×1024${opaque ? ', opaque' : ', transparent'}.`);
+  console.log(`Exported ${name}: ${size}×${size}${opaque ? ', opaque' : ', transparent'}.`);
 }
 // Review masks and small sizes without baking launcher masks into the actual assets.
 const mask = shape => Buffer.from(`<svg width="192" height="192" xmlns="http://www.w3.org/2000/svg">${shape}</svg>`);
