@@ -55,7 +55,7 @@ for (const kind of ['security', 'king'] as const) {
     assert.equal(observed.rocks.find(site => site.id === hidden.id)!.known, false);
     const replay = decodeSharedReplay(encodeSharedReplay(generateSharedReplay({ game, archive: createArchive(game) }, 'you', 0, 0)));
     const scene = seekReplay(replay, 0);
-    assert.equal(scene.rules!.mechanicsVersion, 12);
+    assert.equal(scene.rules!.mechanicsVersion, 13);
     assert.equal(scene.rocks.find(site => site.id === core.id)!.shieldMax, kind === 'security' ? 50 : 20);
     assert.equal(scene.rocks.find(site => site.id === caster!.id)!.shieldMax, kind === 'security' ? 30 : 0);
     assert.equal(scene.rocks.find(site => site.id === factory!.id)!.shieldMax, kind === 'security' ? 20 : 0);

@@ -20,7 +20,7 @@ export const SPECIALISTS = {
   intelligence: { name: 'Sensor mesh', reference: 'Intelligence Officer', category: 'other', description: 'Adds 25% global sensor range and reveals distant site types.' },
   tinkerer: { name: 'Capacitor daemon', reference: 'Tinkerer', category: 'other', promotesTo: 'energy', description: 'Adds power capacity equal to three times local maximum shields. Drains 3 shield units per hour.' },
   energy: { name: 'Fusion controller', reference: 'Minister of Energy', category: 'promotion', description: 'Adds 300 power capacity. Each factory produces one fewer drone per cycle.' },
-  saboteur: { name: 'Diversion worm', reference: 'Saboteur', category: 'defense', priority: 3, amount: 2, description: 'Redirects an opposing hauler to its nearest friendly site during an encounter.' },
+  saboteur: { name: 'Diversion worm', reference: 'Saboteur', category: 'defense', priority: 3, amount: 2, description: 'Redirects a surviving opposing hauler to its nearest friendly site after combat.' },
   assassin: { name: 'Kill protocol', reference: 'Assassin', category: 'attack', priority: 7, amount: 2, description: 'Destroys all opposing modules present in combat.' },
   inspector: { name: 'Shield servitor', reference: 'Inspector', category: 'defense', promotesTo: 'security', description: 'Fully charges local shields on friendly arrival and after combat.' },
   security: { name: 'Defense controller', reference: 'Security Chief', category: 'promotion', description: 'Adds 10 global shield capacity and another 10 at its site.' },

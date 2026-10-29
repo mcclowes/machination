@@ -25,7 +25,7 @@ export type ReplayScene = {
   cargo: Partial<Record<Faction, number>>;
   standings?: Partial<Record<Faction, { cargo: number; funders: number }>>;
   eliminated: Faction[]; winner: Faction | null; draw?: true;
-  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12; driftingBases?: boolean;
+  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13; driftingBases?: boolean;
     map: { generator: 'balanced.v1' | 'balanced.v2'; width: number; height: number; topology?: 'torus' } };
 };
 

@@ -10,9 +10,10 @@ import type { SpecialistKind } from './specialist-catalog';
 // Official local combat priorities: Martyr 1, Elder 2, Saboteur 3, Thief 4,
 // Infiltrator 5, Double Agent 6, Assassin 7, Lieutenant/War Hero 8.
 // https://subterfuge-game.com/rulebook/Specialists.html
-function encounter(a: SpecialistKind[], b: SpecialistKind[], reverse = false, outpost = false) {
+function encounter(a: SpecialistKind[], b: SpecialistKind[], reverse = false, outpost = false, revision?: 12 | 13) {
   // Controlled baseline manifests and paused economy are fixtures, not a recruitment playthrough.
   const baseline = createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: false }, 0, 2026);
+  if (revision !== undefined) baseline.rules!.mechanicsVersion = revision;
   const owners = ['you', 'vesper'] as const;
   const sites = owners.map(owner => baseline.rocks.find(r => r.owner === owner && !r.coreOf)!);
   for (const rock of baseline.rocks) { rock.productionAt = 1000; rock.shieldAt = 1000; }
@@ -68,8 +69,8 @@ for (const paired of [false, true]) {
     });
   }
 
-  test(`${paired ? 'paired Elders permit' : 'one Elder suppresses'} Saboteur redirection`, () => {
-    const { game, ids, sites } = encounter(['saboteur', ...elders], ['elder']);
+  test(`${paired ? 'paired Elders permit' : 'one Elder suppresses'} Saboteur redirection (r12 immediate redirect)`, () => {
+    const { game, ids, sites } = encounter(['saboteur', ...elders], ['elder'], false, false, 12);
     if (paired) {
       assert.equal(game.fleets.length, 2);
       const redirected = game.fleets.find(f => f.id === ids[1])!;
@@ -79,6 +80,12 @@ for (const paired of [false, true]) {
       assert.equal(game.rocks.find(r => r.id === redirected.to)!.owner, 'vesper');
       assert.equal(game.fleets.find(f => f.id === ids[0])!.to, sites[1]!.id);
     } else assertWinner(game, 9, ['saboteur']);
+  });
+
+  test(`${paired ? 'paired Elders permit' : 'one Elder suppresses'} Saboteur redirection (r13 mark diverts only a survivor)`, () => {
+    // The Saboteur's side wins 40/31 either way, so no marked enemy survives to divert.
+    const { game } = encounter(['saboteur', ...elders], ['elder'], false, false, 13);
+    assertWinner(game, 9, ['saboteur', ...elders]);
   });
 
   test(`${paired ? 'paired Elders permit' : 'one Elder suppresses'} conversion followed by Infiltrator termination`, () => {

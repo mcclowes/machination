@@ -27,7 +27,7 @@ for (const martyr of [false, true]) test(`authoritative mine ${martyr ? 'destruc
   const tokens = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];
   const room = await service.create(tokens[0]!); await service.join(room.invite, tokens[1]!);
   const started = await service.start(room.id, tokens[0]!);
-  assert.equal(started.game.rules!.mechanicsVersion, 12);
+  assert.equal(started.game.rules!.mechanicsVersion, 13);
   const source = started.game.rocks.find(r => r.owner === 'you' && r.x === 10)!;
   const mine = started.game.rocks.find(r => r.owner === 'vesper' && r.x === 18)!;
   const order = { requestId: randomUUID(), revision: started.revision, from: source.id, to: mine.id, drones: 10, specialists: source.specialists!.map(u => u.id) };

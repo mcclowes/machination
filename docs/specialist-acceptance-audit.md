@@ -17,7 +17,25 @@ Issue #18. Bounded independent audit, October 28, 2026. Read the authoritative v
 - Likely owner paths: `src/game/specialist-effects.ts:51` (`specialistSpeed` treats generic `return` as Pirate interception return); `src/game/specialist-travel.ts:12` (`sendUnitsHome` uses that generic mission for captive releases); `src/game/specialist-combat.ts`, `resolveHaulerBattle` (unconditional Pirate winner return). The parent owns these paths; no engine edits or proposed patch are included here.
 - Existing `specialist-interception.test.ts` verifies a genuine targeted interception's 16 outbound/32 return speeds. It doesn't distinguish an interception return from a release, gift interception, tie return, Saboteur redirection, or ordinary route encounter. The observed extra scope is certain; an intentional broader Pirate rule would require evidence beyond the current official entry.
 
-## Interpretation gaps, not confirmed defects
+## Current disposition, October 29
+
+The five interpretation rows below are the original audit snapshot. [Follow-up research on #18](https://github.com/mcclowes/machination/issues/18#issuecomment-6494203705) and Max's subsequent ruling resolve them for the rebuild:
+
+| Interaction | Accepted behavior |
+| --- | --- |
+| Saboteur | Fresh mechanics revision 13 continues combat after the priority-three mark and redirects only surviving marked haulers. See [#60](https://github.com/mcclowes/machination/issues/60). Revisions through 12 preserve immediate redirection and termination. |
+| Engineer after defeat | Max explicitly ruled that local repair does not apply after a lost combat. The existing win gate is correct; ten new hauler/outpost cases cover local and remote Engineers, capture, both revisions, and winning controls. |
+| Multiple Kings | Keep the existing per-King shield penalty and presence-capped combat damage. |
+| Same-kind local effects | Keep the existing stacking local effects. |
+| Hiring distribution | Keep three copies per kind in each category deck and depletion of the selected kind. This does not settle recruitment undo/finalization or next-offer disclosure. |
+
+The official Saboteur reference specifies priority and redirection without explicitly terminating combat. The [community Saboteur notes](https://subterfuge.fandom.com/wiki/Saboteur) explicitly say combat continues and the surviving enemy redirects. This is secondary evidence, not a verified current-client trace. Other community pages contain historical values that conflict with the official reference; their entire rulesets are not adopted.
+
+Revision 13 retains the priority-three mark if Infiltrator ends combat, Assassin kills its caster, or Double Agent swaps ownership. It redirects the marked physical survivor to its current owner's nearest outpost. These three edge-order choices are explicit rebuild interpretations pending original-client evidence. Outpost combat is unchanged. Catalog priority levels drive the resolver sequence; missing or unused resolver levels fail at module load. Reciprocal side-order checks cover all 81 local-priority pairings under revisions 12 and 13; paired-Elder legacy coverage remains alongside new results. The Saboteur scenarios also check strict saves and canonical replay.
+
+The five original rows no longer require a decision. Broader specialist combinations, Elder/global suppression, recruitment lifecycle, and current-original-client acceptance remain open.
+
+## Original interpretation gaps
 
 | Interaction | Observed implementation and minimal acceptance scenario | Likely owner |
 | --- | --- | --- |
@@ -65,4 +83,4 @@ Global transition acceptance ([#48](https://github.com/mcclowes/machination/issu
 
 Four of those scenarios reproduced stale cached effects immediately after explicit release: Admiral's other fleets retained ordinary speed, Tycoon's remote factories retained ordinary cadence, and Security Chief/King shield capacities retained their captive-state values. A same-hour `advance` corrected the caches, so the evidence did not establish lasting lost production or incorrect later combat. A separate read-only review independently reproduced this boundary defect and reran 57 existing checks; report: `/tmp/machination-global-effect-transition-review.txt`.
 
-Fresh configured games now use mechanics revision 11 and reconcile effects after a release creates the return fleet. Four legacy cases preserve revision-ten command results and demonstrate their existing same-hour normalization. Older saves/replays retain their rules. Four durable-service cases cover scoped release identity, foreign rejection, immediate effects, identical retry results, private history at the command hour, and disk restart. The five interpretation gaps above, Elder/global suppression, recruitment undo/finalization, and current-original-client acceptance remain open.
+Mechanics revision 11 adds effect reconciliation after a release creates the return fleet; newer configured profiles retain it. Four legacy cases preserve revision-ten command results and demonstrate their existing same-hour normalization. Older saves/replays retain their rules. Four durable-service cases cover scoped release identity, foreign rejection, immediate effects, identical retry results, private history at the command hour, and disk restart. At that checkpoint the five interpretation gaps remained open; the current disposition above supersedes that status.

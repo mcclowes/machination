@@ -127,7 +127,7 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet): void {
     game.fleets = game.fleets.filter(f => f.id !== loser.id);
     const captives = capture(loser.specialists ?? [], winner.owner);
     if (captives.length && !sendUnitsHome(game, point, winner.owner, captives)) winner.specialists = [...(winner.specialists ?? []), ...captives];
-    if (living(winner).some(u => u.kind === 'pirate') && (mechanicsVersion(game) < 3 || winner.intercept)) returnHauler(game, winner);
+    if (phase.redirected.includes(winner) || living(winner).some(u => u.kind === 'pirate') && (mechanicsVersion(game) < 3 || winner.intercept)) returnHauler(game, winner);
     if (winner.drones === 0 && !winner.specialists?.length) game.fleets = game.fleets.filter(f => f.id !== winner.id);
   }
   log(game, point, [a.owner, b.owner], 'Haulers fought in transit; surviving modules returned or were captured.');
