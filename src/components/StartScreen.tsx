@@ -1,15 +1,16 @@
 import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SpaceBackground } from './SpaceBackground';
 
 export function StartScreen({ children }: { children: React.ReactNode }) {
-  return <ScrollView style={styles.viewport} contentContainerStyle={styles.screen}>
+  return <View style={styles.viewport}><SpaceBackground /><ScrollView style={styles.viewport} contentContainerStyle={styles.screen}>
     <Image source={require('../../assets/brand/asteroid-frontier.png')} accessibilityLabel="Machination: ships and settlements in the asteroid frontier" resizeMode="contain" style={styles.artwork} />
     <View style={styles.content}>
       <Text accessibilityRole="header" style={styles.heading}>Machination</Text>
       <Text style={styles.description}>Learn the controls in tactical exercises, start a solo operation, or negotiate with human rivals.</Text>
       {children}
     </View>
-  </ScrollView>;
+  </ScrollView></View>;
 }
 
 const styles = StyleSheet.create({

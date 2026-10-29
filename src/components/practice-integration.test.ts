@@ -36,6 +36,8 @@ test('App practice isolates live lifecycles and awards only actual capture, with
       entryPoints: [new URL('../../App.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' },
       plugins: [{ name: 'practice-native-hosts', setup(builder) {
         builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
+        builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'practice-sky' }));
+        builder.onLoad({ filter: /.*/, namespace: 'practice-sky' }, () => ({ contents: 'export const SpaceBackground=()=>null;' }));
         const stubs: Record<string, string> = {
           'react-native': `import React from 'react';
             export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView';

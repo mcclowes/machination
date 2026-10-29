@@ -4,6 +4,7 @@
  * ---
  */
 import { DriftCourse } from './DriftCourse';
+import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, Text, Image, StyleSheet, PanResponder } from 'react-native';
@@ -143,6 +144,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const arrival = fleet && timeInspection ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
   const measure = () => map.current?.measureInWindow((x, y) => { origin.current = { x, y }; });
   return <View ref={map} testID="belt-map" style={[styles.chart, fill && { flex: 1, height: '100%' }]} onTouchStart={measure} onLayout={event => { setSize(event.nativeEvent.layout); measure(); }} {...pan.panHandlers}>
+    <SpaceBackground />
     <Svg width="100%" height="100%" viewBox={`0 0 ${Math.max(1, size.width)} ${Math.max(1, size.height)}`} pointerEvents="none">
       <G transform={`translate(${projection.x}, ${projection.y})`}>
       {offsets.map((offset, tile) => <G key={tile} transform={`translate(${offset.x * sx}, ${offset.y * sy})`}>

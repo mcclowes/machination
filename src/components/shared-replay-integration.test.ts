@@ -38,6 +38,8 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
   try {
     const output = await build({ entryPoints: [new URL('./ReplayLibraryScreen.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'replay-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
+      builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'replay-sky' }));
+      builder.onLoad({ filter: /.*/, namespace: 'replay-sky' }, () => ({ contents: 'export const SpaceBackground=()=>null;' }));
       builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'files', namespace: 'hosts' }));
       builder.onResolve({ filter: /^(react-native|react-native-svg|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'hosts' }));
       builder.onResolve({ filter: /(?:\/hooks\/|\/online\/|\/storage$|\/Operation$)/ }, () => ({ path: 'forbidden', namespace: 'hosts' }));
