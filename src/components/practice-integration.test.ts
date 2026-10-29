@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { SPECIALISTS } from '../game/specialist-catalog';
 
 const require = createRequire(import.meta.url);
 const React = require('react') as typeof import('react');
@@ -129,6 +130,14 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.match(visible(), /Next recruitment:/, 'global recruitment remains available while a non-owned site is selected');
     await press('Inspect site Core berth');
     assert.match(visible(), /Core berth/);
+    assert.match(visible(), /Specialists at this site/);
+    assert.ok(visible().includes(SPECIALISTS.queen.description), 'Own-site inspection explains the observed core without leaving the chart');
+    await press('Plan transfer ↗');
+    await press(/^Foundry,/);
+    assert.doesNotMatch(visible(), /Specialists at this site/, 'Cargo planning keeps role descriptions out of the manifest review');
+    assert.ok(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Load Intelligence core onto the next hauler'));
+    await press('Cancel');
+    assert.ok(visible().includes(SPECIALISTS.queen.description));
     assert.equal(hosts('TextInput').find(node => node.props.accessibilityLabel === 'Drones to dispatch')!.props.value, '0');
     quiet();
     await press('Chart');
@@ -173,6 +182,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.ok(historicalHires.length > 0 && historicalHires.every(node => node.props.disabled));
     await press('Inspect site Core berth');
     assert.match(visible(), /History · D01 · 00:00/, 'roster navigation preserves the inspected historical frame');
+    assert.ok(visible().includes(SPECIALISTS.queen.description), 'Historical site inspection retains observed role information');
     await press(/^Foundry,/);
     const historicalTransfer = hosts('Pressable').find(node => text(node) === 'Plan transfer ↗');
     assert.ok(historicalTransfer?.props.disabled, 'Historical dispatch must be disabled');

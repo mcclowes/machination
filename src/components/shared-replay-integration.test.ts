@@ -10,6 +10,8 @@ import { withUnitEffects } from '../game/specialist-effects';
 import { createArchive } from '../game/replay';
 import { generateSharedReplay } from '../replay/generate';
 import { encodeSharedReplay } from '../replay/codec';
+import { SPECIALISTS } from '../game/specialist-catalog';
+import { playerAppearance } from '../game/players';
 const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
@@ -67,9 +69,12 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Next state'); assert.match(visible(), /State 2 of 2/);
     await press('Previous state'); assert.match(visible(), /State 1 of 2/);
     await press('Inspect specialists at Alpha: Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
+    assert.match(visible(), /Specialists at this site/);
+    assert.ok(visible().includes(SPECIALISTS.queen.description));
     await press('Close site details');
     await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
     await press('Next state'); await press('Next state'); assert.doesNotMatch(visible(), /Close site details/);
+    assert.ok(!visible().includes(SPECIALISTS.queen.description), 'Lost coverage closes the role details without retaining a manifest');
     await press('Beginning');
     const fleet = hosts('Pressable').find(node => /hauler,/.test(node.props.accessibilityLabel ?? ''))!;
     await flush(() => fleet.props.onPress()); assert.ok(button('Close hauler details'));
@@ -118,6 +123,9 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Exit replay');
     const world = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 2026);
     const core = world.rocks.find(site => site.coreOf === 'you')!;
+    core.specialists!.push({ id: 'own-engineer', kind: 'engineer', owner: 'you' },
+      { id: 'held-engineer-1', kind: 'engineer', owner: 'vesper', captive: true },
+      { id: 'held-engineer-2', kind: 'engineer', owner: 'vesper', captive: true });
     Object.assign(core, { shieldMax: 20, shield: 7 });
     world.rocks.find(site => site.owner === 'you' && !site.coreOf)!.specialists!.push({ id: 'remote-chief', kind: 'security', owner: 'you' });
     const game = withUnitEffects(world);
@@ -125,6 +133,11 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Open replay');
     await press(hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${core.name},`))!.props.accessibilityLabel);
     assert.match(visible(), /Shield 7 \/ 50/, 'the real viewer shows observed total capacity including Queen and a remote Chief');
+    assert.ok(visible().includes(SPECIALISTS.engineer.description));
+    assert.ok(visible().includes(`2 × ${SPECIALISTS.engineer.name}`));
+    assert.ok(visible().includes(`Specialist owner: ${playerAppearance('vesper', game.rules?.portraits).name}`));
+    assert.match(visible(), /Captive · abilities inactive/);
+    assert.equal(hosts('Pressable').some(node => /^(Load |Hire |Promote |Release captive)/.test(node.props.accessibilityLabel ?? '')), false, 'Public role inspection remains read-only');
     assert.equal(forbidden, 0);
   } finally {
     if (renderer) await act(async () => renderer.unmount());

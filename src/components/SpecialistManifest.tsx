@@ -1,4 +1,4 @@
-/** Read-only role information for the complete observed hauler crew, including marker overflow. */
+/** Read-only role information for the complete observed manifest, including marker overflow. */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SPECIALISTS } from '../game/specialist-catalog';
@@ -6,11 +6,11 @@ import type { SpecialistSummary } from './map-specialists';
 import { CaptiveLock, SpecialistIcon } from './SpecialistIcon';
 import { usePlayerRoster } from './PlayerIdentity';
 
-export function SpecialistManifest({ summary }: { summary?: SpecialistSummary }) {
+export function SpecialistManifest({ summary, heading = 'Specialists aboard' }: { summary?: SpecialistSummary; heading?: string }) {
   const identity = usePlayerRoster();
   if (!summary?.total) return null;
   return <View style={s.manifest}>
-    <Text style={s.heading}>Specialists aboard</Text>
+    <Text style={s.heading}>{heading}</Text>
     {summary.groups.map(group => {
       const role = SPECIALISTS[group.kind];
       const owner = identity(group.owner);

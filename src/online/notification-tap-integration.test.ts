@@ -11,6 +11,8 @@ import { test, type TestContext } from 'node:test';
 import { build } from 'esbuild';
 import { Failure, GameService } from '../../server/service';
 import { createApi } from '../../server/http';
+import { SPECIALISTS } from '../game/specialist-catalog';
+import { playerAppearance } from '../game/players';
 
 const require = createRequire(import.meta.url);
 const React = require('react') as typeof import('react');
@@ -161,8 +163,35 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   const mount = async () => { await act(async () => { renderer = create(React.createElement(App)); }); await settle(); };
   const tapFor = (bindingId: string, extra: Partial<Tap> = {}): Tap => ({ kind: 'machination.message', version: 1, gameId: room.id, bindingId, notificationId: randomBytes(16).toString('hex'), ...extra });
   const stored = async () => JSON.parse(await readFile(file, 'utf8'));
-  return { room, seats, service, deviceId, current: current.bindingId!, stale: first.bindingId!, fake, failing, requests, mount, press, settle, signalsOpen, visible, tapFor, stored, tab };
+  return { room, seats, service, deviceId, current: current.bindingId!, stale: first.bindingId!, fake, failing, requests, mount, press, settle, signalsOpen, visible, tapFor, stored, tab, hosts };
 }
+
+test('restored online site inspection explains roles at live and forecast times without a command', async t => {
+  const s = await scenario(t);
+  const before = await s.stored();
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  const snapshot = await s.service.snapshot(s.room.id, s.seats[0]!);
+  const core = snapshot.game.rocks.find(site => site.known && site.coreOf === snapshot.faction)!;
+  await s.press('Chart');
+  await s.press(s.hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${core.name},`))!.props.accessibilityLabel);
+  assert.match(s.visible(), /Specialists at this site/);
+  assert.ok(s.visible().includes(SPECIALISTS.queen.description));
+  assert.ok(s.visible().includes(`Specialist owner: ${playerAppearance(snapshot.faction, snapshot.game.rules?.portraits).name}`));
+  await s.press('Time Machine');
+  await s.press('+1h');
+  assert.match(s.visible(), /Forecast/);
+  assert.ok(s.visible().includes(SPECIALISTS.queen.description));
+  await s.press('Now');
+  await s.press('Map controls');
+  await s.press('Fit chart');
+  const unknown = snapshot.game.rocks.find(site => !site.known)!;
+  await s.press(s.hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${unknown.name},`))!.props.accessibilityLabel);
+  assert.doesNotMatch(s.visible(), /Specialists at this site/);
+  assert.ok(!s.visible().includes(SPECIALISTS.queen.description));
+  assert.deepEqual(s.requests.filter(request => !request.startsWith('GET ')), []);
+  assert.deepEqual((await s.stored()).rooms, before.rooms, 'Role inspection and forecasting do not alter orders, activity, or messages');
+});
 
 test('a cold-start tap for the current binding opens Signals with no command or game-time effect', async t => {
   const s = await scenario(t);

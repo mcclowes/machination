@@ -26,7 +26,8 @@ import { SpecialistPanel } from '../components/SpecialistPanel';
 import { focusCamera } from '../game/chart-camera';
 import { fleetPosition } from '../game/flight';
 import { specialistSpeed } from '../game/specialist-effects';
-import { SPECIALISTS } from '../game/specialist-catalog';
+import { SpecialistManifest } from '../components/SpecialistManifest';
+import { mapSpecialistSummary } from '../components/map-specialists';
 import { ModuleBay } from '../components/ModuleBay';
 import { GiftTransfer } from '../components/GiftTransfer';
 import { MODULES } from '../game/modules';
@@ -427,7 +428,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
         {referenceText('outpost', rock.id, rock.name) && <CopyObjectReference value={referenceText('outpost', rock.id, rock.name)!} label="Copy outpost reference" />}
         {!planning && rock.known && rock.owner === snapshot.faction && <InterceptionTargets game={game} source={rock} owner={snapshot.faction} drones={Number(amount)} specialists={unitIds} scheduledAt={forecast ? inspectedHour! : undefined} targetIds={forecast ? observedInterceptionIds(snapshot.game, snapshot.faction) : undefined} disabled={!operational || !!game.winner || !!game.draw || game.eliminated.includes(snapshot.faction)} onIntercept={target => siteAction({ type: 'intercept', from: rock.id, target, drones: Number(amount), ...(unitIds.length ? { specialists: unitIds } : {}) })} />}
         {game.version === 2 && rock.known && rock.owner === snapshot.faction && (!planning || !!rock.specialists?.length) && <SpecialistBay mode="cargo" game={game} rock={rock} owner={snapshot.faction} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}
-        {rock.known && rock.owner !== snapshot.faction && !!rock.specialists?.length && <View>{rock.specialists.map(u => <Text key={u.id} style={s.detail}>{SPECIALISTS[u.kind].name}{u.captive ? ' · captive' : ''}: {u.captive ? 'Abilities inactive.' : SPECIALISTS[u.kind].description}</Text>)}</View>}
+        {!planning && game.version === 2 && <SpecialistManifest summary={mapSpecialistSummary(rock)} heading="Specialists at this site" />}
         {game.version === 1 && rock.known && rock.owner === snapshot.faction && <ModuleBay rock={rock} enabled={!!immediate} carry={carry} onCarry={setCarry} onBuild={kind => submit({ kind: 'modules', body: { requestId: commandId(), revision: snapshot.revision, rock: rock.id, module: kind } })} />}
       </View>}</> },
       orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders courseDelay={mechanicsVersion(game) >= 10} title={past ? 'Historical hauler orders · read-only' : undefined} fleets={forecast ? futureCommandFleets(game, snapshot.game, snapshot.faction) : game.fleets.filter(f => f.owner === snapshot.faction)} rocks={game.rocks} hour={game.hour} scheduledAt={forecast ? inspectedHour! : undefined} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={change => siteAction({ type: 'hauler', change })} />}

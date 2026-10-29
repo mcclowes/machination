@@ -3,7 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BeltMap } from './BeltMap';
 import { PlayerIdentity, PlayerPortraits } from './PlayerIdentity';
-import { SPECIALISTS } from '../game/specialist-catalog';
+import { SpecialistManifest } from './SpecialistManifest';
+import { mapSpecialistSummary } from './map-specialists';
 import { MODULES } from '../game/modules';
 import { nextReplayStep, previousReplayStep, seekReplay, type ReplayPosition } from '../replay/playback';
 import type { SharedReplay } from '../replay/timeline';
@@ -90,7 +91,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
         {rock.shield !== undefined && <Text style={s.text}>Shield {rock.shield}{rock.shieldMax !== undefined ? ` / ${rock.shieldMax}` : ''}</Text>}
         {rock.shieldsDisabled !== undefined && <Text style={s.text}>Shields {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>}
         {rock.module && <Text style={s.text}>{MODULES[rock.module].name}</Text>}
-        {rock.specialists?.map(unit => <View key={unit.id}><Text style={s.text}>{SPECIALISTS[unit.kind].name}{unit.captive ? ' · Captive' : ''}</Text><PlayerIdentity faction={unit.owner} detail="Specialist owner" size={32} /></View>)}
+        <SpecialistManifest summary={mapSpecialistSummary(rock)} heading="Specialists at this site" />
       </>}
       </ScrollView>
     </View>}
