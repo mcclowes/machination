@@ -62,6 +62,8 @@ Expo SDK 55 persists its native-token auto-registration after an opt-in and refr
 
 ## Acceptance
 
+Exact source `883831d`, isolated from concurrent working-tree edits, passes 1,004 regular tests, TypeScript, and three production-server build/restart checks on Node 24.14.1. The tested server-to-app path materializes an incoming attack with no connected client, feeds its actual payload through cold-start handling, and verifies fresh consent, the live chart, forecast reset, and no game writes. Legacy-server message taps and disabling also pass. Web, iOS, and Android exports pass; the [native package](native-builds.md#incoming-attack-notification-package) is signed and installed, with runtime and provider delivery still unverified. Local logs are `/tmp/machination-incoming-exact-check.log` and `/tmp/machination-incoming-export.log`.
+
 Exercise actual service and HTTP boundaries for audience privacy, authentication, registration, revision and retry behavior, failed-write rollback, recovery/link invalidation, restart, and unavailable delivery. Use a fake provider for deterministic ticket, receipt, backoff, expiry, and shutdown scenarios; record that it does not prove real device delivery.
 
 Drive real client state through permission denial, opt-in/off, reload, token rotation, account changes, network failure, and notification taps. Export web and native bundles, compile the native capabilities, and verify background/closed-app receipt and safe tap navigation on configured target runtimes before closing #74. Foreground logs, host tests, and successful packaging are insufficient delivery evidence.
