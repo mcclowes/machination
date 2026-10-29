@@ -1,7 +1,9 @@
 node_modules/
 .expo/
 dist/
-.saggar/
+.saggar/**/*.local.*
+.saggar/scratchpad.md
+.saggar/jobs/
 *.tsbuildinfo
 .DS_Store
 .fettle/shots/
