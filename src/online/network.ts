@@ -2,8 +2,9 @@ import { authorization, type RequestSession } from './account-auth';
 import { validateOptions, type GameOptions } from '../game/rules';
 import { isFaction, playersIn } from '../game/players';
 import type { HistorySnapshot, Snapshot } from './protocol';
+import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
 
-export class RejectedCommand extends Error { constructor(public status: number, message: string) { super(message); } }
+export class RejectedCommand extends Error { constructor(public status: number, message: string, public issue?: string) { super(message); } }
 async function request(session: RequestSession, path: string, payload?: unknown, signal?: AbortSignal): Promise<any> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -19,7 +20,7 @@ async function request(session: RequestSession, path: string, payload?: unknown,
     const data = await response.json();
     if (!response.ok) {
       const detail = data.issues?.[0]?.message?.detail ?? 'Command was not accepted.';
-      if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new RejectedCommand(response.status, detail);
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new RejectedCommand(response.status, detail, data.issues?.[0]?.issue);
       throw new Error(detail);
     }
     return data;
@@ -70,4 +71,26 @@ function validReferences(data: any): boolean {
 
 export function creationPayload(options?: GameOptions): { options?: GameOptions } {
   return options === undefined ? {} : { options: validateOptions(options) };
+}
+
+type SeatSession = RequestSession & { id: string };
+const DEVICE_ID = /^[a-f0-9]{64}$/;
+export const OPAQUE_ID = /^[\x21-\x7e]{1,200}$/;
+const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[^\]\s]{1,200}\]$/;
+export async function messageNotificationsApi(session: SeatSession, deviceId: string): Promise<MessageNotificationSettings> {
+  if (!DEVICE_ID.test(deviceId)) throw new Error('Invalid notification device.');
+  return notificationSettings(session.id, deviceId, await request(session, `games/${session.id}/notifications?deviceId=${deviceId}`));
+}
+export async function setMessageNotificationsApi(session: SeatSession, body: SetMessageNotifications): Promise<MessageNotificationSettings> {
+  if (!DEVICE_ID.test(body.deviceId) || !Number.isSafeInteger(body.revision) || body.revision < 0 || body.enabled !== (body.expoPushToken !== undefined)
+    || body.expoPushToken !== undefined && !EXPO_PUSH_TOKEN.test(body.expoPushToken)) throw new Error('Invalid notification preference.');
+  return notificationSettings(session.id, body.deviceId, await request(session, `games/${session.id}/notifications`, body));
+}
+function notificationSettings(gameId: string, deviceId: string, data: any): MessageNotificationSettings {
+  const keys = data && typeof data === 'object' ? Object.keys(data) : [];
+  if (!keys.length || keys.some(key => !['gameId', 'deviceId', 'revision', 'available', 'enabled', 'bindingId'].includes(key)) || data.gameId !== gameId || data.deviceId !== deviceId
+    || !Number.isSafeInteger(data.revision) || data.revision < 0 || typeof data.available !== 'boolean' || typeof data.enabled !== 'boolean'
+    || data.enabled !== (data.bindingId !== undefined)
+    || data.bindingId !== undefined && (typeof data.bindingId !== 'string' || !OPAQUE_ID.test(data.bindingId))) throw new Error('Unsupported notification settings response.');
+  return { gameId, deviceId, revision: data.revision, available: data.available, enabled: data.enabled, ...(data.bindingId === undefined ? {} : { bindingId: data.bindingId }) };
 }

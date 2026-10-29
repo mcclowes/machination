@@ -60,13 +60,19 @@ import { CopyObjectReference } from '../components/CopyObjectReference';
 import { ReplayExport } from '../components/ReplayExport';
 import { exportSharedReplay } from './shared-replay';
 import { playSound, useSoundCues } from '../audio/sound';
+import { MessageNotificationSettings } from './MessageNotificationSettings';
+import { useMessageNotifications } from './useMessageNotifications';
+import { notificationDeps, useNotificationDevice } from './notification-wiring';
+import { notificationDisposition, type NotificationRequest } from './message-notifications';
+const seatIdentity = (session?: Session | null) => session ? JSON.stringify([session.url, session.id, session.accountId ?? null, session.accountId ? null : session.token]) : undefined;
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={() => { playSound('tap'); onPress(); }} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
 }
-export function OnlineOperation(props: { onOpenReplays?: () => void } = {}) {
+type OnlineOperationProps = { onOpenReplays?: () => void; notification?: NotificationRequest; onNotificationHandled?: (notificationId: string, opened: boolean) => void };
+export function OnlineOperation(props: OnlineOperationProps = {}) {
   return <MultiplayerAccount>{account => <ConnectedOperation {...props} account={account} />}</MultiplayerAccount>;
 }
-function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => void; account?: AccountAccess }) {
+function ConnectedOperation({ onOpenReplays, account, notification, onNotificationHandled }: OnlineOperationProps & { account?: AccountAccess }) {
   const [section, setSection] = useState<OperationSection | null>(null);
   const [mapCamera, setMapCamera] = useState({ scale: 1, x: 0, y: 0 });
   const [session, setSession] = useState<Session | null>(null);
@@ -113,13 +119,61 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
   async function run(work: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true; setBusy(true);
-    try { await work(); setError(''); } catch (e) { if (e instanceof RejectedCommand && e.status === 401) { setSnapshot(undefined); setRecoveryCode(''); } setError((e as Error).message); }
+    try { await work(); setError(''); } catch (e) { if (e instanceof RejectedCommand && e.status === 401) { setSnapshot(undefined); setRecoveryCode(''); setRejectedSeat(seatIdentity(latestSession.current)); } setError((e as Error).message); }
     finally { lock.current = false; setBusy(false); }
   }
   function accept(next: Snapshot) {
+    setRejectedSeat(undefined);
     if (next.inactivity && next.inactivity.expiresAt !== latestSnapshot.current?.inactivity?.expiresAt) lastActivity.current = Date.now();
     latestSnapshot.current = next; setSnapshot(next);
   }
+  const [restored, setRestored] = useState(false);
+  const notificationDevice = useNotificationDevice();
+  const notificationSeat = useMemo(() => session?.id && session.pending?.kind !== 'recover' && snapshot?.id === session.id ? { ...session, id: session.id } : undefined, [session, snapshot?.id]);
+  const notifications = useMessageNotifications(notificationSeat, notificationDeps(notificationDevice));
+  const [notificationNotice, setNotificationNotice] = useState('');
+  // A 401 for the stored seat is terminal for a tap; network or server failures are transient and keep it pending.
+  const [rejectedSeat, setRejectedSeat] = useState<string>();
+  const latestSession = useRef(session);
+  latestSession.current = session;
+  const seatRejected = !!session && rejectedSeat === seatIdentity(session);
+  const confirming = !!notification && !!session?.id && session.id === notification.gameId && !notificationSeat && !seatRejected;
+  // Each tap re-reads this seat's binding, so a warm app never trusts settings cached before a detach, recovery, or token move.
+  const tapKey = notification && notificationSeat?.id === notification.gameId ? JSON.stringify([notification.notificationId, seatIdentity(session)]) : undefined;
+  const [tapCheck, setTapCheck] = useState<{ key: string; bindingId?: string | null; failed?: true }>();
+  const tapRead = useRef(0);
+  function checkTap() {
+    if (!tapKey || !notificationSeat) return;
+    const key = tapKey, seat = notificationSeat, sequence = ++tapRead.current;
+    setTapCheck({ key });
+    void (async () => {
+      const deps = notificationDeps(notificationDevice);
+      try {
+        const settings = await deps.read(seat, await deps.deviceId());
+        if (tapRead.current === sequence) setTapCheck({ key, bindingId: settings.enabled && settings.bindingId || null });
+      } catch (error) {
+        if (tapRead.current !== sequence) return;
+        if (error instanceof RejectedCommand && error.status === 401) setRejectedSeat(seatIdentity(seat));
+        setTapCheck({ key, failed: true });
+      }
+    })();
+  }
+  useEffect(() => { if (tapKey && tapCheck?.key !== tapKey) checkTap(); }, [tapKey]);
+  const tapBinding = tapCheck?.key === tapKey ? tapCheck?.bindingId : undefined;
+  const tapDisposition = notification && notificationDisposition(notification, { restored: restored && !busy && !confirming, gameId: seatRejected ? undefined : session?.id, bindingId: notificationSeat ? tapBinding : null });
+  const tapWaiting = tapDisposition === 'wait' && restored && !busy;
+  function dismissTap() { if (notification) { setNotificationNotice(''); onNotificationHandled?.(notification.notificationId, false); } }
+  function retryTap() {
+    if (notificationSeat) checkTap();
+    else if (session) void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); });
+  }
+  useEffect(() => {
+    if (!notification || !tapDisposition || tapDisposition === 'wait') return;
+    if (tapDisposition === 'open') { setReferenceRequest(undefined); setNotificationNotice(''); setSection('signals'); }
+    else setNotificationNotice('A notification was not opened because it does not match the connected operation and seat.');
+    onNotificationHandled?.(notification.notificationId, tapDisposition === 'open');
+  }, [notification, tapDisposition]);
+  const pendingTap = notification && tapWaiting && (!notificationSeat || tapCheck?.failed) && <View style={s.panel}><Text accessibilityLiveRegion="polite" style={s.detail}>{notificationSeat ? 'A message notification is waiting. Notification settings for this seat could not be checked.' : 'A message notification is waiting for this operation to reconnect.'}</Text><Action text="Retry notification" disabled={busy} onPress={retryTap} /><Action text="Dismiss notification" onPress={dismissTap} /></View>;
   useEffect(() => { void run(async () => {
     const stored = account ? await restoreSession(account.accountId) ?? await restoreSession() : await restoreSession();
     if (!stored) { if (account) await restoreAccountSeat(); return; }
@@ -129,7 +183,7 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
     if (saved.pending?.kind === 'recover') { await complete(saved, saved.pending); return; }
     const result = await connect(saved); setSession(result.session); accept(result.snapshot);
     setSelected((result.snapshot.game.rocks.find(r => r.owner === result.snapshot.faction) ?? result.snapshot.game.rocks[0]!).id);
-  }); }, []);
+  }).then(() => setRestored(true)); }, []);
   useEffect(() => {
     if (!session?.id || session.pending?.kind === 'recover') return;
     const refresh = (foregroundEvent = false) => void run(async () => {
@@ -312,7 +366,7 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
     {snapshot?.game.eliminated.includes(snapshot.faction) && <Text style={s.detail}>You are eliminated. Sensors and chat remain available.</Text>}
     {snapshot?.inactivity && <><Text style={s.detail}>After 48 hours of inactivity, you are automatically resigned. Opening this operation in the foreground, issuing orders, or chatting counts as activity. Background refreshes do not.</Text><Text style={s.detail}>{inactivityRemaining(snapshot.inactivity.expiresAt, snapshot.serverTime)} until automatic resignation without further activity. Deadline: {new Date(snapshot.inactivity.expiresAt).toLocaleString()}.</Text></>}
     <ResignationControl key={`${mode}:${session?.url}:${session?.id}:${session?.token}:${snapshot?.faction}:${snapshot?.status}:${snapshot?.game.eliminated.includes(snapshot.faction)}`} enabled={!!immediate && snapshot?.game.version === 2} onConfirm={() => { if (snapshot) submit({ kind: 'resign', body: { requestId: commandId(), revision: snapshot.revision } }); }} />
-  </View>{snapshot?.history && session?.id && <ReplayExport key={referenceIdentity} historyStart={snapshot.history.from} hour={snapshot.game.hour} disabled={busy || !!session.pending} createReplay={(from, through) => exportSharedReplay(session, from, through)} />}{onOpenReplays && <Action text="Open shared replay" onPress={onOpenReplays} />}{connection}</>;
+  </View><MessageNotificationSettings state={notifications} />{snapshot?.history && session?.id && <ReplayExport key={referenceIdentity} historyStart={snapshot.history.from} hour={snapshot.game.hour} disabled={busy || !!session.pending} createReplay={(from, through) => exportSharedReplay(session, from, through)} />}{onOpenReplays && <Action text="Open shared replay" onPress={onOpenReplays} />}{connection}</>;
   function inspectSpecialistSite(id: string) {
     const site = game?.rocks.find(r => r.id === id);
     if (!game || !site) return;
@@ -338,11 +392,11 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
       chart={<View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>{waiting}</View>} timeline={timeline}
       panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Setup', content: setup } }} />;
   }
-  if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
+  if (!snapshot || !game) return <ScrollView automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" contentContainerStyle={s.page}><Text style={s.title}>Machination / uplink</Text>{!!notificationNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{notificationNotice}</Text>}{pendingTap}{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{connection}</ScrollView>;
   const launchBlocked = launchBlockReason({ game, owner: snapshot.faction, source: rock, target, liveHour: snapshot.game.hour, executeAt: launchAt, drones: Number(amount), units: unitIds.length,
     unavailable: past ? 'History is read-only. Return to Now or choose a future time.' : !operational ? 'Wait for the operation to be active and any pending request to finish.' : undefined });
   return <OperationShell player={snapshot.faction} portraits={game.rules?.portraits} section={section} onSection={changeSection} panelScrollRef={scroll}
-    status={<>{!!referenceNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{referenceNotice}</Text>}<View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{pendingEdit && <Text style={s.detail}>Saved launch edit · {pendingPlan ? scheduledOrderLabel(pendingPlan, snapshot.game.rocks, snapshot.game.scheduled, snapshot.game.fleets) : 'Queued launch'} · {pendingEdit.drones} drones · awaiting confirmation. Retry repeats this saved edit.</Text>}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
+    status={<>{!!notificationNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{notificationNotice}</Text>}{pendingTap}{!!referenceNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{referenceNotice}</Text>}<View style={s.row}><Text style={[s.label, { flex: 1 }]}>{FACTIONS[snapshot.faction].name} · {past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')}</Text><Text style={s.detail}>{gameClock(past ? history.frame!.history.at : game.hour)}</Text></View>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}{snapshot.status === 'game.lobby' && <Action text="Open lobby and invitation" onPress={() => setSection('intel')} />}{pendingEdit && <Text style={s.detail}>Saved launch edit · {pendingPlan ? scheduledOrderLabel(pendingPlan, snapshot.game.rocks, snapshot.game.scheduled, snapshot.game.fleets) : 'Queued launch'} · {pendingEdit.drones} drones · awaiting confirmation. Retry repeats this saved edit.</Text>}{session?.pending && <Action text="Retry pending command" disabled={busy} onPress={() => void run(() => retry())} />}{game.draw && <Text style={s.code}>Operation ended in a draw.</Text>}{game.winner && <Text style={s.code}>{forecast ? 'Projected: ' : ''}{FACTIONS[game.winner].name}: {game.rules?.mode === 'domination' ? 'territory target reached.' : 'contract complete.'}</Text>}</>}
     chart={<BeltMap fill combatObservation={{ view: game, faction: snapshot.faction, observedAt: past ? game.hour : snapshot.game.hour }} inspecting={section === 'asset'} transferRoute={transfer?.route} inspectFleet={inspectFleet} fleetReference={fleet => referenceText('hauler', fleet.id, 'Hauler')} timeInspection={{ liveHour: snapshot.game.hour, historyStart: snapshot.history?.from, onInspect: inspectTime }} viewport={{ camera: mapCamera, onChange: setMapCamera }} player={snapshot.faction} onInspectFleet={() => { setReferenceRequest(undefined); setSection(null); }} onManageFleet={() => setSection('orders')} onTransfer={operational && !game.winner && !game.draw && navigating === undefined ? (from, to) => {
       setReferenceRequest(undefined); setReferenceNotice(''); setSelected(from.id); setDestination(to.id); setPlanning(true); setSection('asset');
       setCarry(false); setSelectedUnits([]); setDelay(0); setAmount(String(Math.floor((from.drones ?? 0) / 2)));

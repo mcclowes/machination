@@ -58,10 +58,11 @@ test('App practice isolates live lifecycles and awards only actual capture, with
           'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'practice-host' }));
+        builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'practice-host' }));
         builder.onResolve({ filter: /\/audio\/sound$/ }, () => ({ path: 'silent-audio', namespace: 'practice-host' }));
         builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'practice-host' }));
         builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'practice-host' }));
-        builder.onLoad({ filter: /.*/, namespace: 'practice-host' }, args => ({ contents: args.path === 'silent-audio' ? `export const playSound=()=>{},useSoundCues=()=>{},useSoundEnabled=()=>false,setSoundEnabled=()=>{};` : args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : args.path === 'replay-files' ? `export const pickSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile(),saveSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile();` : stubs[args.path]! }));
+        builder.onLoad({ filter: /.*/, namespace: 'practice-host' }, args => ({ contents: args.path === 'silent-audio' ? `export const playSound=()=>{},useSoundCues=()=>{},useSoundEnabled=()=>false,setSoundEnabled=()=>{};` : args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : args.path === 'notification-boundary' ? `export const launchDeps=undefined;` : args.path === 'replay-files' ? `export const pickSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile(),saveSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile();` : stubs[args.path]! }));
       } }],
     });
     const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
