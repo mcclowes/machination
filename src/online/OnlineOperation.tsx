@@ -22,6 +22,9 @@ import { remoteSiteDescription } from '../components/site-observation';
 import { LaunchTiming, ScheduledOrders, scheduledOrderLabel } from '../components/ScheduledOrders';
 import type { FutureAction } from '../game/future-actions';
 import { SpecialistBay } from '../components/SpecialistBay';
+import { SpecialistPanel } from '../components/SpecialistPanel';
+import { focusCamera } from '../game/chart-camera';
+import { fleetPosition } from '../game/flight';
 import { specialistSpeed } from '../game/specialist-effects';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { ModuleBay } from '../components/ModuleBay';
@@ -310,6 +313,23 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
     {snapshot?.inactivity && <><Text style={s.detail}>After 48 hours of inactivity, you are automatically resigned. Opening this operation in the foreground, issuing orders, or chatting counts as activity. Background refreshes do not.</Text><Text style={s.detail}>{inactivityRemaining(snapshot.inactivity.expiresAt, snapshot.serverTime)} until automatic resignation without further activity. Deadline: {new Date(snapshot.inactivity.expiresAt).toLocaleString()}.</Text></>}
     <ResignationControl key={`${mode}:${session?.url}:${session?.id}:${session?.token}:${snapshot?.faction}:${snapshot?.status}:${snapshot?.game.eliminated.includes(snapshot.faction)}`} enabled={!!immediate && snapshot?.game.version === 2} onConfirm={() => { if (snapshot) submit({ kind: 'resign', body: { requestId: commandId(), revision: snapshot.revision } }); }} />
   </View>{snapshot?.history && session?.id && <ReplayExport key={referenceIdentity} historyStart={snapshot.history.from} hour={snapshot.game.hour} disabled={busy || !!session.pending} createReplay={(from, through) => exportSharedReplay(session, from, through)} />}{onOpenReplays && <Action text="Open shared replay" onPress={onOpenReplays} />}{connection}</>;
+  function inspectSpecialistSite(id: string) {
+    const site = game?.rocks.find(r => r.id === id);
+    if (!game || !site) return;
+    setReferenceRequest(undefined); setReferenceNotice('');
+    setPlanning(false); setNavigating(undefined); setDestination(undefined); setDelay(0); setCarry(false); setSelectedUnits([]);
+    setSelected(site.id); setAmount(String(Math.floor((site.drones ?? 0) / 2)));
+    setInspectFleet({ request: ++referenceSequence.current });
+    setMapCamera(camera => focusCamera(game, camera, site)); setSection('asset');
+  }
+  function inspectSpecialistFleet(id: number) {
+    const fleet = game?.fleets.find(f => f.id === id);
+    if (!game || !fleet) return;
+    setReferenceRequest(undefined); setReferenceNotice('');
+    setPlanning(false); setNavigating(undefined); setDestination(undefined); setDelay(0); setCarry(false); setSelectedUnits([]);
+    setMapCamera(camera => focusCamera(game, camera, fleetPosition(game, fleet)));
+    setInspectFleet({ request: ++referenceSequence.current, id }); setSection(null);
+  }
   const timeline = snapshot && <TimeMachine opening={openingEnabled(game ?? snapshot.game)} forecastUncertain={game?.forecastUncertain} fleets={orders?.fleets} plans={orders?.scheduled} rocks={snapshot.game.rocks} compact hour={snapshot.game.hour} historyStart={snapshot.history?.from} inspectedHour={inspectedHour} onChange={inspectTime} events={[...(game?.events.map(event => event.hour) ?? []), ...(game?.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : []), ...(f.pendingCourse ? [f.pendingCourse.executeAt] : [])]) ?? []), ...(orders?.scheduled.map(p => p.executeAt) ?? [])]} online />;
   if (snapshot && past && !game) {
     const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => inspectTime(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
@@ -344,7 +364,7 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
       orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders courseDelay={mechanicsVersion(game) >= 10} title={past ? 'Historical hauler orders · read-only' : undefined} fleets={forecast ? futureCommandFleets(game, snapshot.game, snapshot.faction) : game.fleets.filter(f => f.owner === snapshot.faction)} rocks={game.rocks} hour={game.hour} scheduledAt={forecast ? inspectedHour! : undefined} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={change => siteAction({ type: 'hauler', change })} />}
       <ScheduledOrders key={`${session?.url}:${session?.id}:${session?.token}:${snapshot.faction}:${snapshot.game.epoch}:${mode}`} units={selectableLaunchUnits(orders!, snapshot.faction)} preparation={snapshot.game.version === 2} onInspect={inspectTime} onEdit={change => { if (operational) submit({ kind: 'edit-schedule', body: { requestId: commandId(), revision: snapshot.revision, ...change } }); }} fleets={orders?.fleets} plans={orders?.scheduled ?? []} hour={orders?.hour ?? snapshot.game.hour} rocks={game.rocks} disabled={!operational} onCancel={planId => submit({ kind: 'cancel-schedule', body: { requestId: commandId(), revision: snapshot.revision, planId } })} />
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View></> },
-      units: { title: `Modules · ${rock?.name ?? ''}`, content: <><Action text="Go to core site" onPress={() => { const home = game.rocks.find(r => r.known && r.coreOf === snapshot.faction && r.owner === snapshot.faction); if (home) { setSelected(home.id); setSelectedUnits([]); setDestination(undefined); setPlanning(false); } }} />{rock ? <>{game.version === 2 && rock.known && rock.owner === snapshot.faction && <SpecialistBay game={game} rock={rock} owner={snapshot.faction} enabled={!!operational && !game.winner && !game.draw && !game.eliminated.includes(snapshot.faction)} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={!!operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}</> : null}</> },
+      units: { title: 'Specialist management', content: game.version === 2 ? <SpecialistPanel game={game} owner={snapshot.faction} enabled={!!operational} scheduledAt={forecast ? inspectedHour! : undefined} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} onInspectSite={inspectSpecialistSite} onInspectFleet={inspectSpecialistFleet} /> : <Text style={s.detail}>Legacy modules are managed at their sites.</Text> },
       signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}
       <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {eventMessage(game, event)}</Text>)}</View></> },
       intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: playerAppearance(snapshot.faction, game.rules?.portraits).color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')} · {joined}/{roster.length} players joined · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>

@@ -1,5 +1,5 @@
 import type { Faction } from './players';
-import { wrappedBounds, type GeometryWorld } from './geometry';
+import { wrappedBounds, type GeometryWorld, type Point } from './geometry';
 
 export type MapCamera = { scale: number; x: number; y: number };
 type Chart = GeometryWorld & { rocks: readonly { x: number; y: number; owner?: Faction | null }[] };
@@ -28,6 +28,11 @@ export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedSca
   const scale = Math.max(1, Math.min(4, requestedScale));
   const ratio = wrappedBounds(world) ? scale / camera.scale : 1;
   return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio });
+}
+
+export function focusCamera(world: GeometryWorld, camera: MapCamera, point: Point): MapCamera {
+  const scale = Math.max(2, camera.scale);
+  return constrainCamera(world, { scale, x: (50 - point.x / (world.rules?.map.width ?? 100) * 100) * scale, y: (50 - point.y / (world.rules?.map.height ?? 100) * 100) * scale });
 }
 
 export function fitPlayerCamera(chart: Chart, player: Faction): MapCamera {

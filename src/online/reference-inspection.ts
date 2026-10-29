@@ -1,6 +1,6 @@
 /** Resolve shared identity only within the recipient's observed frame. */
 import { fleetPosition } from '../game/flight';
-import { constrainCamera, type MapCamera } from '../game/chart-camera';
+import { focusCamera, type MapCamera } from '../game/chart-camera';
 import type { GameView } from '../game/visibility';
 import type { ObjectReference, ObjectReferences } from './protocol';
 
@@ -34,6 +34,5 @@ export function copyableReference(frame: ReferenceFrame, kind: ObjectReference['
 }
 
 export function focusReferenceCamera(game: GameView, camera: MapCamera, point: { x: number; y: number }): MapCamera {
-  const scale = Math.max(2, camera.scale);
-  return constrainCamera(game, { scale, x: (50 - point.x / (game.rules?.map.width ?? 100) * 100) * scale, y: (50 - point.y / (game.rules?.map.height ?? 100) * 100) * scale });
+  return focusCamera(game, camera, point);
 }

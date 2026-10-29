@@ -94,6 +94,14 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Start: Open a foothold');
     assert.match(visible(), /Launch drones from Foundry/);
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
+    await press(/^Quiet landing,/);
+    await press('Units');
+    assert.match(visible(), /Next recruitment:/, 'global recruitment remains available while a non-owned site is selected');
+    await press('Inspect site Core berth');
+    assert.match(visible(), /Core berth/);
+    assert.equal(hosts('TextInput').find(node => node.props.accessibilityLabel === 'Drones to dispatch')!.props.value, '0');
+    quiet();
+    await press('Chart');
     await press(/^Foundry,/);
     await input('Drones to dispatch', '6');
     await press('Plan transfer ↗');
@@ -122,6 +130,11 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Time Machine');
     await press('History start');
     assert.match(visible(), /History · D01 · 00:00/);
+    await press('Units');
+    const historicalHires = hosts('Pressable').filter(node => /^Hire /.test(node.props.accessibilityLabel ?? ''));
+    assert.ok(historicalHires.length > 0 && historicalHires.every(node => node.props.disabled));
+    await press('Inspect site Core berth');
+    assert.match(visible(), /History · D01 · 00:00/, 'roster navigation preserves the inspected historical frame');
     await press(/^Foundry,/);
     const historicalTransfer = hosts('Pressable').find(node => text(node) === 'Plan transfer ↗');
     assert.ok(historicalTransfer?.props.disabled, 'Historical dispatch must be disabled');

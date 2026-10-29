@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { createConfiguredGame } from '../game/world';
 import { observe } from '../game/visibility';
 import { hireSpecialist, promoteSpecialist } from '../game/specialists';
+import { releaseSpecialist } from '../game/specialist-travel';
 import type { SpecialistPanelProps } from './SpecialistPanel';
 
 const require = createRequire(import.meta.url);
@@ -110,20 +111,25 @@ test('scheduled promotion invokes engine authority and zero credits or read-only
   }
 });
 
-test('captives need controlled live custody and known return territory; rescued own captives cannot promote', async () => {
-  const view = observe(fixture(),'you');
+test('captives can return to public territory outside sonar; rescued own captives cannot promote', async () => {
+  let game = fixture();
+  const custody = game.rocks.find(r=>r.owner==='you')!;
+  custody.specialists!.push({id:'rescued',kind:'foreman',owner:'you',captive:true},{id:'foreign',kind:'smuggler',owner:'vesper',captive:true});
+  const view = observe(game,'you');
   const site = view.rocks.find(r=>r.known && r.owner==='you')!;
-  site.specialists!.push({id:'rescued',kind:'foreman',owner:'you',captive:true},{id:'foreign',kind:'smuggler',owner:'vesper',captive:true});
   for(const rock of view.rocks) if(rock.owner==='vesper') (rock as any).known=false;
   const released:string[]=[];
-  const panel=await render({...props(view),onRelease:id=>released.push(id)});
+  const panel=await render({...props(view),onRelease:id=>{ released.push(id); game=releaseSpecialist(game,'you',id); }});
   const buttons=panel.buttons().filter((n:any)=>n.props.accessibilityLabel?.startsWith('Release captive'));
   assert.equal(buttons.length,2);
   assert.equal(buttons[0].props.disabled,false);
-  assert.equal(buttons[1].props.disabled,true);
+  assert.equal(buttons[1].props.disabled,false, 'public return ownership is sufficient without private sonar detail');
   assert.ok(!panel.buttons().some((n:any)=>n.props.accessibilityLabel?.startsWith('Promote Assembler')));
   await act(async()=>buttons[0].props.onPress());
-  assert.deepEqual(released,['rescued']);
+  await act(async()=>buttons[1].props.onPress());
+  assert.deepEqual(released,['rescued','foreign']);
+  assert.ok(!game.rocks.find(r=>r.id===site.id)!.specialists!.some(unit=>unit.id==='foreign'));
+  assert.ok(game.fleets.some(fleet=>fleet.specialists?.some(unit=>unit.id==='foreign')));
   await panel.close();
   if(site.known) site.destroyed=true;
   const destroyed=await render(props(view));

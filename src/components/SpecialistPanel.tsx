@@ -38,7 +38,7 @@ export function SpecialistPanel({ game, owner, enabled, scheduledAt, onHire, onP
       const entry = SPECIALISTS[unit.kind];
       const next = promotion(unit.kind);
       const held = !!site && site.owner === owner && !site.destroyed;
-      const returnSite = sites.some(home => home.owner === unit.owner && !home.destroyed);
+      const returnSite = game.rocks.some(home => home.owner === unit.owner && !(home.known && home.destroyed));
       return <View key={unit.id} style={s.card}>
         <View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View>
         <Text style={s.detail}>{entry.reference} · {unit.captive ? unit.owner === owner ? 'Your captive unit' : 'Captive' : fleet ? fleet.preparing ? 'Preparing departure' : 'In transit' : 'Docked'}</Text>
@@ -50,7 +50,7 @@ export function SpecialistPanel({ game, owner, enabled, scheduledAt, onHire, onP
           <Button label={label(`Promote ${entry.name} to ${SPECIALISTS[next].name} for 1 credit`)} disabled={!active || status.credits === 0 || !docked(row)} onPress={() => onPromote(unit.id)} />
         </>}
         {unit.captive && held && <>
-          {!returnSite && <Text style={s.detail}>No known live return territory for this captive.</Text>}
+          {!returnSite && <Text style={s.detail}>No return territory on the chart for this captive.</Text>}
           <Button label={label(`Release captive ${entry.name}`)} disabled={!active || !returnSite} onPress={() => onRelease(unit.id)} />
         </>}
       </View>;

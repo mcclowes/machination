@@ -10,7 +10,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
 import { stationCourse } from './src/game/drift';
-import { flightDestination } from './src/game/flight';
+import { fitPlayerCamera, focusCamera } from './src/game/chart-camera';
+import { flightDestination, fleetPosition } from './src/game/flight';
 import { InterceptionTargets } from './src/components/InterceptionTargets';
 import { selectableLaunchUnits } from './src/components/launch-manifest';
 import { remoteSiteDescription } from './src/components/site-observation';
@@ -21,6 +22,7 @@ import { DEFAULT_GAME_OPTIONS, driftingBasesEnabled, mechanicsVersion, victoryPr
 import { ResignationControl } from './src/components/ResignationControl';
 import type { FutureAction } from './src/game/future-actions';
 import { SpecialistBay } from './src/components/SpecialistBay';
+import { SpecialistPanel } from './src/components/SpecialistPanel';
 import { specialistSpeed } from './src/game/specialist-effects';
 import { SPECIALISTS } from './src/game/specialist-catalog';
 import { ModuleBay } from './src/components/ModuleBay';
@@ -89,6 +91,10 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const [amount, setAmount] = useState('0');
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [navigating, setNavigating] = useState<number>();
+  const [mapCamera, setMapCamera] = useState(() => fitPlayerCamera(game, 'you'));
+  const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
+  const inspectionSequence = useRef(0);
+  useEffect(() => { setMapCamera(fitPlayerCamera(game, 'you')); setInspectFleet(undefined); }, [game.epoch]);
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   function inspectTime(hour: number | null) { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }
   const forecast = inspectionOffset(game.hour, inspectedHour);
@@ -147,6 +153,21 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const transfer = target && game.version === 2 ? stationCourse(shown, rock, target, specialistSpeed(shown, 'you', unitManifest, target.owner === 'you'), launchAt + preparation) : undefined;
   const duration = target ? transfer ? transfer.arrives - launchAt - preparation : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
   const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones ?? 0));
+  function inspectSpecialistSite(id: string) {
+    const site = shown.rocks.find(r => r.id === id);
+    if (!site) return;
+    setPlanning(false); setNavigating(undefined); setDestination(undefined); setDelay(0); setCarry(false); setSelectedUnits([]);
+    setSelected(site.id); setAmount(String(Math.floor((site.drones ?? 0) / 2)));
+    setInspectFleet({ request: ++inspectionSequence.current });
+    setMapCamera(camera => focusCamera(shown, camera, site)); setSection('asset');
+  }
+  function inspectSpecialistFleet(id: number) {
+    const fleet = shown.fleets.find(f => f.id === id);
+    if (!fleet) return;
+    setPlanning(false); setNavigating(undefined); setDestination(undefined); setDelay(0); setCarry(false); setSelectedUnits([]);
+    setMapCamera(camera => focusCamera(shown, camera, fleetPosition(shown, fleet)));
+    setInspectFleet({ request: ++inspectionSequence.current, id }); setSection(null);
+  }
   function select(r: ObservedRock) {
     if (navigating !== undefined) { if (!r.destroyed) siteAction({ type: 'hauler', change: { action: 'course', fleet: navigating, to: r.id } }); setNavigating(undefined); setSection('orders'); return; }
     if (planning && r.id !== selected) { setDestination(r.id); setSection('asset'); }
@@ -201,7 +222,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
     <OperationShell portraits={shown.rules?.portraits} section={section} onSection={setSection}
       status={(practice || error || outcomeMessage) ? <>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
 {!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</> : null}
-      chart={<BeltMap fill inspecting={section === 'asset'} transferRoute={transfer?.route} timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} onTransfer={operational && !shown.winner && !shown.draw && navigating === undefined ? prepareTransfer : undefined} game={shown} selected={selected} destination={destination} onSelect={select} />}
+      chart={<BeltMap fill viewport={{ camera: mapCamera, onChange: setMapCamera }} inspectFleet={inspectFleet} inspecting={section === 'asset'} transferRoute={transfer?.route} timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} onTransfer={operational && !shown.winner && !shown.draw && navigating === undefined ? prepareTransfer : undefined} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning && !destination || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
       timeline={<TimeMachine opening={openingEnabled(shown)} forecastUncertain={shown.forecastUncertain} fleets={orders.fleets} plans={orders.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={inspectTime} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : []), ...(f.pendingCourse ? [f.pendingCourse.executeAt] : [])]), ...orders.scheduled.map(p => p.executeAt)]} />}
       panels={{
@@ -222,7 +243,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
             {game.version === 1 && rock.known && rock.owner === 'you' && <ModuleBay rock={rock} enabled={operational && !forecast} carry={carry} onCarry={setCarry} onBuild={buildModule} />}
           </View> },
         orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders courseDelay={mechanicsVersion(shown) >= 10} title={historical ? 'Historical hauler orders · read-only' : undefined} fleets={forecast ? futureCommandFleets(shown, live, 'you') : shown.fleets.filter(f => f.owner === 'you')} rocks={shown.rocks} hour={shown.hour} scheduledAt={forecast ? inspectedHour! : undefined} enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={change => siteAction({ type: 'hauler', change })} />} <ScheduledOrders key={`${game.epoch}:${inspectionMode(game.hour, inspectedHour)}`} units={selectableLaunchUnits(orders, 'you')} preparation={game.version === 2} onInspect={inspectTime} onEdit={change => { try { act({ type: 'edit-schedule', owner: 'you', change }); setError(''); } catch (e) { setError((e as Error).message); } }} fleets={orders.fleets} plans={orders.scheduled.filter(p => p.owner === 'you')} hour={orders.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
-        units: { title: `Modules · ${rock.name}`, content: <><Button label="Go to core site" quiet onPress={() => { const home = shown.rocks.find(r => r.coreOf === 'you' && r.owner === 'you'); if (home) select(home); setSection('units'); }} />{game.version === 2 && rock.known && rock.owner === 'you' && <SpecialistBay game={shown} rock={rock} owner="you" enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} scheduledAt={forecast ? inspectedHour! : undefined} selectionEnabled={operational} selected={unitIds} onSelect={setSelectedUnits} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} />}</> },
+        units: { title: 'Specialist management', content: game.version === 2 ? <SpecialistPanel game={shown} owner="you" enabled={operational} scheduledAt={forecast ? inspectedHour! : undefined} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} onInspectSite={inspectSpecialistSite} onInspectFleet={inspectSpecialistFleet} /> : <Text style={s.small}>Legacy modules are managed at their sites.</Text> },
         signals: { title: 'Signal log', content: <>{shown.events.slice(0, 50).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{eventMessage(shown, e)}</Text></View>)}</> },
         intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(visibleWorld, 'you')} / ${powerCapacity(visibleWorld, 'you')} drones. ${game.rules?.mode === 'domination' ? 'Expand control to reach the territorial target.' : 'Establish extraction to earn cargo.'}` : 'Legacy operation · original prototype rules.'}</Text>
             <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(visibleWorld, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
