@@ -7,7 +7,7 @@ import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, Text, Image, StyleSheet, PanResponder } from 'react-native';
+import { View, Pressable, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
 import Svg, { Circle, G, Line } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { SPECIALISTS } from '../game/specialist-catalog';
@@ -48,7 +48,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const [card, setCard] = useState<{ id: number; height: number }>();
   const lift = card && card.id === fleet?.id ? overlayLift(game, size, card.height + styles.inspector.bottom) : 0;
   const camera = constrainCamera(game, viewport?.camera ?? localCamera, lift);
-  const [mapTools, setMapTools] = useState(false);
+  const [mapTools, setMapTools] = useState(Platform.OS === 'web');
   useEffect(() => setContact(undefined), [game.epoch, player]);
   useEffect(() => { if (inspectFleet) setContact(inspectFleet.id); }, [inspectFleet?.request]);
   const map = useRef<View>(null);
@@ -76,6 +76,24 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   }
   const current = useRef({ camera, size, lift, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera });
   current.current = { camera, size, lift, wrapped: !!wrappedBounds(game), world: game, onChange: viewport?.onChange ?? setLocalCamera };
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = map.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const wheel = (event: WheelEvent) => {
+      const target = event.target as Element | null;
+      if (!event.deltaY || dragging.current || target?.closest('[data-testid="hauler-inspector"], [data-testid="map-controls"]')) return;
+      event.preventDefault();
+      const state = current.current;
+      const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? state.size.height : 1;
+      const delta = Math.max(-120, Math.min(120, event.deltaY * units));
+      const next = zoomCamera(state.world, state.camera, state.camera.scale * Math.exp(-delta * 0.002), state.lift);
+      current.current.camera = next;
+      state.onChange(next);
+    };
+    element.addEventListener('wheel', wheel, { passive: false });
+    return () => element.removeEventListener('wheel', wheel);
+  }, []);
   const start = useRef({ ...camera, pinch: 0, dx: 0, dy: 0 });
   function move(scale: number, x: number, y: number) {
     current.current.onChange(constrainCamera(current.current.world, { scale, x, y }, current.current.lift));
@@ -203,7 +221,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       if (location.x < -10 || location.x > 110 || location.y < -10 || location.y > 110) return null;
       return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View></Pressable>;
     }))}
-    <View style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, lift))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, lift))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
+    <View testID="map-controls" style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, lift))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, lift))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
     {fleet && <ScrollView testID="hauler-inspector" style={[styles.inspector, { maxHeight: Math.max(44, size.height - INSPECTOR_CHART_SPACE) }]} contentContainerStyle={styles.inspectorContent} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>

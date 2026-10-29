@@ -20,7 +20,7 @@ test('measured hauler inspection reveals, allows manual pan, resizes, and releas
         builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'inspection-hosts' }));
         builder.onResolve({ filter: /^(react-native|react-native-svg|expo-clipboard)$/ }, args => ({ path: args.path, namespace: 'inspection-hosts' }));
         builder.onLoad({ filter: /.*/, namespace: 'inspection-hosts' }, args => ({ contents: args.path === 'sky' ? 'export const SpaceBackground=()=>null;'
-          : args.path === 'react-native' ? `export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView'; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};`
+          : args.path === 'react-native' ? `export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};`
           : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`
           : 'export const setStringAsync=async()=>{};' }));
       } }] });
