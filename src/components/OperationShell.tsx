@@ -29,7 +29,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   const wide = width >= 1000;
   const panel = section && panels[section];
   return <PlayerPortraits.Provider value={portraits}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    {!!status && <View style={s.status}><View style={s.statusContent}>{status}</View></View>}
+    {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
       <View style={s.chart}>{chart}{!!hint && <View style={s.hint}>{hint}</View>}</View>
       {panel && <View style={[s.drawer, wide ? s.sidebar : s.sheet]}>
@@ -46,7 +46,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   </KeyboardAvoidingView></PlayerPortraits.Provider>;
 }
 const s = StyleSheet.create({
-  shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0, gap: 6 },
+  shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { maxHeight: '35%', flexShrink: 1, paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0 }, statusBody: { gap: 6 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' }, wide: { flexDirection: 'row' }, chart: { flex: 1, minWidth: 0 },
   drawer: { backgroundColor: '#14232b', borderTopWidth: 1, borderColor: '#30454c', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '55%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   footer: { padding: 12, borderTopWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' },
