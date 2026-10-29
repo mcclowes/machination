@@ -15,11 +15,13 @@ Both endpoints use the existing seat credential contract: a legacy seat bearer, 
 - `GET /v1/games/:id/notifications?deviceId=<64 lowercase hex characters>` returns `MessageNotificationSettings`.
 - `POST /v1/games/:id/notifications` accepts `SetMessageNotifications` and returns the same view.
 
-Types live in [notification-contract.ts](../src/online/notification-contract.ts). A device ID is generated once per installation and kept in native secure storage. Requests use the existing request-ID syntax. The revision belongs to the device preference, independently of game orders. Set requests reject stale revisions; identical request retries return the current preference without reapplying an old enable operation. Disabled records retain their revision. Responses expose no push token or credential hash.
+Types live in [notification-contract.ts](../src/online/notification-contract.ts). A device ID is generated once per installation and kept in native secure storage. Requests use the existing request-ID syntax. The revision belongs to the device preference, independently of game orders. Set requests reject stale revisions; identical retries retained in a record return the current preference without reapplying an old enable. Disabled records retain their revision while stored. Evicting a disabled record raises a persisted seat revision floor above that record's last revision; unknown devices then read that floor, and old requests fail as stale. Responses expose no push token or credential hash.
 
 An enabled request requires a valid Expo push token; a disabled request omits it. Reject unknown fields and malformed values. Registration is bound to the authenticated credential generation, so account linking or legacy recovery invalidates old bindings. Tokens belong to at most one current binding across rooms; registering this physical installation for another seat detaches the former binding without exposing it. Keep bounded device records and active-device limits, and report capacity errors explicitly.
 
 `available` reports whether the operator enabled server delivery. It does not certify provider credentials or device delivery. Disabled servers reject enable requests while still permitting disable and status reads. Migration leaves existing rooms unsubscribed.
+
+Each seat keeps at most four device records, replacing its oldest disabled or invalidated record when necessary. Four active devices cause an explicit `notification.capacity.devices` conflict. Each record keeps sixteen request receipts. The server limits stored bindings to 40,000 and queued/in-flight jobs to 5,000 overall, with at most eight jobs per binding; excess jobs are skipped while chat remains accepted. Each send has at most eight attempts within 24 hours, including attempts lost to expired leases or shutdown. Receipts are checked after fifteen minutes and retained for at most 24 hours after ticket acceptance.
 
 ## Durable delivery
 
@@ -35,9 +37,19 @@ Expo's [delivery documentation](https://docs.expo.dev/push-notifications/sending
 
 An explicit Message notifications action requests OS permission and registers the current installation. Reading settings or opening the app never requests permission. Denial, unsupported builds, token failures, unavailable servers, and unsuccessful disabling retain an honest state and a retry path. Opt-in state is scoped to the server, authenticated seat, game, and installation. Session changes and stale async completions cannot enable the wrong seat.
 
-Use Expo SDK 55's native notification adapter; web and offline entry must remain independent of it. Foreground OS banners are suppressed because existing in-app signals handle that context. A notification tap can open multiplayer, but only opens Signals after its game and binding match the restored authenticated operation. Ignore foreign or stale payloads, deduplicate responses, and clear consumed native response state. Never issue a game command or overwrite another operation merely because a payload names it.
+Use Expo SDK 55's native notification adapter; web and offline entry must remain independent of it. Foreground OS banners are suppressed because existing in-app signals handle that context. A notification tap can open multiplayer, but only opens Signals after its game and binding match the restored authenticated operation. Each new tap reads the current server binding rather than trusting cached settings. Transient restore or settings failures keep it pending with Retry and Dismiss actions; a rejected seat or confirmed mismatch consumes it. Ignore foreign or stale payloads, deduplicate responses, and clear consumed native response state. Never issue a game command or overwrite another operation merely because a payload names it. Normal foreground connection and presence behavior still applies when multiplayer opens.
 
 The app requires a configured EAS project ID and native push capabilities. The operator controls server delivery separately. No Expo project, signing credential, deployment, OS permission, or live push is created by writing this code.
+
+## Operator setup
+
+Set `EXPO_PUBLIC_EAS_PROJECT_ID` to the existing Expo project's UUID before building the native app. The notification plugin includes the Android `machination-messages` channel configuration and a white notification icon. Physical iOS and Android delivery also need the project's APNs or FCM credentials and platform signing configuration. Adding this dependency requires a fresh native build; replacing only JavaScript in a pre-notification binary is insufficient.
+
+The server defaults to delivery off. Set `MACHINATION_PUSH_ENABLED=1` to start the Expo worker; `0` or unset keeps it off, and other values refuse startup. Set server-only `EXPO_ACCESS_TOKEN` if the Expo project requires enhanced push security. Never expose that token as an `EXPO_PUBLIC_` variable. Enabling the worker reports availability, not successful credential validation.
+
+After connecting a seat, open Setup and choose Turn on message notifications. Permission denial sends no enable request. Registration is only shown as enabled after a successful server response; a lost response can be retried safely. Turning it off keeps its revision and cancels pending work. Preference errors preserve explicit server details; a stale revision reloads the current setting before another change.
+
+Expo SDK 55 persists its native-token auto-registration after an opt-in and refreshes that mapping when the SDK next loads. The app loads it at startup after a prior registration and does not request permission or acquire a new Expo token on every launch. After a successful registration in the mounted seat, repeated native events for the same Expo token do not rewrite the subscription.
 
 ## Acceptance
 

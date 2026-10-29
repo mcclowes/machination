@@ -33,6 +33,12 @@ npm test -- --test-name-pattern='catch-up'
 npm test -- --suite-timeout=900000
 ```
 
+### Message notifications
+
+At `285ccea`, an isolated committed-source snapshot passes `npm run check` on Node 24.14.1: 940 regular tests, TypeScript, and three production server bundle checks. The notification subset comprises 23 service/worker/transport tests and 28 client tests, including eight real App/OnlineOperation/HTTP tap cases. The shared tree also passes 941 regular tests; that extra case belongs to concurrent map work and is excluded from this committed-source count. Logs are `/tmp/machination-notifications-exact-node24-check.log` and `/tmp/machination-notifications-check.log`.
+
+Web, iOS, and Android exports pass from the same commit at `/tmp/machination-notifications-platform-export`. The fresh native compilation and installed QA bundle are recorded in [native builds](native-builds.md#message-notification-build-october-29). Provider fakes, host-rendered taps, exports, and simulator installation do not establish notification permission or real background/closed-app delivery.
+
 ### Ten-seat contested matches
 
 The ordinary suite runs the three-seat contested scenarios. The extended profile runs the same contest, privacy, save, replay, advancement-partition, and victory assertions with ten independent observation-limited seats in both modes at seeds 7 and 8:
@@ -58,6 +64,7 @@ Both mining fixtures and domination seed 7 reach the configured quota. Dominatio
 | Catch-up and history | The configuration matrix compares one 24-hour advance with irregular polling and save restoration around the opening-clock boundary, then reconstructs current and historical states from persisted replay data; frozen inputs detect mutation |
 | Persistence and authority | Damaged saves, failed writes, retries, authentication, hidden information, restart recovery, and private commands through real local HTTP servers |
 | UI integration | Real React components and hooks, with native adapters replaced in Node; practice, replay, and account flows exercise controls and lifecycle boundaries |
+| Message notifications | Real service/HTTP audience and revision checks, durable worker transitions with a fake provider, and App → OnlineOperation → HTTP tap routing with only native I/O replaced; this does not establish device delivery |
 | Production packaging | Standalone server boot without project dependencies, authenticated access, offline catch-up, shutdown draining, and restart persistence; container checks in CI |
 
 Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
