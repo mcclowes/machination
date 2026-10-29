@@ -8,6 +8,8 @@ The most promising source for direct adaptation is [Remake-Core](https://github.
 
 Next inspection targets: combat scenarios, specialist behaviors, time-machine event handling, visibility, and map geometry. Port relevant rules and tests into TypeScript rather than replacing the mobile app with a different runtime. Check individual file and asset provenance before importing material, and record paths and source commits for each adaptation.
 
+The same CC0 source at `213d4a45833bf0d1b58e1334790bf0a8c8df0776` includes [`SpecialistPool.cs`](https://github.com/Subterfuge-Revived/Remake-Core/blob/213d4a45833bf0d1b58e1334790bf0a8c8df0776/Core/SubterfugeCore/Core/Entities/Specialists/SpecialistPool.cs). It slices a pre-shuffled offer sequence and moves the index for hire/undo. That makes preview straightforward, but does not implement Machination's accepted selected-kind depletion. It is a design comparison, not evidence of the original game's draw law; adopting it would change rules. No code was copied. The unresolved preview policy is tracked in [#77](https://github.com/mcclowes/machination/issues/77) and [recruitment notes](recruitment-lifecycle.md#next-offer-compatibility).
+
 ## Arkoc's remake
 
 [arkoc/subterfuge-remake](https://github.com/arkoc/subterfuge-remake), inspected at `a6e5d669d682c3a40eda3eb295795919823067b2`, documents a pure TypeScript simulation shared by a Node server and a React/Pixi client. The server uses an event log, and the Time Machine projects forward using the same simulation. Its README emphasizes fixed-point accumulation and equivalence between one large tick and split ticks.

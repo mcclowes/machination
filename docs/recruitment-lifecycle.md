@@ -30,6 +30,31 @@ A [June 2016 community FAQ](https://herbertzhb.wordpress.com/2016/06/28/subterfu
 
 The gallery sweep reviewed five iPhone images, five iPad variants, and ten Google Play images. Local images and URL manifests are `/tmp/machination-mobile-reference/{apple-images,google-images}.json`; the explicit Queen preview is `google-7-large.png`. No reviewed gallery image establishes cancellation refunds, the deadline clock, or finalization behavior. The corrected source trace is `/tmp/machination-faq-trace/FINDINGS.md`.
 
+## Next-offer compatibility
+
+[#77](https://github.com/mcclowes/machination/issues/77) tracks a truthful preview. The current draw policy cannot supply one fixed next set that preserves every existing outcome: only the chosen kind loses a copy, so its selection changes the weights of the next draw. A real revision-13 game with recruitment seed 4, map seed 17, and no rival orders offers Lieutenant, Double Agent, and Tinkerer at hour 4. Hiring either of the first two yields Assassin, Elder, and Tinkerer; hiring Tinkerer yields Assassin, Elder, and Navigator. A second real game, seed 0 after hiring Lieutenant, also branches between promotion and hiring Tinkerer. These are rebuild results, not observations of the original client.
+
+The accepted pool interpretation came from the earlier [specialist investigation](https://github.com/mcclowes/machination/issues/18#issuecomment-6494203705). The retrieved Specialists wiki revision 2053 attributes three-copy category decks and selected-kind depletion to a developer, but retains a reference-needed marker. The publisher's v42.1 notes confirm the Offensive deck, not that full draw law. Preserve that distinction when choosing a preview policy.
+
+Drawing a preview from the current pool can show the last copy of a kind that the current hire then consumes. Temporarily reserving each current offer while drawing, with a same-kind fallback for an otherwise empty category, preserves valid previews and selected-kind depletion but changes probabilities. Neither that reservation policy nor the current rebuild's conditional law has been verified against the original preview behavior. A pre-shuffled sequence that consumes all three offers would discard the accepted selected-kind policy. No replacement policy is selected; existing games retain their current draws while the decision in #77 remains open.
+
+`src/game/fixtures/recruitment-r13-8d83a53.json` freezes three scenarios and eleven command branches from source `8d83a53cbec81cafbf0ced338eb071f0d644ac48`, generated with Node 24.14.1. Two scenarios use unchanged configured games; the third is a strict-save-valid synthetic pool boundary after a genuine Lieutenant hire. Its other-category deck holds only one Tinkerer, with all other kinds at zero. Hiring that last copy, hiring another category, and promoting freeze distinct depletion/refill behavior. A scheduled last-copy hire has separate checkpoints before, at, and after execution. These fixtures make no claim that the crafted pool was reached by public commands.
+
+`recruitment-legacy.test.ts` checks complete resulting states, strict saves, and canonical histories against those frozen results. Removing selected-kind depletion in an isolated source copy makes eleven of its fourteen checks fail; disabling all-zero refill makes two fail. This guards old-game compatibility; it establishes no original-client parity.
+
+To reproduce with the pinned Node 24.14.1 runtime, extract the named commit into an empty directory and provide its dependencies. Run this from the repository, substituting an existing empty directory for `SOURCE`:
+
+```sh
+git archive 8d83a53cbec81cafbf0ced338eb071f0d644ac48 | tar -x -C SOURCE
+ln -s "$PWD/node_modules" SOURCE/node_modules
+node --import tsx scripts/generate-recruitment-r13.ts SOURCE /tmp/recruitment-r13.json
+cmp src/game/fixtures/recruitment-r13-8d83a53.json /tmp/recruitment-r13.json
+```
+
+The generator verifies a fingerprint of the extracted runtime game files before importing them. A changed engine is refused even if it still reports revision 13. Do not regenerate an old fixture from a changed engine.
+
+Any future preview implementation must persist the shown set under a new mechanics revision, preserve older profiles, and expose only the owner's known offers. Forecasting and future-hire scheduling need the same cycle identity as command validation. A UI-only peek at private RNG state would bypass those requirements and could promise an offer the engine does not deliver.
+
 ## Behavior to resolve before implementation
 
 | Question | Required observation |
