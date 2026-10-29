@@ -31,6 +31,8 @@ In the shared Clerk dashboard, enable the Native API and register the iOS bundle
 
 Native sign-in opens Clerk's Account Portal in a browser and activates the returned session. Web sign-in uses Clerk's modal. Both use the sign-in methods enabled on the shared instance. Native Clerk sessions are cached in Expo SecureStore. The root provider remains mounted through web OAuth callbacks and offline game screens.
 
+When a publishable key is configured, that root can attempt background authentication requests even on offline screens. A [bounded native-path JS probe](shared-replays.md#configured-account-boundary) retained the installed SDK while rejecting transport: entry, local replay import, and causal seeking stayed available during 25 seconds of retries, without mounting game networking or writing operation state. This doesn't establish browser OAuth, physical-device, cached-session, or eventual retry-exhaustion behavior. The provider's position alone wasn't evidence of an offline rendering bug, and no provider change was made.
+
 Host the web client under `marginalutility.dev` to share the production root domain, and add its exact origin to the service allowlist and Clerk's subdomain allowlist. Separate root domains require [Clerk satellite domain configuration](https://clerk.com/docs/guides/dashboard/dns-domains/satellite-domains), which is not configured here.
 
 ## Restore or link an operation
