@@ -5,7 +5,7 @@
  */
 import { HaulerCombat, type CombatObservation } from './HaulerCombat';
 import { MapSpecialists } from './MapSpecialists';
-import { mapSpecialistSummary, specialistManifestDescription, layoutSpecialistMarkers, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_OFFSET } from './map-specialists';
+import { mapSpecialistSummary, specialistManifestDescription, layoutSpecialistMarkers, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_OFFSET, SPECIALIST_BADGE_HIT_SLOP } from './map-specialists';
 import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
@@ -25,7 +25,7 @@ import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '..
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera } from '../game/chart-projection';
-import { layoutSiteNames } from './map-labels';
+import { layoutSiteNames, MAP_DRONE_COUNT_OFFSET, MAP_DRONE_COUNT_SIZE } from './map-labels';
 import { mapShields } from './map-shields';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
@@ -36,6 +36,7 @@ const baseIcons = {
   mine: require('../../assets/bases/mine.png'),
 };
 const INSPECTOR_CHART_SPACE = 44 + 20;
+const SITE_CONTROL_WIDTH = 64;
 function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
   if (rock.destroyed || rock.kind === 'unknown') return undefined;
   const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
@@ -49,11 +50,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
   const fleet = game.fleets.find(f => f.id === contact);
+  const inspectedSpecialists = fleet && mapSpecialistSummary(fleet);
   const haulerRadius = (hauler: Fleet) => {
     const source = hauler.preparing && game.rocks.find(rock => rock.id === hauler.from);
     return Math.max(styles.hauler.height / 2, source ? mapShields(source).at(-1)?.radius ?? 0 : 0);
   };
-  const inspectorChartSpace = INSPECTOR_CHART_SPACE + (fleet?.specialists?.length ? 2 * (SPECIALIST_BADGE_SIZE + SPECIALIST_BADGE_OFFSET + haulerRadius(fleet) - styles.hauler.height / 2) : 0);
+  const inspectorChartSpace = INSPECTOR_CHART_SPACE + (fleet && inspectedSpecialists?.total ? 2 * (SPECIALIST_BADGE_SIZE + SPECIALIST_BADGE_OFFSET + SPECIALIST_BADGE_HIT_SLOP + haulerRadius(fleet) - styles.hauler.height / 2) : 0);
   const [card, setCard] = useState<{ id: number; height: number }>();
   const lift = card && card.id === fleet?.id ? overlayLift(game, size, card.height + styles.inspector.bottom) : 0;
   const camera = constrainCamera(game, viewport?.camera ?? localCamera, lift);
@@ -172,14 +174,14 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     const radius = shields.at(-1)?.radius ?? 18;
     const point = { x: location.x / 100 * size.width, y: location.y / 100 * size.height };
     const specialists = mapSpecialistSummary(rock);
-    return { key: `${tile}-${rock.id}`, rock, location, active, shields, radius, ...point, specialists, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
+    return { key: `${tile}-${rock.id}`, rock, location, active, shields, radius, ...point, specialists, drones: rock.known === false ? undefined : rock.drones, controlWidth: styles.rock.width, controlHeight: styles.rock.height, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
   })).filter(site => site.location.x >= -15 && site.location.x <= 115 && site.location.y >= -15 && site.location.y <= 115);
   const haulers = offsets.flatMap((offset, tile) => game.fleets.map(f => {
     const worldPoint = fleetPosition(game, f);
     const location = position({ x: worldPoint.x + offset.x, y: worldPoint.y + offset.y });
     const point = { x: location.x / 100 * size.width, y: location.y / 100 * size.height };
     const specialists = mapSpecialistSummary(f);
-    return { key: `contact-${tile}-${f.id}`, fleet: f, location, ...point, specialists, radius: haulerRadius(f), priority: contact === f.id ? 2000 : f.owner === player ? 100 : 50 };
+    return { key: `contact-${tile}-${f.id}`, fleet: f, location, ...point, specialists, radius: haulerRadius(f), controlWidth: styles.hauler.width, controlHeight: styles.hauler.height, priority: contact === f.id ? 2000 : f.owner === player ? 100 : 50 };
   })).filter(hauler => hauler.location.x >= -10 && hauler.location.x <= 110 && hauler.location.y >= -10 && hauler.location.y <= 110);
   const specialistMarkers = layoutSpecialistMarkers([...sites, ...haulers], markerViewport);
   const markerObstacles = [...specialistMarkers.values()].map(marker => ({ x: marker.left, y: marker.top, width: marker.width, height: marker.height }));
@@ -274,7 +276,7 @@ const styles = StyleSheet.create({
   zoom: { position: 'absolute', right: 10, top: 10, flexDirection: 'row', flexWrap: 'wrap', width: 44, gap: 4 }, mapControl: { minWidth: 44, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#15262de8', borderRadius: 22 },
   hauler: { position: 'absolute', width: 44, height: 44, marginLeft: -22, marginTop: -22, alignItems: 'center', justifyContent: 'center' }, contactRing: { minWidth: 32, height: 24, paddingHorizontal: 4, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, fleetCount: { color: '#08100b', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#101d24' },
-  rock: { position: 'absolute', width: 64, height: 44, marginLeft: -32, marginTop: -22, alignItems: 'center', justifyContent: 'center' },
+  rock: { position: 'absolute', width: SITE_CONTROL_WIDTH, height: 44, marginLeft: -SITE_CONTROL_WIDTH / 2, marginTop: -22, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 38, height: 38, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   stone: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   asteroid: { width: 22, height: 20, borderRadius: 6, borderTopLeftRadius: 10, borderBottomRightRadius: 9 },
@@ -283,6 +285,6 @@ const styles = StyleSheet.create({
   baseIcon: { width: 34, height: 34 },
   coreBadge: { position: 'absolute', top: -3, right: -3, width: 13, height: 13, lineHeight: 13, fontSize: 12, textAlign: 'center', backgroundColor: '#101d24', borderRadius: 7 },
   name: { position: 'absolute', left: -12, width: 88, fontSize: 10, textAlign: 'center', color: '#82979d' },
-  count: { position: 'absolute', left: 50, top: 13, color: '#e4edeb', fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  count: { position: 'absolute', left: SITE_CONTROL_WIDTH / 2 + MAP_DRONE_COUNT_OFFSET, top: 13, color: '#e4edeb', fontSize: MAP_DRONE_COUNT_SIZE, fontWeight: '600', fontVariant: ['tabular-nums'] },
   coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 }, coord: { fontSize: 11, color: '#a0af9e' },
 });

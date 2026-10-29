@@ -102,3 +102,17 @@ test('hidden or destroyed sites supply no marker or accessible specialist identi
     assert.doesNotMatch(labels, /Engineer|Fabricator|Martyr|Self-destruct|secret|gone/);
   });
 });
+
+test('large overflow stays compact across platforms without losing the actual manifest count', async () => {
+  const game = fixture();
+  game.fleets[0]!.specialists = [
+    ...['queen', 'diplomat', 'elder'].map((kind, i) => ({ id: `crew-${i}`, kind, owner: 'you', captive: false })),
+    ...Array.from({ length: 123 }, (_, i) => ({ id: `extra-${i}`, kind: 'foreman', owner: 'you', captive: false })),
+  ];
+  await withChart({ game }, async renderer => {
+    const crew = renderer.root.findAll((n: any) => n.type === 'Pressable' && n.props.accessibilityLabel?.startsWith('Inspect specialists aboard'))[0];
+    assert.match(crew.props.accessibilityLabel, /123 × Assembler daemon/);
+    const overflow = crew.findAll((n: any) => n.type === 'View' && n.props.testID === 'map-specialist-overflow')[0];
+    assert.equal(overflow.findAll((n: any) => n.type === 'Text')[0].children.join(''), '99+');
+  });
+});

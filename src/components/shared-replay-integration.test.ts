@@ -66,7 +66,9 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Close site details');
     await press('Next state'); assert.match(visible(), /State 2 of 2/);
     await press('Previous state'); assert.match(visible(), /State 1 of 2/);
-    await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core'); assert.match(visible(), /Specialist owner/);
+    await press('Inspect specialists at Alpha: Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
+    await press('Close site details');
+    await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
     await press('Next state'); await press('Next state'); assert.doesNotMatch(visible(), /Close site details/);
     await press('Beginning');
     const fleet = hosts('Pressable').find(node => /hauler,/.test(node.props.accessibilityLabel ?? ''))!;

@@ -3,7 +3,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SpecialistIcon } from './Artwork';
 import { usePlayerRoster } from './PlayerIdentity';
-import { SPECIALIST_BADGE_GAP, SPECIALIST_BADGE_SIZE, type SpecialistMarkerPlacement, type SpecialistSummary } from './map-specialists';
+import { SPECIALIST_BADGE_GAP, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_HIT_SLOP, type SpecialistMarkerPlacement, type SpecialistSummary } from './map-specialists';
 
 const MAX_BADGE_COUNT = 99;
 
@@ -12,7 +12,7 @@ export function MapSpecialists({ summary, placement, label, onPress }: {
 }) {
   const identity = usePlayerRoster();
   if (!placement) return null;
-  return <Pressable testID="map-specialists" accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={10} style={[s.row, {
+  return <Pressable testID="map-specialists" accessibilityRole="button" accessibilityLabel={label} onPress={onPress} hitSlop={SPECIALIST_BADGE_HIT_SLOP} style={[s.row, {
     left: placement.left, top: placement.top, width: placement.width, height: placement.height,
   }]}>
     {summary.displayed.map(group => <View testID="map-specialist-badge" key={`${group.kind}:${group.owner}:${group.captive}`} accessible={false} style={[s.badge, { borderColor: identity(group.owner).color }, group.captive && s.captive]}>
@@ -20,7 +20,7 @@ export function MapSpecialists({ summary, placement, label, onPress }: {
       {group.captive && <Text accessible={false} style={s.lock}>🔒</Text>}
       {group.count > 1 && <Text accessible={false} style={s.count}>{group.count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : group.count}</Text>}
     </View>)}
-    {summary.overflow > 0 && <View testID="map-specialist-overflow" accessible={false} style={s.badge}><Text accessible={false} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={s.overflow}>+{summary.overflow}</Text></View>}
+    {summary.overflow > 0 && <View testID="map-specialist-overflow" accessible={false} style={s.badge}><Text accessible={false} numberOfLines={1} style={s.overflow}>{summary.overflow > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : `+${summary.overflow}`}</Text></View>}
   </Pressable>;
 }
 const s = StyleSheet.create({

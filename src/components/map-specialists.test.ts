@@ -58,11 +58,11 @@ test('unknown, destroyed, and malformed sites never reveal units', () => {
 
 test('markers sit above the anchor, fall below at the top edge, and clamp horizontally', () => {
   const two = mapSpecialistSummary({ specialists: [unit('a', 'queen'), unit('b', 'elder')] });
-  assert.deepEqual(specialistMarkerPlacement({ x: 100, y: 100 }, 18, viewport, two), { left: 75, top: 54, width: 50, height: 24, side: 'above' });
+  assert.deepEqual(specialistMarkerPlacement({ x: 100, y: 100 }, 18, viewport, two), { left: 75, top: 44, width: 50, height: 24, side: 'above' });
   assert.equal(specialistMarkerPlacement({ x: 100, y: 30 }, 18, viewport, two)?.side, 'below');
-  assert.equal(specialistMarkerPlacement({ x: 100, y: 30 }, 18, viewport, two)?.top, 52);
-  assert.equal(specialistMarkerPlacement({ x: 2, y: 100 }, 18, viewport, two)?.left, 0);
-  assert.equal(specialistMarkerPlacement({ x: 299, y: 100 }, 18, viewport, two)?.left, 250);
+  assert.equal(specialistMarkerPlacement({ x: 100, y: 30 }, 18, viewport, two)?.top, 62);
+  assert.equal(specialistMarkerPlacement({ x: 2, y: 100 }, 18, viewport, two)?.left, 10);
+  assert.equal(specialistMarkerPlacement({ x: 299, y: 100 }, 18, viewport, two)?.left, 240);
   const overflow = mapSpecialistSummary({ specialists: ['queen', 'diplomat', 'elder', 'foreman'].map((k, i) => unit(`${i}`, k as Specialist['kind'])) });
   assert.equal(specialistMarkerPlacement({ x: 100, y: 100 }, 18, viewport, overflow)?.width, 4 * 24 + 3 * 2);
 });
@@ -104,10 +104,10 @@ test('a preparing hauler can place its crew below an outpost with badges above',
 
 test('a specialist hauler badge fits throughout the retained band above its inspector', () => {
   const summary = mapSpecialistSummary({ specialists: [unit('a', 'helmsman')] });
-  for (let y = 22; y <= 88; y++) {
-    const row = specialistMarkerPlacement({ x: 190, y }, 22, { width: 393, height: 110 }, summary);
+  for (let y = 22; y <= 128; y++) {
+    const row = specialistMarkerPlacement({ x: 190, y }, 22, { width: 393, height: 150 }, summary);
     assert.ok(row, `Selected hauler at y=${y} retains a crew marker`);
-    assert.ok(row.top >= 0 && row.top + row.height <= 110);
+    assert.ok(row.top >= 10 && row.top + row.height + 10 <= 150, 'The full 44px touch height remains in the clear band');
   }
 });
 
@@ -130,4 +130,15 @@ test('specialist rows avoid neighboring base and drone-count bounds even when th
     { key: 'neighbor', x: 100, y: 60, radius: 18, priority: 0, specialists: mapSpecialistSummary({}) },
   ], viewport);
   assert.equal(placed.get('crew')!.side, 'below', 'An empty neighboring base still blocks the row above');
+});
+
+test('badge touch padding clears neighboring site controls and long drone inventories', () => {
+  const specialists = mapSpecialistSummary({ specialists: [unit('a', 'pirate')] });
+  for (const x of [160, 265]) {
+    const placed = layoutSpecialistMarkers([
+      { key: 'neighbor', x: 200, y: 100, radius: 18, priority: 0, specialists: mapSpecialistSummary({}), drones: 9999 },
+      { key: 'crew', x, y: 136, radius: 18, priority: 10, specialists },
+    ], { width: 400, height: 400 });
+    assert.equal(placed.get('crew')!.side, 'below', `Row at ${x} must not steal the neighbor's tap or cover its count`);
+  }
 });

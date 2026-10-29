@@ -1,12 +1,25 @@
 /** Place secondary names without covering site markers or more important names. */
-type SiteAnchor = { key: string; x: number; y: number; priority: number; radius?: number };
+type MarkerPoint = { x: number; y: number; radius?: number; drones?: number; controlWidth?: number; controlHeight?: number };
+type SiteAnchor = MarkerPoint & { key: string; priority: number };
 export type Rect = { x: number; y: number; width: number; height: number };
+export const MAP_DRONE_COUNT_SIZE = 14;
+export const MAP_DRONE_COUNT_OFFSET = 18;
+const DRONE_DIGIT_WIDTH = Math.ceil(MAP_DRONE_COUNT_SIZE * 0.7);
 const NAME_WIDTH = 88, NAME_HEIGHT = 14;
 const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 
-export function mapMarkerBounds(point: { x: number; y: number; radius?: number }): Rect {
+export function mapMarkerBounds(point: MarkerPoint): Rect {
   const radius = point.radius ?? 18;
-  return { x: point.x - radius, y: point.y - radius, width: radius + Math.max(radius, 38), height: radius * 2 };
+  const digits = point.drones === undefined ? 2 : point.drones > 0 ? String(Math.floor(point.drones)).length : 0;
+  const right = Math.max(radius, digits ? MAP_DRONE_COUNT_OFFSET + digits * DRONE_DIGIT_WIDTH : 0);
+  return { x: point.x - radius, y: point.y - radius, width: radius + right, height: radius * 2 };
+}
+
+export function mapMarkerHitBounds(point: MarkerPoint): Rect {
+  const bounds = mapMarkerBounds(point);
+  const halfWidth = (point.controlWidth ?? 64) / 2, halfHeight = (point.controlHeight ?? 44) / 2;
+  const left = Math.min(bounds.x, point.x - halfWidth), top = Math.min(bounds.y, point.y - halfHeight);
+  return { x: left, y: top, width: Math.max(bounds.x + bounds.width, point.x + halfWidth) - left, height: Math.max(bounds.y + bounds.height, point.y + halfHeight) - top };
 }
 
 export function layoutSiteNames(sites: SiteAnchor[], viewport: { width: number; height: number }, obstacles: readonly Rect[] = []): Map<string, 'above' | 'below'> {
