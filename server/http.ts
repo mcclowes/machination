@@ -5,7 +5,7 @@
  */
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { Failure, GameService } from './service';
+import { Failure, GameService, type AccountCredential } from './service';
 import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/online/protocol';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/online/protocol';
@@ -22,6 +22,68 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error();
     return parsed;
   } catch { throw new Failure(400, 'request.validation.json', 'Send a JSON object.'); }
+}
+async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential): Promise<unknown> {
+  if (req.method === 'POST' && url.pathname === '/v1/games') {
+    const input = await body(req);
+    if (Object.keys(input).some(key => key !== 'options')) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
+    return service.create(token, input.options);
+  }
+  if (req.method === 'POST' && url.pathname === '/v1/join') {
+    const input = await body(req);
+    if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
+    return service.join(input.invite, token);
+  }
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover))?$/);
+  if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
+  const id = match[1]!, action = match[2];
+  switch (req.method) {
+    case 'GET':
+      switch (action) {
+        case undefined: return service.snapshot(id, token);
+        case 'replay': {
+          const bounds = ['from', 'through'].map(key => url.searchParams.get(key));
+          if ([...url.searchParams.keys()].some(key => key !== 'from' && key !== 'through')
+            || ['from', 'through'].some(key => url.searchParams.getAll(key).length !== 1)
+            || bounds.some(value => !value?.trim() || !Number.isFinite(Number(value)))) {
+            throw new Failure(400, 'replay.validation.bounds', 'Provide exactly one finite from and through, with no other query parameters.');
+          }
+          return service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]));
+        }
+        case 'history': {
+          const hour = url.searchParams.get('hour');
+          if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
+          return service.history(id, token, Number(hour));
+        }
+        default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
+      }
+    case 'POST': {
+      const input = await body(req);
+      switch (action) {
+        case 'activity': return service.activity(id, token);
+        case 'resign': return service.resign(id, token, input as ResignOrder);
+        case 'recovery': return service.setRecovery(id, token, input as RecoverySetup);
+        case 'recover': return service.recover(id, token, input as RecoverSeat);
+        case 'start': return service.start(id, token);
+        case 'specialists': return service.specialist(id, token, input as SpecialistOrder);
+        case 'haulers': return service.hauler(id, token, input as HaulerOrder);
+        case 'sites': return service.site(id, token, input as SiteOrder);
+        case 'orders': return service.order(id, token, input as Order);
+        case 'gifts': return service.gift(id, token, input as GiftOrder);
+        case 'intercepts': return service.intercept(id, token, input as InterceptOrder);
+        case 'schedules': return service.schedule(id, token, input as ScheduleOrder);
+        case 'edit-schedule': return service.editSchedule(id, token, input as EditSchedule);
+        case 'cancel-schedule': return service.cancelSchedule(id, token, input as CancelSchedule);
+        case 'modules': return service.install(id, token, input as ModuleOrder);
+        case 'funding': return service.funding(id, token, input as FundingOrder);
+        case 'groups': return service.createGroup(id, token, input as CreateGroup);
+        case 'channel-messages': return service.channelMessage(id, token, input as ChannelTransmission);
+        case 'messages': return service.message(id, token, input as Transmission);
+        default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
+      }
+    }
+    default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
+  }
 }
 export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication) {
   const limits = new Map<string, { count: number; resets: number }>();
@@ -71,60 +133,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
       if (authenticate && !account && req.method === 'POST' && (path === '/v1/games' || path === '/v1/join')) throw new Failure(401, 'account.unauthorized.session', 'Sign in to create or join an operation.');
-      let result: unknown;
-      if (req.method === 'POST' && path === '/v1/games') {
-        const input = await body(req);
-        if (Object.keys(input).some(key => key !== 'options')) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
-        result = await service.create(token, input.options);
-      }
-      else if (req.method === 'POST' && path === '/v1/join') {
-        const input = await body(req);
-        if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
-        result = await service.join(input.invite, token);
-      } else {
-        const match = path.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover))?$/);
-        if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
-        const id = match[1]!; const action = match[2];
-        if (req.method === 'GET' && !action) result = await service.snapshot(id, token);
-        else if (req.method === 'GET' && action === 'replay') {
-          const bounds = ['from', 'through'].map(key => url.searchParams.get(key));
-          if ([...url.searchParams.keys()].some(key => key !== 'from' && key !== 'through')
-            || ['from', 'through'].some(key => url.searchParams.getAll(key).length !== 1)
-            || bounds.some(value => !value?.trim() || !Number.isFinite(Number(value)))) {
-            throw new Failure(400, 'replay.validation.bounds', 'Provide exactly one finite from and through, with no other query parameters.');
-          }
-          result = await service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]));
-        }
-        else if (req.method === 'GET' && action === 'history') {
-          const hour = url.searchParams.get('hour');
-          if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
-          result = await service.history(id, token, Number(hour));
-        }
-        else if (req.method === 'POST') {
-          const input = await body(req);
-          if (action === 'activity') result = await service.activity(id, token);
-          else if (action === 'resign') result = await service.resign(id, token, input as ResignOrder);
-          else if (action === 'recovery') result = await service.setRecovery(id, token, input as RecoverySetup);
-          else if (action === 'recover') result = await service.recover(id, token, input as RecoverSeat);
-          else if (action === 'start') result = await service.start(id, token);
-          else if (action === 'specialists') result = await service.specialist(id, token, input as SpecialistOrder);
-          else if (action === 'haulers') result = await service.hauler(id, token, input as HaulerOrder);
-          else if (action === 'sites') result = await service.site(id, token, input as SiteOrder);
-          else if (action === 'orders') result = await service.order(id, token, input as Order);
-          else if (action === 'gifts') result = await service.gift(id, token, input as GiftOrder);
-          else if (action === 'intercepts') result = await service.intercept(id, token, input as InterceptOrder);
-          else if (action === 'schedules') result = await service.schedule(id, token, input as ScheduleOrder);
-          else if (action === 'edit-schedule') result = await service.editSchedule(id, token, input as EditSchedule);
-          else if (action === 'cancel-schedule') result = await service.cancelSchedule(id, token, input as CancelSchedule);
-          else if (action === 'modules') result = await service.install(id, token, input as ModuleOrder);
-          else if (action === 'funding') result = await service.funding(id, token, input as FundingOrder);
-          else if (action === 'groups') result = await service.createGroup(id, token, input as CreateGroup);
-          else if (action === 'channel-messages') result = await service.channelMessage(id, token, input as ChannelTransmission);
-          else if (action === 'messages') result = await service.message(id, token, input as Transmission);
-          else throw new Failure(405, 'request.validation.method', 'Method not allowed.');
-        } else throw new Failure(405, 'request.validation.method', 'Method not allowed.');
-      }
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify(await gameRequest(req, url, service, token)));
     } catch (error) {
       const e = error instanceof Failure ? error : new Failure(500, 'server.internal.unavailable', 'The server could not complete this request. Retry with the same command ID.');
       if (!(error instanceof Failure)) console.error('Request failed', correlationId, (error as NodeJS.ErrnoException).code ?? 'internal');
