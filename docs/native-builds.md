@@ -147,6 +147,14 @@ Two synthetic strict-codec replay fixtures were downloaded locally through nativ
 
 Seventeen focused geometry/React checks and TypeScript pass, including both map topologies, scale-one legacy edges, seams, manual pan, unchanged remeasurement, viewport resize, zoom allowance, and restoring normal bounds. A temporary source-only snapshot of exact commit `a45505b`, with existing dependencies symlinked, passes all **815/815** tests and TypeScript under Node 24.14.1. Log: `/tmp/machination-a45505b-node24-suite.log`. This excludes parallel sessions' unfinished edits. The first snapshot run selected Node 26 and correctly refused the 21 certified-V8 numeric diagnostic cases; no numeric guard or assertion was relaxed. Native source `a45505b` includes mechanics 12 and 13, but the native checks above establish inspection behavior rather than native combat-rule scenarios. Original-client comparison, physical devices, and native role reuse (#28) remain separate acceptance work.
 
+## Accessibility role discriminator
+
+On October 29, native QA source `a45505b` reproduced [#28](https://github.com/mcclowes/machination/issues/28): entry Sound reports a switch, then replay-library Exit replay library reports a switch despite declaring a button. Read-only LLDB inspection of the same QA process records the reused `RCTViewComponentView` at address `0x107c5f000`: Sound has traits `0x20000000000001`; after navigation, Exit replay library has button traits `0x1`. Open replay independently has `0x1`. The debugger detached after each read. The corresponding Device Hub snapshot still reports Exit replay library as a switch.
+
+This rules out stale stored UIKit traits for that reproduced control. It supports caching by view identity in Device Hub or an accessibility layer, but does not yet distinguish a Device Hub-only problem from a shared simulator accessibility-server cache. It also does not certify VoiceOver or every previously reported adjustable/control mismatch. No production recycling opt-out or speculative trait-reset patch was applied.
+
+Evidence: `/tmp/machination-28/entry-traits.log`, `library-traits.log`, `entry-devicehub.txt`, and `library-devicehub.txt`; the bounded read-only debugger commands are `inspect-traits.lldb` in that directory. Apple Accessibility Inspector opened and selected the QA process, but produced no independent selected-element result through Device Hub; its inspection pointer was restored off. An independent AX-client or physical-reader comparison remains required before resolving #28. Device Hub keyboard capture remains off.
+
 ## Native identity
 
 Original icons and launch artwork are configured in `app.json`. Run `npm run build:brand` to regenerate their PNGs from the editable vector and inspect the masked and small-size preview. See [the artwork notes](../assets/brand/README.md).
