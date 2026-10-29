@@ -138,6 +138,30 @@ test('revision thirteen retains its old release result and refuses the resulting
   assert.throws(() => decodeSave(JSON.stringify({ savedAt: 0, game })), /damaged/);
 });
 
+test('a successor traveling on its own hauler remains the sole Queen when the original is released and docks', () => {
+  const f = world('mining');
+  f.game.rocks.find(r => r.id === f.core)!.drones = 0;
+  const h = history(f.game);
+  h.command({ type: 'dispatch', owner: 'vesper', from: f.enemy, to: f.core, drones: 1 });
+  h.at(h.game.fleets.at(-1)!.arrives);
+  h.command({ type: 'dispatch', owner: 'you', from: f.successor, to: f.distant, drones: 0, specialists: ['successor'] });
+  const successor = h.game.fleets.find(fleet => fleet.specialists?.some(u => u.id === 'successor'))!;
+  h.at(successor.departed + 0.01);
+  assert.equal(h.game.fleets.find(fleet => fleet.id === successor.id)!.preparing, undefined);
+  assert.equal(recruitmentStatus(h.game, 'you').at, undefined);
+  h.command({ type: 'release', owner: 'vesper', id: 'core-you' });
+  restored(h.game); h.check();
+  assert.equal(h.game.fleets.find(fleet => fleet.id === successor.id)!.arrives, successor.arrives);
+  const returning = h.game.fleets.find(fleet => fleet.specialists?.some(u => u.id === 'core-you'))!;
+  assert.ok(returning.arrives < successor.arrives);
+  h.at(returning.arrives);
+  restored(h.game); h.check();
+  assert.equal(recruitmentStatus(h.game, 'you').at, undefined, 'Docking the restored Princess does not open a second hiring core');
+  h.at(successor.arrives);
+  restored(h.game); h.check();
+  assert.equal(recruitmentStatus(h.game, 'you').at, f.distant);
+});
+
 for (const mode of ['mining', 'domination'] as const) test(`a restored Princess can succeed again without duplicating cores: ${mode}`, () => {
   const f = world(mode);
   f.game.rocks.find(r => r.id === f.core)!.drones = 0;
