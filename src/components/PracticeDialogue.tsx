@@ -11,7 +11,7 @@ const speakers = {
 };
 const phaseLabels = { briefing: 'Mission briefing', underway: 'Incoming transmission', passed: 'Mission complete', failed: 'Mission debrief' };
 
-export function PracticeDialogue({ scenario, status, hour }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number }) {
+export function PracticeDialogue({ scenario, status, hour, playing = false }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number; playing?: boolean }) {
   const { width, height } = useWindowDimensions();
   const compact = width < 600;
   const landscape = height < 500;
@@ -23,7 +23,7 @@ export function PracticeDialogue({ scenario, status, hour }: { scenario: Trainin
   const index = cursor.phase === phase ? cursor.index : 0;
   const line = lines[index]!;
   const speaker = speakers[line.speaker];
-  const visible = replaying || !dismissed.includes(phase);
+  const visible = !playing && (replaying || !dismissed.includes(phase));
   const last = index === lines.length - 1;
   const continueLabel = !last ? 'Continue dialogue' : phase === 'briefing' ? 'Take command' : 'Return to chart';
   function close() {
@@ -34,7 +34,7 @@ export function PracticeDialogue({ scenario, status, hour }: { scenario: Trainin
   const artHeight = Math.max(64, Math.min(height - (landscape ? 300 : 440), height * 0.45, compact ? 290 : 460));
 
   return <>
-    <Pressable accessibilityRole="button" onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={s.replay}><Text style={s.replayText}>Replay briefing</Text></Pressable>
+    <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.replay, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close}>
       <SafeAreaView style={s.overlay} accessibilityViewIsModal>
         <View style={[s.mission, (compact || landscape) && s.missionCompact]}><Text style={s.eyebrow}>{phaseLabels[phase]}</Text><Text accessibilityRole="header" style={s.missionTitle}>{scenario.title}</Text>{!landscape && <Text style={s.missionDetail}>{scenario.objective}</Text>}</View>

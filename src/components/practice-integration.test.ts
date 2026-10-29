@@ -30,6 +30,10 @@ test('App practice isolates live lifecycles and awards only actual capture, with
   };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   const originalNow = Date.now, originalInterval = globalThis.setInterval, originalFetch = globalThis.fetch;
+  const originalRequestFrame = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame');
+  const originalCancelFrame = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame');
+  const frames = new Map<number, FrameRequestCallback>();
+  let frameId = 0, animationTime = 0;
   let renderer: any;
   try {
     const output = await build({
@@ -62,9 +66,20 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     });
     const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     Date.now = () => now;
+    globalThis.requestAnimationFrame = callback => { frames.set(++frameId, callback); return frameId; };
+    globalThis.cancelAnimationFrame = id => { frames.delete(id); };
     globalThis.setInterval = ((..._args: unknown[]) => { intervals++; throw new Error('Practice started a live interval'); }) as typeof setInterval;
     globalThis.fetch = (async () => { network++; throw new Error('Practice made a network request'); }) as typeof fetch;
     const flush = async (action: () => void) => { await act(async () => { action(); await Promise.resolve(); }); };
+    const frame = async (milliseconds = 100) => {
+      animationTime += milliseconds;
+      const callbacks = [...frames.values()]; frames.clear();
+      await flush(() => callbacks.forEach(callback => callback(animationTime)));
+    };
+    const finishPlayback = async () => {
+      for (let i = 0; frames.size && i < 250; i++) await frame();
+      assert.equal(frames.size, 0, 'Playback stops and releases its frame at the outcome');
+    };
     const hosts = (type: string) => renderer.root.findAll((node: Node) => node.type === type) as Node[];
     const press = async (label: string | RegExp) => {
       const matches = hosts('Pressable').filter(node => typeof label === 'string' ? (node.props.accessibilityLabel ?? text(node)) === label : label.test(node.props.accessibilityLabel ?? text(node)));
@@ -225,7 +240,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderMove(touch, { ...gesture, dx: gesture.dx + 10 }));
     assert.ok(Math.abs(scale() - pinchedScale) < 1e-9, 'Continuing a pinch with one finger preserves the zoom');
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
-    assert.ok(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Focus your territory'), 'Web chart controls are visible by default');
+    await press('Map controls');
     await press('Focus your territory');
     await flush(() => chart.props.onPanResponderGrant(touch, gesture));
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
@@ -239,6 +254,30 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Jump to hauler arrival');
     assert.match(visible(), /Forecast/);
     await press('Resolve orders');
+    assert.doesNotMatch(visible(), /Exercise complete/, 'Run-to-completion starts playback instead of jumping to the result');
+    assert.match(visible(), /Live · D01 · 00:00/);
+    assert.equal(frames.size, 1);
+    await frame();
+    await frame();
+    assert.match(visible(), /Live · D01 · 00:03/, 'The timeline moves through intermediate actual times');
+    assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
+    assert.equal(hosts('Modal').length, 0, 'Dialogue leaves the animation visible');
+    await press('Pause playback');
+    assert.equal(frames.size, 0);
+    await frame();
+    assert.match(visible(), /Live · D01 · 00:03/, 'Pausing retains the current mission time');
+    if (hosts('Modal').length) await press('Skip dialogue');
+    await press('Resolve orders');
+    await frame();
+    await frame(3_600_000);
+    assert.match(visible(), /Live · D01 · 00:06/, 'Returning after a long frame never jumps over the action');
+    for (let i = 0; i < 4; i++) await frame();
+    const hauler = () => hosts('Pressable').find(node => /hauler, 6 drones/.test(node.props.accessibilityLabel ?? ''))!;
+    assert.ok(hauler(), 'The prepared launch departs during playback');
+    const position = hauler().props.style[1].left;
+    await frame();
+    assert.notEqual(hauler().props.style[1].left, position, 'The fleet visibly moves between animation frames');
+    await finishPlayback();
     assert.match(visible(), /Exercise complete/);
     assert.doesNotMatch(visible(), /Forecast/, 'Resolving returns to the actual outcome');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /Mnemosyne, 2 drones/);
@@ -269,14 +308,32 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press(/^Quiet landing,/);
     await press('Prepare launch · 10m');
     await press('Resolve orders');
+    await finishPlayback();
     assert.match(visible(), /Try another plan/);
     assert.match(visible(), /D01 · 06:00/, 'An unsuccessful plan resolves to the deadline');
     assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false);
     assert.deepEqual(writes, [progressKey], 'Resolving an unsuccessful plan never awards completion');
     quiet();
+    await press('Skip dialogue');
+    await press('Retry exercise');
+    await press('Skip dialogue');
+    await press(/^Foundry,/);
+    await input('Drones to dispatch', '20');
+    await press('Plan transfer ↗');
+    await press(/^Quiet landing,/);
+    await press('Prepare launch · 10m');
+    await press('Resolve orders');
+    await frame(); await frame();
+    await press('Retry exercise');
+    assert.equal(frames.size, 0, 'Retry cancels the previous attempt animation');
+    await press('Skip dialogue');
+    await frame();
+    assert.match(visible(), /Live · D01 · 00:00/, 'Canceled playback cannot change the new attempt');
   } finally {
     if (renderer) await act(async () => renderer.unmount());
     Date.now = originalNow; globalThis.setInterval = originalInterval; globalThis.fetch = originalFetch;
+    if (originalRequestFrame) Object.defineProperty(globalThis, 'requestAnimationFrame', originalRequestFrame); else Reflect.deleteProperty(globalThis, 'requestAnimationFrame');
+    if (originalCancelFrame) Object.defineProperty(globalThis, 'cancelAnimationFrame', originalCancelFrame); else Reflect.deleteProperty(globalThis, 'cancelAnimationFrame');
     delete globals[key];
     if (priorAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', priorAct); else delete globals.IS_REACT_ACT_ENVIRONMENT;
   }

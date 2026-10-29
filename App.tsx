@@ -96,7 +96,8 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const inspectionSequence = useRef(0);
   useEffect(() => { setMapCamera(fitPlayerCamera(game, 'you')); setInspectFleet(undefined); }, [game.epoch]);
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
-  function inspectTime(hour: number | null) { setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }
+  const [resolving, setResolving] = useState(false);
+  function inspectTime(hour: number | null) { setResolving(false); setInspectedHour(hour); setDelay(0); setPlanning(false); setNavigating(undefined); setDestination(undefined); }
   const forecast = inspectionOffset(game.hour, inspectedHour);
   const historical = inspectionMode(game.hour, inspectedHour) === 'past';
   const [reset, setReset] = useState(false);
@@ -137,7 +138,28 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const assessment = policy.assess(operation);
   const reported = useRef(false);
   useEffect(() => { if (assessment?.status === 'passed' && !reported.current) { reported.current = true; practice?.onPassed(); } }, [assessment?.status]);
-  const operational = status === 'active' && ready && !loadFailed && !historical && (!assessment || assessment.status === 'active');
+  const operational = status === 'active' && ready && !loadFailed && !historical && !resolving && (!assessment || assessment.status === 'active');
+  useEffect(() => {
+    if (!resolving || !practice) return;
+    let frame: number, previous: number | undefined, canceled = false;
+    function step(timestamp: number) {
+      if (canceled) return;
+      // Limit each frame so returning from the background never skips the action.
+      const elapsed = previous === undefined ? 0 : Math.max(0, Math.min(100, timestamp - previous));
+      previous = timestamp;
+      if (elapsed > 0) {
+        try {
+          const hoursPerSecond = 0.5;
+          const next = policy.advance(current.current, current.current.game.hour + elapsed / 1000 * hoursPerSecond, 'manual');
+          replace(next);
+          if (policy.assess(next)?.status !== 'active') { setResolving(false); return; }
+        } catch (error) { setError((error as Error).message); setResolving(false); return; }
+      }
+      frame = requestAnimationFrame(step);
+    }
+    frame = requestAnimationFrame(step);
+    return () => { canceled = true; cancelAnimationFrame(frame); };
+  }, [resolving, policy]);
   const outcomeMessage = {
     active: '',
     draw: 'No operational intelligences remain. The operation ended in a draw.',
@@ -196,6 +218,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
     catch (e) { setError((e as Error).message); }
   }
   function act(command: GameCommand) {
+    if (resolving) throw new Error('Pause playback before changing orders.');
     if (inspectionMode(current.current.game.hour, inspectedHour) === 'past') throw new Error('Historical views are read-only. Return to Now to issue an order.');
     replace(policy.submit(current.current, command));
   }
@@ -214,16 +237,20 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
     catch (e) { setError((e as Error).message); }
   }
   const canResolvePractice = !!practice && operational && (game.fleets.some(f => f.owner === 'you') || !!game.scheduled?.some(p => p.owner === 'you'));
-  function advanceClock(hours: number, resolveOrders = false) {
-    if (!operational || practice && inspectedHour !== null && !resolveOrders || resolveOrders && !canResolvePractice) return;
-    try { lastTick.current = Date.now(); replace(policy.advance(current.current, current.current.game.hour + hours, 'manual')); setInspectedHour(null); setPlanning(false); setNavigating(undefined); setDestination(undefined); if (resolveOrders) setSection(null); setError(''); }
+  function resolvePracticeOrders() {
+    if (!canResolvePractice) return;
+    inspectTime(null); setSection(null); setError(''); setResolving(true);
+  }
+  function advanceClock(hours: number) {
+    if (!operational || practice && inspectedHour !== null) return;
+    try { lastTick.current = Date.now(); replace(policy.advance(current.current, current.current.game.hour + hours, 'manual')); setInspectedHour(null); setPlanning(false); setNavigating(undefined); setDestination(undefined); setError(''); }
     catch (error) { setError((error as Error).message); }
   }
   function skip() { advanceClock(6); }
 
   return <View style={s.safe}>
     <OperationShell portraits={shown.rules?.portraits} section={section} onSection={setSection}
-      status={(practice || error || outcomeMessage) ? <>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} canResolve={canResolvePractice} onResolve={() => advanceClock(practice.scenario.deadline - game.hour, true)} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
+      status={(practice || error || outcomeMessage) ? <>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} resolving={resolving} canResolve={canResolvePractice} onResolve={resolvePracticeOrders} onPause={() => setResolving(false)} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
 {!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</> : null}
       chart={<BeltMap fill viewport={{ camera: mapCamera, onChange: setMapCamera }} inspectFleet={inspectFleet} inspecting={section === 'asset'} transferRoute={transfer?.route} timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} onTransfer={operational && !shown.winner && !shown.draw && navigating === undefined ? prepareTransfer : undefined} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning && !destination || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
