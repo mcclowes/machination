@@ -225,7 +225,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderMove(touch, { ...gesture, dx: gesture.dx + 10 }));
     assert.ok(Math.abs(scale() - pinchedScale) < 1e-9, 'Continuing a pinch with one finger preserves the zoom');
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
-    await press('Map controls');
+    assert.ok(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Focus your territory'), 'Web chart controls are visible by default');
     await press('Focus your territory');
     await flush(() => chart.props.onPanResponderGrant(touch, gesture));
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));

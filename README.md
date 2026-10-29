@@ -27,7 +27,7 @@ Choose a launch time from now to seven days ahead and manage private plans in **
 
 Launches prepare for ten minutes with reserved manifests. Edit or cancel before departure in **Your live hauler orders**. Opposing ordinary haulers fight when they pass on the same route. In new operations, gifts transfer on contact to the current destination owner or a passing hauler; gift orders have a ten-minute cancellation window. Eliminated intelligences retain territory, production, and launched haulers, but lose cargo and cannot issue orders. Version-one saves keep their original transport and elimination rules.
 
-Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The Time Machine scrubs up to seven days ahead, accepts minute-precision inspection, and schedules transfers directly from that future context. Tap haulers to inspect them; pinch or use chart controls to zoom, then drag to pan. Forecasts include known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
+Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The Time Machine scrubs up to seven days ahead, accepts minute-precision inspection, and schedules transfers directly from that future context. Tap haulers to inspect them; pinch, scroll the mouse wheel or trackpad, or use chart controls to zoom, then drag to pan. Chart controls are visible by default on web. Forecasts include known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
 ## Check
 
