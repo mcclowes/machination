@@ -18,3 +18,13 @@ test('separated sites keep names, while edge labels stay inside the phone viewpo
   assert.equal(labels.get('b'), 'below');
   assert.equal(labels.has('edge'), false);
 });
+
+test('names clear shield arcs on their own and neighboring bases', () => {
+  const sites = [{ key: 'shielded', x: 100, y: 100, priority: 1, radius: 34 }];
+  assert.equal(layoutSiteNames(sites, { width: 300, height: 300 }).get('shielded'), 'below');
+  assert.equal(layoutSiteNames(sites, { width: 300, height: 145 }).get('shielded'), 'above', 'The lower name must clear the outer arc and viewport edge');
+  assert.equal(layoutSiteNames([
+    { key: 'a', x: 100, y: 100, priority: 1 },
+    { key: 'b', x: 100, y: 150, priority: 0, radius: 34 },
+  ], { width: 300, height: 300 }).get('a'), 'above', 'Neighboring shields also obstruct names');
+});

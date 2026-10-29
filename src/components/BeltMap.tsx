@@ -8,7 +8,7 @@ import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
-import Svg, { Circle, G, Line } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
@@ -23,6 +23,7 @@ import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '..
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera } from '../game/chart-projection';
 import { layoutSiteNames } from './map-labels';
+import { mapShields } from './map-shields';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
 export type { MapCamera } from '../game/chart-camera';
@@ -158,7 +159,9 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const sites = offsets.flatMap((offset, tile) => game.rocks.map(rock => {
     const location = position({ x: rock.x + offset.x, y: rock.y + offset.y });
     const active = ((inspecting || !!destination) && selected === rock.id) || destination === rock.id || drag?.from.id === rock.id || drag?.target?.id === rock.id;
-    return { key: `${tile}-${rock.id}`, rock, location, active, x: location.x / 100 * size.width, y: location.y / 100 * size.height, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
+    const shields = mapShields(rock);
+    const radius = shields.at(-1)?.radius ?? 18;
+    return { key: `${tile}-${rock.id}`, rock, location, active, shields, radius, x: location.x / 100 * size.width, y: location.y / 100 * size.height, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
   })).filter(site => site.location.x >= -15 && site.location.x <= 115 && site.location.y >= -15 && site.location.y <= 115);
   const names = layoutSiteNames(sites, size);
   const reference = fleet && fleetReference?.(fleet);
@@ -198,9 +201,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       })()}
       </G>)}
       </G>
+      {sites.map(({ key, x, y, shields }) => shields.length > 0 && <G key={`shields-${key}`} transform={`translate(${x}, ${y})`}>
+        {shields.map(arc => <Path key={arc.radius} d={arc.path} fill="none" stroke="#b6c3c5" strokeOpacity={0.65} strokeWidth={1.2} strokeLinecap="round" />)}
+      </G>)}
       {drag && <Line x1={drag.startX} y1={drag.startY} x2={drag.x} y2={drag.y} stroke={identity(player ?? 'you').color} strokeWidth="2" strokeDasharray="5 3" />}
     </Svg>
-    {sites.map(({ key, rock, location, active }) => {
+    {sites.map(({ key, rock, location, active, radius }) => {
       const color = rock.owner ? identity(rock.owner).color : '#68777b';
       const icon = siteIcon(rock);
       const namePlacement = names.get(key);
@@ -211,7 +217,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
             {icon && (rock.coreOf || rock.kind === 'core') && <Text accessible={false} style={[styles.coreBadge, { color }]}>◈</Text>}
           </View>
         </View>
-        {namePlacement && (!destination || active) && <Text numberOfLines={1} style={[styles.name, namePlacement === 'above' && styles.nameAbove, active && { color: '#e1e8e7' }]}>{rock.name}</Text>}
+        {namePlacement && (!destination || active) && <Text numberOfLines={1} style={[styles.name, { top: namePlacement === 'above' ? 6 - radius : 24 + radius }, active && { color: '#e1e8e7' }]}>{rock.name}</Text>}
         {rock.known !== false && (rock.drones ?? 0) > 0 && <Text style={styles.count}>{Math.floor(rock.drones ?? 0)}</Text>}
       </Pressable>;
     })}
@@ -256,7 +262,7 @@ const styles = StyleSheet.create({
   driftingEmblem: { backgroundColor: '#24343c', borderWidth: 1, borderRadius: 8 },
   baseIcon: { width: 34, height: 34 },
   coreBadge: { position: 'absolute', top: -3, right: -3, width: 13, height: 13, lineHeight: 13, fontSize: 12, textAlign: 'center', backgroundColor: '#101d24', borderRadius: 7 },
-  name: { position: 'absolute', left: -12, width: 88, top: 42, fontSize: 10, textAlign: 'center', color: '#82979d' }, nameAbove: { top: -12 },
+  name: { position: 'absolute', left: -12, width: 88, fontSize: 10, textAlign: 'center', color: '#82979d' },
   count: { position: 'absolute', left: 50, top: 13, color: '#e4edeb', fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 }, coord: { fontSize: 11, color: '#a0af9e' },
 });
