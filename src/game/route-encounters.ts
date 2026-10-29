@@ -6,6 +6,7 @@
 import { afterWork, workBetween } from './opening-clock';
 import { driftingBasesEnabled, mechanicsVersion, type PublicRules } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
+import type { EncounterSink } from './combat-report';
 import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
 import { flightEndpoints, fleetPosition, type FlightWorld } from './flight';
@@ -66,13 +67,13 @@ export function nextRouteEncounter(game: Game): number {
   }
   return next;
 }
-export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink, candidates?: readonly RouteCandidate[]): void {
+export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink, candidates?: readonly RouteCandidate[], encounters?: EncounterSink): void {
   if (mechanicsVersion(game) >= 5) {
     for (const candidate of candidates ?? routeCandidates(game)) {
       const { a, b } = candidate;
       if (candidate.hour !== game.hour || !game.fleets.includes(a) || !game.fleets.includes(b)
         || !sameLeg(a, candidate.aLeg) || !sameLeg(b, candidate.bLeg)) continue;
-      resolveHaulerContact(game, a, b);
+      resolveHaulerContact(game, a, b, encounters);
       tracePoint(trace, 'route-contact', game);
     }
     return;
@@ -81,7 +82,7 @@ export function resolveRouteEncounters(game: Game, trace?: SimulationTraceSink, 
   for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
     const a = game.fleets.find(f => f.id === ordered[i]!.id); const b = game.fleets.find(f => f.id === ordered[j]!.id);
     if (!a || !b || Math.abs(encounterHour(game, a, b) - game.hour) > CONTACT_TOLERANCE) continue;
-    resolveHaulerContact(game, a, b);
+    resolveHaulerContact(game, a, b, encounters);
     tracePoint(trace, 'route-contact', game);
   }
 }

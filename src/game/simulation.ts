@@ -16,6 +16,7 @@ import { reconcileFunding, type Funding } from './funding';
 import { refreshMining } from './mining';
 import { applyStationPassives, nextSpecialistEvent, settleSpecialistActions } from './specialist-actions';
 import { resolveStationArrival } from './specialist-combat';
+import type { EncounterSink } from './combat-report';
 import { refreshUnitEffects, specialistSpeed } from './specialist-effects';
 import { cloneUnits, manifestUnits, upgradeSpecialists, type Specialist, type Recruitment } from './specialists';
 import { nextRouteEncounter, routeCandidates, resolveRouteEncounters } from './route-encounters';
@@ -102,7 +103,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   };
 }
-export function advance(saved: Game, targetHour: number, options: { trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean; encounters?: EncounterSink } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
@@ -144,8 +145,8 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     positionSites(game);
     if (trace && spanFrom) trace({ type: 'span', from: spanFrom, to: traceSnapshot(game) });
     if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
-    if (game.version === 2) resolveRouteEncounters(game, trace, contacts);
-    if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace);
+    if (game.version === 2) resolveRouteEncounters(game, trace, contacts, options.encounters);
+    if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace, options.encounters);
     else resolveInterceptions(game, options.unknownInterceptions, trace);
     const arrivals = game.fleets.filter(f => f.arrives <= next).sort((a, b) => a.id - b.id);
     if (game.version === 1) game.fleets = game.fleets.filter(f => f.arrives > next);
@@ -159,7 +160,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
           game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
           continue;
         }
-        if (game.version === 2) { resolveStationArrival(game, fleet, rock); continue; }
+        if (game.version === 2) { resolveStationArrival(game, fleet, rock, options.encounters); continue; }
         const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
         if (rock.owner === fleet.owner) {
           rock.drones += fleet.drones;

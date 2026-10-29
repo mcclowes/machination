@@ -9,7 +9,8 @@ import { fleetPosition } from './flight';
 import type { Fleet, Game, Rock } from './simulation';
 import { unitCount } from './specialists';
 import { mechanicsVersion } from './rules';
-import { SPECIALISTS } from './specialist-catalog';
+import { SPECIALISTS, type SpecialistKind } from './specialist-catalog';
+import { snapshotPair, type EncounterStep } from './combat-report';
 export type Combatant = Rock | Fleet;
 export const combatUnits = (asset: Combatant) => (asset.specialists ?? []).filter(u => u.owner === asset.owner && !u.captive);
 const count = (asset: Combatant, kind: string) => combatUnits(asset).filter(u => u.kind === kind).length;
@@ -74,12 +75,19 @@ for (const priority of new Set([...COMBAT_PRIORITIES, ...Object.keys(RESOLVERS).
   if (!COMBAT_PRIORITIES.includes(priority) || !RESOLVERS[priority]) throw new Error(`Combat priority ${priority} needs both a catalog specialist and a resolver.`);
 }
 const ELDER_PRIORITY = SPECIALISTS.elder.priority;
+const KINDS_BY_PRIORITY = new Map(COMBAT_PRIORITIES.map(p => [p, (Object.keys(SPECIALISTS) as SpecialistKind[]).filter(k => (SPECIALISTS[k] as { priority?: number }).priority === p)]));
+const actingKinds = (a: Combatant, b: Combatant, priority: number) => KINDS_BY_PRIORITY.get(priority)!.filter(k => count(a, k) || count(b, k));
 
-export function applyCombatAbilities(game: Game, a: Combatant, b: Combatant): CombatPhase {
+// Steps, when supplied, receive snapshots around each resolver with an acting specialist; rules are unchanged.
+export function applyCombatAbilities(game: Game, a: Combatant, b: Combatant, steps?: EncounterStep[]): CombatPhase {
   const phase: Phase = { game, a, b, haulers: !('kind' in a) && !('kind' in b), suppressed: false, redirected: [] };
   for (const priority of COMBAT_PRIORITIES) {
     if (priority > ELDER_PRIORITY && phase.suppressed) break;
-    if (RESOLVERS[priority]!(phase) === 'continue') continue;
+    const kinds = steps ? actingKinds(a, b, priority) : [];
+    const before = kinds.length ? snapshotPair(a, b) : undefined;
+    const resolution = RESOLVERS[priority]!(phase);
+    if (before) steps!.push(Object.freeze({ type: 'ability', priority, kinds: Object.freeze(kinds), ended: resolution === 'end', before, after: snapshotPair(a, b) }));
+    if (resolution === 'continue') continue;
     if (phase.detonated) return { suppressed: false, ended: true, redirected: [] };
     for (const fleet of phase.redirected) if (game.fleets.includes(fleet)) returnHauler(game, fleet);
     return { suppressed: phase.suppressed, ended: true, redirected: [] };
@@ -88,6 +96,8 @@ export function applyCombatAbilities(game: Game, a: Combatant, b: Combatant): Co
   const generalsB = b.owner && combatUnits(b).length ? unitCount(game, b.owner, 'general') * 10 : 0;
   const kingA = a.owner && unitCount(game, a.owner, 'king') > 0 ? Math.floor(a.drones / 4) : 0;
   const kingB = b.owner && unitCount(game, b.owner, 'king') > 0 ? Math.floor(b.drones / 4) : 0;
+  const before = steps && (generalsA || generalsB || kingA || kingB) ? snapshotPair(a, b) : undefined;
   a.drones = Math.max(0, a.drones - generalsB - kingB); b.drones = Math.max(0, b.drones - generalsA - kingA);
+  if (before) steps!.push(Object.freeze({ type: 'global', generals: Object.freeze([generalsB, generalsA] as const), king: Object.freeze([kingB, kingA] as const), before, after: snapshotPair(a, b) }));
   return { suppressed: phase.suppressed, ended: false, redirected: phase.redirected };
 }

@@ -15,6 +15,7 @@ import { returnHauler } from './specialist-travel';
 import { resolveHaulerContact } from './specialist-combat';
 import { canObserveHauler } from './sensors';
 import { recentEvents } from './events';
+import type { EncounterSink } from './combat-report';
 
 export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact: boolean, ids?: string[], fleetId?: number): Game {
   if (game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
@@ -35,7 +36,7 @@ export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId
     events: recentEvents([{ hour: game.hour, audience: [owner], message: `${source.name}: interception preparing with ${drones} drones.` }, ...game.events]),
   };
 }
-export function resolveSpecialistInterceptions(game: Game, unknown: readonly number[] = [], trace?: SimulationTraceSink): void {
+export function resolveSpecialistInterceptions(game: Game, unknown: readonly number[] = [], trace?: SimulationTraceSink, encounters?: EncounterSink): void {
   const due = game.fleets.filter(f => f.intercept && !f.preparing && isDue(game, f.arrives)).sort((a, b) => a.id - b.id);
   for (const rig of due) {
     if (!game.fleets.some(f => f.id === rig.id)) continue;
@@ -47,7 +48,7 @@ export function resolveSpecialistInterceptions(game: Game, unknown: readonly num
       }
       const target = game.fleets.find(f => f.id === rig.intercept!.target);
       const point = flightEndpoints(game, rig).to;
-      if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target);
+      if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target, encounters, 'interception');
       if (game.fleets.some(f => f.id === rig.id) && rig.intercept) returnHauler(game, rig);
     } finally { tracePoint(trace, 'interception', game); }
   }
