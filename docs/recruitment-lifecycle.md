@@ -14,6 +14,14 @@ The public `play.subterfuge-game.com` entry returned an HTML redirect to the mai
 
 A fresh primary-frame review reads “Tap again to cancel hire (11m left)” at 02:10, while the forecast cursor is about +4.4h and the queued hire is labeled +4.5h. The remaining-time hint therefore cannot simply be the live-time interval until that future command. Neither the rounded labels nor the still frame establishes an exact cancellation clock, activation law, refund, or finalization action. The community Specialist 2 puzzle transcription specifically mentions permanence after ten minutes, but its original screenshot wasn't retrieved and that transcription alone isn't current-client acceptance. The [publisher's Steam page](https://store.steampowered.com/app/4831650/Subterfuge/?l=english) now offers a Mac demo; direct current-client investigation remains the next evidence route.
 
+## Additional publisher evidence, October 29
+
+The [v42.1 notes](https://www.secretplan.com/subterfuge-news/rules-v42-1.html) place War Hero in the Offensive recruitment deck. This directly supports category decks, which the rebuild already uses. It does not establish copy counts, how unchosen offers advance, cancellation restoration, or next-offer generation.
+
+The [v42.2 notes](https://www.secretplan.com/subterfuge-news/rules-v42-2.html) explain that the original Navigator cancellation period ended at the next tick, leaving between one second and ten minutes. They replace that behavior with a course change that takes effect ten minutes after submission. That account is specifically about Navigator orders. Applying the old tick rule to hiring remains a hypothesis; it does not resolve the historical hire countdown or justify implementing a guessed cancellation clock.
+
+The publisher-linked [Tutorial 2: Combat and specialists](https://vimeo.com/111760398) is another primary footage source, uploaded November 13, 2014. It loads and plays in a normal browser despite the scripted-fetch block, but its hiring/cancellation sequence has not yet been reviewed. Browser window handoffs interrupted frame inspection. This is an incomplete review, not evidence that those controls are absent. Its alpha-era behavior would still need comparison with current rules.
+
 ## Behavior to resolve before implementation
 
 | Question | Required observation |
