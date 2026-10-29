@@ -46,6 +46,8 @@ Navigator acceptance covers continued travel before activation, exact cancellati
 
 The cooldown is anchored to physical turns: canceled requests consume no cooldown, and a later order can prepare during the last ten minutes if its eventual turn is at least eight hours after the previous one. Execution validates the active Navigator, ownership, course lock, and destination again. Same-hour arrivals and combat settle before pending turns. These cooldown and tie-order details are explicit rebuild interpretations; the patch does not specify them. Original-client differential checks remain open in #46, alongside the earlier specialist interpretation gaps. Fresh games use revision 10; saved games are not upgraded.
 
+An independent read-only review of `78261ef..8870822` found no actionable defects within the publisher-rule changes. It reran 66 existing checks and separately probed 500 toroidal moving-target rendezvous cases and five Navigator launch times before/across/after noon. Maximum rendezvous distance error was below `5.7e-14`; partitioned Navigator advancement and strict-save round trips agreed. This bounded review does not establish original-client behavior, every specialist combination, or rendered/native acceptance. The local report is `/tmp/machination-publisher-rules-independent-review.txt`.
+
 The [official rulebook](https://subterfuge-game.com/rulebook/) defines the baseline:
 
 | System | Reference contract |
