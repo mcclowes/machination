@@ -1,12 +1,16 @@
 import { isActionPlan } from '../game/future-actions';
 import type { ScheduledOrder } from '../game/orders';
 import type { Faction } from '../game/simulation';
-import type { SpecialistKind } from '../game/specialist-catalog';
+import { SPECIALISTS, type SpecialistKind } from '../game/specialist-catalog';
+import { MODULES, type ModuleKind } from '../game/modules';
 import { gameClock } from '../game/time-machine';
 
 type Unit = { id: string; kind: SpecialistKind; owner: Faction; captive?: boolean };
 type Asset = { id?: string | number; name?: string; from?: string; to?: string; owner?: Faction | null; specialists?: Unit[] };
 export type LaunchUnit = { id: string; kind: SpecialistKind; planned: boolean; location: string };
+export function launchCargoLabel(drones: number, specialists: readonly { kind: SpecialistKind }[], module?: ModuleKind): string {
+  return [`${drones} drones`, specialists.length ? specialists.map(unit => SPECIALISTS[unit.kind].name).join(', ') : 'no specialists', ...(module ? [MODULES[module].name] : [])].join(' · ');
+}
 export function selectableLaunchUnits(view: { rocks: readonly Asset[]; fleets: readonly Asset[]; scheduled: readonly ScheduledOrder[] }, owner: Faction): LaunchUnit[] {
   const units = new Map<string, LaunchUnit>();
   const name = (id: string) => view.rocks.find(r => r.id === id)?.name ?? 'site';
