@@ -20,7 +20,7 @@ The [v42.1 notes](https://www.secretplan.com/subterfuge-news/rules-v42-1.html) p
 
 The [v42.2 notes](https://www.secretplan.com/subterfuge-news/rules-v42-2.html) explain that the original Navigator cancellation period ended at the next tick, leaving between one second and ten minutes. They replace that behavior with a course change that takes effect ten minutes after submission. That account is specifically about Navigator orders. Applying the old tick rule to hiring remains a hypothesis; it does not resolve the historical hire countdown or justify implementing a guessed cancellation clock.
 
-The publisher-linked [Tutorial 2: Combat and specialists](https://vimeo.com/111760398) is another primary footage source, uploaded November 13, 2014. It loads and plays in a normal browser despite the scripted-fetch block, but its hiring/cancellation sequence has not yet been reviewed. Browser window handoffs interrupted frame inspection. This is an incomplete review, not evidence that those controls are absent. Its alpha-era behavior would still need comparison with current rules.
+The publisher-linked [Tutorial 2: Combat and specialists](https://vimeo.com/111760398) is another primary footage source, uploaded November 13, 2014. A partial visual review in Chrome now works despite the scripted-fetch block. The confirmed 04:08 frame shows a contextual Combat report, tracked in [#71](https://github.com/mcclowes/machination/issues/71), but the sampled frames do not resolve hiring or cancellation. The full recruitment sequence remains unreviewed; this is not evidence that those controls are absent. Its alpha-era behavior still needs comparison with current rules.
 
 ## Behavior to resolve before implementation
 
