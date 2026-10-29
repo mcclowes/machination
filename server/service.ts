@@ -10,7 +10,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createConfiguredGame } from '../src/game/world';
-import { DEFAULT_GAME_OPTIONS, validateOptions, type GameOptions } from '../src/game/rules';
+import { DEFAULT_GAME_OPTIONS, driftingBasesEnabled, validateOptions, type GameOptions } from '../src/game/rules';
 import { ALL_PLAYERS, playersIn } from '../src/game/players';
 import { DEFAULT_PORTRAITS } from '../src/game/characters';
 import { advance, createGame, type Faction, type Game } from '../src/game/simulation';
@@ -271,7 +271,7 @@ export class GameService {
       const credential = this.credential(token);
       const existing = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
-        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === (existing.game.rules?.mechanicsVersion === 6) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
+        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
         this.settle(existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');

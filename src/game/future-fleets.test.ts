@@ -126,6 +126,7 @@ test('mechanics 3 retains launch-time allocation and new actions replay without 
   const { decodeReplay } = await import('./replay-save');
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 123);
   game.rules!.mechanicsVersion = 3;
+  delete game.rules!.driftingBases;
   const [from, to] = game.rocks.filter(r => r.owner === 'you');
   const result = applyCommand(createArchive(game), { type: 'schedule-action', owner: 'you', plan: { id: 'future-legacy-gift01', executeAt: 1, action: { type: 'gift', from: from!.id, to: to!.id, drones: 3, recipient: 'vesper' } } }, { knownThrough: 0, rivals: false });
   assert.equal(result.game.nextId, game.nextId);

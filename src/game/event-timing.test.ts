@@ -88,6 +88,7 @@ test('revisions 1–4 retain early production and shifted cadence', () => {
     const game = base();
     if (revision === undefined) delete game.rules!.mechanicsVersion;
     else game.rules!.mechanicsVersion = revision;
+    delete game.rules!.driftingBases;
     const factory = game.rocks.find(r => r.owner === 'you' && r.kind === 'factory' && !r.coreOf)!;
     factory.productionAt = 8;
     const early = advance(game, 8 - epsilon, options).rocks.find(r => r.id === factory.id)!;
@@ -109,13 +110,13 @@ test('a queue before production cannot spend future output, including near-due q
   }
 });
 
-test('configured v5 worlds preserve complete states through arbitrary cuts, trace, and private replay/save', async () => {
+test('configured worlds preserve complete states through arbitrary cuts, trace, and private replay/save', async () => {
   const { applyCommand, createArchive, exportArchive, replayTo, traceReplayTo } = await import('./replay');
   const { decodeSave } = await import('./save-format');
   const { decodeReplay } = await import('./replay-save');
   for (const seed of [12345, 83, 987654]) {
     const game = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, seed);
-    assert.equal(game.rules!.mechanicsVersion, 5);
+    assert.equal(game.rules!.mechanicsVersion, 7);
     const home = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
     const target = game.rocks.find(r => r.owner === null)!;
     const { archive } = applyCommand(createArchive(game, { rivals: true }),

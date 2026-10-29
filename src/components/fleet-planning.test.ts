@@ -34,6 +34,7 @@ test('stable queued aliases are commandable before departure in a real forecast'
 test('legacy forecasts never expose synthetic queued fleet IDs as command targets', () => {
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 123);
   game.rules!.mechanicsVersion = 3;
+  delete game.rules!.driftingBases;
   const [from, to] = game.rocks.filter(r => r.owner === 'you');
   const queued = scheduleTransfer(game, { id: 'ui-legacy-launch001', owner: 'you', from: from!.id, to: to!.id, drones: 5, executeAt: 1 });
   const live = observe(queued, 'you');

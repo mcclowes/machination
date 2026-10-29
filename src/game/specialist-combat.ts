@@ -92,7 +92,8 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock): voi
 
 export function repairLosses(game: Game, asset: Asset, lost: number, suppressed: boolean): number {
   if (!asset.owner) return 0;
-  return Math.ceil(lost * 0.25) * (unitCount(game, asset.owner, 'engineer') + (suppressed ? 0 : living(asset).filter(u => u.kind === 'engineer').length));
+  const repaired = Math.ceil(lost * 0.25) * (unitCount(game, asset.owner, 'engineer') + (suppressed ? 0 : living(asset).filter(u => u.kind === 'engineer').length));
+  return mechanicsVersion(game) >= 7 ? Math.min(lost, repaired) : repaired;
 }
 
 export function coreLocations(game: Game): { owner: Faction; point: { x: number; y: number } }[] {

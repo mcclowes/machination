@@ -75,6 +75,7 @@ test('an interception tie returns the surviving Pirate specialist at mission spe
 test('older mechanics retain their recorded generic Pirate return bonus', () => {
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 54);
   game.rules!.mechanicsVersion = 2;
+  delete game.rules!.driftingBases;
   const holding = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
   holding.specialists!.push({ id: 'old-held-pirate', owner: 'vesper', kind: 'pirate', captive: true });
   const released = releaseSpecialist(game, 'you', 'old-held-pirate');

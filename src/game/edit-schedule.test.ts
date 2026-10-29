@@ -102,6 +102,7 @@ test('save and replay retain the original manifest before an edit and its replac
   for (const mechanicsVersion of [3, 4] as const) {
     const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 123);
     game.rules!.mechanicsVersion = mechanicsVersion;
+    delete game.rules!.driftingBases;
     const [from, to] = game.rocks.filter(r => r.owner === 'you' && r.drones > 0);
     const scheduled = applyCommand(createArchive(game), { type: 'schedule', owner: 'you', plan: { id: 'edited-replay-plan01', from: from!.id, to: to!.id, drones: 5, executeAt: 1 } }, { rivals: false, knownThrough: 0 });
     const edited = applyCommand(scheduled.archive, { type: 'edit-schedule', owner: 'you', change: { planId: 'edited-replay-plan01', drones: 9 } }, { rivals: false, knownThrough: 0.5 });

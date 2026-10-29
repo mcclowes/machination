@@ -5,7 +5,7 @@
  */
 import { validDrift, sitePosition } from './drift';
 import { validateScheduledAction } from './future-actions';
-import { mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
+import { driftingBasesEnabled, mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
 import { playersIn } from './players';
 import type { ReplayData } from './replay';
 import { upgradeSpecialists } from './specialists';
@@ -76,7 +76,7 @@ export function decodeSave(raw: string): Save {
       || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || rules && (r.x < 0 || r.y < 0 || r.x > rules.map.width || r.y > rules.map.height) || !nonnegative(r.drones)
       || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
-    if (r.drift !== undefined && (mechanicsVersion({ rules }) < 6 || !validDrift(r.drift, { rules }) || !finite(g.hour) || Math.hypot(r.x - sitePosition({ rules }, r as Rock, g.hour).x, r.y - sitePosition({ rules }, r as Rock, g.hour).y) > 1e-8)) return fail();
+    if (r.drift !== undefined && (!driftingBasesEnabled({ rules }) || !validDrift(r.drift, { rules }) || !finite(g.hour) || Math.hypot(r.x - sitePosition({ rules }, r as Rock, g.hour).x, r.y - sitePosition({ rules }, r as Rock, g.hour).y) > 1e-8)) return fail();
     if (rules?.mode === 'domination' && r.kind === 'mine') return fail();
     if (mechanicsVersion({ rules }) >= 2 && r.destroyed && (r.drones !== 0 || r.shield !== 0 || r.coreOf !== undefined || r.module !== undefined || !Array.isArray(r.specialists) || r.specialists.length)) return fail();
     if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)

@@ -25,6 +25,17 @@ Engine and server checks establish the rebuild's contracts; they don't certify v
 
 ## Reference rules
 
+The publisher's [v42.1 patch](https://www.secretplan.com/subterfuge-news/rules-v42-1.html) (September 17, 2026) and [v42.2 patch](https://www.secretplan.com/subterfuge-news/rules-v42-2.html) (October 12, 2026) amend the older rulebook for newly created games. They establish four previously missed requirements, tracked in [#46](https://github.com/mcclowes/machination/issues/46):
+
+| Amendment | Rebuild status |
+| --- | --- |
+| Engineer recovery cannot exceed combat losses. | New mechanics revision 7 caps recovery. Station attackers, defenders, and opposing-route winners are covered; converted drones aren't discarded by the repair cap. Old revisions retain their results. |
+| Gifts respect the recipient's power capacity. | Not implemented yet. Excess gifted drones must be discarded at contact. |
+| The opening 12 game hours accelerate sub movement, Queen recruitment, factories, and shield recharge by 1.5x. | Not implemented yet. Travel, production, forecasts, and observed replays need the same transition at hour 12. |
+| Navigator course changes take effect after ten minutes; the eight-hour cooldown remains. | Not implemented yet. The current command redirects immediately. |
+
+Revision 7 also records the drifting-base variant explicitly, independently of mechanics version. Existing revision-six games retain their implicit drifting rules. Save loading, canonical replay, public shared replay, room retries, and setup controls cover both old and new profiles. These checks establish compatibility, not complete acceptance of the two publisher patches or original-client UI parity.
+
 The [official rulebook](https://subterfuge-game.com/rulebook/) defines the baseline:
 
 | System | Reference contract |

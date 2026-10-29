@@ -24,7 +24,7 @@ export type ReplayScene = {
   cargo: Partial<Record<Faction, number>>;
   standings?: Partial<Record<Faction, { cargo: number; funders: number }>>;
   eliminated: Faction[]; winner: Faction | null; draw?: true;
-  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6;
+  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6 | 7; driftingBases?: boolean;
     map: { generator: 'balanced.v1' | 'balanced.v2'; width: number; height: number; topology?: 'torus' } };
 };
 
@@ -103,6 +103,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
       map: { generator: r.map.generator, width: r.map.width, height: r.map.height } };
     if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;
+    if (r.driftingBases !== undefined) scene.rules.driftingBases = r.driftingBases;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;
   }
   return scene;

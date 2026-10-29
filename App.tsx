@@ -16,7 +16,7 @@ import { remoteSiteDescription } from './src/components/site-observation';
 import { LaunchTiming, ScheduledOrders } from './src/components/ScheduledOrders';
 import { GameSetup } from './src/components/GameSetup';
 import { createConfiguredGame } from './src/game/world';
-import { DEFAULT_GAME_OPTIONS, victoryProgress, victoryTarget, type GameOptions } from './src/game/rules';
+import { DEFAULT_GAME_OPTIONS, driftingBasesEnabled, victoryProgress, victoryTarget, type GameOptions } from './src/game/rules';
 import { ResignationControl } from './src/components/ResignationControl';
 import type { FutureAction } from './src/game/future-actions';
 import { SpecialistBay } from './src/components/SpecialistBay';
@@ -96,7 +96,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const [newOptions, setNewOptions] = useState<GameOptions>(DEFAULT_GAME_OPTIONS);
   const lastTick = useRef(Date.now());
   useEffect(() => {
-    policy.load().then(next => { replace(next); setSelected((next.game.rocks.find(r => r.id === practice?.scenario.focus) ?? next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks.find(r => r.owner === 'you') ?? next.game.rocks[0]!).id); if (next.game.rules) setNewOptions({ playerCount: next.game.rules.players.length, mode: next.game.rules.mode, driftingBases: next.game.rules.mechanicsVersion === 6 }); setInspectedHour(null); }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
+    policy.load().then(next => { replace(next); setSelected((next.game.rocks.find(r => r.id === practice?.scenario.focus) ?? next.game.rocks.find(r => r.coreOf === 'you' && r.owner === 'you') ?? next.game.rocks.find(r => r.owner === 'you') ?? next.game.rocks[0]!).id); if (next.game.rules) setNewOptions({ playerCount: next.game.rules.players.length, mode: next.game.rules.mode, driftingBases: driftingBasesEnabled(next.game) }); setInspectedHour(null); }).catch(e => { setError(String(e.message)); setLoadFailed(true); }).finally(() => { lastTick.current = Date.now(); setReady(true); });
   }, []);
   useEffect(() => {
     if (!ready || loadFailed) return;

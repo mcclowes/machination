@@ -96,7 +96,7 @@ function playSchedule(baseline: Game, entries: ReplayEntry[], end: number, parti
 for (const playerCount of [2, 3, 10]) for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 2026]) {
   test(`complete generated ${mode} match: ${playerCount} seats, seed ${seed}`, { timeout: 30000 }, () => {
     const baseline = createConfiguredGame({ playerCount, mode, driftingBases: false }, 0, seed);
-    assert.equal(baseline.rules!.mechanicsVersion, 5);
+    assert.equal(baseline.rules!.mechanicsVersion, 7);
     assert.ok(baseline.rocks.every(rock => !rock.drift), 'Subterfuge acceptance uses stationary bases');
     assert.equal(baseline.rocks.filter(r => r.owner === null).length, playerCount * 5);
     assert.equal(baseline.rocks.filter(r => r.kind === 'mine').length, 0);
