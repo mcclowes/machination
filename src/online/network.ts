@@ -1,4 +1,5 @@
 import { authorization, type RequestSession } from './account-auth';
+import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
 import { isFaction, playersIn } from '../game/players';
 import type { HistorySnapshot, Snapshot } from './protocol';
@@ -12,8 +13,8 @@ async function request(session: RequestSession, path: string, payload?: unknown,
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
-    const bearer = session.accountId ? await authorization(session) : `Bearer ${session.token}`;
-    controller.signal.throwIfAborted();
+    const bearer = session.accountId ? await abortable(() => authorization(session), controller.signal) : `Bearer ${session.token}`;
+    throwIfAborted(controller.signal);
     const response = await fetch(`${session.url}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST',
       headers: { Authorization: bearer, 'Content-Type': 'application/json' },
       body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal });

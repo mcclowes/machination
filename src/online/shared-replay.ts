@@ -1,4 +1,5 @@
 import { authorization, type RequestSession } from './account-auth';
+import { abortable, throwIfAborted } from './request-abort';
 import { decodeSharedReplay, utf8Size } from '../replay/codec';
 import { SHARED_REPLAY_LIMITS, type SharedReplay } from '../replay/timeline';
 import { RejectedCommand } from './network';
@@ -13,8 +14,8 @@ export async function exportSharedReplay(session: RequestSession & { id?: string
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(abort, 15000);
   try {
-    const bearer = session.accountId ? await authorization(session) : `Bearer ${session.token}`;
-    controller.signal.throwIfAborted();
+    const bearer = session.accountId ? await abortable(() => authorization(session), controller.signal) : `Bearer ${session.token}`;
+    throwIfAborted(controller.signal);
     const response = await fetch(`${session.url}/v1/games/${session.id}/replay?from=${encodeURIComponent(from)}&through=${encodeURIComponent(through)}`,
       { headers: { Authorization: bearer, Accept: 'application/json' }, signal: controller.signal });
     const limit = response.ok ? SHARED_REPLAY_LIMITS.bytes : 8192;
