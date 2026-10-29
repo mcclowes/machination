@@ -1,0 +1,19 @@
+{
+  "tool": "image_gen.imagegen",
+  "mode": "built-in",
+  "reference": "../roster.png",
+  "assets": [
+    {
+      "file": "admiral.png",
+      "character": "admiral",
+      "referenceCell": "top left",
+      "prompt": "Use case: identity-preserve. Asset type: transparent waist-up character illustration for a science-fiction tactical game's JRPG dialogue overlay. Input image: roster.png is the identity and art-style reference; ONLY use the TOP LEFT character, the older white-haired bearded admiral. Primary request: expand this profile portrait into one large detailed waist-up illustration, with full shoulders, arms, and coat visible. Preserve his swept-back short white hair, thick eyebrows, white beard and mustache, stern angular face, dark slate naval greatcoat, tall gold-edged collar, and epaulettes. Pose: standing at a slight three-quarter angle toward the right, one gloved hand resting near his belt, calm commanding expression. Style: match the reference's hand-inked retro anime / illustrated screen-print look, bold contours, flat muted ochre/slate colors, subtle worn-paper grain within the figure. Transparent background with clean silhouette, no frame, no backdrop, no emblem floating behind him, no lettering, no UI. Full top of head and both shoulders inside canvas with margin. Vertical composition, character fills most of canvas."
+    },
+    {
+      "file": "vesper.png",
+      "character": "pilot",
+      "referenceCell": "top middle",
+      "prompt": "Use case: identity-preserve. Asset type: large transparent waist-up character illustration for a science-fiction tactical game's JRPG dialogue overlay. Input image: roster.png is identity and art-style reference; ONLY use TOP MIDDLE character, the young pilot with short spiky dark hair, goggles on top of head, cheek bandage, and orange flight jacket. Primary request: expand this exact profile character into a detailed waist-up illustration, full shoulders, arms, and jacket visible. Preserve youthful androgynous face, dark hair, goggles, bandage, orange/red high-collared flight jacket, dark undershirt, and gray flight harness straps. Pose: three-quarter angle toward the LEFT, arms folded, cocky challenging half-smile, an enemy ace addressing a rival. Style: match reference hand-inked retro anime / illustrated screen-print look, bold contours, flat muted ochre/rust colors, subtle worn-paper grain INSIDE the figure only. Actual completely transparent background outside silhouette, no glow, no shadow field, no black backdrop, no scenery, no frame, no emblem floating behind, no lettering, no UI. Full top of head and both shoulders inside canvas with margin. Vertical composition, single character fills most canvas."
+    }
+  ]
+}

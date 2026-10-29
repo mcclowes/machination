@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { gameClock } from '../game/time-machine';
 import type { PracticeAttempt } from './Practice';
+import { PracticeDialogue } from './PracticeDialogue';
 
 type Props = PracticeAttempt & { status: 'active' | 'passed' | 'failed'; message: string; hour: number; inspected: boolean; onAdvance: (hours: number) => void; onNow: () => void };
 export function PracticeStatus({ scenario, status, message, hour, inspected, onAdvance, onNow, onRetry, onBack, onNext }: Props) {
@@ -12,7 +13,7 @@ export function PracticeStatus({ scenario, status, message, hour, inspected, onA
     <Text style={s.detail}>{message}</Text>
     {scenario.hints.slice(0, hints).map((hint, index) => <Text key={index} style={s.detail}>{hint}</Text>)}
     <View style={s.row}>{status === 'active' && <>{inspected ? <><Text style={s.detail}>Inspecting time. Return to Now to advance the exercise.</Text><Action label="Now" onPress={onNow} /></> : <><Action label="Advance +15m" onPress={() => onAdvance(0.25)} /><Action label="Advance +1h" onPress={() => onAdvance(1)} /></>}{hints < scenario.hints.length && <Action label="Show hint" onPress={() => setHints(value => value + 1)} />}</>}
-      <Action label="Retry exercise" onPress={onRetry} /><Action label="All exercises" onPress={onBack} />{status === 'passed' && onNext && <Action label="Next exercise" onPress={onNext} />}
+      <PracticeDialogue scenario={scenario} status={status} hour={hour} /><Action label="Retry exercise" onPress={onRetry} /><Action label="All exercises" onPress={onBack} />{status === 'passed' && onNext && <Action label="Next exercise" onPress={onNext} />}
     </View>
   </View>;
 }
