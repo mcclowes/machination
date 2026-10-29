@@ -4,6 +4,8 @@
  * ---
  */
 import { HaulerCombat, type CombatObservation } from './HaulerCombat';
+import { MapSpecialists } from './MapSpecialists';
+import { mapSpecialistSummary, specialistManifestDescription, layoutSpecialistMarkers, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_OFFSET } from './map-specialists';
 import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
@@ -17,7 +19,7 @@ import { arrivalInspection } from '../game/time-machine';
 import { remoteSiteDescription } from './site-observation';
 import { CopyObjectReference } from './CopyObjectReference';
 import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
-import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
+import type { Faction, Fleet, Rock } from '../game/simulation';
 
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
 
@@ -47,6 +49,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const [size, setSize] = useState({ width: 400, height: 480 });
   const [contact, setContact] = useState<number>();
   const fleet = game.fleets.find(f => f.id === contact);
+  const haulerRadius = (hauler: Fleet) => {
+    const source = hauler.preparing && game.rocks.find(rock => rock.id === hauler.from);
+    return Math.max(styles.hauler.height / 2, source ? mapShields(source).at(-1)?.radius ?? 0 : 0);
+  };
+  const inspectorChartSpace = INSPECTOR_CHART_SPACE + (fleet?.specialists?.length ? 2 * (SPECIALIST_BADGE_SIZE + SPECIALIST_BADGE_OFFSET + haulerRadius(fleet) - styles.hauler.height / 2) : 0);
   const [card, setCard] = useState<{ id: number; height: number }>();
   const lift = card && card.id === fleet?.id ? overlayLift(game, size, card.height + styles.inspector.bottom) : 0;
   const camera = constrainCamera(game, viewport?.camera ?? localCamera, lift);
@@ -157,14 +164,26 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const sx = projection.scale, sy = projection.scale;
   const offsets = chartOffsets(game, camera, size);
   const position = (point: { x: number; y: number }) => chartPosition(game, camera, point, size);
+  const markerViewport = { ...size, height: fleet && card?.id === fleet.id ? Math.max(0, size.height - (card?.height ?? 0) - styles.inspector.bottom) : size.height };
   const sites = offsets.flatMap((offset, tile) => game.rocks.map(rock => {
     const location = position({ x: rock.x + offset.x, y: rock.y + offset.y });
     const active = ((inspecting || !!destination) && selected === rock.id) || destination === rock.id || drag?.from.id === rock.id || drag?.target?.id === rock.id;
     const shields = mapShields(rock);
     const radius = shields.at(-1)?.radius ?? 18;
-    return { key: `${tile}-${rock.id}`, rock, location, active, shields, radius, x: location.x / 100 * size.width, y: location.y / 100 * size.height, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
+    const point = { x: location.x / 100 * size.width, y: location.y / 100 * size.height };
+    const specialists = mapSpecialistSummary(rock);
+    return { key: `${tile}-${rock.id}`, rock, location, active, shields, radius, ...point, specialists, priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0 };
   })).filter(site => site.location.x >= -15 && site.location.x <= 115 && site.location.y >= -15 && site.location.y <= 115);
-  const names = layoutSiteNames(sites, size);
+  const haulers = offsets.flatMap((offset, tile) => game.fleets.map(f => {
+    const worldPoint = fleetPosition(game, f);
+    const location = position({ x: worldPoint.x + offset.x, y: worldPoint.y + offset.y });
+    const point = { x: location.x / 100 * size.width, y: location.y / 100 * size.height };
+    const specialists = mapSpecialistSummary(f);
+    return { key: `contact-${tile}-${f.id}`, fleet: f, location, ...point, specialists, radius: haulerRadius(f), priority: contact === f.id ? 2000 : f.owner === player ? 100 : 50 };
+  })).filter(hauler => hauler.location.x >= -10 && hauler.location.x <= 110 && hauler.location.y >= -10 && hauler.location.y <= 110);
+  const specialistMarkers = layoutSpecialistMarkers([...sites, ...haulers], markerViewport);
+  const markerObstacles = [...specialistMarkers.values()].map(marker => ({ x: marker.left, y: marker.top, width: marker.width, height: marker.height }));
+  const names = layoutSiteNames(sites, size, markerObstacles);
   const reference = fleet && fleetReference?.(fleet);
   const revealed = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -207,11 +226,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       </G>)}
       {drag && <Line x1={drag.startX} y1={drag.startY} x2={drag.x} y2={drag.y} stroke={identity(player ?? 'you').color} strokeWidth="2" strokeDasharray="5 3" />}
     </Svg>
-    {sites.map(({ key, rock, location, active, radius }) => {
+    {sites.map(({ key, rock, location, active, radius, specialists }) => {
       const color = rock.owner ? identity(rock.owner).color : '#68777b';
       const icon = siteIcon(rock);
       const namePlacement = names.get(key);
-      return <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      return <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? identity(rock.owner).name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? '#dce7e5' : 'transparent', borderWidth: 1.5, backgroundColor: 'transparent' }]}>
           <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' }, icon && styles.emblemStone, icon && rock.drift && styles.driftingEmblem]}>
             {icon ? <Image accessible={false} source={icon} resizeMode="contain" style={[styles.baseIcon, { tintColor: rock.owner ? color : '#829195' }]} /> : <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{rock.destroyed ? '×' : '?'}</Text>}
@@ -222,14 +241,13 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         {rock.known !== false && (rock.drones ?? 0) > 0 && <Text style={styles.count}>{Math.floor(rock.drones ?? 0)}</Text>}
       </Pressable>;
     })}
-    {offsets.flatMap((offset, tile) => game.fleets.map(f => {
-      const point = fleetPosition(game, f);
-      const location = position({ x: point.x + offset.x, y: point.y + offset.y });
-      if (location.x < -10 || location.x > 110 || location.y < -10 || location.y > 110) return null;
-      return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View></Pressable>;
-    }))}
+    {haulers.map(({ key, fleet: f, location, specialists }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${identity(f.owner).name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      <View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View>
+    </Pressable>)}
+    {sites.map(({ key, rock, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists at ${rock.name}: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => { setContact(undefined); onSelect(rock); }} />)}
+    {haulers.map(({ key, fleet: f, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists aboard ${identity(f.owner).name} hauler: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} />)}
     <View testID="map-controls" style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, lift))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, lift))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
-    {fleet && <ScrollView testID="hauler-inspector" style={[styles.inspector, { maxHeight: Math.max(44, size.height - INSPECTOR_CHART_SPACE) }]} contentContainerStyle={styles.inspectorContent} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
+    {fleet && <ScrollView testID="hauler-inspector" style={[styles.inspector, { maxHeight: Math.max(44, size.height - inspectorChartSpace) }]} contentContainerStyle={styles.inspectorContent} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       {combatObservation && <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />}
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
