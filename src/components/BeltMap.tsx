@@ -25,6 +25,18 @@ import { layoutSiteNames } from './map-labels';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
 export type { MapCamera } from '../game/chart-camera';
+function siteSymbol(rock: Pick<ChartRock, 'destroyed' | 'kind' | 'coreOf'>): string {
+  if (rock.destroyed) return '×';
+  if (rock.kind === 'unknown') return '?';
+  if (rock.coreOf) return '◈';
+  switch (rock.kind) {
+    case 'core': return '◈';
+    case 'reactor': case 'generator': return 'ϟ';
+    case 'factory': return '▥';
+    case 'mine': return '◆';
+    default: return '·';
+  }
+}
 type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
 export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
   const identity = usePlayerRoster();
@@ -163,7 +175,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       return <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? '#dce7e5' : 'transparent', borderWidth: 1.5, backgroundColor: 'transparent' }]}>
           <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' }]}>
-            <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{rock.destroyed ? '×' : rock.kind === 'unknown' ? '?' : rock.coreOf || rock.kind === 'core' ? '◈' : rock.kind === 'reactor' || rock.kind === 'generator' ? 'ϟ' : rock.kind === 'factory' ? '▥' : rock.kind === 'mine' ? '◆' : '·'}</Text>
+            <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{siteSymbol(rock)}</Text>
           </View>
         </View>
         {namePlacement && (!destination || active) && <Text numberOfLines={1} style={[styles.name, namePlacement === 'above' && styles.nameAbove, active && { color: '#e1e8e7' }]}>{rock.name}</Text>}
