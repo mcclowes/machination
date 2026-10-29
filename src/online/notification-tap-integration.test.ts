@@ -87,10 +87,11 @@ function fakeDevice() {
   };
 }
 
-async function scenario(t: TestContext, options: { token?: string; account?: 'expired' | 'valid'; linked?: boolean; stored?: boolean } = {}) {
+async function scenario(t: TestContext, options: { token?: string; account?: 'expired' | 'valid'; linked?: boolean; stored?: boolean; incoming?: boolean; legacy?: boolean } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'machination-tap-'));
   const file = join(dir, 'games.json');
-  const service = await GameService.open(file, () => 1_900_000_000_000, undefined, { notifications: true });
+  const clock = { now: 1_900_000_000_000 };
+  const service = await GameService.open(file, () => clock.now, undefined, { notifications: true });
   const seats = [0, 1, 2].map(() => randomBytes(32).toString('hex'));
   const room = await service.create(seats[0]!);
   await service.join(room.invite, seats[1]!); await service.join(room.invite, seats[2]!);
@@ -104,6 +105,7 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   await service.setNotifications(room.id, owner, { requestId: randomUUID(), deviceId, revision: 1, enabled: false });
   const current = await enable(2);
   assert.notEqual(first.bindingId, current.bindingId);
+  if (options.incoming !== undefined) await service.setNotifications(room.id, owner, { requestId: randomUUID(), deviceId, revision: 3, enabled: true, incoming: options.incoming }, 2);
 
   const failing = { game: false, settings: false, session: false };
   const requests: string[] = [];
@@ -115,6 +117,11 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   const api = createApi(service, undefined, authenticate).listeners('request')[0] as (req: IncomingMessage, res: ServerResponse) => void;
   const server = createServer((req, res) => {
     requests.push(`${req.method} ${req.url!.replace(/\?.*$/, '')}`);
+    if (options.legacy && req.method === 'GET' && req.url!.includes('/notifications') && new URL(req.url!, 'http://localhost').searchParams.has('version')) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ issues: [{ issue: 'notification.validation.device', message: { detail: 'Provide exactly one deviceId and no other query parameters.' } }] }));
+      return;
+    }
     const kind = req.url!.includes('/notifications') ? 'settings' : req.url!.includes('/account/session') ? 'session' : 'game';
     if (failing[kind]) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ issues: [{ message: { detail: 'Temporarily unavailable.' } }] })); return; }
     api(req, res);
@@ -163,7 +170,7 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   const mount = async () => { await act(async () => { renderer = create(React.createElement(App)); }); await settle(); };
   const tapFor = (bindingId: string, extra: Partial<Tap> = {}): Tap => ({ kind: 'machination.message', version: 1, gameId: room.id, bindingId, notificationId: randomBytes(16).toString('hex'), ...extra });
   const stored = async () => JSON.parse(await readFile(file, 'utf8'));
-  return { room, seats, service, deviceId, current: current.bindingId!, stale: first.bindingId!, fake, failing, requests, mount, press, settle, signalsOpen, visible, tapFor, stored, tab, hosts };
+  return { room, seats, service, clock, deviceId, current: current.bindingId!, stale: first.bindingId!, fake, failing, requests, mount, press, settle, signalsOpen, visible, tapFor, stored, tab, hosts };
 }
 
 test('restored online site inspection explains roles at live and forecast times without a command', async t => {
@@ -216,6 +223,108 @@ test('a cold-start tap for the current binding opens Signals with no command or 
   await s.settle();
   assert.equal(s.signalsOpen(), false, 'a consumed notification ID is not reopened');
   assert.ok(s.fake.calls.cleared > cleared);
+});
+
+test('incoming taps open the live chart, leaving forecasts and Signals without issuing a command', async t => {
+  const s = await scenario(t, { incoming: true });
+  const defender = await s.service.snapshot(s.room.id, s.seats[0]!);
+  const attacker = await s.service.snapshot(s.room.id, s.seats[1]!);
+  const from = attacker.game.rocks.find(rock => rock.known && rock.owner === attacker.faction && !rock.coreOf && rock.drones >= 5)!;
+  const to = defender.game.rocks.find(rock => rock.owner === defender.faction && rock.coreOf)!;
+  await s.service.order(s.room.id, s.seats[1]!, { requestId: randomUUID(), revision: attacker.revision, from: from.id, to: to.id, drones: 5 });
+  s.clock.now += 0.5 * 3_600_000;
+  await s.service.notificationQueue().settleIncoming!();
+  const claim = await s.service.notificationQueue().claimSends('incoming-app-test');
+  assert.equal(claim.items.length, 1);
+  const delivered = claim.items[0]!.message;
+  assert.match(delivered.body, /Incoming attack from Vesper: 5 drones arriving in/);
+  assert.equal(delivered.data.kind, 'machination.incoming');
+  assert.equal(s.requests.length, 0, 'The server materialized the attack with no connected HTTP client');
+  const before = await s.stored();
+  const incoming = () => s.tapFor(s.current, { kind: 'machination.incoming' });
+  s.fake.setLast(delivered.data);
+  await s.mount();
+  assert.equal(s.tab('Chart')!.props.accessibilityState.selected, true);
+  assert.equal(s.signalsOpen(), false);
+  assert.ok(s.fake.calls.cleared >= 1);
+  await s.press('Time Machine');
+  await s.press('+1h');
+  assert.match(s.visible(), /Forecast/);
+  await s.press('Signals');
+  assert.ok(s.signalsOpen());
+  await act(async () => s.fake.tap(incoming()));
+  await s.settle();
+  assert.equal(s.tab('Chart')!.props.accessibilityState.selected, true);
+  assert.equal(s.signalsOpen(), false);
+  assert.doesNotMatch(s.visible(), /Forecast|was not opened/);
+  assert.deepEqual(s.requests.filter(request => !request.startsWith('GET ')), []);
+  assert.deepEqual((await s.stored()).rooms, before.rooms);
+  assert.equal(s.fake.calls.prompts + s.fake.calls.tokens, 0);
+});
+
+test('a pre-incoming server still supports message taps and disabling notifications', async t => {
+  const s = await scenario(t, { legacy: true });
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.ok(s.signalsOpen(), 'The old server’s version-query refusal falls back to message-only settings');
+  await s.press('Setup');
+  assert.match(s.visible(), /Turn off message notifications/);
+  assert.doesNotMatch(s.visible(), /Incoming attack alerts/);
+  await s.press('Turn off message notifications');
+  assert.match(s.visible(), /Turn on message notifications/);
+  assert.equal((await s.service.notificationSettings(s.room.id, s.seats[0]!, s.deviceId)).enabled, false);
+  assert.deepEqual(s.requests.filter(request => !request.startsWith('GET ')), [`POST /v1/games/${s.room.id}/notifications`]);
+});
+
+test('each incoming tap confirms fresh consent even when the binding ID has not changed', async t => {
+  const s = await scenario(t, { incoming: true });
+  await s.mount();
+  await s.press('Open multiplayer uplink');
+  await s.press('Signals');
+  assert.ok(s.signalsOpen());
+  const before = s.requests.filter(request => request.endsWith('/notifications')).length;
+  const revoked = await s.service.setNotifications(s.room.id, s.seats[0]!, { requestId: randomUUID(), deviceId: s.deviceId, revision: 4, enabled: true, incoming: false }, 2);
+  assert.equal(revoked.bindingId, s.current);
+  await act(async () => s.fake.tap(s.tapFor(s.current, { kind: 'machination.incoming' })));
+  await s.settle();
+  assert.ok(s.signalsOpen(), 'A revoked incoming alert cannot navigate away from Signals');
+  assert.match(s.visible(), /incoming alerts are off for this device/);
+  assert.equal(s.requests.filter(request => request.endsWith('/notifications')).length, before + 1);
+  assert.ok(s.fake.calls.cleared >= 1);
+  await s.press('Chart');
+  await act(async () => s.fake.tap(s.tapFor(s.current)));
+  await s.settle();
+  assert.ok(s.signalsOpen(), 'Message taps still work for the same enabled binding');
+  assert.deepEqual(s.requests.filter(request => !request.startsWith('GET ')), []);
+});
+
+test('incoming alerts wait through unreadable settings and preserve solo, practice, and replay sessions', async t => {
+  const s = await scenario(t, { incoming: true });
+  await s.mount();
+  for (const [open, marker] of [['Open solo operation', /Solo operation/], ['Start tactical practice', /Tactical practice/], ['Open shared replay', /Shared replays/]] as const) {
+    await s.press(open);
+    const requests = s.requests.length;
+    await act(async () => s.fake.tap(s.tapFor(s.current, { kind: 'machination.incoming' })));
+    await s.settle();
+    assert.match(s.visible(), marker);
+    assert.match(s.visible(), /Incoming attack alert\./);
+    assert.equal(s.requests.length, requests);
+    await s.press('Dismiss');
+    await s.press(open === 'Open shared replay' ? 'Exit replay library' : '‹ Games');
+  }
+  await s.press('Open solo operation');
+  s.failing.settings = true;
+  await act(async () => s.fake.tap(s.tapFor(s.current, { kind: 'machination.incoming' })));
+  await s.settle();
+  await s.press('Open multiplayer');
+  assert.match(s.visible(), /An incoming attack alert is waiting/);
+  assert.equal(s.fake.calls.cleared, 3, 'Only the three dismissed alerts have been consumed');
+  s.failing.settings = false;
+  await s.press('Retry notification');
+  assert.equal(s.tab('Chart')!.props.accessibilityState.selected, true);
+  assert.doesNotMatch(s.visible(), /was not opened/);
+  assert.ok(s.fake.calls.cleared > 3);
+  assert.deepEqual(s.requests.filter(request => !request.startsWith('GET ')), []);
 });
 
 test('stale bindings and foreign operations are consumed without opening Signals', async t => {
@@ -315,7 +424,7 @@ test('a warm app re-reads the binding for each tap instead of trusting cached se
   await s.mount();
   await s.press('Open multiplayer uplink');
   await s.press('Setup');
-  assert.match(s.visible(), /Turn off message notifications/, 'the app cached this device as enabled');
+  assert.match(s.visible(), /Turn off device notifications/, 'the app cached this device as enabled');
   const reads = () => s.requests.filter(r => r.endsWith('/notifications')).length;
   const before = reads();
   // The server detaches this device after the app cached it as enabled.

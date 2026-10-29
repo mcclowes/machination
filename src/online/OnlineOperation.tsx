@@ -65,6 +65,7 @@ import { MessageNotificationSettings } from './MessageNotificationSettings';
 import { useMessageNotifications } from './useMessageNotifications';
 import { notificationDeps, useNotificationDevice } from './notification-wiring';
 import { notificationDisposition, type NotificationRequest } from './message-notifications';
+import { INCOMING_NOTIFICATION_KIND } from './notification-contract';
 const seatIdentity = (session?: Session | null) => session ? JSON.stringify([session.url, session.id, session.accountId ?? null, session.accountId ? null : session.token]) : undefined;
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={() => { playSound('tap'); onPress(); }} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
@@ -143,7 +144,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   const confirming = !!notification && (!!session?.id && session.id === notification.gameId && !notificationSeat && !seatRejected || !session && accountRestoreFailed);
   // Each tap re-reads this seat's binding, so a warm app never trusts settings cached before a detach, recovery, or token move.
   const tapKey = notification && notificationSeat?.id === notification.gameId ? JSON.stringify([notification.notificationId, seatIdentity(session)]) : undefined;
-  const [tapCheck, setTapCheck] = useState<{ key: string; bindingId?: string | null; failed?: true }>();
+  const [tapCheck, setTapCheck] = useState<{ key: string; bindingId?: string | null; incoming?: boolean; failed?: true }>();
   const tapRead = useRef(0);
   function checkTap() {
     if (!tapKey || !notificationSeat) return;
@@ -153,7 +154,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
       const deps = notificationDeps(notificationDevice);
       try {
         const settings = await deps.read(seat, await deps.deviceId());
-        if (tapRead.current === sequence) setTapCheck({ key, bindingId: settings.enabled && settings.bindingId || null });
+        if (tapRead.current === sequence) setTapCheck({ key, bindingId: settings.enabled && settings.bindingId || null, incoming: settings.incoming });
       } catch (error) {
         if (tapRead.current !== sequence) return;
         if (error instanceof RejectedCommand && error.status === 401) setRejectedSeat(seatIdentity(seat));
@@ -163,7 +164,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   }
   useEffect(() => { if (tapKey && tapCheck?.key !== tapKey) checkTap(); }, [tapKey]);
   const tapBinding = tapCheck?.key === tapKey ? tapCheck?.bindingId : undefined;
-  const tapDisposition = notification && notificationDisposition(notification, { restored: restored && !busy && !confirming, gameId: seatRejected ? undefined : session?.id, bindingId: notificationSeat ? tapBinding : null });
+  const tapDisposition = notification && notificationDisposition(notification, { restored: restored && !busy && !confirming, gameId: seatRejected ? undefined : session?.id, bindingId: notificationSeat ? tapBinding : null, incoming: tapCheck?.key === tapKey ? tapCheck?.incoming : undefined });
   const tapWaiting = tapDisposition === 'wait' && restored && !busy;
   function dismissTap() { if (notification) { setNotificationNotice(''); onNotificationHandled?.(notification.notificationId, false); } }
   function retryTap() {
@@ -173,11 +174,19 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   }
   useEffect(() => {
     if (!notification || !tapDisposition || tapDisposition === 'wait') return;
-    if (tapDisposition === 'open') { setReferenceRequest(undefined); setNotificationNotice(''); setSection('signals'); }
-    else setNotificationNotice('A notification was not opened because it does not match the connected operation and seat.');
+    if (tapDisposition === 'open') {
+      setReferenceRequest(undefined); setNotificationNotice('');
+      if (notification.kind === INCOMING_NOTIFICATION_KIND) {
+        inspectTime(null); setInspectFleet({ request: ++referenceSequence.current }); setSection(null);
+      } else setSection('signals');
+    }
+    else setNotificationNotice(notification.kind === INCOMING_NOTIFICATION_KIND && tapBinding === notification.bindingId && tapCheck?.incoming !== true
+      ? 'This attack alert was not opened because incoming alerts are off for this device.'
+      : 'A notification was not opened because it does not match the connected operation and seat.');
     onNotificationHandled?.(notification.notificationId, tapDisposition === 'open');
   }, [notification, tapDisposition]);
-  const pendingTap = notification && tapWaiting && (!notificationSeat || tapCheck?.failed) && <View style={s.panel}><Text accessibilityLiveRegion="polite" style={s.detail}>{notificationSeat ? 'A message notification is waiting. Notification settings for this seat could not be checked.' : 'A message notification is waiting for this operation to reconnect.'}</Text><Action text="Retry notification" disabled={busy} onPress={retryTap} /><Action text="Dismiss notification" onPress={dismissTap} /></View>;
+  const pendingKind = notification?.kind === INCOMING_NOTIFICATION_KIND ? 'An incoming attack alert' : 'A message notification';
+  const pendingTap = notification && tapWaiting && (!notificationSeat || tapCheck?.failed) && <View style={s.panel}><Text accessibilityLiveRegion="polite" style={s.detail}>{notificationSeat ? `${pendingKind} is waiting. Notification settings for this seat could not be checked.` : `${pendingKind} is waiting for this operation to reconnect.`}</Text><Action text="Retry notification" disabled={busy} onPress={retryTap} /><Action text="Dismiss notification" onPress={dismissTap} /></View>;
   useEffect(() => { void run(async () => {
     const stored = account ? await restoreSession(account.accountId) ?? await restoreSession() : await restoreSession();
     if (!stored) { if (account) await restoreAccount(); return; }

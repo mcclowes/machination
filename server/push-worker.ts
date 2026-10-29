@@ -26,8 +26,9 @@ export class NotificationWorker {
   private stopping = false;
   private abort = new AbortController();
   private leases = new Set<string>();
+  private settledAt = -Infinity;
   readonly owner: string;
-  constructor(private queue: NotificationQueue, private provider: PushProvider, private options: { intervalMs?: number; log?: (message: string) => void } = {}) {
+  constructor(private queue: NotificationQueue, private provider: PushProvider, private options: { intervalMs?: number; settleIntervalMs?: number; now?: () => number; log?: (message: string) => void } = {}) {
     this.owner = `worker-${randomBytes(8).toString('hex')}`;
   }
   start(): void { this.schedule(0); }
@@ -41,10 +42,16 @@ export class NotificationWorker {
   }
   private log(message: string): void { (this.options.log ?? console.error)(message); }
 
-  /** One send pass, then one receipt pass. Provider calls happen outside database transactions. */
+  /** At most one zero-client settlement per interval, then one send pass and one receipt pass. Provider calls happen outside database transactions. */
   async runOnce(): Promise<{ sent: number; checked: number }> {
     let sent = 0, checked = 0;
     if (this.stopping) return { sent, checked };
+    const now = (this.options.now ?? Date.now)();
+    if (this.queue.settleIncoming && now - this.settledAt >= (this.options.settleIntervalMs ?? 60_000)) {
+      this.settledAt = now;
+      await this.queue.settleIncoming().catch(error => this.log(`Incoming settlement failed: ${(error as Error).name}`));
+      if (this.stopping) return { sent, checked };
+    }
     const sends = await this.queue.claimSends(this.owner);
     if (sends.items.length) {
       this.leases.add(sends.lease);

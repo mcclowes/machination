@@ -1,5 +1,5 @@
-/** Installation identity, opaque tap payloads, and the rule for when a tap may open Signals. */
-import { MESSAGE_NOTIFICATION_KIND, type MessageNotificationData } from './notification-contract';
+/** Installation identity, opaque tap payloads, and authenticated notification navigation. */
+import { INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_KIND, type IncomingNotificationData, type MessageNotificationData } from './notification-contract';
 import { OPAQUE_ID } from './network';
 
 export type InstallationStore = { getItemAsync(key: string): Promise<string | null>; setItemAsync(key: string, value: string): Promise<void> };
@@ -31,14 +31,14 @@ export async function markRegistered(store: InstallationStore): Promise<void> {
 }
 export function onRegistered(listener: () => void): () => void { registrationListeners.add(listener); return () => { registrationListeners.delete(listener); }; }
 
-export type NotificationRequest = Pick<MessageNotificationData, 'gameId' | 'bindingId' | 'notificationId'>;
+export type NotificationRequest = Pick<MessageNotificationData | IncomingNotificationData, 'kind' | 'gameId' | 'bindingId' | 'notificationId'>;
 export function parseNotificationData(data: unknown): NotificationRequest | undefined {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined;
   const d = data as Record<string, unknown>;
-  if (Object.keys(d).sort().join(',') !== 'bindingId,gameId,kind,notificationId,version' || d.kind !== MESSAGE_NOTIFICATION_KIND || d.version !== 1) return undefined;
+  if (Object.keys(d).sort().join(',') !== 'bindingId,gameId,kind,notificationId,version' || ![MESSAGE_NOTIFICATION_KIND, INCOMING_NOTIFICATION_KIND].includes(d.kind as string) || d.version !== 1) return undefined;
   if (typeof d.gameId !== 'string' || !/^[a-f0-9]{24}$/.test(d.gameId)) return undefined;
   if (typeof d.bindingId !== 'string' || !OPAQUE_ID.test(d.bindingId) || typeof d.notificationId !== 'string' || !OPAQUE_ID.test(d.notificationId)) return undefined;
-  return { gameId: d.gameId, bindingId: d.bindingId, notificationId: d.notificationId };
+  return { kind: d.kind as NotificationRequest['kind'], gameId: d.gameId, bindingId: d.bindingId, notificationId: d.notificationId };
 }
 
 export type NotificationTarget = {
@@ -47,11 +47,13 @@ export type NotificationTarget = {
   gameId?: string;
   /** undefined while this seat's notification settings are still loading. null when settled without a binding. */
   bindingId?: string | null;
+  incoming?: boolean;
 };
-/** Opens Signals only for the restored, authenticated operation whose current binding produced the notification. */
+/** Opens only for the restored operation and current binding, including fresh consent for detailed attacks. */
 export function notificationDisposition(request: NotificationRequest, target: NotificationTarget): 'open' | 'wait' | 'ignore' {
   if (!target.restored) return 'wait';
   if (!target.gameId || target.gameId !== request.gameId) return 'ignore';
   if (target.bindingId === undefined) return 'wait';
-  return target.bindingId === request.bindingId ? 'open' : 'ignore';
+  if (target.bindingId !== request.bindingId) return 'ignore';
+  return request.kind === INCOMING_NOTIFICATION_KIND && target.incoming !== true ? 'ignore' : 'open';
 }

@@ -52,8 +52,9 @@ function fakeServer() {
       if (failure) throw failure;
       const current = record(seat);
       if (body.revision !== current.revision) throw new RejectedCommand(409, 'Stale preference revision.', 'notification.conflict.stale');
-      if (body.enabled && !available) throw new RejectedCommand(409, 'Delivery unavailable.');
+      if (body.enabled && !available && !(current.enabled && body.incoming === false && body.expoPushToken === undefined)) throw new RejectedCommand(409, 'Delivery unavailable.');
       const next = { ...current, available, revision: current.revision + 1, enabled: body.enabled, ...(body.enabled ? { bindingId: `binding-${seat.id.slice(0, 1)}-${current.revision + 1}` } : {}) };
+      if (current.incoming !== undefined || body.incoming !== undefined) next.incoming = body.enabled && (body.incoming ?? current.incoming ?? false);
       records.set(seat.id, next);
       return next;
     },
@@ -70,6 +71,148 @@ async function mount(seat: NotificationSeat | undefined, device: MessageNotifica
   return { out, server, rerender: (next?: NotificationSeat) => act(async () => renderer.update(React.createElement(Probe, { seat: next }))), registered: () => registered, unmount: () => act(async () => renderer.unmount()) };
 }
 const press = (fn: () => void) => act(async () => { fn(); });
+
+test('incoming consent waits for its Android channel and retries preparation without a provider or permission prompt', async () => {
+  const fake = fakeDevice('granted');
+  let preparations = 0;
+  fake.device.prepareIncoming = async () => { if (++preparations === 1) throw new Error('Channel unavailable'); };
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: true, bindingId: 'current-binding', incoming: false });
+  const m = await mount(seatA, fake.device, server);
+  await press(() => m.out.current!.setIncoming(true));
+  assert.equal(server.writes.length, 0);
+  assert.match(m.out.current!.error!, /Channel unavailable/);
+  await press(m.out.current!.retry);
+  assert.equal(preparations, 2);
+  assert.equal(m.out.current!.settings!.incoming, true);
+  assert.equal(m.out.current!.error, undefined);
+  await press(() => m.out.current!.setIncoming(false));
+  assert.equal(preparations, 2, 'Withdrawing consent never needs channel setup');
+  assert.deepEqual(fake.calls, { requests: 0, tokens: 0 });
+  await m.unmount();
+});
+
+test('incoming channel preparation cannot issue consent after a seat change or unmount', async () => {
+  for (const unmount of [false, true]) {
+    const gate = deferred<void>();
+    const fake = fakeDevice('granted');
+    fake.device.prepareIncoming = () => gate.promise;
+    const server = fakeServer();
+    server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: true, bindingId: 'current-binding', incoming: false });
+    const m = await mount(seatA, fake.device, server);
+    await press(() => m.out.current!.setIncoming(true));
+    assert.equal(server.writes.length, 0);
+    if (unmount) await m.unmount(); else await m.rerender(seatB);
+    await act(async () => { gate.resolve(); await gate.promise; });
+    assert.equal(server.writes.length, 0);
+    if (!unmount) await m.unmount();
+  }
+});
+
+test('incoming consent is explicit, unavailable on legacy servers, and never prompts or fetches a token', async () => {
+  for (const supported of [false, true]) {
+    const fake = fakeDevice('granted');
+    const server = fakeServer();
+    server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: false, ...(supported ? { incoming: false } : {}) });
+    const m = await mount(seatA, fake.device, server);
+    await press(() => m.out.current!.setIncoming(true));
+    assert.equal(server.writes.length, 0, 'Consent cannot create or enable a device binding');
+    await press(m.out.current!.enable);
+    assert.equal(server.writes[0]!.body.incoming, supported ? false : undefined);
+    const tokens = fake.calls.tokens, prompts = fake.calls.requests;
+    await press(() => m.out.current!.setIncoming(true));
+    assert.equal(m.out.current!.settings!.incoming, supported ? true : undefined);
+    assert.equal(server.writes.length, supported ? 2 : 1);
+    if (supported) assert.equal(server.writes[1]!.body.expoPushToken, undefined);
+    assert.equal(fake.calls.tokens, tokens);
+    assert.equal(fake.calls.requests, prompts);
+    if (supported) {
+      server.setAvailable(false);
+      await press(() => m.out.current!.setIncoming(false));
+      assert.equal(m.out.current!.settings!.incoming, false, 'Consent can be withdrawn without a delivery service');
+    }
+    await press(m.out.current!.disable);
+    assert.equal(server.writes.at(-1)!.body.incoming, supported ? false : undefined);
+    assert.equal(m.out.current!.settings!.incoming, supported ? false : undefined);
+    await m.unmount();
+  }
+});
+
+test('lost consent-only responses retry the identical request without depending on push-token availability', async () => {
+  const fake = fakeDevice('granted');
+  fake.device.pushToken = async () => { throw new Error('Provider unavailable'); };
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: true, bindingId: 'current-binding', incoming: true });
+  const bodies: SetMessageNotifications[] = [];
+  let accepted: MessageNotificationSettings | undefined;
+  const m = await mount(seatA, fake.device, server, { write: async (seat, body) => {
+    bodies.push({ ...body });
+    if (accepted) return accepted;
+    accepted = await server.write(seat, body);
+    throw new Error('Response lost');
+  } });
+  await press(() => m.out.current!.setIncoming(false));
+  assert.equal(server.records.get(seatA.id)!.incoming, false);
+  assert.equal(m.out.current!.settings!.incoming, true, 'An unconfirmed response does not lie about the displayed state');
+  await press(m.out.current!.retry);
+  assert.deepEqual(bodies[1], bodies[0]);
+  assert.equal(bodies[1]!.expoPushToken, undefined);
+  assert.equal(m.out.current!.settings!.incoming, false);
+  assert.equal(m.out.current!.error, undefined);
+  assert.equal(fake.calls.requests, 0);
+  await m.unmount();
+});
+
+test('stale-token reconciliation preserves incoming consent from the fresh server read', async () => {
+  const fake = fakeDevice('granted');
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: false, incoming: false });
+  let lose = true;
+  const m = await mount(seatA, fake.device, server, { write: async (seat, body) => {
+    const result = await server.write(seat, body);
+    if (lose) { lose = false; throw new Error('Accepted response lost'); }
+    return result;
+  } });
+  await press(m.out.current!.enable);
+  server.records.set(seatA.id, { ...server.records.get(seatA.id)!, revision: 2, incoming: true });
+  fake.rotate('ExponentPushToken[second]');
+  await press(m.out.current!.retry);
+  assert.equal(server.writes.at(-1)!.body.revision, 2);
+  assert.equal(server.writes.at(-1)!.body.incoming, true);
+  assert.equal(m.out.current!.settings!.incoming, true);
+  assert.equal(m.out.current!.error, undefined);
+  await m.unmount();
+});
+
+test('failed consent-only writes retain the registered-token cache', async () => {
+  const fake = fakeDevice('granted');
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: false, incoming: false });
+  const m = await mount(seatA, fake.device, server);
+  await press(m.out.current!.enable);
+  server.failures.push(new Error('Consent request failed'));
+  await press(() => m.out.current!.setIncoming(true));
+  assert.match(m.out.current!.error!, /Consent request failed/);
+  const writes = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[first]'));
+  assert.equal(server.writes.length, writes, 'The unchanged token is still registered despite a consent error');
+  await m.unmount();
+});
+
+test('an old consent response cannot publish into the next seat', async () => {
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: true, bindingId: 'current-binding', incoming: false });
+  const gate = deferred<void>();
+  const m = await mount(seatA, fakeDevice('granted').device, server);
+  server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  await m.rerender(seatB);
+  await act(async () => { gate.resolve(); await gate.promise; });
+  assert.equal(server.writes[0]!.seat, seatA.id);
+  assert.equal(m.out.current!.settings!.gameId, seatB.id);
+  assert.equal(m.out.current!.settings!.incoming, undefined);
+  await m.unmount();
+});
 
 test('a registration waiting for device identity cannot cross seats or survive unmount', async () => {
   for (const unmount of [false, true]) {

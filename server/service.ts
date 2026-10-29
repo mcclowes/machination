@@ -26,7 +26,8 @@ import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
 import type { MessageNotificationSettings } from '../src/online/notification-contract';
-import { claimReceipts, claimSends, detach, enqueue, EXPO_TOKEN, finishReceipts, finishSends, invalidateSeat, isCurrent, newBindingId, NOTIFICATION_LIMITS, release, evict, revisionFloor, seatGeneration, tokenHash, type ReceiptClaim, type ReceiptResult, type SendClaim, type SendResult } from './notifications';
+import { acceptsIncoming, claimReceipts, claimSends, detach, enqueue, enqueueIncoming, EXPO_TOKEN, finishReceipts, finishSends, incomingLedger, invalidateSeat, isCurrent, newBindingId, NOTIFICATION_LIMITS, release, evict, revisionFloor, seatGeneration, setIncomingLedger, tokenHash, type IncomingAlert, type Job, type ReceiptClaim, type ReceiptResult, type SendClaim, type SendResult } from './notifications';
+import { hostileIncoming, incomingBody } from './incoming';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS = ALL_PLAYERS;
 export type AccountCredential = { accountId: string };
@@ -80,23 +81,30 @@ function canonicalSchedule(input: unknown): ScheduleOrder {
 export type ServiceOptions = { notifications?: boolean };
 export type NotificationQueue = {
   claimSends(owner: string): Promise<SendClaim>;
+  /** Advances rooms whose seats accept incoming alerts, with no client request. Returns the rooms settled. */
+  settleIncoming?(): Promise<number>;
   finishSends(lease: string, results: ReadonlyMap<string, SendResult>): Promise<void>;
   claimReceipts(owner: string): Promise<ReceiptClaim>;
   finishReceipts(lease: string, results: ReadonlyMap<string, ReceiptResult>): Promise<void>;
   release(lease: string): Promise<void>;
 };
 const SETTING_KEYS = ['requestId', 'deviceId', 'revision', 'enabled', 'expoPushToken'];
-function canonicalNotificationSetting(input: unknown) {
-  const invalid = () => new Failure(400, 'notification.validation.payload', 'Provide a device, revision, request ID, and a valid push token only when enabling.');
+export type NotificationVersion = 1 | 2;
+function canonicalNotificationSetting(input: unknown, version: NotificationVersion = 1) {
+  const invalid = () => new Failure(400, 'notification.validation.payload', version === 2
+    ? 'Provide a device, revision, request ID, incoming consent, and a valid push token only when enabling.'
+    : 'Provide a device, revision, request ID, and a valid push token only when enabling.');
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
   const value = input as Record<string, unknown>;
-  if (Object.keys(value).some(key => !SETTING_KEYS.includes(key)) || !['requestId', 'deviceId', 'revision', 'enabled'].every(key => Object.hasOwn(value, key))
+  const keys = version === 2 ? [...SETTING_KEYS, 'incoming'] : SETTING_KEYS;
+  if (version === 2 && (typeof value.incoming !== 'boolean' || value.incoming && value.enabled !== true)) throw invalid();
+  if (Object.keys(value).some(key => !keys.includes(key)) || !['requestId', 'deviceId', 'revision', 'enabled'].every(key => Object.hasOwn(value, key))
     || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(value.requestId)
     || typeof value.deviceId !== 'string' || !/^[a-f0-9]{64}$/.test(value.deviceId)
     || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 || typeof value.enabled !== 'boolean'
-    || (value.enabled ? typeof value.expoPushToken !== 'string' || !EXPO_TOKEN.test(value.expoPushToken) : Object.hasOwn(value, 'expoPushToken'))) throw invalid();
+    || (value.enabled ? (version === 2 && !Object.hasOwn(value, 'expoPushToken') ? false : typeof value.expoPushToken !== 'string' || !EXPO_TOKEN.test(value.expoPushToken)) : Object.hasOwn(value, 'expoPushToken'))) throw invalid();
   return { requestId: value.requestId, deviceId: value.deviceId, revision: value.revision as number, enabled: value.enabled,
-    ...(value.enabled ? { expoPushToken: value.expoPushToken as string } : {}) };
+    ...(value.enabled && typeof value.expoPushToken === 'string' ? { expoPushToken: value.expoPushToken as string } : {}), ...(version === 2 ? { incoming: value.incoming as boolean } : {}) };
 }
 export class GameService {
   private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame, private pushAvailable = false) {}
@@ -128,7 +136,12 @@ export class GameService {
     requireThat(seat, 401, 'seat.unauthorized.token', 'This token does not control a seat in this operation.');
     return seat.faction;
   }
-  private settle(room: Room) {
+  /** Every settle path also records first observations of incoming threats, so no request can swallow one. */
+  private settle(db: Database, room: Room) {
+    this.advanceRoom(room);
+    this.trackIncoming(db, room);
+  }
+  private advanceRoom(room: Room) {
     if (room.startedAt !== null) {
       room.replay ??= exportArchive(createArchive(room.game));
       const target = Math.max(room.game.hour, (this.now() - room.startedAt) / HOUR_MS);
@@ -144,6 +157,62 @@ export class GameService {
       room.game = advance(room.game, target, { rivals: false });
       if (room.game.version === 2) for (const seat of room.seats) seat.lastActiveHour ??= room.game.hour;
     }
+  }
+  private consenting(db: Database, room: Room, faction: Faction): boolean {
+    return !!db.notifications?.bindings.some(b => b.roomId === room.id && b.faction === faction && acceptsIncoming(db, b));
+  }
+  /** Diffs each consenting seat's observed threats against its ledger. Seats without a ledger seed silently. */
+  private trackIncoming(db: Database, room: Room): void {
+    const state = db.notifications;
+    if (!this.pushAvailable || !state || room.startedAt === null) return;
+    try {
+      const alerts: (IncomingAlert & { firstHour: number; arrivesAt: number })[] = [];
+      const ledgers: [Faction, string[] | undefined][] = [];
+      for (const seat of room.seats) {
+        const ledger = incomingLedger(state, room.id, seat.faction);
+        if (!this.consenting(db, room, seat.faction)) { if (ledger) ledgers.push([seat.faction, undefined]); continue; }
+        const threats = [...hostileIncoming(room.game, seat.faction)].slice(0, NOTIFICATION_LIMITS.incomingKeysPerSeat);
+        if (ledger) {
+          const known = new Set(ledger.keys);
+          for (const [key, fleet] of threats) if (!known.has(key)) alerts.push({ faction: seat.faction, fleet: fleet.id, key, firstHour: room.game.hour, arrivesAt: room.startedAt + fleet.arrives * HOUR_MS });
+        }
+        ledgers.push([seat.faction, threats.map(([key]) => key)]);
+      }
+      for (const [faction, keys] of ledgers) setIncomingLedger(state, room.id, faction, keys);
+      enqueueIncoming(db, room.id, alerts, this.now());
+    } catch (error) { console.error('Incoming notification tracking skipped', (error as Error).name); }
+  }
+  /** Seeds a newly consenting seat from its observation at the current instant, without persisting any game advance. */
+  private seedIncoming(db: Database, room: Room, faction: Faction): void {
+    const state = db.notifications!;
+    let game = room.game;
+    try { const transient = structuredClone(room); this.advanceRoom(transient); game = transient.game; }
+    catch (error) { console.error('Incoming notification seed used stored time', (error as Error).name); }
+    setIncomingLedger(state, room.id, faction, [...hostileIncoming(game, faction).keys()].slice(0, NOTIFICATION_LIMITS.incomingKeysPerSeat));
+  }
+  /** Settles matching active rooms one at a time; a failing room is restored so the others still commit. */
+  private settleRooms(db: Database, matches: (room: Room) => boolean): number {
+    let settled = 0;
+    db.rooms.forEach((room, index) => {
+      if (room.startedAt === null || room.game.version !== 2 || room.game.winner || room.game.draw || !matches(room)) return;
+      const backup = structuredClone(room);
+      try { this.settle(db, room); settled++; }
+      catch (error) { db.rooms[index] = backup; console.error('Background settlement skipped a room', (error as Error).name); }
+    });
+    return settled;
+  }
+  private acceptsIncomingRoom = (db: Database) => (room: Room) => room.seats.some(seat => this.consenting(db, room, seat.faction));
+  /** Zero-client settlement for rooms with incoming consent; skips the write when none qualify. */
+  async settleIncoming(): Promise<number> {
+    if (!this.pushAvailable) return 0;
+    const due = await this.store.read(db => db.rooms.some(room => room.startedAt !== null && room.game.version === 2 && !room.game.winner && !room.game.draw && this.acceptsIncomingRoom(db)(room)));
+    return due ? this.transaction(db => this.settleRooms(db, this.acceptsIncomingRoom(db))) : 0;
+  }
+  private renderIncoming(db: Database, job: Job & { alert: IncomingAlert }): { body: string } | undefined {
+    const room = db.rooms.find(r => r.id === job.roomId);
+    if (!room || room.startedAt === null) return undefined;
+    const body = incomingBody(room.game, room.startedAt, job.alert.faction, job.alert, this.now());
+    return body ? { body } : undefined;
   }
   private act(room: Room, command: GameCommand): void {
     const result = applyCommand(room.replay ? restoreArchive(room.replay) : createArchive(room.game), command, { rivals: false, knownThrough: room.game.hour });
@@ -196,7 +265,7 @@ export class GameService {
       this.credential(account);
       const room = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, account)));
       if (!room) return null;
-      this.settle(room); return this.view(room, this.seat(room, account));
+      this.settle(db, room); return this.view(room, this.seat(room, account));
     });
   }
   linkAccount(id: string, token: string, account: AccountCredential): Promise<Snapshot> {
@@ -210,7 +279,7 @@ export class GameService {
       seat.accountId = account.accountId;
       delete seat.recoveryHash; delete seat.recoveryReceipt;
       invalidateSeat(db, room.id, seat.faction);
-      this.settle(room); return this.view(room, seat.faction);
+      this.settle(db, room); return this.view(room, seat.faction);
     });
   }
   create(token: Credential, options?: unknown): Promise<Snapshot> {
@@ -222,7 +291,7 @@ export class GameService {
       const existing = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
         requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
-        this.settle(existing); return this.view(existing, this.seat(existing, token));
+        this.settle(db, existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
@@ -237,7 +306,7 @@ export class GameService {
       const room = db.rooms.find(r => r.invite === invite);
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
       const existing = room.seats.find(s => this.matchesCredential(s, token));
-      if (existing) { this.settle(room); return this.view(room, existing.faction); }
+      if (existing) { this.settle(db, room); return this.view(room, existing.faction); }
       requireThat(!db.rooms.some(r => r.seats.some(s => this.matchesCredential(s, token))), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
       requireThat(room.startedAt === null && room.seats.length < playersIn(room.game).length, 409, 'game.conflict.closed', 'This operation is no longer accepting players.');
       const faction = playersIn(room.game)[room.seats.length]!;
@@ -248,7 +317,7 @@ export class GameService {
   setRecovery(id: string, token: Credential, command: RecoverySetup): Promise<Snapshot> {
     return this.transaction(db => {
       requireThat(typeof token === 'string', 409, 'recovery.conflict.account', 'Sign in to restore an account seat.');
-      const room = this.room(db, id); const faction = this.seat(room, token); this.settle(room);
+      const room = this.room(db, id); const faction = this.seat(room, token); this.settle(db, room);
       requireThat(typeof command.secret === 'string' && /^[a-f0-9]{64}$/.test(command.secret), 400, 'recovery.validation.secret', 'Provide a valid recovery secret.');
       const secretHash = hash(command.secret); const seat = room.seats.find(s => s.faction === faction)!;
       const prior = this.receipt(room, faction, command.requestId, JSON.stringify(['recovery', secretHash]));
@@ -269,24 +338,24 @@ export class GameService {
       const secretHash = hash(command.secret); const room = db.rooms.find(r => r.id === id);
       const seat = room?.seats.find(s => !s.accountId && (matchesHash(s.recoveryHash, secretHash) || matchesHash(s.recoveryReceipt?.secretHash, secretHash) && s.recoveryReceipt?.credentialHash === credential && s.hash === credential));
       requireThat(room && seat, 401, 'recovery.unauthorized.code', 'Recovery code is invalid, replaced, or already used.');
-      if (seat.recoveryReceipt?.secretHash === secretHash && seat.hash === credential) { this.settle(room); return this.view(room, seat.faction); }
+      if (seat.recoveryReceipt?.secretHash === secretHash && seat.hash === credential) { this.settle(db, room); return this.view(room, seat.faction); }
       requireThat(credential !== seat.hash && !db.rooms.some(r => r.seats.some(s => this.matchesCredential(s, token))), 409, 'recovery.conflict.credential', 'Restore with a fresh connection credential.');
       seat.identityHash ??= seat.hash;
       seat.hash = credential; delete seat.recoveryHash;
       seat.recoveryReceipt = { secretHash, credentialHash: credential };
       invalidateSeat(db, room.id, seat.faction);
-      this.settle(room); return this.view(room, seat.faction);
+      this.settle(db, room); return this.view(room, seat.faction);
     });
   }
   snapshot(id: string, token: Credential): Promise<Snapshot> {
-    return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); return this.view(r, f); });
+    return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r); return this.view(r, f); });
   }
   async sharedReplay(id: string, token: Credential, from: number, through: number): Promise<SharedReplay> {
     requireThat(Number.isFinite(from) && Number.isFinite(through) && from >= 0 && through >= from,
       400, 'replay.validation.bounds', 'Choose a finite, ordered historical interval.');
     const frozen = await this.transaction(db => {
       const room = this.room(db, id); const perspective = this.seat(room, token);
-      this.settle(room);
+      this.settle(db, room);
       requireThat(room.startedAt !== null && room.replay, 409, 'replay.conflict.lobby', 'Replay history begins when the operation starts.');
       // Return validation failures as data so normal engine settling still persists.
       if (from < room.replay.baseline.hour || through > room.game.hour) return null;
@@ -303,7 +372,7 @@ export class GameService {
   }
   history(id: string, token: Credential, hour: number): Promise<HistorySnapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       requireThat(r.replay, 409, 'history.conflict.lobby', 'History begins when the operation starts.');
       requireThat(Number.isFinite(hour) && hour >= r.replay.baseline.hour && hour <= r.game.hour, 400, 'history.validation.hour', 'Choose a time within the available operation history.');
       const game = replayTo(restoreArchive(r.replay), hour, { rivals: false, knownThrough: r.game.hour });
@@ -312,11 +381,11 @@ export class GameService {
     });
   }
   activity(id: string, token: Credential): Promise<Snapshot> {
-    return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(r); this.touch(r, f); return this.view(r, f); });
+    return this.transaction(db => { const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r); this.touch(r, f); return this.view(r, f); });
   }
   resign(id: string, token: Credential, command: ResignOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['resign', command.revision]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'resign.conflict.stale', 'Your orders changed. Refresh before resigning.');
@@ -332,7 +401,7 @@ export class GameService {
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
       requireThat(r.seats.length === playersIn(r.game).length, 409, 'game.conflict.seats', `Wait for all ${playersIn(r.game).length} intelligences to join.`);
       if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; this.reviseOrders(r, [f]); }
-      this.settle(r); return this.view(r, f);
+      this.settle(db, r); return this.view(r, f);
     });
   }
   private receipt(room: Room, faction: Faction, requestId: string, payload: string): boolean {
@@ -375,7 +444,7 @@ export class GameService {
   }
   specialist(id: string, token: Credential, command: SpecialistOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const payload = JSON.stringify(['specialist', command.action, command.action === 'hire' ? command.kind : command.unit, command.revision]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
@@ -398,7 +467,7 @@ export class GameService {
   }
   order(id: string, token: Credential, order: Order): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, order.requestId, JSON.stringify(['order', order.from, order.to, order.drones, order.revision, ...(order.carryModule === undefined || order.carryModule === false ? [] : [order.carryModule]), ...(order.specialists?.length ? [order.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(order.revision) && order.revision === this.revision(r, f), 409, 'order.conflict.stale', 'The operation changed. Refresh before issuing this order.');
@@ -410,7 +479,7 @@ export class GameService {
   }
   gift(id: string, token: Credential, command: GiftOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['gift', command.from, command.to, command.drones, command.recipient, command.revision, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'gift.conflict.stale', 'Your orders changed. Refresh before gifting.');
@@ -422,7 +491,7 @@ export class GameService {
   }
   install(id: string, token: Credential, command: ModuleOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['module', command.rock, command.module, command.revision]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
@@ -434,7 +503,7 @@ export class GameService {
   }
   hauler(id: string, token: Credential, command: HaulerOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const payload = JSON.stringify(['hauler', command.fleet, command.action, command.action === 'edit-launch' ? command.drones : null, command.revision, ...(command.action === 'course' ? [command.to] : []), ...(command.action === 'edit-launch' && command.specialists?.length ? [command.specialists] : [])]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
@@ -454,7 +523,7 @@ export class GameService {
   }
   site(id: string, token: Credential, command: SiteOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const payload = JSON.stringify(['site', command.rock, command.action, command.action === 'shields' ? command.disabled : null, command.revision]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
@@ -470,7 +539,7 @@ export class GameService {
   }
   intercept(id: string, token: Credential, command: InterceptOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['intercept', command.from, command.target, command.drones, command.revision, ...(command.specialists?.length ? [command.specialists] : [])]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'interception.conflict.stale', 'Your orders changed. Refresh before intercepting.');
@@ -487,7 +556,7 @@ export class GameService {
   async schedule(id: string, token: Credential, input: ScheduleOrder): Promise<Snapshot> {
     const command = canonicalSchedule(input);
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const payload = 'action' in command
         ? JSON.stringify(['schedule-action', command.action, command.revision, command.executeAt])
         : JSON.stringify(['schedule', command.from, command.to, command.drones, command.revision, command.executeAt, command.carryModule ?? false, ...(command.specialists?.length ? [command.specialists] : [])]);
@@ -524,7 +593,7 @@ export class GameService {
     } catch { throw invalid(); }
     const command = { requestId: value.requestId, revision: value.revision as number, ...change };
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const payload = JSON.stringify(['edit-schedule', command.revision, command.planId, command.drones,
         ...(command.specialists === undefined ? [] : [command.specialists])]);
       if (this.receipt(r, f, command.requestId, payload)) return this.view(r, f);
@@ -544,7 +613,7 @@ export class GameService {
   }
   cancelSchedule(id: string, token: Credential, command: CancelSchedule): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['cancel-schedule', command.planId, command.revision]))) return this.view(r, f);
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before canceling.');
       try { this.act(r, { type: 'cancel-schedule', owner: f, id: command.planId }); }
@@ -555,7 +624,7 @@ export class GameService {
   }
   funding(id: string, token: Credential, command: FundingOrder): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       if (this.receipt(r, f, command.requestId, JSON.stringify(['funding', command.recipient, command.enabled, command.revision]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'funding.conflict.stale', 'Your orders changed. Refresh before changing funding.');
@@ -568,7 +637,7 @@ export class GameService {
   }
   createGroup(id: string, token: Credential, command: CreateGroup): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       requireThat(typeof command.name === 'string' && command.name.trim().length > 0 && command.name.length <= DIPLOMACY_LIMITS.name,
         400, 'group.validation.name', 'Group names must contain 1 to 60 characters.');
       requireThat(Array.isArray(command.members) && command.members.length >= 2 && command.members.length <= r.seats.length
@@ -587,7 +656,7 @@ export class GameService {
   }
   channelMessage(id: string, token: Credential, command: ChannelTransmission): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       const d = r.diplomacy ??= { groups: [], publicMessages: [] };
       const group = d.groups.find(g => g.id === command.channelId && g.members.includes(f));
       requireThat(command.channelId === 'public' || group, 404, 'channel.not_found', 'Channel not found.');
@@ -605,7 +674,7 @@ export class GameService {
   }
   message(id: string, token: Credential, command: Transmission): Promise<Snapshot> {
     return this.transaction(db => {
-      const r = this.room(db, id); const f = this.seat(r, token); this.settle(r);
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
       requireThat(FACTIONS.includes(command.to) && command.to !== f && r.seats.some(s => s.faction === command.to), 400, 'message.validation.recipient', 'Choose another intelligence in this operation.');
       requireThat(typeof command.text === 'string' && command.text.trim().length > 0 && command.text.length <= 1000, 400, 'message.validation.text', 'Transmissions must contain 1 to 1,000 characters.');
       if (this.receipt(r, f, command.requestId, JSON.stringify(['message', command.to, command.text]))) return this.view(r, f);
@@ -622,29 +691,36 @@ export class GameService {
     try { enqueue(db, room, audience, messageRef, this.now()); }
     catch (error) { console.error('Notification enqueue skipped', (error as Error).name); }
   }
-  private notificationView(db: Database, room: Room, faction: Faction, deviceId: string): MessageNotificationSettings {
+  private notificationView(db: Database, room: Room, faction: Faction, deviceId: string, version: NotificationVersion = 1): MessageNotificationSettings {
     const binding = db.notifications?.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === deviceId);
     const enabled = !!binding?.enabled && isCurrent(db, binding);
-    return { gameId: room.id, deviceId, revision: binding?.revision ?? revisionFloor(db.notifications, room.id, faction), available: this.pushAvailable, enabled, ...(enabled ? { bindingId: binding!.id } : {}) };
+    return { gameId: room.id, deviceId, revision: binding?.revision ?? revisionFloor(db.notifications, room.id, faction), available: this.pushAvailable, enabled,
+      ...(version === 2 ? { incoming: enabled && binding!.incoming === true } : {}), ...(enabled ? { bindingId: binding!.id } : {}) };
   }
   // Preferences never settle time, renew activity, change order revisions, or enter replay.
-  notificationSettings(id: string, token: Credential, deviceId: unknown): Promise<MessageNotificationSettings> {
+  notificationSettings(id: string, token: Credential, deviceId: unknown, version: NotificationVersion = 1): Promise<MessageNotificationSettings> {
     requireThat(typeof deviceId === 'string' && /^[a-f0-9]{64}$/.test(deviceId), 400, 'notification.validation.device', 'Provide this installation\'s device ID.');
-    return this.transaction(db => { const room = this.room(db, id); return this.notificationView(db, room, this.seat(room, token), deviceId); });
+    return this.transaction(db => { const room = this.room(db, id); return this.notificationView(db, room, this.seat(room, token), deviceId, version); });
   }
-  async setNotifications(id: string, token: Credential, input: unknown): Promise<MessageNotificationSettings> {
-    const command = canonicalNotificationSetting(input);
+  /** Version 1 keeps its exact shape: enabling or rotating a token preserves incoming consent, and disabling clears it. */
+  async setNotifications(id: string, token: Credential, input: unknown, version: NotificationVersion = 1): Promise<MessageNotificationSettings> {
+    const command = canonicalNotificationSetting(input, version);
     return this.transaction(db => {
       const room = this.room(db, id); const faction = this.seat(room, token);
       const seat = room.seats.find(s => s.faction === faction)!;
       const state = db.notifications ??= { bindings: [], jobs: [] };
       let binding = state.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === command.deviceId);
-      const payload = JSON.stringify(['notifications', command.revision, command.enabled, command.expoPushToken ? tokenHash(command.expoPushToken) : null]);
+      const payload = JSON.stringify(['notifications', command.revision, command.enabled, command.expoPushToken ? tokenHash(command.expoPushToken) : command.enabled ? 'retain-token' : null,
+        ...(command.incoming === undefined ? [] : ['incoming', command.incoming])]);
       const prior = binding?.requests.find(r => r.id === command.requestId);
       requireThat(!prior || prior.payload === payload, 409, 'command.conflict.reused_id', 'This command ID was used for different content.');
-      if (prior) return this.notificationView(db, room, faction, command.deviceId);
+      if (prior) return this.notificationView(db, room, faction, command.deviceId, version);
+      const hadConsent = this.consenting(db, room, faction);
       requireThat(command.revision === (binding?.revision ?? revisionFloor(state, room.id, faction)), 409, 'notification.conflict.stale', 'Notification settings changed. Refresh before changing them.');
-      requireThat(!command.enabled || this.pushAvailable, 503, 'notification.unavailable.delivery', 'This server does not deliver notifications.');
+      // A version-2 consent change without a token only edits an existing enabled, current binding; it never attaches a device.
+      const flagOnly = command.enabled && command.expoPushToken === undefined;
+      if (flagOnly) requireThat(binding?.enabled && binding.token && isCurrent(db, binding), 409, 'notification.conflict.unbound', 'Enable notifications on this device before changing attack alerts.');
+      requireThat(!command.enabled || this.pushAvailable || flagOnly && command.incoming === false, 503, 'notification.unavailable.delivery', 'This server does not deliver notifications.');
       if (!binding) {
         const own = state.bindings.filter(b => b.roomId === room.id && b.faction === faction);
         if (own.length >= NOTIFICATION_LIMITS.devicesPerSeat) {
@@ -658,19 +734,29 @@ export class GameService {
       }
       if (!isCurrent(db, binding)) { detach(state, binding); binding.generation = seatGeneration(seat); }
       if (command.enabled) {
-        const token = command.expoPushToken!;
+        const token = command.expoPushToken ?? binding.token!;
         for (const other of state.bindings) if (other !== binding && other.token === token) detach(state, other);
         if (!binding.enabled) binding.id = newBindingId();
         binding.enabled = true; binding.token = token;
+        if (command.incoming === true) binding.incoming = true;
+        else if (command.incoming === false) { delete binding.incoming; state.jobs = state.jobs.filter(job => job.bindingId !== binding!.id || job.kind !== 'incoming'); }
       } else detach(state, binding);
       binding.revision++; binding.updatedAt = this.now();
       binding.requests = [...binding.requests, { id: command.requestId, payload }].slice(-NOTIFICATION_LIMITS.requestsPerBinding);
-      return this.notificationView(db, room, faction, command.deviceId);
+      const hasConsent = this.consenting(db, room, faction);
+      if (!hasConsent) setIncomingLedger(state, room.id, faction, undefined);
+      else if (!hadConsent) this.seedIncoming(db, room, faction);
+      return this.notificationView(db, room, faction, command.deviceId, version);
     });
   }
   notificationQueue(): NotificationQueue {
     return {
-      claimSends: owner => this.transaction(db => claimSends(db, owner, this.now())),
+      // Rooms with pending incoming work settle first, so text and obsolescence come from current authorized state.
+      claimSends: owner => this.transaction(db => {
+        this.settleRooms(db, room => !!db.notifications?.jobs.some(job => job.kind === 'incoming' && job.roomId === room.id && (job.state === 'queued' || job.state === 'sending')));
+        return claimSends(db, owner, this.now(), undefined, job => this.renderIncoming(db, job));
+      }),
+      settleIncoming: () => this.settleIncoming(),
       finishSends: (lease, results) => this.transaction(db => finishSends(db, lease, results, this.now())),
       claimReceipts: owner => this.transaction(db => claimReceipts(db, owner, this.now())),
       finishReceipts: (lease, results) => this.transaction(db => finishReceipts(db, lease, results, this.now())),

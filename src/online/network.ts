@@ -79,18 +79,29 @@ export const OPAQUE_ID = /^[\x21-\x7e]{1,200}$/;
 const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[^\]\s]{1,200}\]$/;
 export async function messageNotificationsApi(session: SeatSession, deviceId: string): Promise<MessageNotificationSettings> {
   if (!DEVICE_ID.test(deviceId)) throw new Error('Invalid notification device.');
-  return notificationSettings(session.id, deviceId, await request(session, `games/${session.id}/notifications?deviceId=${deviceId}`));
+  const path = `games/${session.id}/notifications?deviceId=${deviceId}`;
+  let data: unknown;
+  try { data = await request(session, `${path}&version=2`); }
+  catch (error) {
+    // Older servers reject every query key except deviceId.
+    if (!(error instanceof RejectedCommand && error.status === 400 && error.issue === 'notification.validation.device')) throw error;
+    data = await request(session, path);
+  }
+  return notificationSettings(session.id, deviceId, data);
 }
 export async function setMessageNotificationsApi(session: SeatSession, body: SetMessageNotifications): Promise<MessageNotificationSettings> {
-  if (!DEVICE_ID.test(body.deviceId) || !Number.isSafeInteger(body.revision) || body.revision < 0 || body.enabled !== (body.expoPushToken !== undefined)
-    || body.expoPushToken !== undefined && !EXPO_PUSH_TOKEN.test(body.expoPushToken)) throw new Error('Invalid notification preference.');
-  return notificationSettings(session.id, body.deviceId, await request(session, `games/${session.id}/notifications`, body));
+  if (!DEVICE_ID.test(body.deviceId) || !Number.isSafeInteger(body.revision) || body.revision < 0 || typeof body.enabled !== 'boolean'
+    || !body.enabled && body.expoPushToken !== undefined || body.enabled && body.expoPushToken === undefined && body.incoming === undefined
+    || body.expoPushToken !== undefined && !EXPO_PUSH_TOKEN.test(body.expoPushToken)
+    || body.incoming !== undefined && (typeof body.incoming !== 'boolean' || body.incoming && !body.enabled)) throw new Error('Invalid notification preference.');
+  return notificationSettings(session.id, body.deviceId, await request(session, `games/${session.id}/notifications${body.incoming === undefined ? '' : '?version=2'}`, body));
 }
 function notificationSettings(gameId: string, deviceId: string, data: any): MessageNotificationSettings {
   const keys = data && typeof data === 'object' ? Object.keys(data) : [];
-  if (!keys.length || keys.some(key => !['gameId', 'deviceId', 'revision', 'available', 'enabled', 'bindingId'].includes(key)) || data.gameId !== gameId || data.deviceId !== deviceId
+  if (!keys.length || keys.some(key => !['gameId', 'deviceId', 'revision', 'available', 'enabled', 'bindingId', 'incoming'].includes(key)) || data.gameId !== gameId || data.deviceId !== deviceId
     || !Number.isSafeInteger(data.revision) || data.revision < 0 || typeof data.available !== 'boolean' || typeof data.enabled !== 'boolean'
     || data.enabled !== (data.bindingId !== undefined)
+    || data.incoming !== undefined && (typeof data.incoming !== 'boolean' || data.incoming && !data.enabled)
     || data.bindingId !== undefined && (typeof data.bindingId !== 'string' || !OPAQUE_ID.test(data.bindingId))) throw new Error('Unsupported notification settings response.');
-  return { gameId, deviceId, revision: data.revision, available: data.available, enabled: data.enabled, ...(data.bindingId === undefined ? {} : { bindingId: data.bindingId }) };
+  return { gameId, deviceId, revision: data.revision, available: data.available, enabled: data.enabled, ...(data.bindingId === undefined ? {} : { bindingId: data.bindingId }), ...(data.incoming === undefined ? {} : { incoming: data.incoming }) };
 }

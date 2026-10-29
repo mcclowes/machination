@@ -90,6 +90,12 @@ export class DatabaseStore {
     }
     return store;
   }
+  /** Serialized with transactions, but never writes; the callback must not mutate the database. */
+  read<T>(run: (db: Readonly<Database>) => T): Promise<T> {
+    const result = this.queue.then(() => structuredClone(run(this.database)));
+    this.queue = result.catch(() => undefined);
+    return result;
+  }
   transaction<T>(run: (db: Database) => T): Promise<T> {
     const result = this.queue.then(async () => {
       const next = structuredClone(this.database);

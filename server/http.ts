@@ -5,7 +5,7 @@
  */
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { Failure, GameService, type AccountCredential } from './service';
+import { Failure, GameService, type AccountCredential, type NotificationVersion } from './service';
 import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/online/protocol';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/online/protocol';
@@ -56,8 +56,8 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
           return service.history(id, token, Number(hour));
         }
         case 'notifications': {
-          if ([...url.searchParams.keys()].some(key => key !== 'deviceId') || url.searchParams.getAll('deviceId').length !== 1) throw new Failure(400, 'notification.validation.device', 'Provide exactly one deviceId and no other query parameters.');
-          return service.notificationSettings(id, token, url.searchParams.get('deviceId'));
+          if ([...url.searchParams.keys()].some(key => key !== 'deviceId' && key !== 'version') || url.searchParams.getAll('deviceId').length !== 1) throw new Failure(400, 'notification.validation.device', 'Provide exactly one deviceId and no other query parameters.');
+          return service.notificationSettings(id, token, url.searchParams.get('deviceId'), notificationVersion(url));
         }
         default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
@@ -83,12 +83,22 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'groups': return service.createGroup(id, token, input as CreateGroup);
         case 'channel-messages': return service.channelMessage(id, token, input as ChannelTransmission);
         case 'messages': return service.message(id, token, input as Transmission);
-        case 'notifications': return service.setNotifications(id, token, input);
+        case 'notifications': {
+          if ([...url.searchParams.keys()].some(key => key !== 'version')) throw new Failure(400, 'notification.validation.version', 'Only version=2 may be negotiated.');
+          return service.setNotifications(id, token, input, notificationVersion(url));
+        }
         default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
     }
     default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
   }
+}
+/** The default stays version 1 because existing clients reject unknown preference fields. */
+function notificationVersion(url: URL): NotificationVersion {
+  const values = url.searchParams.getAll('version');
+  if (!values.length) return 1;
+  if (values.length !== 1 || values[0] !== '2') throw new Failure(400, 'notification.validation.version', 'Only version=2 may be negotiated.');
+  return 2;
 }
 export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication) {
   const limits = new Map<string, { count: number; resets: number }>();

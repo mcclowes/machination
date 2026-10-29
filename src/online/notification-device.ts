@@ -8,6 +8,8 @@ export interface NotificationDevice {
   permission(): Promise<NotificationPermission>;
   /** Prepares OS channels, then prompts. Call only from an explicit opt-in action. */
   requestPermission(): Promise<NotificationPermission>;
+  /** Prepares the incoming-alert channel without prompting or registering a token. */
+  prepareIncoming?(): Promise<void>;
   pushToken(): Promise<string>;
   onTokenChange(listener: () => void): () => void;
   lastOpened(): Promise<NotificationOpen | null>;

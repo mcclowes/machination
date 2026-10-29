@@ -1,4 +1,4 @@
-/** Explicit, honest opt-in for incoming-message notifications on this device and seat. */
+/** Explicit device consent for message notifications and detailed incoming-attack alerts. */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MessageNotificationState } from './useMessageNotifications';
@@ -9,6 +9,8 @@ function Action({ text, onPress, disabled }: { text: string; onPress: () => void
 
 export function MessageNotificationSettings({ state }: { state: MessageNotificationState }) {
   const { phase, settings, permission, working, error } = state;
+  const incomingSupported = settings?.incoming !== undefined;
+  const category = incomingSupported ? 'device' : 'message';
   let status: string;
   let action: React.ReactNode = null;
   if (phase === 'unsupported') status = 'Message notifications are available in the iOS and Android apps.';
@@ -17,20 +19,27 @@ export function MessageNotificationSettings({ state }: { state: MessageNotificat
   else if (phase === 'error' || !settings) status = 'Notification settings are unavailable.';
   else if (settings.enabled) {
     status = !settings.available ? 'This server has stopped notification delivery. You can still turn notifications off for this device.'
-      : permission === 'granted' ? 'On for this device and seat. Delivery is best effort; Signals remains the record.'
+      : permission === 'granted' ? `On for this device and seat. Delivery is best effort; ${incomingSupported ? 'check the chart for current attacks and Signals for messages.' : 'Signals remains the record.'}`
       : permission === 'provisional' ? 'On for this device and seat. iOS delivers these quietly to Notification Center until you allow alerts in system settings.'
       : 'On for this seat, but system notifications are blocked for Machination. Allow them in system settings, or turn this off.';
-    action = <Action text="Turn off message notifications" disabled={working} onPress={state.disable} />;
+    action = <Action text={`Turn off ${category} notifications`} disabled={working} onPress={state.disable} />;
   } else if (!settings.available) status = 'This server has not enabled notification delivery.';
   else {
     status = 'Off. Turning on asks for system permission and registers this device for new messages in this operation.';
-    action = <Action text="Turn on message notifications" disabled={working} onPress={state.enable} />;
+    action = <Action text={`Turn on ${category} notifications`} disabled={working} onPress={state.enable} />;
   }
   return <View style={s.panel}>
-    <Text style={s.label}>Message notifications</Text>
+    <Text style={s.label}>{incomingSupported ? 'Device notifications' : 'Message notifications'}</Text>
     <Text accessibilityLiveRegion="polite" style={s.detail}>{status}</Text>
-    {phase !== 'unsupported' && <Text style={s.detail}>Notifications say only “New transmission received.” Message text and senders stay in the app.</Text>}
+    {phase !== 'unsupported' && <Text style={s.detail}>Message notifications say only “New transmission received.” Message text and senders stay in the app.</Text>}
     {action}
+    {incomingSupported && <>
+      <Text style={s.label}>Incoming attack alerts · {settings.incoming ? 'on' : 'off'}</Text>
+      <Text style={s.detail}>Incoming alerts include the attacker, drone count, and ETA. These details may appear on your lock screen and pass through Expo's notification service.</Text>
+      <Text style={s.detail}>Signing out keeps device alerts on. Turn them off here before signing out on a shared device.</Text>
+      {settings.enabled ? <Action text={`Turn ${settings.incoming ? 'off' : 'on'} incoming attack alerts`} disabled={working || !settings.available && !settings.incoming} onPress={() => state.setIncoming(!settings.incoming)} />
+        : <Text style={s.detail}>Turn on device notifications before enabling incoming attack alerts.</Text>}
+    </>}
     {!!error && <><Text accessibilityRole="alert" style={s.error}>{error}</Text><Action text="Retry" disabled={working} onPress={state.retry} /></>}
   </View>;
 }

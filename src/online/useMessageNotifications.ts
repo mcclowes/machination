@@ -23,12 +23,13 @@ export type MessageNotificationState = {
   error?: string;
   enable(): void;
   disable(): void;
+  setIncoming(incoming: boolean): void;
   retry(): void;
 };
 
 export const notificationScope = (seat?: NotificationSeat) => seat && JSON.stringify([seat.url, seat.id, seat.accountId ?? null, seat.accountId ? null : seat.token]);
 
-type Failure = { message: string; retry: 'read' | 'enable' | { body: SetMessageNotifications } };
+type Failure = { message: string; retry: 'read' | 'enable' | { body: SetMessageNotifications } | { incoming: true } };
 export function useMessageNotifications(seat: NotificationSeat | undefined, deps: MessageNotificationDeps): MessageNotificationState {
   const scope = notificationScope(seat);
   const latest = useRef({ seat, deps, scope });
@@ -75,15 +76,16 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       const settings = await deps.write(seat, body);
       if (settings.enabled) await deps.markRegistered().catch(() => {});
       if (!current(started)) return;
-      registeredToken.current = settings.enabled && body.expoPushToken ? { scope: started, token: body.expoPushToken } : undefined;
+      if (!settings.enabled) registeredToken.current = undefined;
+      else if (body.expoPushToken) registeredToken.current = { scope: started, token: body.expoPushToken };
       publish(started, { settings, failure: undefined });
     } catch (error) {
       if (!current(started)) return;
-      registeredToken.current = undefined;
+      if (body.expoPushToken !== undefined || error instanceof RejectedCommand && error.issue === 'notification.conflict.stale') registeredToken.current = undefined;
       if (error instanceof RejectedCommand && error.issue === 'notification.conflict.stale') {
         const settings = await read(started);
         if (reconcileToken && settings?.enabled && current(started)) {
-          await register(started, settings.revision, true);
+          await register(started, settings, true);
           return;
         }
         if (!settings) return;
@@ -103,7 +105,7 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     try { await work(started); } finally { if (current(started)) { busy.current = false; publish(started, { working: false }); } }
   }
 
-  async function register(started: string, revision: number, onlyIfChanged = false) {
+  async function register(started: string, settings: Pick<MessageNotificationSettings, 'revision' | 'incoming'>, onlyIfChanged = false) {
     const { deps } = latest.current;
     const native = deps.device;
     if (!native || native === 'loading') return;
@@ -115,7 +117,8 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     }
     if (!current(started)) return;
     if (onlyIfChanged && registeredToken.current?.scope === started && registeredToken.current.token === token) return;
-    await write(started, { requestId: deps.requestId(), deviceId: await deps.deviceId(), revision, enabled: true, expoPushToken: token });
+    await write(started, { requestId: deps.requestId(), deviceId: await deps.deviceId(), revision: settings.revision, enabled: true, expoPushToken: token,
+      ...(settings.incoming === undefined ? {} : { incoming: settings.incoming }) });
   }
 
   const enable = () => void guarded(async started => {
@@ -132,14 +135,29 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       return;
     }
     if (!current(started)) return;
-    await register(started, settings.revision);
+    await register(started, settings);
   });
 
   const disable = () => void guarded(async started => {
     const { deps } = latest.current;
     const settings = settingsFor(started);
     if (!settings) return;
-    await write(started, { requestId: deps.requestId(), deviceId: settings.deviceId, revision: settings.revision, enabled: false });
+    await write(started, { requestId: deps.requestId(), deviceId: settings.deviceId, revision: settings.revision, enabled: false,
+      ...(settings.incoming === undefined ? {} : { incoming: false }) });
+  });
+
+  const setIncoming = (incoming: boolean) => void guarded(async started => {
+    const { deps } = latest.current;
+    const settings = settingsFor(started);
+    if (typeof incoming !== 'boolean' || !settings?.enabled || settings.incoming === undefined || settings.incoming === incoming || incoming && !settings.available) return;
+    if (incoming) {
+      const native = deps.device;
+      if (!native || native === 'loading') return;
+      try { await native.prepareIncoming?.(); }
+      catch (error) { publish(started, { failure: { message: `Incoming alerts could not be prepared. ${(error as Error).message}`, retry: { incoming: true } } }); return; }
+      if (!current(started)) return;
+    }
+    await write(started, { requestId: deps.requestId(), deviceId: settings.deviceId, revision: settings.revision, enabled: true, incoming });
   });
 
   const retry = () => {
@@ -147,8 +165,9 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     if (!failure) return;
     if (failure.retry === 'read') { if (scope) void read(scope); }
     else if (failure.retry === 'enable') enable();
+    else if ('incoming' in failure.retry) setIncoming(true);
     else { const body = failure.retry.body; void guarded(async started => {
-      if (!body.enabled) return write(started, body);
+      if (!body.enabled || body.expoPushToken === undefined) return write(started, body);
       const { deps } = latest.current;
       const native = deps.device;
       if (!native || native === 'loading') return;
@@ -169,12 +188,12 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     if (!scope || !enabled || !device || device === 'loading') return;
     return device.onTokenChange(() => void guarded(async started => {
       const settings = settingsFor(started);
-      if (settings?.enabled) await register(started, settings.revision, true);
+      if (settings?.enabled) await register(started, settings, true);
     }));
   }, [scope, enabled, device]);
 
   const visible = state.scope === scope ? state : { loading: false, working: false } as typeof state;
   const phase: MessageNotificationState['phase'] = device === undefined ? 'unsupported' : !seat ? 'idle'
     : visible.settings ? 'ready' : visible.failure ? 'error' : 'loading';
-  return { phase, settings: visible.settings, permission: visible.permission, working: visible.working || visible.loading, error: visible.failure?.message, enable, disable, retry };
+  return { phase, settings: visible.settings, permission: visible.permission, working: visible.working || visible.loading, error: visible.failure?.message, enable, disable, setIncoming, retry };
 }

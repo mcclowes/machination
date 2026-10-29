@@ -47,7 +47,7 @@ test('settings requests use the seat bearer and reject responses that leak or mi
   const view = { gameId, deviceId, revision: 2, available: true, enabled: true, bindingId: 'binding-1' };
   responses.push(view);
   assert.deepEqual(await messageNotificationsApi(seat, deviceId), view);
-  assert.equal(sent[0]!.url, `https://belt.example/v1/games/${gameId}/notifications?deviceId=${deviceId}`);
+  assert.equal(sent[0]!.url, `https://belt.example/v1/games/${gameId}/notifications?deviceId=${deviceId}&version=2`);
   assert.equal(sent[0]!.init.method, 'GET');
   assert.equal((sent[0]!.init.headers as Record<string, string>).Authorization, `Bearer ${seat.token}`);
   const body = { requestId: 'request-0000000001', deviceId, revision: 2, enabled: true, expoPushToken: 'ExponentPushToken[abc]' };
@@ -74,7 +74,7 @@ test('notification conflicts preserve their machine-readable issue and detail', 
 });
 
 test('tap payloads accept only the exact opaque contract shape', () => {
-  assert.deepEqual(parseNotificationData(data), { gameId, bindingId: 'binding-1', notificationId: 'note-1' });
+  assert.deepEqual(parseNotificationData(data), { kind: 'machination.message', gameId, bindingId: 'binding-1', notificationId: 'note-1' });
   for (const bad of [null, [], { ...data, kind: 'other' }, { ...data, version: 2 }, { ...data, gameId: 'x' }, { ...data, body: 'secret' }, { ...data, bindingId: '' }, { gameId }]) assert.equal(parseNotificationData(bad), undefined);
 });
 
@@ -169,7 +169,7 @@ test('settings show honest states and only the actions each state allows', async
   });
   const { MessageNotificationSettings } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
   const pressed: string[] = [];
-  const base = { working: false, enable: () => pressed.push('enable'), disable: () => pressed.push('disable'), retry: () => pressed.push('retry') };
+  const base = { working: false, enable: () => pressed.push('enable'), disable: () => pressed.push('disable'), retry: () => pressed.push('retry'), setIncoming: (incoming: boolean) => pressed.push(incoming ? 'incoming-on' : 'incoming-off') };
   const view = { gameId, deviceId, revision: 1, available: true, enabled: false };
   const render = (state: object) => {
     let renderer: any;
@@ -195,4 +195,15 @@ test('settings show honest states and only the actions each state allows', async
   failed.buttons.at(-1).props.onPress();
   assert.equal(render({ phase: 'ready', settings: view, working: true }).buttons[0].props.disabled, true);
   assert.deepEqual(pressed, ['enable', 'disable', 'retry']);
+  const consent = render({ phase: 'ready', settings: { ...view, enabled: true, bindingId: 'b', incoming: false }, permission: 'granted' });
+  assert.match(consent.text, /Device notifications/);
+  assert.match(consent.text, /attacker, drone count, and ETA/);
+  assert.match(consent.text, /lock screen/);
+  assert.match(consent.text, /Expo/);
+  consent.buttons.find((node: any) => node.findAll((child: any) => child.type === 'Text').some((child: any) => child.props.children === 'Turn on incoming attack alerts')).props.onPress();
+  const offIncoming = render({ phase: 'ready', settings: { ...view, available: false, enabled: true, bindingId: 'b', incoming: true }, permission: 'granted' });
+  const stopIncoming = offIncoming.buttons.find((node: any) => node.findAll((child: any) => child.type === 'Text').some((child: any) => child.props.children === 'Turn off incoming attack alerts'));
+  assert.equal(stopIncoming.props.disabled, false, 'Consent can be withdrawn when delivery is unavailable');
+  stopIncoming.props.onPress();
+  assert.deepEqual(pressed.slice(-2), ['incoming-on', 'incoming-off']);
 });
