@@ -33,6 +33,22 @@ npm test -- --test-name-pattern='catch-up'
 npm test -- --suite-timeout=900000
 ```
 
+### Ten-seat contested matches
+
+The ordinary suite runs the three-seat contested scenarios. The extended profile runs the same contest, privacy, save, replay, advancement-partition, and victory assertions with ten independent observation-limited seats in both modes at seeds 7 and 8:
+
+```sh
+MACHINATION_TEN_SEAT_ACCEPTANCE=1 node scripts/test.mjs --test-name-pattern='^contested ' --test-timeout=1200000 --suite-timeout=1800000
+```
+
+Use the pinned acceptance runtime. This command runs four large scenarios. Other test bodies are skipped, though the runner still loads their files. It uses the existing runner's 30-minute process-group deadline as well as per-advance event budgets. That deadline is a total run budget and can stop a later case before its individual timeout. Node's per-test timers alone cannot interrupt synchronous simulation. Stage messages distinguish the match, canonical replay, partitioned reconstruction, save loading, and ending checks. A completed simulation summary is not a passing test until those later checks finish.
+
+The controllers spread the original three-seat risk range across the ten seats. They protect visible Queens and begin mining after a military opening. They are bounded acceptance fixtures, not an original AI, a balance model, or a substitute for human diplomacy and current-original-client comparison.
+
+Seats act in a fixed order; each sees earlier same-hour orders when its observation permits. This does not establish seat-order fairness. The ongoing outcome depends on these controllers and risk levels, not just the seed: repeating the three risk profiles changes which domination fixture reaches quota.
+
+Both mining fixtures and domination seed 7 reach the configured quota. Domination seed 8 remains contested through hour 2160: multiple players survive, nobody reaches quota, and no winner or draw is invented at the fixture cutoff. Every round checks for missed victory conditions; the final 240 hours must still contain orders and combat or ownership turnover. That scenario retains the full long-history checks and compares another 100 hours of play with canonical replay. A fixture's cutoff is not a game-ending rule. If a changed controller or engine legitimately finishes this fixture, review and redeclare its expectation instead of suppressing victory.
+
 ## What the tests establish
 
 | Boundary | Evidence |

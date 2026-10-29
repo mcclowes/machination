@@ -9,6 +9,8 @@ import { decodeSave } from './save-format';
 import type { SimulationTraceSink } from './simulation-trace';
 
 const EVENT_BUDGET = 20_000;
+const CONTEST_HOURS = 2160;
+const TURN_HOURS = 8;
 function advance(game: Game, hour: number, trace?: SimulationTraceSink): Game {
   let events = 0;
   return advanceEngine(game, hour, { rivals: false, trace, stopWhen: () => {
@@ -26,7 +28,8 @@ function decide(view: GameView, owner: Faction, memory: Memory): GameCommand[] {
   for (const r of owned) { memory.held.add(r.id); memory.lost.delete(r.id); }
   const reserved = new Set(view.fleets.filter(f => f.owner === owner).map(f => f.to));
   const commands: GameCommand[] = [];
-  const rank = view.rules!.players.indexOf(owner);
+  // Spread the original three-seat risk range across the whole player list.
+  const rank = view.rules!.players.indexOf(owner) * 2 / (view.rules!.players.length - 1);
   for (const source of owned) {
     const queen = source.specialists?.some(u => u.kind === 'queen' && u.owner === owner);
     const reserve = queen ? 35 : 4 + rank * 3;
@@ -66,6 +69,14 @@ function inspect(game: Game) {
   for (const r of game.rocks) assert.ok(Number.isSafeInteger(r.drones) && r.drones >= 0);
   assert.equal(new Set(game.fleets.map(f => f.id)).size, game.fleets.length);
   for (const f of game.fleets) assert.ok(Number.isSafeInteger(f.drones) && f.drones >= 0);
+  if (!game.winner && !game.draw) {
+    const active = game.rules!.players.filter(p => !game.eliminated.includes(p));
+    assert.ok(active.length > 1, 'the last survivor must already have won');
+    for (const p of active) {
+      const quota = game.rules!.mode === 'mining' ? game.cargo[p]! : game.rocks.filter(r => r.owner === p).length;
+      assert.ok(quota < game.rules!.victoryTarget, 'reaching quota must already declare victory');
+    }
+  }
   for (const owner of game.rules!.players) {
     assert.ok(Number.isSafeInteger(game.cargo[owner]) && game.cargo[owner]! >= 0);
     const v = observe(game, owner);
@@ -81,15 +92,20 @@ function inspect(game: Game) {
   }
 }
 
-for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8]) {
-  test(`contested ${mode}: three independent seats, seed ${seed}`, { timeout: 30_000 }, () => {
-    const baseline = createConfiguredGame({ playerCount: 3, mode, driftingBases: false }, 0, seed);
+// Large contests replay thousands of commands; run them separately from the fast suite.
+const playerCounts = process.env.MACHINATION_TEN_SEAT_ACCEPTANCE === '1' ? [10] : [3];
+for (const playerCount of playerCounts) for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8]) {
+  const ongoing = playerCount === 10 && mode === 'domination' && seed === 8;
+  test(`contested ${mode}: ${playerCount} independent seats, seed ${seed}${ongoing ? ', ongoing' : ''}`, { timeout: playerCount === 10 ? 1_200_000 : 30_000 }, () => {
+    const progress = (stage: string) => { if (playerCount === 10) console.log(JSON.stringify({ playerCount, mode, seed, stage })); };
+    const baseline = createConfiguredGame({ playerCount, mode, driftingBases: false }, 0, seed);
     const original = structuredClone(baseline);
     const retained = createArchive(baseline, { rivals: false });
     const players = baseline.rules!.players;
     const memories = new Map(players.map(p => [p, { held: new Set<string>(), lost: new Set<string>() }]));
     const entries: ReplayEntry[] = [];
     const metrics = { combat: 0, turnover: 0, recaptures: 0, expansion: new Set<Faction>(), attackers: new Set<Faction>(), reactions: new Set<Faction>() };
+    let lastCombat = -Infinity, lastTurnover = -Infinity;
     const history = new Map(baseline.rocks.map(r => [r.id, new Set(r.owner ? [r.owner] : [])]));
     let previous = baseline;
     // Unredacted traces are assertion-only. No metric or snapshot reaches decide.
@@ -101,6 +117,7 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
           const before = previous.rocks.find(r => r.id === f.to)!;
           if (before.owner && before.owner !== f.owner && before.drones > 0 && f.drones > 0) {
             metrics.combat++; metrics.attackers.add(f.owner);
+            lastCombat = next.hour;
           }
         }
       }
@@ -109,6 +126,7 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
         if (r.owner && r.owner !== before.owner) {
           if (before.owner) {
             metrics.turnover++;
+            lastTurnover = next.hour;
             if (history.get(r.id)!.has(r.owner)) metrics.recaptures++;
           } else metrics.expansion.add(r.owner);
           history.get(r.id)!.add(r.owner);
@@ -118,7 +136,9 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
     };
     let game = baseline;
     inspect(game);
-    for (let round = 0; round < 270 && !game.winner && !game.draw; round++) {
+    progress('match');
+    for (let round = 0; round < CONTEST_HOURS / TURN_HOURS && !game.winner && !game.draw; round++) {
+      if (round > 0 && round % 25 === 0) progress(`match round ${round}`);
       for (const owner of players) {
         const memory = memories.get(owner)!;
         const view = structuredClone(observe(game, owner));
@@ -131,20 +151,32 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
       }
       previous = game;
       const hour = game.hour;
-      game = advance(game, hour + 8, trace);
+      game = advance(game, hour + TURN_HOURS, trace);
       assert.ok(game.hour > hour, 'round must advance');
       inspect(game);
     }
-    const summary = { mode, seed, hour: game.hour, winner: game.winner, cargo: game.cargo, eliminated: game.eliminated, territory: game.rocks.filter(r => r.owner === game.winner).length, combat: metrics.combat, turnover: metrics.turnover, recaptures: metrics.recaptures, expansion: [...metrics.expansion], attackers: [...metrics.attackers], reactions: [...metrics.reactions], commands: entries.length };
+    const summary = { playerCount, mode, seed, hour: game.hour, winner: game.winner, cargo: game.cargo, eliminated: game.eliminated, territory: game.rocks.filter(r => r.owner === game.winner).length, territoryByOwner: Object.fromEntries(players.map(p => [p, game.rocks.filter(r => r.owner === p).length])), combat: metrics.combat, turnover: metrics.turnover, recaptures: metrics.recaptures, expansion: [...metrics.expansion], attackers: [...metrics.attackers], reactions: [...metrics.reactions], commands: entries.length };
     console.log(JSON.stringify(summary));
-    assert.ok(game.winner && !game.draw, `no rule-based winner: ${JSON.stringify(summary)}`);
+    assert.equal(game.draw, undefined);
+    assert.equal(Boolean(game.winner), !ongoing, `fixture ending changed; verify rule consistency before redeclaring its expectation: ${JSON.stringify(summary)}`);
     assert.ok(metrics.combat >= 3 && metrics.turnover >= 2 && metrics.recaptures >= 1, `insufficient contest: ${JSON.stringify(summary)}`);
     assert.deepEqual([...metrics.expansion].sort(), [...players].sort());
     assert.deepEqual([...metrics.attackers].sort(), [...players].sort());
     assert.deepEqual([...metrics.reactions].sort(), [...players].sort(), 'every seat must counterattack after observing a loss');
-    const quota = mode === 'mining' ? game.cargo[game.winner]! : game.rocks.filter(r => r.owner === game.winner).length;
-    assert.equal(game.rules!.victoryTarget, mode === 'mining' ? 200 : 15);
-    assert.ok(quota >= game.rules!.victoryTarget, 'the configured victory quota must establish victory');
+    assert.equal(game.rules!.victoryTarget, mode === 'mining' ? 200 : playerCount * 5);
+    if (ongoing) {
+      assert.equal(game.hour, baseline.hour + CONTEST_HOURS);
+      const active = players.filter(p => !game.eliminated.includes(p));
+      assert.ok(active.length > 1);
+      assert.ok(active.every(p => game.rocks.filter(r => r.owner === p).length < game.rules!.victoryTarget));
+      const trailingWindow = game.hour - 30 * TURN_HOURS;
+      assert.ok(entries.some(e => e.hour >= trailingWindow && e.command.type === 'dispatch'), 'the closing window still contains player orders');
+      assert.ok(Math.max(lastCombat, lastTurnover) >= trailingWindow, 'the closing window remains contested');
+    } else {
+      assert.ok(game.winner);
+      const quota = mode === 'mining' ? game.cargo[game.winner]! : game.rocks.filter(r => r.owner === game.winner).length;
+      assert.ok(quota >= game.rules!.victoryTarget, 'the configured victory quota must establish victory');
+    }
     assert.deepEqual(baseline, original);
     assert.deepEqual(exportArchive(retained).entries, []);
     const data = { ...exportArchive(retained), entries };
@@ -158,8 +190,10 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
         assert.ok(++events <= EVENT_BUDGET * 20, 'canonical replay event budget exceeded');
       });
     };
+    progress('canonical replay');
     assert.deepEqual(reconstruct(archive, game.hour), game);
     for (const fraction of [0, 0.371]) {
+      progress(`reconstruction with advancement partition ${fraction}`);
       let rebuilt = baseline;
       const move = (hour: number) => {
         if (fraction && hour > rebuilt.hour) rebuilt = advance(rebuilt, rebuilt.hour + (hour - rebuilt.hour) * fraction);
@@ -169,6 +203,7 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
       move(game.hour);
       assert.deepEqual(rebuilt, game);
     }
+    progress('save round trip');
     const saved = decodeSave(JSON.stringify({ savedAt: 0, game, replay: data }));
     assert.deepEqual(saved.game, game);
     assert.deepEqual(saved.replay, JSON.parse(JSON.stringify(data)));
@@ -176,7 +211,10 @@ for (const mode of ['mining', 'domination'] as const) for (const seed of [7, 8])
     const damaged = structuredClone(saved);
     damaged.game.rocks[0]!.drones = -1;
     assert.throws(() => decodeSave(JSON.stringify(damaged)));
-    assert.deepEqual(advance(game, game.hour + 100), game);
-    assert.deepEqual(reconstruct(archive, game.hour + 100), game);
+    progress(ongoing ? 'continued play beyond the fixture cutoff' : 'terminal stability');
+    const later = advance(game, game.hour + 100);
+    if (ongoing) assert.ok(later.hour > game.hour && later.hour <= game.hour + 100);
+    else assert.deepEqual(later, game);
+    assert.deepEqual(reconstruct(archive, game.hour + 100), later);
   });
 }
