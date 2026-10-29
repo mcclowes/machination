@@ -9,7 +9,7 @@ import { scheduledOrderLabel } from './ScheduledOrders';
 import type { ScheduledOrder } from '../game/orders';
 import type { Fleet } from '../game/simulation';
 import { MAX_PLAN_DELAY } from '../game/orders';
-import { gameClock, inspectionMode, timelineHour } from '../game/time-machine';
+import { gameClock, inspectionMode, relativeInspectionTime, timelineHour } from '../game/time-machine';
 import { OPENING_HOURS } from '../game/opening-clock';
 
 type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean; opening?: boolean };
@@ -56,7 +56,8 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   const position = (at: number) => Math.max(0, Math.min(100, (at - start) / span * 100));
   return <View style={[s.panel, compact && { paddingHorizontal: 12, paddingVertical: 0, gap: 0, borderWidth: 0 }]}>
     <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}</View>
-    {(!compact || expanded) && <View style={s.row}><Text style={s.detail}>Hours from now</Text><TextInput accessibilityLabel="Hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>}
+    {mode !== 'live' && <Text style={s.detail}>{relativeInspectionTime(hour, inspectedHour!)}</Text>}
+    {(!compact || expanded) && <View style={s.row}><Text style={s.detail}>Go to hours from now</Text><TextInput accessibilityLabel="Go to hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>}
     {mode === 'future' && forecastUncertain && <Text style={s.detail}>Some site details are unknown. Economy, routes, and outcomes may change.</Text>}
     {opening && (inspectedHour ?? hour) < OPENING_HOURS && (!compact || expanded) && <Text style={s.detail}>Opening 1.5× until {gameClock(OPENING_HOURS)}: haulers, recruitment, factories, and shield recharge.</Text>}
     {(!compact || expanded) && <View ref={track} onLayout={event => setTrackWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track} accessible accessibilityRole="adjustable" accessibilityLabel="Operation timeline" accessibilityValue={{ min: Math.round(minimum * 60), max: MAX_PLAN_DELAY * 60, now: Math.round(offset * 60), text: `${Math.abs(offset).toFixed(2)} hours ${offset < 0 ? 'ago' : 'ahead'}` }} accessibilityActions={[{ name: 'increment', label: 'One hour later' }, { name: 'decrement', label: 'One hour earlier' }]} onAccessibilityAction={event => step(event.nativeEvent.actionName === 'increment' ? 1 : -1)}>

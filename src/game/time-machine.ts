@@ -34,3 +34,12 @@ export function gameClock(hour: number): string {
   const minutes = Math.floor((hour + 1e-9) * 60);
   return `D${String(Math.floor(minutes / 1440) + 1).padStart(2, '0')} · ${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
+
+export function relativeInspectionTime(liveHour: number, inspectedHour: number): string {
+  const hours = Math.abs(inspectedHour - liveHour);
+  const direction = inspectedHour < liveHour ? 'ago' : 'from now';
+  if (hours < 1 / 60) return `Less than 1 minute ${direction}`;
+  const amount = (hours < 1 ? hours * 60 : hours).toFixed(1);
+  const unit = hours < 1 ? 'minute' : 'hour';
+  return `${amount} ${unit}${amount === '1.0' ? '' : 's'} ${direction}`;
+}

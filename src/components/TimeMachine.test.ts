@@ -25,7 +25,8 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
     } }] });
     const { TimeMachine } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     const flush = async (action: () => void) => { await act(async () => { action(); }); };
-    await flush(() => { renderer = create(React.createElement(TimeMachine, { hour: 2, inspectedHour: null, historyStart: 0, compact, events: [1, 3], onChange: (hour: number | null) => calls.push(hour) })); });
+    const props = { hour: 2, inspectedHour: null as number | null, historyStart: 0, compact, events: [1, 3], onChange: (hour: number | null) => calls.push(hour) };
+    await flush(() => { renderer = create(React.createElement(TimeMachine, props)); });
     const find = (type: string, label: string) => renderer.root.findAll((node: any) => node.type === type && node.props.accessibilityLabel === label)[0];
     const press = async (label: string) => {
       const button = find('Pressable', label);
@@ -33,9 +34,9 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
       assert.equal(!!button.props.disabled, false);
       await flush(() => button.props.onPress());
     };
-    const input = () => find('TextInput', 'Hours from now');
+    const input = () => find('TextInput', 'Go to hours from now');
     if (compact) await press('Time Machine');
-    await check({ calls, find, press, input, flush, setEntry: (entry: string) => flush(() => input().props.onChangeText(entry)) });
+    await check({ calls, find, press, input, flush, setEntry: (entry: string) => flush(() => input().props.onChangeText(entry)), update: (next: Partial<typeof props>) => flush(() => { Object.assign(props, next); renderer.update(React.createElement(TimeMachine, props)); }), text: () => renderer.root.findAllByType('Text').map((node: any) => node.children.filter((child: unknown) => typeof child === 'string').join('')).join('\n') });
   } finally {
     if (renderer) await act(async () => renderer.unmount());
     delete globals[key];
@@ -43,6 +44,35 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
     else delete globals.IS_REACT_ACT_ENVIRONMENT;
   }
 }
+
+for (const compact of [true, false]) test(`inspected time shows its relative direction as live time advances, compact=${compact}`, async () => {
+  await withTimeMachine(compact, async ({ update, text, calls, press }) => {
+    if (compact) await press('Close time controls');
+    calls.splice(0);
+    await update({ hour: 0, inspectedHour: 8.5 });
+    assert.match(text(), /Forecast · D01 · 08:30/);
+    assert.match(text(), /8\.5 hours from now/);
+    await update({ hour: 7.5 });
+    assert.match(text(), /1\.0 hour from now/);
+    await update({ hour: 8.5 - 40 / 60 });
+    assert.match(text(), /40\.0 minutes from now/);
+    await update({ hour: 8 });
+    assert.match(text(), /30\.0 minutes from now/);
+    assert.match(text(), /D01 · 08:30/, 'polling preserves the inspected timestamp');
+    await update({ hour: 8.5 });
+    assert.match(text(), /Live · D01 · 08:30/);
+    assert.doesNotMatch(text(), /(?:\d|Less than 1) (?:minutes?|hours?) (?:from now|ago)/);
+    await update({ hour: 9 });
+    assert.match(text(), /History · D01 · 08:30/);
+    assert.match(text(), /30\.0 minutes ago/);
+    for (const [hour, direction] of [[8.5 - 1 / 3600, 'from now'], [8.5 + 1 / 3600, 'ago']] as const) {
+      await update({ hour });
+      assert.ok(text().includes(`Less than 1 minute ${direction}`));
+      assert.doesNotMatch(text(), /Live ·/);
+    }
+    assert.deepEqual(calls, [], 'display updates issue no time changes');
+  });
+});
 
 for (const compact of [true, false]) for (const submit of ['button', 'keyboard']) test(`precise time inspection releases the keyboard via ${submit}, compact=${compact}`, async () => {
   await withTimeMachine(compact, async ({ calls, input, setEntry, flush, press }) => {

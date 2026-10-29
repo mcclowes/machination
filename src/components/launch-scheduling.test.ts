@@ -88,7 +88,7 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
     await flush(() => { renderer = create(React.createElement(App)); });
     await press('Open solo operation');
     await press('Time Machine');
-    await input('Hours from now', '2');
+    await input('Go to hours from now', '2');
     await press('Inspect');
     await press(/^Quiet landing,/);
     assert.match(text(button(/^Quiet landing,/)), /20/);
