@@ -10,7 +10,7 @@ import { gameClock } from '../game/time-machine';
 import { recruitmentStatus } from '../game/specialists';
 import type { Faction, Game, Rock } from '../game/simulation';
 import type { GameView } from '../game/visibility';
-import { ArtworkImage, SpecialistIcon } from './Artwork';
+import { SpecialistIcon } from './Artwork';
 
 export type SpecialistBayProps = {
   game: Game | GameView; rock: Rock; owner: Faction; enabled: boolean;
@@ -27,7 +27,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
   const canPromote = active && status.credits > 0;
   const units = rock.specialists ?? [];
   return <View style={s.bay}>
-    {mode !== 'cargo' && <><ArtworkImage id="ritual-tech-clash" /><RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} /></>}
+    {mode !== 'cargo' && <RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} />}
     <Text style={s.label}>At this site · {units.length}</Text>
     {units.length === 0 && <Text style={s.detail}>No specialists at this site.</Text>}
     {units.map(unit => {

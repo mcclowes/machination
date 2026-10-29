@@ -54,7 +54,7 @@ import { generateSharedReplay } from './src/replay/generate';
 import { StartScreen } from './src/components/StartScreen';
 import type { LocalOperation } from './src/game/operation-save';
 import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
-import { eventMessage } from './src/components/event-message';
+import { SignalLog } from './src/components/SignalLog';
 import { playSound, useSoundCues } from './src/audio/sound';
 import { SoundToggle } from './src/components/SoundToggle';
 
@@ -274,7 +274,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
           </View> },
         orders: { title: 'Your orders', content: <>{game.version === 2 && <HaulerOrders courseDelay={mechanicsVersion(shown) >= 10} title={historical ? 'Historical hauler orders · read-only' : undefined} fleets={forecast ? futureCommandFleets(shown, live, 'you') : shown.fleets.filter(f => f.owner === 'you')} rocks={shown.rocks} hour={shown.hour} scheduledAt={forecast ? inspectedHour! : undefined} enabled={operational && !shown.winner && !shown.draw && !shown.eliminated.includes('you')} onNavigate={id => { setSection(null); setNavigating(current => current === id ? undefined : id); setPlanning(false); setDestination(undefined); }} onCommand={change => siteAction({ type: 'hauler', change })} />} <ScheduledOrders key={`${game.epoch}:${inspectionMode(game.hour, inspectedHour)}`} units={selectableLaunchUnits(orders, 'you')} preparation={game.version === 2} onInspect={inspectTime} onEdit={change => { try { act({ type: 'edit-schedule', owner: 'you', change }); setError(''); } catch (e) { setError((e as Error).message); } }} fleets={orders.fleets} plans={orders.scheduled.filter(p => p.owner === 'you')} hour={orders.hour} rocks={shown.rocks} disabled={!operational} onCancel={cancelPlan} /><View style={s.panel}><Label>Observed haulers</Label>{shown.fleets.map(f => <Text key={f.id} style={s.small}>{FACTIONS[f.owner].name} → {flightDestination(shown.rocks, f)} · {f.drones} drones · {(f.arrives - shown.hour).toFixed(1)}h</Text>)}</View></> },
         units: { title: 'Specialist management', content: game.version === 2 ? <SpecialistPanel game={shown} owner="you" enabled={operational} scheduledAt={forecast ? inspectedHour! : undefined} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} onInspectSite={inspectSpecialistSite} onInspectFleet={inspectSpecialistFleet} /> : <Text style={s.small}>Legacy modules are managed at their sites.</Text> },
-        signals: { title: 'Signal log', content: <>{shown.events.slice(0, 50).map((e, i) => <View key={i} style={s.log}><Text style={s.eventTime}>{clock(e.hour)}</Text><Text style={s.eventText}>{eventMessage(shown, e)}</Text></View>)}</> },
+        signals: { title: 'Signal log', content: <SignalLog view={shown} /> },
         intel: { title: 'Intelligence', content: <><View style={s.identity}><View style={s.between}><Label>Your intelligence</Label><Text style={s.online}>● AUTONOMOUS</Text></View><Text style={s.identityName}>Mnemosyne<Text style={{ color: '#5b6e5c' }}> / 01</Text></Text><Text style={s.small}>{game.version === 2 ? `Power: ${droneInventory(visibleWorld, 'you')} / ${powerCapacity(visibleWorld, 'you')} drones. ${game.rules?.mode === 'domination' ? 'Expand control to reach the territorial target.' : 'Establish extraction to earn cargo.'}` : 'Legacy operation · original prototype rules.'}</Text>
             <View style={s.stats}><View><Text style={s.statNumber}>{owned.length.toString().padStart(2, '0')}</Text><Label>Rocks</Label></View><View><Text style={s.statNumber}>{Math.floor(droneInventory(visibleWorld, 'you'))}</Text><Label>Drones</Label></View><View><Text style={s.statNumber}>{shown.fleets.filter(f => f.owner === 'you').length.toString().padStart(2, '0')}</Text><Label>Haulers</Label></View></View>
             <View style={s.between}><Text style={s.small}>{game.rules?.mode === 'domination' ? 'Controlled sites' : 'Cargo quota'}</Text><Text style={s.small}>{Math.floor(victoryProgress(shown, 'you'))} / {victoryTarget(game)}</Text></View><View style={s.progress}><View style={[s.progressFill, { width: `${Math.min(100, victoryProgress(shown, 'you') / victoryTarget(game) * 100)}%` }]} /></View>
@@ -312,9 +312,6 @@ const s = StyleSheet.create( {
   buttonText: { color: '#182312', fontSize: 11, fontWeight: '600' },
   destination: { padding: 13, borderWidth: 1, borderColor: '#2f402d', marginBottom: 15, gap: 6 },
   input: { width: 85, padding: 10, color: green, backgroundColor: '#182418', borderWidth: 1, borderColor: '#435b35', fontSize: 18, textAlign: 'right', marginBottom: 10 },
-  log: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1d2b22', gap: 5 },
-  eventTime: { color: '#65805c', fontSize: 9 },
-  eventText: { color: '#a8b7a2', fontSize: 11, lineHeight: 17 },
   notice: { padding: 15, borderWidth: 1, borderColor: '#705741', marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 },
   overlay: { flex: 1, backgroundColor: '#000b', alignItems: 'center', justifyContent: 'center', padding: 22 },
   dialog: { width: '100%', maxWidth: 480, maxHeight: '90%', flexGrow: 0, backgroundColor: '#101b13', borderWidth: 1, borderColor: '#526644' },

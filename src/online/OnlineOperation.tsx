@@ -45,7 +45,7 @@ import { OperationShell, type OperationSection } from '../components/OperationSh
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionMode, inspectionOffset, orderHour } from '../game/time-machine';
 import { forecastObservation } from '../game/visibility';
-import { eventMessage } from '../components/event-message';
+import { SignalLog } from '../components/SignalLog';
 import { FACTIONS, travelHours } from '../game/simulation';
 import { PlayerIdentity } from '../components/PlayerIdentity';
 import { playerAppearance } from '../game/players';
@@ -368,7 +368,7 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
       <View style={s.panel}><Text style={s.title}>Haulers in transit</Text>{game.fleets.length ? game.fleets.map(f => <Text key={f.id} style={s.detail}>{FACTIONS[f.owner].name} → {flightDestination(game.rocks, f)} / {f.drones} drones / {(f.arrives - game.hour).toFixed(1)}h{f.module ? ` / ${MODULES[f.module].name}` : ''}</Text>) : <Text style={s.detail}>No active transfers.</Text>}</View></> },
       units: { title: 'Specialist management', content: game.version === 2 ? <SpecialistPanel game={game} owner={snapshot.faction} enabled={!!operational} scheduledAt={forecast ? inspectedHour! : undefined} onHire={kind => siteAction({ type: 'hire', kind })} onPromote={id => siteAction({ type: 'promote', id })} onRelease={id => siteAction({ type: 'release', id })} onInspectSite={inspectSpecialistSite} onInspectFleet={inspectSpecialistFleet} /> : <Text style={s.detail}>Legacy modules are managed at their sites.</Text> },
       signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}
-      <View style={s.panel}><Text style={s.title}>Signal log</Text>{game.events.slice(0, 12).map((event, i) => <Text key={i} style={s.detail}>{event.hour.toFixed(1)}h / {eventMessage(game, event)}</Text>)}</View></> },
+      <View style={s.panel}><Text style={s.title}>Signal log</Text><SignalLog view={game} limit={12} /></View></> },
       intel: { title: 'Operation intelligence', content: <View style={s.panel}><Text style={[s.title, { color: playerAppearance(snapshot.faction, game.rules?.portraits).color }]}>{FACTIONS[snapshot.faction].name}</Text><Text style={s.label}>{past ? 'history · read-only' : snapshot.game.eliminated.includes(snapshot.faction) ? 'eliminated' : snapshot.status.replace('game.', '')} · {joined}/{roster.length} players joined · hour {(past ? history.frame!.history.at : game.hour).toFixed(2)}</Text>
         {rulesSummary}<Text style={s.detail}>Invitation code</Text><Text selectable style={s.code}>{snapshot.invite}</Text>
         {roster.map(f => <PlayerIdentity key={f} faction={f} detail={[f === snapshot.faction ? 'You' : '', snapshot.members.includes(f) ? 'Joined' : 'Awaiting player', game.eliminated.includes(f) ? 'Eliminated' : ''].filter(Boolean).join(' · ')} />)}

@@ -9,7 +9,6 @@ import { maximumShield } from '../game/economy';
 import { gameClock } from '../game/time-machine';
 import type { Rock } from '../game/simulation';
 import { openingRate, type OpeningWorld } from '../game/opening-clock';
-import { ArtworkImage } from './Artwork';
 
 export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf' | 'destroyed' | 'drift'>, world?: OpeningWorld & { hour: number }): string {
   if (rock.destroyed) return 'Destroyed site';
@@ -17,10 +16,9 @@ export function siteDescription(rock: Pick<Rock, 'kind' | 'coreOf' | 'destroyed'
   return `${rock.drift ? 'Drifting asteroid base · ' : ''}${type}${rock.coreOf && rock.kind !== 'core' ? ' · intelligence core' : ''}`;
 }
 export function SiteControls({ rock, cost, enabled, minesAllowed = true, scheduledAt, onMine, onShields }: { rock: Rock; cost: number; enabled: boolean; minesAllowed?: boolean; scheduledAt?: number; onMine: () => void; onShields: () => void }) {
-  if (rock.destroyed) return <View style={s.section}><ArtworkImage id="exploding-planet" /><Text style={s.detail}>Sonar remains. This wreck has no production, power, mining, or shields and cannot receive haulers.</Text></View>;
+  if (rock.destroyed) return <View style={s.section}><Text style={s.detail}>Sonar remains. This wreck has no production, power, mining, or shields and cannot receive haulers.</Text></View>;
   const label = (action: string) => scheduledAt === undefined ? action : `Schedule at ${gameClock(scheduledAt)}: ${action}`;
   return <View style={s.section}>
-    <ArtworkImage id={rock.kind === 'mine' ? 'mining-world' : rock.kind === 'factory' || rock.kind === 'reactor' ? 'mining-drones' : 'industrial-cockpit'} />
     {rock.drift && <Text style={s.detail}>This small asteroid installation drifts 12 chart units per day, carrying its garrison and sensors. Its dotted chart track shows the next 24 hours. Use the Time Machine to inspect its future position.</Text>}
     {scheduledAt !== undefined && <Text style={s.detail}>Schedule site actions for {gameClock(scheduledAt)}. Forecast eligibility is provisional; requirements are checked at execution.</Text>}
     <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
