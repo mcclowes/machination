@@ -5,6 +5,7 @@
  */
 import { HaulerCombat, type CombatObservation } from './HaulerCombat';
 import { MapSpecialists } from './MapSpecialists';
+import { SpecialistManifest } from './SpecialistManifest';
 import { mapSpecialistSummary, specialistManifestDescription, layoutSpecialistMarkers, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_OFFSET, SPECIALIST_BADGE_HIT_SLOP } from './map-specialists';
 import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
@@ -13,7 +14,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Pressable, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
-import { SPECIALISTS } from '../game/specialist-catalog';
 import { MODULES } from '../game/modules';
 import { arrivalInspection } from '../game/time-machine';
 import { remoteSiteDescription } from './site-observation';
@@ -253,7 +253,6 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       {combatObservation && <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />}
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
-      <Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text>
       <Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text>
       <Text style={styles.contactText}>{fleet.intercept ? 'Interception' : 'Arrival'} in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text>
       <View style={styles.actions}>
@@ -263,6 +262,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       </View>
       {timeInspection && <Text style={styles.contactText}>{arrival === undefined ? 'Arrival is outside the available time range.' : 'Earlier combat and new orders can change this arrival.'}</Text>}
       {reference && <CopyObjectReference value={reference} label="Copy hauler reference" />}
+      <SpecialistManifest summary={inspectedSpecialists} />
     </ScrollView>}
     {drag && <View pointerEvents="none" style={styles.coordinates}><Text style={styles.coord}>Release at {drag.target?.name ?? 'a destination'}</Text></View>}
   </View>;

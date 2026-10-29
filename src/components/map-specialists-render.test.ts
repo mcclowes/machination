@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { SPECIALISTS } from '../game/specialist-catalog';
 
 const require = createRequire(import.meta.url);
 const React = require('react');
@@ -114,5 +115,58 @@ test('large overflow stays compact across platforms without losing the actual ma
     assert.match(crew.props.accessibilityLabel, /123 × Assembler daemon/);
     const overflow = crew.findAll((n: any) => n.type === 'View' && n.props.testID === 'map-specialist-overflow')[0];
     assert.equal(overflow.findAll((n: any) => n.type === 'Text')[0].children.join(''), '99+');
+  });
+});
+
+test('hauler inspection explains every observed role, owner, and captive group without changing the game', async () => {
+  const game = fixture();
+  game.fleets[0]!.specialists = [
+    { id: 'pilot', kind: 'helmsman', owner: 'you', captive: false },
+    { id: 'active', kind: 'engineer', owner: 'you', captive: false },
+    { id: 'prisoner1', kind: 'engineer', owner: 'vesper', captive: true },
+    { id: 'prisoner2', kind: 'engineer', owner: 'vesper', captive: true },
+    { id: 'fourth', kind: 'foreman', owner: 'you', captive: false },
+  ];
+  const before = structuredClone(game);
+  let managed = 0;
+  await withChart({ game, onManageFleet: () => managed++ }, async renderer => {
+    const crew = renderer.root.findAll((n: any) => n.type === 'Pressable' && n.props.accessibilityLabel?.startsWith('Inspect specialists aboard'))[0];
+    await act(async () => crew.props.onPress());
+    const inspector = renderer.root.findAllByProps({ testID: 'hauler-inspector' })[0];
+    const text = inspector.findAll((n: any) => n.type === 'Text').map((n: any) => n.children.join('')).join(' ');
+    assert.match(text, /Specialists aboard/);
+    for (const kind of ['helmsman', 'engineer', 'foreman'] as const) assert.ok(text.includes(SPECIALISTS[kind].description), `Missing ${kind} ability description`);
+    assert.ok(text.includes(`2 × ${SPECIALISTS.engineer.name}`));
+    assert.match(text, /Specialist owner: vesper/);
+    assert.match(text, /Captive · abilities inactive/);
+    assert.match(text, /Specialist owner: you/);
+    assert.equal(managed, 0, 'reading abilities does not manage or issue an order');
+    assert.deepEqual(game, before);
+    await act(async () => renderer.root.findByProps({ testID: 'belt-map' }).props.onLayout({ nativeEvent: { layout: { width: 393, height: 300 } } }));
+    const maxHeight = renderer.root.findAllByProps({ testID: 'hauler-inspector' })[0].props.style.at(-1).maxHeight;
+    assert.ok(maxHeight > 0 && maxHeight <= 300 - 44, 'long role descriptions retain a bounded, scrollable inspector');
+    await act(async () => inspector.findAll((n: any) => n.type === 'Pressable' && n.props.accessibilityLabel === 'Manage this hauler')[0].props.onPress());
+    assert.equal(managed, 1, 'the existing order action remains separate');
+  });
+});
+
+test('open hauler role details follow the current observation and disappear with the contact', async () => {
+  const game = fixture();
+  await withChart({ game }, async renderer => {
+    const { BeltMap } = await loaded;
+    const text = () => renderer.root.findAll((n: any) => n.type === 'Text').map((n: any) => n.children.join('')).join(' ');
+    const hauler = renderer.root.findAll((n: any) => n.type === 'Pressable' && /hauler,/.test(n.props.accessibilityLabel ?? ''))[0];
+    await act(async () => hauler.props.onPress());
+    assert.ok(text().includes(SPECIALISTS.helmsman.description));
+    const update = async (next: typeof game) => act(async () => renderer.update(React.createElement(BeltMap, { player: 'you', selected: '', onSelect() {}, game: next, viewport: { camera: { scale: 1, x: 0, y: 0 }, onChange() {} } })));
+    const changed = structuredClone(game);
+    changed.fleets[0]!.specialists = [{ id: 'observed-new', kind: 'foreman', owner: 'vesper', captive: true }];
+    await update(changed);
+    assert.ok(!text().includes(SPECIALISTS.helmsman.description), 'old observed cargo is not retained');
+    assert.ok(text().includes(SPECIALISTS.foreman.description));
+    assert.match(text(), /Captive · abilities inactive/);
+    await update({ ...changed, fleets: [] });
+    assert.equal(renderer.root.findAllByProps({ testID: 'hauler-inspector' }).length, 0);
+    assert.ok(!text().includes(SPECIALISTS.foreman.description), 'a vanished contact leaves no stale role details');
   });
 });
