@@ -21,9 +21,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build:brand
-      - run: npm test
-      - run: npm run typecheck
-      - run: npm run test:server-build
+      - run: npm run check
       - run: npm run build:server-image
       - run: npm run test:server-image
       - run: docker build -f Dockerfile.railway -t machination-server:railway .

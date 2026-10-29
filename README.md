@@ -30,13 +30,14 @@ Haulers take hours to arrive. Time continues while the app is closed, and **Adva
 ## Check
 
 ```sh
-npm test
-npm run typecheck
+npm run check
 npm run build:web
 npx expo install --check
 ```
 
 The simulation is pure TypeScript and independent of rendering and storage. Tests live alongside it. The command map uses SVG and shared React Native controls.
+
+`npm run check` runs the behavior tests, TypeScript checks, and standalone server build/restart tests. CI uses the same command before container and platform export checks. See [testing](docs/testing.md) for targeted commands, execution limits, coverage, and device acceptance.
 
 Use [hosted playtest packaging](docs/hosting.md) to build the standalone service and validate its container, persistent storage, and backups. Public hosting is not provisioned by these commands.
 

@@ -1,0 +1,39 @@
+# Testing
+
+Run `npm run check` before committing behavior changes. This runs `npm test`, `npm run typecheck`, and `npm run test:server-build`, in that order. GitHub Actions runs the same command, then verifies both server containers, Expo dependency compatibility, and exports for all platforms.
+
+## Behavior tests
+
+The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, and `scripts`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
+
+Four test files run concurrently, with process isolation between files. Tests within each file run sequentially by default, which protects tests that replace clocks or native adapters. Node's default test timeout is two minutes. A separate ten-minute deadline kills the test process group on macOS and Linux, including synchronous hangs that Node's test timeout can't interrupt. Runner tests verify discovery, failure diagnostics, empty-suite rejection, and synchronous-hang termination using temporary projects.
+
+For focused checks:
+
+```sh
+# Run a single file.
+node --import tsx --test src/game/configuration-invariants.test.ts
+
+# Filter the discovered suite; use the equals form for runner options.
+npm test -- --test-name-pattern='catch-up'
+
+# Override the suite deadline in milliseconds when diagnosing a slow run.
+npm test -- --suite-timeout=900000
+```
+
+## What the tests establish
+
+| Boundary | Evidence |
+| --- | --- |
+| Simulation rules | Command validation, economy, combat, specialist effects, deterministic event timing, and completed match scenarios |
+| Generated configurations | Two-, six-, and ten-seat operations in both victory modes, with drift and automatic rivals independently enabled or disabled, at three fixed seeds |
+| Catch-up and history | The configuration matrix compares one 24-hour advance with irregular polling and save restoration around the opening-clock boundary, then reconstructs current and historical states from persisted replay data; frozen inputs detect mutation |
+| Persistence and authority | Damaged saves, failed writes, retries, authentication, hidden information, restart recovery, and private commands through real local HTTP servers |
+| UI integration | Real React components and hooks, with native adapters replaced in Node; practice, replay, and account flows exercise controls and lifecycle boundaries |
+| Production packaging | Standalone server boot without project dependencies, authenticated access, offline catch-up, shutdown draining, and restart persistence; container checks in CI |
+
+Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
+
+## Device acceptance
+
+Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.
