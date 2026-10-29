@@ -109,6 +109,12 @@ The October 29 publisher-rules checkpoint rebuilds application source `8870822` 
 
 Local evidence: `/tmp/machination-publisher-rules-native-build.log`, `/tmp/machination-publisher-rules-native-20261029-8870822.xcresult`, and `/tmp/machination-publisher-rules-native-artifact.json`. The current QA path is recorded in `/tmp/machination-current-qa-path.txt`. This replaces the QA artifact previously rebuilt from `78261ef`; neither installation establishes runtime acceptance of the newer controls. Fresh Chrome and Device Hub bindings both return `cgWindowNotFound`, so rendered opening/Navigator controls, native interaction, Android, and physical-device acceptance remain open.
 
+## Global specialist panel build checkpoint
+
+The next October 29 checkpoint rebuilds application source `67ba4fc` with global specialist management in solo and online play. The arm64 simulator Release build succeeds, and the separately identified `com.mcclowes.machination.fidelityqa` app replaces only the prior QA copy on the same iPhone 18 Pro / iOS 27.0 simulator. Packaged and installed ad-hoc signatures pass deep/strict verification. The installed `main.jsbundle` matches the new artifact: SHA-256 `3e520d49313eed4c83782ed3085c4a25002a5023bd2431bedd11ecf43da60040`. The original `com.mcclowes.machination` app remains separately installed, and its data was not touched.
+
+Local evidence: `/tmp/machination-global-specialist-native-build.log`, `/tmp/machination-global-specialist-native-20261029-67ba4fc.xcresult`, and `/tmp/machination-global-specialist-native-artifact.json`. The QA copy is `/tmp/machination-fidelity-qa-specialists-ca95gaxd/Machination QA.app`; `/tmp/machination-current-qa-path.txt` points to it. TypeScript, web export, and 670 regression tests pass at this checkpoint. Fresh browser inventory exposes no tabs, and a fresh Safari binding returns `cgWindowNotFound`. The panel's rendered layout, native location inspection, current-original-client interactions, Android, and physical devices remain unverified. [#47](https://github.com/mcclowes/machination/issues/47) retains these limits alongside the global-panel evidence.
+
 ## Native identity
 
 Original icons and launch artwork are configured in `app.json`. Run `npm run build:brand` to regenerate their PNGs from the editable vector and inspect the masked and small-size preview. See [the artwork notes](../assets/brand/README.md).
