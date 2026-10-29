@@ -38,13 +38,13 @@ export function HaulerCombat({ observation, fleetId }: { observation: CombatObse
       <Text style={s.muted}>Based on observations at {gameClock(observedAt)}.{view.hour !== observedAt ? ` Inspected time: ${gameClock(view.hour)}.` : ''}</Text>
       {forecast.reports.map((report, index) => <View key={index} style={s.encounter}>
         <Text style={s.heading}>{gameClock(report.hour)} · {report.site ? view.rocks.find(r => r.id === report.site)?.name ?? 'Site' : report.kind === 'interception' ? 'Interception' : 'In transit'}</Text>
+        <Text style={s.heading}>{result(report)}</Text>
         {report.before.map((side, i) => <Text key={i} style={s.text}>{owner(side)} · {name(side)}: {inventory(side)}</Text>)}
         {!!report.reinforcement?.haulers.length && <Text style={s.text}>Preparing defenders join: {report.reinforcement.haulers.reduce((sum, h) => sum + h.drones, 0)} drones; defence now {report.reinforcement.site.drones}.</Text>}
         {report.steps.map((step, i) => <Text key={i} style={s.text}>{step.type === 'ability' ? `${step.kinds.map(k => SPECIALISTS[k].name).join(', ')} (priority ${step.priority})` : [step.generals.some(Boolean) && SPECIALISTS.general.name, step.king.some(Boolean) && SPECIALISTS.king.name].filter(Boolean).join(', ')}: {step.before[0].drones} → {step.after[0].drones} / {step.before[1].drones} → {step.after[1].drones}{step.type === 'ability' && step.ended ? ' · combat ends' : ''}</Text>)}
         {report.suppressed && <Text style={s.text}>Elder suppresses later local abilities and local repair.</Text>}
         {report.shield && <Text style={s.text}>Shields absorb {report.shield.absorbed} drones · {Math.floor(report.shield.after)} charge remains.</Text>}
         {!!report.repaired && <Text style={s.text}>Engineer recovery: {report.repaired} drones.</Text>}
-        <Text style={s.heading}>{result(report)}</Text>
         {report.outcome === 'ended' && report.after.map((side, i) => side && <Text key={i} style={s.text}>{owner(side)} · {name(side)}: {side.destroyed ? 'destroyed' : inventory(side)}{side.returning ? ' · returning' : ''}</Text>)}
         {!!report.captured.length && <Text style={s.text}>{report.captured.length} specialist{report.captured.length === 1 ? '' : 's'} captured.</Text>}
       </View>)}

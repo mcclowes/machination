@@ -106,3 +106,18 @@ test('the encounter uses production and shield recharge before arrival rather th
   assert.equal(report.before[1].shield, 4);
   assert.equal(report.after[1]!.drones, 50);
 });
+
+test('an inspected preparing hauler reports combat when it joins its departure site defence', () => {
+  const { game, source, target } = battle();
+  game.hour = 1;
+  const sent = dispatch(game, source.id, target.id, 10, 'you');
+  sent.fleets.push({ id: 50, owner: 'vesper', from: target.id, to: source.id, drones: 20, departed: 0, arrives: 1.1,
+    route: { from: { x: target.x, y: target.y }, to: { x: source.x, y: source.y } } });
+  const view = observe(sent, 'you', id => 1000 + id);
+  const forecast = forecastEncounters(view, 'you', 1001);
+  assert.equal(forecast.status, 'resolved');
+  assert.equal(forecast.reports.length, 1);
+  assert.equal(forecast.reports[0]!.site, source.id);
+  assert.equal(forecast.reports[0]!.reinforcement!.haulers[0]!.asset.id, 1001);
+  assert.equal(forecast.reports[0]!.after[1]!.drones, 40);
+});

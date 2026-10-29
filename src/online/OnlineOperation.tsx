@@ -10,7 +10,7 @@ import { playersIn } from '../game/players';
 import { MultiplayerAccount } from './MultiplayerAccount';
 import type { AccountAccess } from './account-auth';
 import { accountSessionApi } from './network';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
 import { presenceDue, inactivityRemaining } from './presence';
@@ -251,7 +251,7 @@ function ConnectedOperation({ onOpenReplays, account }: { onOpenReplays?: () => 
   const pendingEdit = session?.pending?.kind === 'edit-schedule' ? session.pending.body : undefined;
   const pendingPlan = pendingEdit && snapshot?.game.scheduled.find(plan => plan.id === pendingEdit.planId);
   const recoveryPending = session?.pending?.kind === 'recover' || session?.pending?.kind === 'recovery';
-  const game = past ? history.frame?.game : snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game);
+  const game = useMemo(() => past ? history.frame?.game : snapshot && (forecast ? forecastObservation(snapshot.game, snapshot.faction, snapshot.game.hour + forecast) : snapshot.game), [past, history.frame?.game, snapshot?.game, snapshot?.faction, forecast]);
   const referenceFrame: ReferenceFrame | undefined = forecast ? undefined : past
     ? history.frame && { ...history.frame, at: history.frame.history.at }
     : snapshot && { ...snapshot, at: snapshot.game.hour };

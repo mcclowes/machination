@@ -127,7 +127,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   useSoundCues(ready ? live : undefined, 'you');
   useEffect(() => { if (error) playSound('error'); }, [error]);
   const past = useMemo(() => inspectedHour !== null && inspectedHour < current.current.game.hour ? observe(replayTo(archive, inspectedHour, { rivals: policy.rivals, knownThrough: current.current.game.hour }), 'you') : null, [archive, inspectedHour, historical]);
-  const shown = past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live);
+  const shown = useMemo(() => past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live), [past, forecast, live, game.hour]);
   const orders = past ?? live;
   const visibleWorld = { rocks: shown.rocks.filter((r): r is Rock & { known: true } => r.known), fleets: shown.fleets, funding: shown.funding };
   const historyStart = useMemo(() => exportArchive(archive).baseline.hour, [archive]);

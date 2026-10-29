@@ -28,7 +28,8 @@ export function forecastEncounters(view: GameView, faction: Faction, fleetId: nu
   const predicted = advance(simulation, view.hour + MAX_PLAN_DELAY, {
     rivals: false, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners,
     encounters: report => {
-      if (report.before.some(side => side.asset.type === 'hauler' && side.asset.id === selected)) encounters.push(report);
+      const inspected = (side: EncounterAsset) => side.asset.type === 'hauler' && side.asset.id === selected;
+      if (report.before.some(inspected) || report.reinforcement?.haulers.some(inspected)) encounters.push(report);
     },
     stopWhen: state => {
       const fleet = state.fleets.find(f => f.id === selected);
