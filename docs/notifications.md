@@ -49,6 +49,8 @@ The server defaults to delivery off. Set `MACHINATION_PUSH_ENABLED=1` to start t
 
 After connecting a seat, open Setup and choose Turn on message notifications. Permission denial sends no enable request. Registration is only shown as enabled after a successful server response; a lost response can be retried safely. Turning it off keeps its revision and cancels pending work. Preference errors preserve explicit server details; a stale revision reloads the current setting before another change.
 
+If an accepted enable response is lost and the token then changes, Retry first reconciles with the server. An enabled binding gets the current token; a later server-side disable stays off. A failed account restore keeps the tap pending until an explicit retry. An expired account credential while linking does not invalidate the existing device seat; a rejected device-seat credential still clears access.
+
 Expo SDK 55 persists its native-token auto-registration after an opt-in and refreshes that mapping when the SDK next loads. The app loads it at startup after a prior registration and does not request permission or acquire a new Expo token on every launch. After a successful registration in the mounted seat, repeated native events for the same Expo token do not rewrite the subscription.
 
 ## Acceptance

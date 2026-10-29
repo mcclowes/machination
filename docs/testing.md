@@ -35,9 +35,9 @@ npm test -- --suite-timeout=900000
 
 ### Message notifications
 
-At `285ccea`, an isolated committed-source snapshot passes `npm run check` on Node 24.14.1: 940 regular tests, TypeScript, and three production server bundle checks. The notification subset comprises 23 service/worker/transport tests and 28 client tests, including eight real App/OnlineOperation/HTTP tap cases. The shared tree also passes 941 regular tests; that extra case belongs to concurrent map work and is excluded from this committed-source count. Logs are `/tmp/machination-notifications-exact-node24-check.log` and `/tmp/machination-notifications-check.log`.
+At `2d368b2`, an isolated committed-source snapshot passes `npm run check` on Node 24.14.1: 946 regular tests, TypeScript, and three production server bundle checks. The notification subset comprises 23 service/worker/transport tests and 34 client tests, including twelve real App/OnlineOperation/HTTP tap cases. The shared tree also passes 947 regular tests; that extra case belongs to concurrent map work and is excluded from this committed-source count. Logs are `/tmp/machination-notification-retries-final-check.log` and `/tmp/machination-notification-retries-check.log`.
 
-Web, iOS, and Android exports pass from the same commit at `/tmp/machination-notifications-platform-export`. The fresh native compilation and installed QA bundle are recorded in [native builds](native-builds.md#message-notification-build-october-29). Provider fakes, host-rendered taps, exports, and simulator installation do not establish notification permission or real background/closed-app delivery.
+Web, iOS, and Android exports pass from the same commit at `/tmp/machination-notifications-final-platform-export`. The fresh native compilation and installed QA bundle are recorded in [native builds](native-builds.md#message-notification-build-october-29). Provider fakes, host-rendered taps, exports, and simulator installation do not establish notification permission or real background/closed-app delivery.
 
 ### Ten-seat contested matches
 
