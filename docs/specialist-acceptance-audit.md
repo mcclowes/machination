@@ -35,6 +35,8 @@ Revision 13 retains the priority-three mark if Infiltrator ends combat, Assassin
 
 The five original rows no longer require a decision. Broader specialist combinations, Elder/global suppression, recruitment lifecycle, and current-original-client acceptance remain open.
 
+Integrated acceptance for `7b6d2ed`: all 61 targeted combat/Engineer/Elder/priority/service checks pass. The two durable-service cases compare revision 12 with 13 through observed forecasts, command retries, private history, and disk restart. The combined working-tree suite passes 810/810; TypeScript, web export, and three production server bundle checks also pass. These checks establish rebuild consistency, not a current-original-client comparison.
+
 ## Original interpretation gaps
 
 | Interaction | Observed implementation and minimal acceptance scenario | Likely owner |
