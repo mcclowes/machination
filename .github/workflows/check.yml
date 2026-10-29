@@ -17,8 +17,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
+      - name: Show acceptance runtime
+        run: |
+          node -p 'JSON.stringify({node: process.versions.node, v8: process.versions.v8})'
       - run: npm ci
       - run: npm run build:brand
       - run: npm run check

@@ -6,9 +6,13 @@ An iOS and Android strategy game about rival machine intelligences in the astero
 
 ## Run
 
-Requires Node.js 22 or newer.
+Use Node.js **24.14.1**, pinned in `.nvmrc`, for development and the full acceptance suite. The binary64 diagnostics require its certified V8 profile; other Node versions can refuse those checks. Gameplay and player replay exports remain portable across native and browser runtimes. See [testing prerequisites](docs/testing.md#acceptance-runtime).
+
+With nvm installed, run these commands from the repository root:
 
 ```sh
+nvm install
+nvm use
 npm ci
 npm start
 ```
