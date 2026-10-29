@@ -35,7 +35,7 @@ Quick reference for current Machination operations. Specialists are called **mod
 | Module | Subterfuge name | Effect |
 | --- | --- | --- |
 | Precedence kernel | Revered Elder | If present on exactly one side, suppresses local combat abilities after Self-destruct charge. If both sides have one, those abilities resolve normally. |
-| Diversion worm | Saboteur | In hauler combat, redirects the opposing hauler to its nearest friendly site and ends the encounter. Two units per hire. |
+| Diversion worm | Saboteur | In hauler combat, redirects a surviving opposing hauler to its nearest friendly site after combat in mechanics r13+. Profiles ≤12 redirect immediately and end combat. Two units per hire. |
 | Shield servitor | Inspector | Fully charges local shields on friendly arrival and after combat. Combat refill is suppressed by a lone Precedence kernel; friendly-arrival refill isn't. Promotes to Defense controller. |
 | Handoff virus | Double Agent | In hauler combat, destroys both drone manifests, swaps ownership of both haulers and their modules, and ends combat. |
 | Courier daemon | Smuggler | Travels at 3× speed toward a friendly site. Promotes to Industrial controller. |
@@ -77,7 +77,7 @@ Earlier abilities can end the encounter or remove modules before later abilities
 | --- | --- | --- |
 | 1 | Self-destruct charge | Detonates and ends combat. |
 | 2 | Precedence kernel | Establishes suppression if present on exactly one side. |
-| 3 | Diversion worm | Hauler redirection ends combat. |
+| 3 | Diversion worm | r13+: marks the opposing hauler for redirection after combat if it survives; later priorities still resolve. Profiles ≤12 redirect immediately and end combat. |
 | 4 | Conversion virus | Converts drones from the opposing manifests before either conversion is applied. |
 | 5 | Shield breaker | Drains site shields, or ends a hauler encounter. |
 | 6 | Handoff virus | Swaps hauler ownership, removes drones, and ends combat. |
