@@ -4,18 +4,18 @@
  * ---
  */
 import { afterWork, workBetween } from './opening-clock';
-import { driftingBasesEnabled, mechanicsVersion } from './rules';
+import { driftingBasesEnabled, mechanicsVersion, type PublicRules } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { mapOffsets } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
-import { flightEndpoints, fleetPosition } from './flight';
+import { flightEndpoints, fleetPosition, type FlightWorld } from './flight';
 import type { Fleet, Game } from './simulation';
 
 const CONTACT_TOLERANCE = 1e-9;
 function ordinaryPair(a: Fleet, b: Fleet): boolean {
   return a.from === b.from && a.to === b.to || a.from === b.to && a.to === b.from;
 }
-function encounterHour(game: Game, a: Fleet, b: Fleet): number {
+export function encounterHour(game: FlightWorld & { rules?: PublicRules }, a: Fleet, b: Fleet): number {
   if (a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
   if (mechanicsVersion(game) >= 12 && !driftingBasesEnabled(game) && !a.returning && !b.returning && !a.courseChanged && !b.courseChanged && !ordinaryPair(a, b)) return Infinity;
   const aa = flightEndpoints(game, a); const bb = flightEndpoints(game, b);

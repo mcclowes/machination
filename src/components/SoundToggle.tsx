@@ -1,6 +1,6 @@
 /**
  * ---
- * purpose: Global control for muting or restoring sound cues.
+ * purpose: Global control for muting or restoring music and sound cues.
  * ---
  */
 import React from 'react';

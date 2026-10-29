@@ -9,6 +9,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ArtArchive, ArtworkImage } from './Artwork';
 import type { ArtworkId } from './artwork-catalog';
+import { MUSIC_CREDITS } from '../audio/music-credits';
 const ACKNOWLEDGED = 'machination.briefing.v1';
 const sections = [
   ['Your mandate', 'You are a mining intelligence. New operations start with five sites and 160 drones per intelligence. Choose mining to reach 200 cargo, or domination to control half the chart; being the last active intelligence also wins. Losing your core without a fallback ends your orders and mining, but your territory, production, and launched haulers remain. Version-one saves retain their original rules and 300-cargo quota.'],
@@ -55,6 +56,7 @@ export function FieldManual({ compact = false }: { compact?: boolean } = {}) {
         {archive ? <ArtArchive /> : <ScrollView contentContainerStyle={s.content}>
           <Text style={s.intro}>Your corporation is too far away to interfere. Start with tactical practice to learn the chart, orders, specialists, and Time Machine. Then play solo or negotiate with human rivals.</Text>
           {(briefing ? sections.slice(0, 3) : sections).map(([title, body]) => <View key={title} style={s.section}>{illustrations[title] && <ArtworkImage id={illustrations[title]} />}<Text accessibilityRole="header" style={s.heading}>{title}</Text><Text style={s.body}>{body}</Text></View>)}
+          {!briefing && <View style={s.section}><Text accessibilityRole="header" style={s.heading}>Music credits</Text><Text style={s.body}>The soundtrack follows known battles in your live operation. Sound mutes both music and effects.</Text>{MUSIC_CREDITS.map(track => <Text key={track.title} style={s.body}>{track.title} · Music by {track.artist}</Text>)}</View>}
           {briefing && <Pressable accessibilityRole="button" onPress={() => setBriefing(false)} style={s.trigger}><Text style={s.triggerText}>Read the full field manual</Text></Pressable>}
           <Pressable accessibilityRole="button" onPress={close} style={s.begin}><Text style={s.beginText}>Return to command</Text></Pressable>
         </ScrollView>}

@@ -47,6 +47,8 @@ See [existing remake references](docs/remake-references.md) for reuse candidates
 
 Original native icons and launch artwork are generated from an editable vector. Run `npm run build:brand` to rebuild them and create a masked preview. See [artwork notes](assets/brand/README.md).
 
+Background music follows known battles in the live operation, moving from calm to moderate tension to imminent battle. **Sound** mutes music and effects. Credits for Nikita Kondrashev, Sergii Pavkin, and Alex Morgan appear in **Manual → Music credits**; see [soundtrack notes](assets/music/README.md).
+
 Open **Manual → Art archive** to browse all 24 generated illustrations from the Machination ChatGPT project. Project scenes also illustrate the manual, controlled-site inspectors, and specialist bay. [Project artwork notes](assets/artwork/README.md) record source chats, preserved originals, and display copies.
 
 ## Scope
