@@ -33,7 +33,7 @@ import { createGame, FACTIONS, operationStatus, travelHours, type Game, type Roc
 import { loadGame, saveGame } from './src/game/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
-import { futureCommandFleets, observedInterceptionIds } from './src/components/fleet-planning';
+import { futureCommandFleets, observedInterceptionIds, launchBlockReason } from './src/components/fleet-planning';
 import { GiftTransfer } from './src/components/GiftTransfer';
 import { HaulerOrders } from './src/components/HaulerOrders';
 import { LAUNCH_PREPARATION } from './src/game/transport';
@@ -152,7 +152,9 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
   const launchAt = Math.max(game.hour, inspectedHour ?? game.hour) + delay;
   const transfer = target && game.version === 2 ? stationCourse(shown, rock, target, specialistSpeed(shown, 'you', unitManifest, target.owner === 'you'), launchAt + preparation) : undefined;
   const duration = target ? transfer ? transfer.arrives - launchAt - preparation : travelHours(rock, target, carry ? rock.module : undefined, game.version) : 0;
-  const canSend = operational && !shown.winner && !shown.draw && !rock.destroyed && !target?.destroyed && launchAt <= game.hour + 168 && rock.owner === 'you' && game.rocks.find(r => r.id === selected)?.owner === 'you' && !!target && Number.isSafeInteger(count) && count >= (unitIds.length ? 0 : 1) && (launchAt > game.hour || count <= Math.floor(rock.drones ?? 0));
+  const launchBlocked = launchBlockReason({ game: shown, owner: 'you', source: rock, target, liveHour: game.hour, executeAt: launchAt, drones: count, units: unitIds.length,
+    unavailable: historical ? 'History is read-only. Return to Now or choose a future time.' : !operational ? 'Launches are unavailable until the operation is active and loaded.' : undefined });
+  const canSend = launchBlocked === undefined;
   function inspectSpecialistSite(id: string) {
     const site = shown.rocks.find(r => r.id === id);
     if (!site) return;
@@ -226,7 +228,7 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
       hint={(planning && !destination || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
       timeline={<TimeMachine opening={openingEnabled(shown)} forecastUncertain={shown.forecastUncertain} fleets={orders.fleets} plans={orders.scheduled} rocks={shown.rocks} compact historyStart={historyStart} hour={game.hour} inspectedHour={inspectedHour} onChange={inspectTime} events={[...shown.events.map(e => e.hour), ...shown.fleets.flatMap(f => [f.arrives, ...(f.preparing ? [f.departed] : []), ...(f.pendingCourse ? [f.pendingCourse.executeAt] : [])]), ...orders.scheduled.map(p => p.executeAt)]} />}
       panels={{
-        asset: { title: planning ? `${rock.name} → ${target?.name ?? 'Choose destination'}` : rock.name, footer: planning ? <View><Text style={[s.small, { color: ink, marginBottom: 6 }]}>{count} drones · {unitManifest.length ? unitManifest.map(unit => SPECIALISTS[unit.kind].name).join(', ') : 'no specialists'}</Text><View style={s.row}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule at ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); setDelay(0); }} /></View></View> : undefined, content: <View style={{ gap: 8 }}>
+        asset: { title: planning ? `${rock.name} → ${target?.name ?? 'Choose destination'}` : rock.name, footer: planning ? <View>{launchBlocked && <Text accessibilityRole="alert" style={[s.small, { marginBottom: 6 }]}>{launchBlocked}</Text>}<Text style={[s.small, { color: ink, marginBottom: 6 }]}>{count} drones · {unitManifest.length ? unitManifest.map(unit => SPECIALISTS[unit.kind].name).join(', ') : 'no specialists'}</Text><View style={s.row}><View style={{ flex: 1 }}><Button label={launchAt > game.hour ? `Schedule at ${clock(launchAt)}` : game.version === 2 ? 'Prepare launch · 10m' : 'Launch hauler ↗'} disabled={!canSend} onPress={send} /></View><Button label="Cancel" quiet onPress={() => { setPlanning(false); setDestination(undefined); setDelay(0); }} /></View></View> : undefined, content: <View style={{ gap: 8 }}>
             {!!shown.uncertain.length && <Text style={s.small}>Arrival outcomes unknown outside observed sensors. Refresh live observations before relying on this forecast.</Text>}
             {shown.interceptionUncertain && <Text style={s.small}>Interception outcome unknown. The target is outside current observations.</Text>}
             {!planning && <><Text style={s.small}>{rock.known ? `${rock.owner ? FACTIONS[rock.owner].name : 'Unclaimed'} · ${siteDescription(rock, shown)}` : remoteSiteDescription(rock)}</Text><Text style={{ color: ink, fontSize: 15 }}>{rock.known ? `${Math.floor(rock.drones)} drones on site` : 'Inventory unknown'}</Text></>}

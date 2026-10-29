@@ -15,13 +15,14 @@ export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onG
   const button = (text: string, onPress: () => void) => <Pressable accessibilityRole="button" accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onPress} style={[s.button, blocked && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;
   return <View style={s.panel}>
     {scheduledAt !== undefined && <Text style={s.detail}>Schedule for {gameClock(scheduledAt)}. The full manifest and recipient must remain eligible at execution; otherwise the private order aborts.</Text>}
-    <Text style={s.title}>Voluntary support / {FACTIONS[recipient].name}</Text>
+    <Text style={s.title}>Optional gift / {FACTIONS[recipient].name}</Text>
     {review ? <>
       <Text style={s.detail}>Give {payload} from {from.name} to {FACTIONS[recipient].name}, bound for {to.name}?</Text>
       <Text style={s.detail}>{legacy ? 'Ownership and hauler sensors transfer at launch. You cannot recall this gift. It reinforces the recipient, or fights for them if the destination changes hands.' : 'The manifest prepares for ten minutes. It stays yours until contact, then transfers to the current owner of the destination or a passing hauler. Cancel the launch or gift order during preparation.'}</Text>
       {button(scheduledAt === undefined ? legacy ? 'Confirm gift and launch now' : 'Confirm gift and prepare launch' : `Schedule gift at ${gameClock(scheduledAt)}`, () => { setReview(false); onGift(); })}
       <Pressable accessibilityRole="button" onPress={() => setReview(false)} style={s.button}><Text style={s.buttonText}>Keep drones</Text></Pressable>
     </> : <>
+      <Text style={s.detail}>Use the bottom launch button to attack. Review a gift only if you want to give these units away.</Text>
       <Text style={s.detail}>{legacy ? "Give this manifest and any loaded module to the destination's intelligence. Gifts launch immediately." : 'Give this manifest and any loaded module on contact. A passing hauler can accept it before the destination.'}</Text>
       {button('Review gift instead of attack', () => setReview(true))}
     </>}

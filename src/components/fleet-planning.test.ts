@@ -1,12 +1,32 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { futureCommandFleets, observedInterceptionIds } from './fleet-planning';
+import { futureCommandFleets, observedInterceptionIds, launchBlockReason } from './fleet-planning';
 import { createConfiguredGame } from '../game/world';
 import { scheduleTransfer } from '../game/orders';
 import { observe, forecastObservation } from '../game/visibility';
 import type { Fleet } from '../game/simulation';
 
 const fleet = (id: number, owner: Fleet['owner'] = 'you'): Fleet => ({ id, owner, from: 'a', to: 'b', drones: 5, departed: 0, arrives: 10 });
+
+test('launch availability explains invalid orders and permits future inventory and specialist-only cargo', () => {
+  const game = observe(createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 123), 'you');
+  const [source, target] = game.rocks.filter(r => r.owner === 'you');
+  assert.ok(source?.known && target?.known);
+  const request = { game, owner: 'you' as const, source, target, liveHour: 0, executeAt: 0, drones: 1, units: 0 };
+  assert.equal(launchBlockReason(request), undefined);
+  assert.match(launchBlockReason({ ...request, target: undefined })!, /destination/);
+  assert.match(launchBlockReason({ ...request, target: source })!, /different destination/);
+  assert.match(launchBlockReason({ ...request, source: { ...source!, owner: null } })!, /departure site/);
+  assert.match(launchBlockReason({ ...request, executeAt: 169 })!, /seven days/);
+  assert.match(launchBlockReason({ ...request, drones: 0 })!, /at least one/);
+  assert.match(launchBlockReason({ ...request, drones: 1.5 })!, /at least one/);
+  assert.match(launchBlockReason({ ...request, drones: 1000 })!, /Not enough drones/);
+  assert.equal(launchBlockReason({ ...request, drones: 1000, executeAt: 2 }), undefined);
+  assert.equal(launchBlockReason({ ...request, drones: 0, units: 1 }), undefined);
+  assert.equal(launchBlockReason({ ...request, unavailable: 'History is read-only.' }), 'History is read-only.');
+  assert.match(launchBlockReason({ ...request, source: { ...source!, known: true, destroyed: true } })!, /Destroyed sites/);
+  assert.match(launchBlockReason({ ...request, game: { ...game, draw: true } })!, /no longer operational/);
+});
 
 test('future commands include only owned live or stable queued IDs still present in the forecast', () => {
   const live = { fleets: [fleet(101), fleet(102, 'vesper'), fleet(103)], scheduled: [
