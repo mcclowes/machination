@@ -6,7 +6,7 @@
 import { DriftCourse } from './DriftCourse';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, Text, StyleSheet, PanResponder } from 'react-native';
+import { View, Pressable, Text, Image, StyleSheet, PanResponder } from 'react-native';
 import Svg, { Circle, G, Line } from 'react-native-svg';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { SPECIALISTS } from '../game/specialist-catalog';
@@ -25,17 +25,15 @@ import { layoutSiteNames } from './map-labels';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
 export type { MapCamera } from '../game/chart-camera';
-function siteSymbol(rock: Pick<ChartRock, 'destroyed' | 'kind' | 'coreOf'>): string {
-  if (rock.destroyed) return '×';
-  if (rock.kind === 'unknown') return '?';
-  if (rock.coreOf) return '◈';
-  switch (rock.kind) {
-    case 'core': return '◈';
-    case 'reactor': case 'generator': return 'ϟ';
-    case 'factory': return '▥';
-    case 'mine': return '◆';
-    default: return '·';
-  }
+const baseIcons = {
+  factory: require('../../assets/bases/factory.png'),
+  generator: require('../../assets/bases/generator.png'),
+  mine: require('../../assets/bases/mine.png'),
+};
+function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
+  if (rock.destroyed || rock.kind === 'unknown') return undefined;
+  const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
+  return baseIcons[kind];
 }
 type Props<T extends ChartRock> = { game: { epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
 export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, timeInspection }: Props<T>) {
@@ -171,11 +169,13 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     </Svg>
     {sites.map(({ key, rock, location, active }) => {
       const color = rock.owner ? identity(rock.owner).color : '#68777b';
+      const icon = siteIcon(rock);
       const namePlacement = names.get(key);
       return <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : rock.kind}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? FACTIONS[rock.owner].name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${rock.specialists?.length ? `, ${rock.specialists.map(u => SPECIALISTS[u.kind].name).join(', ')}` : ''}`} accessibilityState={{ selected: active }} onPress={() => { setContact(undefined); onSelect(rock); }} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? '#dce7e5' : 'transparent', borderWidth: 1.5, backgroundColor: 'transparent' }]}>
-          <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' }]}>
-            <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{siteSymbol(rock)}</Text>
+          <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' }, icon && styles.emblemStone, icon && rock.drift && styles.driftingEmblem]}>
+            {icon ? <Image accessible={false} source={icon} resizeMode="contain" style={[styles.baseIcon, { tintColor: rock.owner ? color : '#829195' }]} /> : <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{rock.destroyed ? '×' : '?'}</Text>}
+            {icon && (rock.coreOf || rock.kind === 'core') && <Text accessible={false} style={[styles.coreBadge, { color }]}>◈</Text>}
           </View>
         </View>
         {namePlacement && (!destination || active) && <Text numberOfLines={1} style={[styles.name, namePlacement === 'above' && styles.nameAbove, active && { color: '#e1e8e7' }]}>{rock.name}</Text>}
@@ -218,6 +218,10 @@ const styles = StyleSheet.create({
   ring: { width: 38, height: 38, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   stone: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   asteroid: { width: 22, height: 20, borderRadius: 6, borderTopLeftRadius: 10, borderBottomRightRadius: 9 },
+  emblemStone: { width: 34, height: 34, borderWidth: 0, backgroundColor: 'transparent' },
+  driftingEmblem: { backgroundColor: '#24343c', borderWidth: 1, borderRadius: 8 },
+  baseIcon: { width: 34, height: 34 },
+  coreBadge: { position: 'absolute', top: -3, right: -3, width: 13, height: 13, lineHeight: 13, fontSize: 12, textAlign: 'center', backgroundColor: '#101d24', borderRadius: 7 },
   name: { position: 'absolute', left: -12, width: 88, top: 42, fontSize: 10, textAlign: 'center', color: '#82979d' }, nameAbove: { top: -12 },
   count: { position: 'absolute', left: 50, top: 13, color: '#e4edeb', fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 }, coord: { fontSize: 11, color: '#a0af9e' },
