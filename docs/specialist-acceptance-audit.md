@@ -39,6 +39,14 @@ The five original rows no longer require a decision. Broader specialist combinat
 
 Integrated acceptance for `7b6d2ed`: all 61 targeted combat/Engineer/Elder/priority/service checks pass. The two durable-service cases compare revision 12 with 13 through observed forecasts, command retries, private history, and disk restart. The combined working-tree suite passes 810/810; TypeScript, web export, and three production server bundle checks also pass. These checks establish rebuild consistency, not a current-original-client comparison.
 
+### General under Elder suppression
+
+Sixteen configured revision-13 scenarios now cover General damage under a lone Elder, in both convoy submission orders. Real dispatch and opposing-route contact establish that remote and carried Generals still supply global damage when an owned module remains present. A suppressed Lieutenant satisfies that presence requirement without applying its own damage. With 30 versus 20 drones, the General removes 10 defenders and leaves 20 attackers; the no-General control leaves 10. A remote General with no owned module in the encounter supplies no damage. Captive Generals supply neither owner with global damage. Strict saves and canonical replay reproduce every result.
+
+The [official reference](https://subterfuge-game.com/rulebook/Specialists.html) defines General's global effect and post-specialist presence requirement. The [community General reference](https://subterfuge.fandom.com/wiki/General) explicitly describes General damage continuing alongside an Elder. That second source is supporting secondary evidence, not a current-client trace. The tests cover hauler contact, not every outpost or multi-specialist combination. They make no new King, Engineer, Inspector, or Pirate ruling.
+
+The bounded follow-up audit (`/tmp/machination-elder-global-review/FINDINGS.md`) reproduced no defect in those other global/post-combat cases. Their existing interpretations remain: King damage and Engineer global repair continue, Engineer's local repair and Inspector's combat refill are suppressed, and Pirate interception routing remains a movement effect. Different treatment of Inspector and Pirate is not by itself a contradiction; the reference does not establish that shield refill and a return mission share the same suppression rule. Original-client evidence remains required. Integrated General/local-Elder/priority checks pass 48/48, with TypeScript clean; no engine rule changed.
+
 ## Original interpretation gaps
 
 | Interaction | Observed implementation and minimal acceptance scenario | Likely owner |
