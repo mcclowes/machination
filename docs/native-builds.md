@@ -187,6 +187,16 @@ Evidence: `.fettle/shots/native-combat-prediction-686050c.png`, `native-combat-r
 
 The exact final source passes 44 focused engine, observation, and component checks, TypeScript, and web export. The preparing-defender regression fails without its filter fix. The full suite also passes 851/851 checks from that exact final source with localhost HTTP tests enabled. These checks establish rebuild contracts, not current-original-client parity.
 
+## Specialist marker build
+
+The separate `com.mcclowes.machination.fidelityqa` artifact now contains JavaScript source `7e63341583a25d586ae104c7e96f83403b7cefb7`. It reuses the unchanged native binary from `a45505b`, with a fresh Release Hermes bundle and assets, ad-hoc signature, and successful deep/strict verification. It is installed on the already-booted iPhone 18 Pro / iOS 27.0 simulator `2B699C61-45A3-417B-B46C-F47AF0A2CCDE`. This is packaging and installation evidence, not a new native compilation or runtime acceptance.
+
+Artifact: `/tmp/machination-specialist-markers-qa-vuq1i451/Machination QA.app`; source-only archive with shared dependency symlink: `/tmp/machination-specialist-markers-qa-vuq1i451/source`; metadata: `/tmp/machination-specialist-markers-native-artifact.json`. Bundle SHA-256: `c07298e899f50ca21c057e16e60a5434fd06faf815513c269cda712d0e7a0f64`.
+
+The exact source passes 869/869 checks, 39 focused checks, TypeScript, and web export. The new markers are directly inspectable, group matching specialists, distinguish captives and owners, cap visual overflow, and reserve neighbor/control/count bounds. Shared replay checks exercise the new badge inspection while retaining its local-only boundary. [Marker notes](map-specialists.md) describe scope and confidence.
+
+Native and browser visual acceptance remain pending. Device Hub and Chrome both returned `cgWindowNotFound`; the supported computer-use app-launch fallback is unavailable, and the selected Xcode installation has no classic Simulator.app fallback. No substitute UI automation was used. The old local export server was stopped after browser binding failed. No screenshot from this build is claimed. Verify the specialist-only transport exercise, docked/transit/captive rows, small-icon readability, large counts, crowded/preparing assets, drag interactions, and an open inspector once the graphical surface returns. [#72](https://github.com/mcclowes/machination/issues/72) remains open, and [#73](https://github.com/mcclowes/machination/issues/73) tracks role-symbol collisions in the existing atlas.
+
 ## Accessibility role discriminator
 
 On October 29, native QA source `a45505b` reproduced [#28](https://github.com/mcclowes/machination/issues/28): entry Sound reports a switch, then replay-library Exit replay library reports a switch despite declaring a button. Read-only LLDB inspection of the same QA process records the reused `RCTViewComponentView` at address `0x107c5f000`: Sound has traits `0x20000000000001`; after navigation, Exit replay library has button traits `0x1`. Open replay independently has `0x1`. The debugger detached after each read. The corresponding Device Hub snapshot still reports Exit replay library as a switch.
