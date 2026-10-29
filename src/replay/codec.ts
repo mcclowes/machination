@@ -75,8 +75,8 @@ function rules(v: unknown) {
   object(v, ['players', 'mode', 'victoryTarget', 'map'], ['portraits', 'mechanicsVersion', 'driftingBases']);
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7]));
-  need(v.mechanicsVersion === 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8]));
+  need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));

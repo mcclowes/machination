@@ -30,11 +30,13 @@ The publisher's [v42.1 patch](https://www.secretplan.com/subterfuge-news/rules-v
 | Amendment | Rebuild status |
 | --- | --- |
 | Engineer recovery cannot exceed combat losses. | New mechanics revision 7 caps recovery. Station attackers, defenders, and opposing-route winners are covered; converted drones aren't discarded by the repair cap. Old revisions retain their results. |
-| Gifts respect the recipient's power capacity. | Not implemented yet. Excess gifted drones must be discarded at contact. |
+| Gifts respect the recipient's power capacity. | New mechanics revision 8 discards excess gifted drones at station and sub contact. Existing drones and transferred specialists survive; older revisions retain uncapped gifts. |
 | The opening 12 game hours accelerate sub movement, Queen recruitment, factories, and shield recharge by 1.5x. | Not implemented yet. Travel, production, forecasts, and observed replays need the same transition at hour 12. |
 | Navigator course changes take effect after ten minutes; the eight-hour cooldown remains. | Not implemented yet. The current command redirects immediately. |
 
 Revision 7 also records the drifting-base variant explicitly, independently of mechanics version. Existing revision-six games retain their implicit drifting rules. Save loading, canonical replay, public shared replay, room retries, and setup controls cover both old and new profiles. These checks establish compatibility, not complete acceptance of the two publisher patches or original-client UI parity.
+
+Gift-capacity acceptance covers exact/over-cap contacts, specialist-only survivors, empty drone-only gifts, friendly transfers, reciprocal submission order, capacity-granting specialists, old rules, saves, canonical replay, and authoritative retries/history/restart. The recipient's capacity is evaluated after the specialists transfer and leadership settles; reciprocal outgoing manifests are both removed before either incoming manifest is capped. These two ordering choices are consistent rebuild contracts, but the patch does not specify their original-client ordering. Client comparison remains open.
 
 The [official rulebook](https://subterfuge-game.com/rulebook/) defines the baseline:
 

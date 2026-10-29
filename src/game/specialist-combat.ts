@@ -10,7 +10,8 @@ import { sendUnitsHome, returnHauler } from './specialist-travel';
 import { applyCombatAbilities } from './combat-abilities';
 import type { Faction, Fleet, Game, Rock } from './simulation';
 import { fleetPosition } from './flight';
-import { maximumShield, absorbShields } from './economy';
+import { maximumShield, absorbShields, droneInventory, powerCapacity } from './economy';
+import { reconcileFunding } from './funding';
 import { loseMine, MINING_DAY } from './mining';
 import { activeUnits, unitCount, type Specialist } from './specialists';
 import { refreshUnitEffects } from './specialist-effects';
@@ -45,6 +46,11 @@ function capture(units: Specialist[], owner: Faction): Specialist[] {
   for (const unit of units) { if (unit.owner === owner) delete unit.captive; else unit.captive = true; }
   return units;
 }
+function excessGiftDrones(game: Game, owner: Faction, incoming: number): number {
+  const existing = droneInventory(game, owner) - incoming;
+  const accepted = Math.max(0, Math.min(incoming, powerCapacity(game, owner) - existing));
+  return incoming - accepted;
+}
 function log(game: Game, point: { x: number; y: number }, owners: (Faction | null)[], message: string): void {
   game.events.unshift({ hour: game.hour, audience: [...new Set([...owners.filter((o): o is Faction => !!o), ...observers(game, point)])], message });
 }
@@ -61,6 +67,10 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock): voi
     rock.drones += fleet.drones;
     rock.specialists = [...(rock.specialists ?? []), ...(fleet.specialists ?? [])];
     reconcileLeadership(game, donor === fleet.owner ? [] : leaders, rock);
+    if (mechanicsVersion(game) >= 8 && donor !== fleet.owner) {
+      reconcileFunding(game);
+      rock.drones -= excessGiftDrones(game, fleet.owner, fleet.drones);
+    }
     if (living(fleet).some(u => u.kind === 'inspector')) rock.shield = maximumShield(rock);
     return;
   }
@@ -131,9 +141,21 @@ export function resolveHaulerContact(game: Game, a: Fleet, b: Fleet): void {
   if (!giftA && !giftB) { resolveHaulerBattle(game, a, b); return; }
   const leaders = coreLocations(game); const point = fleetPosition(game, a);
   const ownerA = a.owner; const ownerB = b.owner;
+  const cappedGifts = mechanicsVersion(game) >= 8;
+  const gifts: Fleet[] = [];
   for (const [fleet, owner, gift] of [[a, ownerB, giftA], [b, ownerA, giftB]] as const) if (gift) {
     for (const unit of fleet.specialists ?? []) { if (unit.kind === 'queen' && unit.owner !== owner) unit.kind = 'princess'; unit.owner = owner; delete unit.captive; }
-    fleet.owner = owner; delete fleet.giftAt; returnHauler(game, fleet);
+    fleet.owner = owner; delete fleet.giftAt;
+    if (cappedGifts) gifts.push(fleet); else returnHauler(game, fleet);
+  }
+  if (cappedGifts) {
+    reconcileLeadership(game, leaders, point);
+    reconcileFunding(game);
+    for (const fleet of gifts) {
+      fleet.drones -= excessGiftDrones(game, fleet.owner, fleet.drones);
+      if (fleet.drones || fleet.specialists?.length) returnHauler(game, fleet);
+      else game.fleets = game.fleets.filter(f => f.id !== fleet.id);
+    }
   }
   log(game, point, [ownerA, ownerB], 'Gift accepted in transit and routed to friendly territory.');
   reconcileLeadership(game, leaders, point);
