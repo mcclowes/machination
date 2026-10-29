@@ -60,6 +60,8 @@ If an accepted enable response is lost and the token then changes, Retry first r
 
 Expo SDK 55 persists its native-token auto-registration after an opt-in and refreshes that mapping when the SDK next loads. The app loads it at startup after a prior registration and does not request permission or acquire a new Expo token on every launch. After a successful registration in the mounted seat, repeated native events for the same Expo token do not rewrite the subscription.
 
+A token event during a preference write is retained for that seat. Repeated events coalesce into the latest token. After the write succeeds, or an unresolved failure is retried, the queued event reads the server preference before registering. A completed disable stays off, a later consent withdrawal is preserved, and leaving the seat discards pending rotation. This behavior is verified through the hook boundary, not native OS token events.
+
 ## Acceptance
 
 Exact source `883831d`, isolated from concurrent working-tree edits, passes 1,004 regular tests, TypeScript, and three production-server build/restart checks on Node 24.14.1. The tested server-to-app path materializes an incoming attack with no connected client, feeds its actual payload through cold-start handling, and verifies fresh consent, the live chart, forecast reset, and no game writes. Legacy-server message taps and disabling also pass. Web, iOS, and Android exports pass; the [native package](native-builds.md#incoming-attack-notification-package) is signed and installed, with runtime and provider delivery still unverified. Local logs are `/tmp/machination-incoming-exact-check.log` and `/tmp/machination-incoming-export.log`.

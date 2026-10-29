@@ -46,7 +46,14 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
 
   // Each async step re-checks that the seat it started for is still current before publishing.
   const current = (started?: string) => mounted.current && started !== undefined && latest.current.scope === started;
-  const publish = (started: string, change: Partial<typeof state>) => { if (current(started)) setState(prev => prev.scope === started ? { ...prev, ...change } : prev); };
+  const publish = (started: string, change: Partial<typeof state>) => {
+    if (!current(started)) return;
+    // The ref mirrors confirmed state synchronously, so a queued rotation never acts on a pre-write render.
+    if (stateRef.current.scope === started) stateRef.current = { ...stateRef.current, ...change };
+    setState(prev => prev.scope === started ? { ...prev, ...change } : prev);
+  };
+  // Coalesce busy token events without crossing seats.
+  const pendingRotation = useRef<string | undefined>(undefined);
 
   const read = useCallback(async (started: string) => {
     const { seat, deps } = latest.current;
@@ -57,6 +64,7 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       if (!current(started)) return;
       const [settings, permission] = await Promise.all([deps.read(seat, deviceId), deps.device.permission()]);
       publish(started, { settings, permission, loading: false });
+      flushRotation(started);
       return settings;
     } catch (error) {
       publish(started, { loading: false, failure: { message: `Could not read notification settings. ${(error as Error).message}`, retry: 'read' } });
@@ -64,7 +72,7 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
   }, []);
 
   useEffect(() => {
-    busy.current = false;
+    busy.current = false; pendingRotation.current = undefined;
     setState({ scope, loading: false, working: false });
     if (scope && device && device !== 'loading') void read(scope);
   }, [scope, device, read]);
@@ -102,7 +110,18 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     const started = latest.current.scope;
     if (!started || busy.current) return;
     busy.current = true; publish(started, { working: true });
-    try { await work(started); } finally { if (current(started)) { busy.current = false; publish(started, { working: false }); } }
+    try { await work(started); } finally { if (current(started)) { busy.current = false; publish(started, { working: false }); flushRotation(started); } }
+  }
+
+  // Queued rotations use fresh consent and revisions after the preceding write.
+  const rotate = (started: string) => guarded(async () => {
+    const settings = await read(started);
+    if (current(started) && settings?.enabled && settings.available) await register(started, settings, true);
+  });
+  function flushRotation(started: string) {
+    if (pendingRotation.current !== started || busy.current || !current(started) || stateRef.current.failure) return;
+    pendingRotation.current = undefined;
+    void rotate(started);
   }
 
   async function register(started: string, settings: Pick<MessageNotificationSettings, 'revision' | 'incoming'>, onlyIfChanged = false) {
@@ -186,10 +205,15 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
   const enabled = state.scope === scope && !!state.settings?.enabled && !!state.settings.available;
   useEffect(() => {
     if (!scope || !enabled || !device || device === 'loading') return;
-    return device.onTokenChange(() => void guarded(async started => {
-      const settings = settingsFor(started);
-      if (settings?.enabled) await register(started, settings, true);
-    }));
+    return device.onTokenChange(() => {
+      const started = latest.current.scope;
+      if (started !== scope) return;
+      if (busy.current) { pendingRotation.current = started; return; }
+      void guarded(async () => {
+        const settings = settingsFor(started);
+        if (settings?.enabled) await register(started, settings, true);
+      });
+    });
   }, [scope, enabled, device]);
 
   const visible = state.scope === scope ? state : { loading: false, working: false } as typeof state;

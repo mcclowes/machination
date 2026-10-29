@@ -423,3 +423,141 @@ test('token rotation re-registers only the current enabled seat', async () => {
   fake.rotate('ExponentPushToken[third]');
   assert.equal(m.server.writes.length, before);
 });
+
+async function enabledWithConsent(incoming: boolean) {
+  const fake = fakeDevice('granted');
+  const server = fakeServer();
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 0, available: true, enabled: false, incoming: false });
+  const m = await mount(seatA, fake.device, server);
+  await press(m.out.current!.enable);
+  if (incoming) await press(() => m.out.current!.setIncoming(true));
+  return { fake, server, m };
+}
+const tokenWrites = (server: ReturnType<typeof fakeServer>, from: number) => server.writes.slice(from).filter(w => w.body.expoPushToken !== undefined);
+
+test('a rotation during an in-flight consent write registers afterwards with the confirmed revision and consent', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  assert.equal(tokenWrites(server, from).length, 0, 'nothing is written while the consent write is in flight');
+  await act(async () => { gate.resolve(); await gate.promise; });
+  const writes = tokenWrites(server, from);
+  assert.equal(writes.length, 1, 'the queued rotation runs once the write settles');
+  assert.equal(writes[0]!.body.expoPushToken, 'ExponentPushToken[second]');
+  assert.equal(writes[0]!.body.revision, server.records.get(seatA.id)!.revision - 1, 'it uses the freshest confirmed revision');
+  assert.equal(writes[0]!.body.incoming, true, 'and the confirmed consent');
+  assert.equal(server.records.get(seatA.id)!.incoming, true);
+  assert.equal(m.out.current!.error, undefined);
+  assert.equal(fake.calls.requests, 1, 'rotation never prompts');
+  await m.unmount();
+});
+
+test('a rotation during an in-flight disable never re-enables', async () => {
+  const { fake, server, m } = await enabledWithConsent(true);
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(m.out.current!.disable);
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  await act(async () => { gate.resolve(); await gate.promise; });
+  assert.equal(server.writes.slice(from).length, 0);
+  assert.equal(server.records.get(seatA.id)!.enabled, false);
+  assert.equal(m.out.current!.settings!.enabled, false);
+  await m.unmount();
+});
+
+test('several rotations while busy coalesce into one registration of the latest token', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => { fake.rotate('ExponentPushToken[second]'); fake.rotate('ExponentPushToken[third]'); });
+  await act(async () => { gate.resolve(); await gate.promise; });
+  const writes = tokenWrites(server, from);
+  assert.deepEqual(writes.map(w => w.body.expoPushToken), ['ExponentPushToken[third]']);
+  await m.unmount();
+});
+
+test('a seat change or unmount discards a pending rotation', async () => {
+  for (const leave of ['seat', 'unmount'] as const) {
+    const { fake, server, m } = await enabledWithConsent(false);
+    const gate = deferred<void>(); server.pause.next = gate;
+    await press(() => m.out.current!.setIncoming(true));
+    const from = server.writes.length;
+    await act(async () => fake.rotate('ExponentPushToken[second]'));
+    if (leave === 'seat') await m.rerender(seatB); else await m.unmount();
+    await act(async () => { gate.resolve(); await gate.promise; });
+    assert.equal(tokenWrites(server, from).length, 0, `no registration after ${leave}`);
+    if (leave === 'seat') { assert.equal(m.out.current!.settings?.gameId, seatB.id); await m.unmount(); }
+  }
+});
+
+test('a rotation queued behind a failed consent write survives until the retry succeeds', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  const gate = deferred<void>(); server.pause.next = gate;
+  server.failures.push(new Error('Response lost'));
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  await act(async () => { gate.resolve(); await gate.promise; });
+  assert.match(m.out.current!.error!, /Response lost/);
+  assert.equal(tokenWrites(server, from).length, 0, 'no rotation write behind an unresolved failure');
+  await press(m.out.current!.retry);
+  const writes = tokenWrites(server, from);
+  assert.equal(writes.length, 1, 'the rotation runs after the retry confirms the state');
+  assert.equal(writes[0]!.body.incoming, true);
+  assert.equal(m.out.current!.error, undefined);
+  await m.unmount();
+});
+
+test('a queued rotation re-reads first, so a disable elsewhere after the in-flight write is never overwritten', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  await act(async () => {
+    gate.resolve(); await gate.promise;
+    const confirmed = server.records.get(seatA.id)!;
+    server.records.set(seatA.id, { ...confirmed, revision: confirmed.revision + 1, enabled: false, incoming: false, bindingId: undefined });
+  });
+  assert.equal(tokenWrites(server, from).length, 0, 'no blind enable from the pre-rotation snapshot');
+  assert.equal(server.records.get(seatA.id)!.enabled, false);
+  assert.equal(m.out.current!.error, undefined);
+  await m.unmount();
+});
+
+test('a pending rotation for one seat never registers the next enabled seat', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  server.records.set(seatB.id, { gameId: seatB.id, deviceId, revision: 3, available: true, enabled: true, bindingId: 'binding-b', incoming: false });
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  await m.rerender(seatB);
+  await act(async () => { gate.resolve(); await gate.promise; });
+  assert.equal(m.out.current!.settings?.gameId, seatB.id);
+  assert.equal(tokenWrites(server, from).length, 0, 'seat B registers only on its own token events');
+  await m.unmount();
+});
+
+test('a queued rotation preserves consent revoked elsewhere after the in-flight write returned it on', async () => {
+  const { fake, server, m } = await enabledWithConsent(false);
+  const gate = deferred<void>(); server.pause.next = gate;
+  await press(() => m.out.current!.setIncoming(true));
+  const from = server.writes.length;
+  await act(async () => fake.rotate('ExponentPushToken[second]'));
+  await act(async () => {
+    gate.resolve(); await gate.promise;
+    const confirmed = server.records.get(seatA.id)!;
+    server.records.set(seatA.id, { ...confirmed, revision: confirmed.revision + 1, incoming: false });
+  });
+  const writes = tokenWrites(server, from);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0]!.body.incoming, false, 'the authoritative revocation wins over the returned response');
+  assert.equal(writes[0]!.body.revision, server.records.get(seatA.id)!.revision - 1);
+  assert.equal(server.records.get(seatA.id)!.incoming, false);
+  assert.equal(m.out.current!.error, undefined);
+  await m.unmount();
+});
