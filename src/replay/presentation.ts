@@ -4,6 +4,7 @@ import type { Faction } from '../game/players';
 import type { ModuleKind } from '../game/modules';
 import type { SpecialistKind } from '../game/specialist-catalog';
 import type { CharacterId } from '../game/characters';
+import { maximumShield } from '../game/economy';
 
 export type ReplayUnit = { id: string; kind: SpecialistKind; owner: Faction; captive?: true };
 type ReplayPoint = { x: number; y: number };
@@ -60,7 +61,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
       if (r.destroyed !== undefined) rock.destroyed = r.destroyed;
       if (r.coreOf !== undefined) rock.coreOf = r.coreOf;
       if (r.shield !== undefined) rock.shield = r.shield;
-      if (r.shieldMax !== undefined) rock.shieldMax = r.shieldMax;
+      if (r.shieldMax !== undefined) rock.shieldMax = maximumShield(r);
       if (r.shieldsDisabled !== undefined) rock.shieldsDisabled = r.shieldsDisabled;
       if (r.module !== undefined) rock.module = r.module;
       if (r.specialists !== undefined) rock.specialists = units(r.specialists);
