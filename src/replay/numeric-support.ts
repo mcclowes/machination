@@ -1,7 +1,8 @@
 /** Private binary64 support tools. No geometry or certificates are serialized. */
+import { openingEnabled, travelProgress } from '../game/opening-clock';
 import { wrappedBounds, type GeometryWorld, type Point } from '../game/geometry';
 
-export type NumericFlight = { from: Point; to: Point; departed: number; arrives: number };
+export type NumericFlight = { from: Point; to: Point; departed: number; arrives: number; mechanicsVersion?: number };
 export type NumericMotion = { position: Point; velocity: Point; source?: NumericFlight; origin?: number; wrapped?: boolean };
 type Bounds = [number, number];
 const bits = new DataView(new ArrayBuffer(8));
@@ -52,7 +53,7 @@ export function motionPosition(motion: NumericMotion, origin: number, hour: numb
   const source = motion.source;
   if (source) {
     if (![source.from.x, source.from.y, source.to.x, source.to.y, source.departed, source.arrives, source.arrives - source.departed, source.to.x - source.from.x, source.to.y - source.from.y].every(Number.isFinite) || source.arrives <= source.departed) throw new UnsupportedVisibilityNumericError();
-    const progress = Math.max(0, Math.min(1, (hour - source.departed) / (source.arrives - source.departed)));
+    const progress = travelProgress({ rules: source }, source.departed, source.arrives, hour);
     return { x: source.from.x + (source.to.x - source.from.x) * progress, y: source.from.y + (source.to.y - source.from.y) * progress };
   }
   return { x: motion.position.x + motion.velocity.x * (hour - (motion.origin ?? origin)), y: motion.position.y + motion.velocity.y * (hour - (motion.origin ?? origin)) };
@@ -90,7 +91,7 @@ export function distanceBounds(world: GeometryWorld, point: NumericMotion, senso
   const map = wrappedBounds(world);
   function axis(key: 'x' | 'y', size?: number): Bounds {
     const a = point.source, b = sensor.source;
-    if (a && b && a.departed === b.departed && a.arrives === b.arrives && a.from[key] === b.from[key] && a.to[key] === b.to[key]) return [0, 0];
+    if (a && b && openingEnabled({ rules: a }) === openingEnabled({ rules: b }) && a.departed === b.departed && a.arrives === b.arrives && a.from[key] === b.from[key] && a.to[key] === b.to[key]) return [0, 0];
     if (!a && !b && point.position[key] === sensor.position[key] && point.velocity[key] === sensor.velocity[key] && (point.origin ?? origin) === (sensor.origin ?? origin)) return [0, 0];
     let pb = ordered(p[0]![key], p[1]![key]), sb = ordered(s[0]![key], s[1]![key]);
     // Only fleetPosition wraps coordinates; plain affine callers use unwrapped coordinates.

@@ -1,3 +1,4 @@
+import { travelProgress } from '../game/opening-clock';
 import { moveReplayScene } from './motion';
 import { sitePosition } from '../game/drift';
 import { nearestImage, wrappedBounds, wrapPoint, type Point } from '../game/geometry';
@@ -68,6 +69,6 @@ export function replayFleetPosition(scene: ReplayScene, fleet: ReplayFleet): Poi
     if (!from || !to) throw new RangeError('Replay fleet endpoints are missing');
     leg = { from, to: wrappedBounds(scene) ? nearestImage(scene, from, to) : to };
   }
-  const progress = Math.max(0, Math.min(1, (scene.hour - fleet.departed) / (fleet.arrives - fleet.departed)));
+  const progress = travelProgress(scene, fleet.departed, fleet.arrives, scene.hour);
   return wrapPoint(scene, { x: leg.from.x + (leg.to.x - leg.from.x) * progress, y: leg.from.y + (leg.to.y - leg.from.y) * progress });
 }
