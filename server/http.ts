@@ -34,7 +34,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
     return service.join(input.invite, token);
   }
-  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover))?$/);
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
   const id = match[1]!, action = match[2];
   switch (req.method) {
@@ -54,6 +54,10 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
           const hour = url.searchParams.get('hour');
           if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
           return service.history(id, token, Number(hour));
+        }
+        case 'notifications': {
+          if ([...url.searchParams.keys()].some(key => key !== 'deviceId') || url.searchParams.getAll('deviceId').length !== 1) throw new Failure(400, 'notification.validation.device', 'Provide exactly one deviceId and no other query parameters.');
+          return service.notificationSettings(id, token, url.searchParams.get('deviceId'));
         }
         default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
@@ -79,6 +83,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'groups': return service.createGroup(id, token, input as CreateGroup);
         case 'channel-messages': return service.channelMessage(id, token, input as ChannelTransmission);
         case 'messages': return service.message(id, token, input as Transmission);
+        case 'notifications': return service.setNotifications(id, token, input);
         default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
     }

@@ -25,6 +25,8 @@ import { replayFits } from '../src/game/replay-save';
 import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
+import type { MessageNotificationSettings } from '../src/online/notification-contract';
+import { claimReceipts, claimSends, detach, enqueue, EXPO_TOKEN, finishReceipts, finishSends, invalidateSeat, isCurrent, newBindingId, NOTIFICATION_LIMITS, release, evict, revisionFloor, seatGeneration, tokenHash, type ReceiptClaim, type ReceiptResult, type SendClaim, type SendResult } from './notifications';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
 const FACTIONS = ALL_PLAYERS;
 export type AccountCredential = { accountId: string };
@@ -75,10 +77,31 @@ function canonicalSchedule(input: unknown): ScheduleOrder {
     ...(value.carryModule !== undefined ? { carryModule: value.carryModule as boolean } : {}),
     ...(value.specialists !== undefined ? { specialists: [...value.specialists as string[]] } : {}) };
 }
+export type ServiceOptions = { notifications?: boolean };
+export type NotificationQueue = {
+  claimSends(owner: string): Promise<SendClaim>;
+  finishSends(lease: string, results: ReadonlyMap<string, SendResult>): Promise<void>;
+  claimReceipts(owner: string): Promise<ReceiptClaim>;
+  finishReceipts(lease: string, results: ReadonlyMap<string, ReceiptResult>): Promise<void>;
+  release(lease: string): Promise<void>;
+};
+const SETTING_KEYS = ['requestId', 'deviceId', 'revision', 'enabled', 'expoPushToken'];
+function canonicalNotificationSetting(input: unknown) {
+  const invalid = () => new Failure(400, 'notification.validation.payload', 'Provide a device, revision, request ID, and a valid push token only when enabling.');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
+  const value = input as Record<string, unknown>;
+  if (Object.keys(value).some(key => !SETTING_KEYS.includes(key)) || !['requestId', 'deviceId', 'revision', 'enabled'].every(key => Object.hasOwn(value, key))
+    || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(value.requestId)
+    || typeof value.deviceId !== 'string' || !/^[a-f0-9]{64}$/.test(value.deviceId)
+    || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 || typeof value.enabled !== 'boolean'
+    || (value.enabled ? typeof value.expoPushToken !== 'string' || !EXPO_TOKEN.test(value.expoPushToken) : Object.hasOwn(value, 'expoPushToken'))) throw invalid();
+  return { requestId: value.requestId, deviceId: value.deviceId, revision: value.revision as number, enabled: value.enabled,
+    ...(value.enabled ? { expoPushToken: value.expoPushToken as string } : {}) };
+}
 export class GameService {
-  private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame) {}
-  static async open(file: string, now = Date.now, initialGame?: typeof createGame): Promise<GameService> {
-    return new GameService(await DatabaseStore.open(file), now, initialGame);
+  private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame, private pushAvailable = false) {}
+  static async open(file: string, now = Date.now, initialGame?: typeof createGame, options: ServiceOptions = {}): Promise<GameService> {
+    return new GameService(await DatabaseStore.open(file), now, initialGame, !!options.notifications);
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
     return this.store.transaction(run);
@@ -186,6 +209,7 @@ export class GameService {
       requireThat(!db.rooms.some(r => r.seats.some(s => s !== seat && s.accountId === account.accountId)), 409, 'account.conflict.assigned', 'Your account already controls another operation.');
       seat.accountId = account.accountId;
       delete seat.recoveryHash; delete seat.recoveryReceipt;
+      invalidateSeat(db, room.id, seat.faction);
       this.settle(room); return this.view(room, seat.faction);
     });
   }
@@ -250,6 +274,7 @@ export class GameService {
       seat.identityHash ??= seat.hash;
       seat.hash = credential; delete seat.recoveryHash;
       seat.recoveryReceipt = { secretHash, credentialHash: credential };
+      invalidateSeat(db, room.id, seat.faction);
       this.settle(room); return this.view(room, seat.faction);
     });
   }
@@ -570,7 +595,9 @@ export class GameService {
         400, 'message.validation.text', 'Transmissions must contain 1 to 1,000 characters.');
       if (this.receipt(r, f, command.requestId, JSON.stringify(['channel-message', command.channelId, command.text]))) return this.view(r, f);
       const messages = group ? group.messages : d.publicMessages;
-      messages.push({ id: randomBytes(16).toString('hex'), from: f, text: command.text.trim(), sentAt: this.now() });
+      const messageId = randomBytes(16).toString('hex');
+      messages.push({ id: messageId, from: f, text: command.text.trim(), sentAt: this.now() });
+      this.notify(db, r, (group ? group.members : r.seats.map(s => s.faction)).filter(member => member !== f), `channel:${command.channelId}:${messageId}`);
       messages.splice(0, Math.max(0, messages.length - DIPLOMACY_LIMITS.messagesPerChannel));
       this.touch(r, f);
       return this.view(r, f);
@@ -584,8 +611,70 @@ export class GameService {
       if (this.receipt(r, f, command.requestId, JSON.stringify(['message', command.to, command.text]))) return this.view(r, f);
       requireThat(r.messages.length < 5000, 409, 'message.capacity.reached', 'This operation has reached its transmission limit.');
       r.messages.push({ id: r.messages.length + 1, from: f, to: command.to, text: command.text.trim(), sentAt: this.now() });
+      this.notify(db, r, [command.to], `message:${r.messages.length}`);
       this.touch(r, f);
       return this.view(r, f);
     });
+  }
+  // Notification enqueue shares the message transaction; any failure skips delivery and keeps the message.
+  private notify(db: Database, room: Room, audience: Faction[], messageRef: string): void {
+    if (!this.pushAvailable) return;
+    try { enqueue(db, room, audience, messageRef, this.now()); }
+    catch (error) { console.error('Notification enqueue skipped', (error as Error).name); }
+  }
+  private notificationView(db: Database, room: Room, faction: Faction, deviceId: string): MessageNotificationSettings {
+    const binding = db.notifications?.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === deviceId);
+    const enabled = !!binding?.enabled && isCurrent(db, binding);
+    return { gameId: room.id, deviceId, revision: binding?.revision ?? revisionFloor(db.notifications, room.id, faction), available: this.pushAvailable, enabled, ...(enabled ? { bindingId: binding!.id } : {}) };
+  }
+  // Preferences never settle time, renew activity, change order revisions, or enter replay.
+  notificationSettings(id: string, token: Credential, deviceId: unknown): Promise<MessageNotificationSettings> {
+    requireThat(typeof deviceId === 'string' && /^[a-f0-9]{64}$/.test(deviceId), 400, 'notification.validation.device', 'Provide this installation\'s device ID.');
+    return this.transaction(db => { const room = this.room(db, id); return this.notificationView(db, room, this.seat(room, token), deviceId); });
+  }
+  async setNotifications(id: string, token: Credential, input: unknown): Promise<MessageNotificationSettings> {
+    const command = canonicalNotificationSetting(input);
+    return this.transaction(db => {
+      const room = this.room(db, id); const faction = this.seat(room, token);
+      const seat = room.seats.find(s => s.faction === faction)!;
+      const state = db.notifications ??= { bindings: [], jobs: [] };
+      let binding = state.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === command.deviceId);
+      const payload = JSON.stringify(['notifications', command.revision, command.enabled, command.expoPushToken ? tokenHash(command.expoPushToken) : null]);
+      const prior = binding?.requests.find(r => r.id === command.requestId);
+      requireThat(!prior || prior.payload === payload, 409, 'command.conflict.reused_id', 'This command ID was used for different content.');
+      if (prior) return this.notificationView(db, room, faction, command.deviceId);
+      requireThat(command.revision === (binding?.revision ?? revisionFloor(state, room.id, faction)), 409, 'notification.conflict.stale', 'Notification settings changed. Refresh before changing them.');
+      requireThat(!command.enabled || this.pushAvailable, 503, 'notification.unavailable.delivery', 'This server does not deliver notifications.');
+      if (!binding) {
+        const own = state.bindings.filter(b => b.roomId === room.id && b.faction === faction);
+        if (own.length >= NOTIFICATION_LIMITS.devicesPerSeat) {
+          const oldest = own.filter(b => !b.enabled || !isCurrent(db, b)).sort((a, b) => a.updatedAt - b.updatedAt)[0];
+          requireThat(oldest, 409, 'notification.capacity.devices', `Message notifications are limited to ${NOTIFICATION_LIMITS.devicesPerSeat} devices per seat. Disable one first.`);
+          evict(state, oldest);
+        }
+        requireThat(state.bindings.length < NOTIFICATION_LIMITS.bindings, 503, 'notification.capacity.reached', 'This server has reached its notification device limit.');
+        binding = { id: newBindingId(), roomId: room.id, faction, deviceId: command.deviceId, generation: seatGeneration(seat), revision: command.revision, enabled: false, updatedAt: this.now(), requests: [] };
+        state.bindings.push(binding);
+      }
+      if (!isCurrent(db, binding)) { detach(state, binding); binding.generation = seatGeneration(seat); }
+      if (command.enabled) {
+        const token = command.expoPushToken!;
+        for (const other of state.bindings) if (other !== binding && other.token === token) detach(state, other);
+        if (!binding.enabled) binding.id = newBindingId();
+        binding.enabled = true; binding.token = token;
+      } else detach(state, binding);
+      binding.revision++; binding.updatedAt = this.now();
+      binding.requests = [...binding.requests, { id: command.requestId, payload }].slice(-NOTIFICATION_LIMITS.requestsPerBinding);
+      return this.notificationView(db, room, faction, command.deviceId);
+    });
+  }
+  notificationQueue(): NotificationQueue {
+    return {
+      claimSends: owner => this.transaction(db => claimSends(db, owner, this.now())),
+      finishSends: (lease, results) => this.transaction(db => finishSends(db, lease, results, this.now())),
+      claimReceipts: owner => this.transaction(db => claimReceipts(db, owner, this.now())),
+      finishReceipts: (lease, results) => this.transaction(db => finishReceipts(db, lease, results, this.now())),
+      release: lease => this.transaction(db => release(db, lease, this.now())),
+    };
   }
 }
