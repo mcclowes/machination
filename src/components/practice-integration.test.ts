@@ -104,6 +104,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Skip dialogue');
     assert.equal(hosts('Modal').length, 0);
     assert.match(visible(), /Launch drones from Foundry/);
+    assert.equal(hosts('Pressable').find(node => text(node) === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
     await press(/^Quiet landing,/);
     await press('Units');
@@ -232,6 +233,15 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.equal(hosts('TextInput').find(node => node.props.accessibilityLabel === 'Drones to dispatch')!.props.value, '6');
     await press('Prepare launch · 10m');
     assert.ok(hosts('Pressable').some(node => /hauler, preparing launch, 6 drones/.test(node.props.accessibilityLabel ?? '')), 'The drag-based command submits the adjusted manifest');
+    await press(/hauler, preparing launch, 6 drones/);
+    await press('Jump to hauler arrival');
+    assert.match(visible(), /Forecast/);
+    await press('Resolve orders');
+    assert.match(visible(), /Exercise complete/);
+    assert.doesNotMatch(visible(), /Forecast/, 'Resolving returns to the actual outcome');
+    assert.match(mapSite('Quiet landing').props.accessibilityLabel, /Mnemosyne, 2 drones/);
+    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false, 'Completed attempts cannot resolve twice');
+    if (hosts('Modal').length) await press('Skip dialogue');
     await press('All exercises');
     assert.match(visible(), /1\. Open a foothold · completed/);
     assert.deepEqual(writes, [progressKey]); quiet();
@@ -248,6 +258,19 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.match(visible(), /The position held/);
     await press('Return to chart');
     assert.deepEqual(writes, [progressKey], 'Failure dialogue never awards completion');
+    quiet();
+    await press('Retry exercise');
+    await press('Skip dialogue');
+    await press(/^Foundry,/);
+    await input('Drones to dispatch', '8');
+    await press('Plan transfer ↗');
+    await press(/^Quiet landing,/);
+    await press('Prepare launch · 10m');
+    await press('Resolve orders');
+    assert.match(visible(), /Try another plan/);
+    assert.match(visible(), /D01 · 06:00/, 'An unsuccessful plan resolves to the deadline');
+    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false);
+    assert.deepEqual(writes, [progressKey], 'Resolving an unsuccessful plan never awards completion');
     quiet();
   } finally {
     if (renderer) await act(async () => renderer.unmount());

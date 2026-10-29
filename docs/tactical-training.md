@@ -10,6 +10,8 @@ Initial exercises cover a first launch and capture, shields plus defending drone
 
 Practice never loads or saves the solo operation, reads or changes multiplayer credentials, submits HTTP commands, advances by wall time, or continues after an attempt finishes. Retrying recreates the same baseline and discards only that attempt. Completion marks use a separate validated storage key; storage errors don't become completed exercises. Leaving practice returns to the existing solo save or multiplayer connection through their normal lifecycle.
 
+After submitting a launch or queued order, **Resolve orders** runs the actual clock until the first assessed outcome or the deadline. It works from a future preview and returns to the actual chart with planning panels closed. An unsuccessful plan reaches the deadline and offers a retry. Empty plans and historical views cannot resolve. The smaller clock steps remain available for inspecting a plan as it unfolds; jumping to an arrival still only previews it.
+
 ## Engine interface
 
 `src/game/training.ts` owns scenario definitions, deterministic creation, and assessment. It exports `TRAINING_SCENARIOS`, `TrainingId`, `TrainingScenario`, `createTrainingAttempt(id): LocalOperation`, and `assessTrainingAttempt(id, operation): { status: 'active' | 'passed' | 'failed'; message: string }`.

@@ -213,16 +213,17 @@ function Operation({ practice, onOpenReplays }: { practice?: PracticeAttempt; on
     try { act({ type: 'install-module', owner: 'you', rock: selected, kind }); setError(''); }
     catch (e) { setError((e as Error).message); }
   }
-  function advanceClock(hours: number) {
-    if (!operational || practice && inspectedHour !== null) return;
-    try { lastTick.current = Date.now(); replace(policy.advance(current.current, current.current.game.hour + hours, 'manual')); setInspectedHour(null); setPlanning(false); setNavigating(undefined); setDestination(undefined); setError(''); }
+  const canResolvePractice = !!practice && operational && (game.fleets.some(f => f.owner === 'you') || !!game.scheduled?.some(p => p.owner === 'you'));
+  function advanceClock(hours: number, resolveOrders = false) {
+    if (!operational || practice && inspectedHour !== null && !resolveOrders || resolveOrders && !canResolvePractice) return;
+    try { lastTick.current = Date.now(); replace(policy.advance(current.current, current.current.game.hour + hours, 'manual')); setInspectedHour(null); setPlanning(false); setNavigating(undefined); setDestination(undefined); if (resolveOrders) setSection(null); setError(''); }
     catch (error) { setError((error as Error).message); }
   }
   function skip() { advanceClock(6); }
 
   return <View style={s.safe}>
     <OperationShell portraits={shown.rules?.portraits} section={section} onSection={setSection}
-      status={(practice || error || outcomeMessage) ? <>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
+      status={(practice || error || outcomeMessage) ? <>{practice && assessment ? <PracticeStatus {...practice} status={assessment.status} message={assessment.message} hour={game.hour} inspected={inspectedHour !== null} canResolve={canResolvePractice} onResolve={() => advanceClock(practice.scenario.deadline - game.hour, true)} onAdvance={advanceClock} onNow={() => inspectTime(null)} /> : <View style={s.between}><Text style={s.mono}>The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}</Text><Text style={s.clock}>{clock(shown.hour)}</Text></View>}{!!error && <View style={s.notice}><Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>{error}</Text><Button label={practice ? 'Dismiss' : loadFailed ? 'Reset save' : 'Retry save'} quiet onPress={() => practice ? setError('') : loadFailed ? setReset(true) : policy.save(operation).then(() => setError('')).catch(() => setError('Save still unavailable.'))} /></View>}
 {!practice && !!outcomeMessage && <View style={s.notice}><Text accessibilityRole="alert" style={{ color: green, flex: 1 }}>{outcomeMessage}</Text><Button label="New operation" onPress={() => setReset(true)} quiet /></View>}</> : null}
       chart={<BeltMap fill viewport={{ camera: mapCamera, onChange: setMapCamera }} inspectFleet={inspectFleet} inspecting={section === 'asset'} transferRoute={transfer?.route} timeInspection={{ liveHour: game.hour, historyStart, onInspect: inspectTime }} player="you" onInspectFleet={() => setSection(null)} onManageFleet={() => setSection('orders')} onTransfer={operational && !shown.winner && !shown.draw && navigating === undefined ? prepareTransfer : undefined} game={shown} selected={selected} destination={destination} onSelect={select} />}
       hint={(planning && !destination || navigating !== undefined) ? <><Text style={s.mapHintText}>{navigating !== undefined ? 'Select a new course destination' : `From ${rock.name}: choose destination`}</Text><Button label="Cancel selection" quiet onPress={() => { setNavigating(undefined); setPlanning(false); setSection('asset'); }} /></> : undefined}
