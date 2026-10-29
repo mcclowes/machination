@@ -6,7 +6,8 @@
  * ---
  */
 import { verifyToken } from '@clerk/backend';
-import { Failure, type AccountCredential } from './service';
+import type { AccountCredential } from './service';
+import { Failure } from './failure';
 
 export type AccountAuthentication = (token: string, origin?: string) => Promise<AccountCredential>;
 type Configuration = { CLERK_SECRET_KEY?: string; CLERK_JWT_KEY?: string; CLERK_ISSUER?: string };

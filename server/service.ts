@@ -1,6 +1,9 @@
 /**
  * ---
  * purpose: Authorize multiplayer seats, settle server time, and orchestrate durable game and diplomacy commands.
+ * related:
+ *   - ./database.ts - serialized atomic persistence
+ *   - ./notification-preferences.ts - notification binding and consent updates
  * ---
  */
 import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
@@ -26,18 +29,16 @@ import type { HistorySnapshot } from '../src/online/protocol';
 import type { FundingOrder } from '../src/online/protocol';
 import { DIPLOMACY_LIMITS } from '../src/online/protocol';
 import type { MessageNotificationSettings } from '../src/online/notification-contract';
-import { acceptsIncoming, claimReceipts, claimSends, detach, enqueue, enqueueIncoming, EXPO_TOKEN, finishReceipts, finishSends, incomingLedger, invalidateSeat, isCurrent, newBindingId, NOTIFICATION_LIMITS, release, evict, revisionFloor, seatGeneration, setIncomingLedger, tokenHash, type IncomingAlert, type Job, type ReceiptClaim, type ReceiptResult, type SendClaim, type SendResult } from './notifications';
+import { claimReceipts, claimSends, enqueue, enqueueIncoming, finishReceipts, finishSends, incomingLedger, invalidateSeat, NOTIFICATION_LIMITS, release, seatAcceptsIncoming, setIncomingLedger, type IncomingAlert, type Job, type ReceiptClaim, type ReceiptResult, type SendClaim, type SendResult } from './notifications';
 import { hostileIncoming, incomingBody } from './incoming';
 import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../src/online/protocol';
+import { Failure, requireThat } from './failure';
+import { canonicalNotificationSetting, notificationPreferenceView, setNotificationPreferences, type NotificationVersion } from './notification-preferences';
+export { Failure } from './failure';
+export type { NotificationVersion } from './notification-preferences';
 const FACTIONS = ALL_PLAYERS;
 export type AccountCredential = { accountId: string };
 type Credential = string | AccountCredential;
-export class Failure extends Error {
-  constructor(public status: number, public code: string, message: string) { super(message); }
-}
-function requireThat(condition: unknown, status: number, code: string, message: string): asserts condition {
-  if (!condition) throw new Failure(status, code, message);
-}
 const matchesHash = (expected: string | undefined, actual: string) => expected !== undefined && timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(actual, 'hex'));
 const hash = (token: string) => createHash('sha256').update(token).digest('hex');
 function canonicalSchedule(input: unknown): ScheduleOrder {
@@ -88,24 +89,6 @@ export type NotificationQueue = {
   finishReceipts(lease: string, results: ReadonlyMap<string, ReceiptResult>): Promise<void>;
   release(lease: string): Promise<void>;
 };
-const SETTING_KEYS = ['requestId', 'deviceId', 'revision', 'enabled', 'expoPushToken'];
-export type NotificationVersion = 1 | 2;
-function canonicalNotificationSetting(input: unknown, version: NotificationVersion = 1) {
-  const invalid = () => new Failure(400, 'notification.validation.payload', version === 2
-    ? 'Provide a device, revision, request ID, incoming consent, and a valid push token only when enabling.'
-    : 'Provide a device, revision, request ID, and a valid push token only when enabling.');
-  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalid();
-  const value = input as Record<string, unknown>;
-  const keys = version === 2 ? [...SETTING_KEYS, 'incoming'] : SETTING_KEYS;
-  if (version === 2 && (typeof value.incoming !== 'boolean' || value.incoming && value.enabled !== true)) throw invalid();
-  if (Object.keys(value).some(key => !keys.includes(key)) || !['requestId', 'deviceId', 'revision', 'enabled'].every(key => Object.hasOwn(value, key))
-    || typeof value.requestId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(value.requestId)
-    || typeof value.deviceId !== 'string' || !/^[a-f0-9]{64}$/.test(value.deviceId)
-    || !Number.isSafeInteger(value.revision) || (value.revision as number) < 0 || typeof value.enabled !== 'boolean'
-    || (value.enabled ? (version === 2 && !Object.hasOwn(value, 'expoPushToken') ? false : typeof value.expoPushToken !== 'string' || !EXPO_TOKEN.test(value.expoPushToken)) : Object.hasOwn(value, 'expoPushToken'))) throw invalid();
-  return { requestId: value.requestId, deviceId: value.deviceId, revision: value.revision as number, enabled: value.enabled,
-    ...(value.enabled && typeof value.expoPushToken === 'string' ? { expoPushToken: value.expoPushToken as string } : {}), ...(version === 2 ? { incoming: value.incoming as boolean } : {}) };
-}
 export class GameService {
   private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame, private pushAvailable = false) {}
   static async open(file: string, now = Date.now, initialGame?: typeof createGame, options: ServiceOptions = {}): Promise<GameService> {
@@ -158,9 +141,6 @@ export class GameService {
       if (room.game.version === 2) for (const seat of room.seats) seat.lastActiveHour ??= room.game.hour;
     }
   }
-  private consenting(db: Database, room: Room, faction: Faction): boolean {
-    return !!db.notifications?.bindings.some(b => b.roomId === room.id && b.faction === faction && acceptsIncoming(db, b));
-  }
   /** Diffs each consenting seat's observed threats against its ledger. Seats without a ledger seed silently. */
   private trackIncoming(db: Database, room: Room): void {
     const state = db.notifications;
@@ -170,7 +150,7 @@ export class GameService {
       const ledgers: [Faction, string[] | undefined][] = [];
       for (const seat of room.seats) {
         const ledger = incomingLedger(state, room.id, seat.faction);
-        if (!this.consenting(db, room, seat.faction)) { if (ledger) ledgers.push([seat.faction, undefined]); continue; }
+        if (!seatAcceptsIncoming(db, room.id, seat.faction)) { if (ledger) ledgers.push([seat.faction, undefined]); continue; }
         const threats = [...hostileIncoming(room.game, seat.faction)].slice(0, NOTIFICATION_LIMITS.incomingKeysPerSeat);
         if (ledger) {
           const known = new Set(ledger.keys);
@@ -201,7 +181,7 @@ export class GameService {
     });
     return settled;
   }
-  private acceptsIncomingRoom = (db: Database) => (room: Room) => room.seats.some(seat => this.consenting(db, room, seat.faction));
+  private acceptsIncomingRoom = (db: Database) => (room: Room) => room.seats.some(seat => seatAcceptsIncoming(db, room.id, seat.faction));
   /** Zero-client settlement for rooms with incoming consent; skips the write when none qualify. */
   async settleIncoming(): Promise<number> {
     if (!this.pushAvailable) return 0;
@@ -691,62 +671,19 @@ export class GameService {
     try { enqueue(db, room, audience, messageRef, this.now()); }
     catch (error) { console.error('Notification enqueue skipped', (error as Error).name); }
   }
-  private notificationView(db: Database, room: Room, faction: Faction, deviceId: string, version: NotificationVersion = 1): MessageNotificationSettings {
-    const binding = db.notifications?.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === deviceId);
-    const enabled = !!binding?.enabled && isCurrent(db, binding);
-    return { gameId: room.id, deviceId, revision: binding?.revision ?? revisionFloor(db.notifications, room.id, faction), available: this.pushAvailable, enabled,
-      ...(version === 2 ? { incoming: enabled && binding!.incoming === true } : {}), ...(enabled ? { bindingId: binding!.id } : {}) };
-  }
   // Preferences never settle time, renew activity, change order revisions, or enter replay.
   notificationSettings(id: string, token: Credential, deviceId: unknown, version: NotificationVersion = 1): Promise<MessageNotificationSettings> {
     requireThat(typeof deviceId === 'string' && /^[a-f0-9]{64}$/.test(deviceId), 400, 'notification.validation.device', 'Provide this installation\'s device ID.');
-    return this.transaction(db => { const room = this.room(db, id); return this.notificationView(db, room, this.seat(room, token), deviceId, version); });
+    return this.transaction(db => { const room = this.room(db, id); return notificationPreferenceView(db, room.id, this.seat(room, token), deviceId, { version, available: this.pushAvailable }); });
   }
   /** Version 1 keeps its exact shape: enabling or rotating a token preserves incoming consent, and disabling clears it. */
   async setNotifications(id: string, token: Credential, input: unknown, version: NotificationVersion = 1): Promise<MessageNotificationSettings> {
     const command = canonicalNotificationSetting(input, version);
     return this.transaction(db => {
       const room = this.room(db, id); const faction = this.seat(room, token);
-      const seat = room.seats.find(s => s.faction === faction)!;
-      const state = db.notifications ??= { bindings: [], jobs: [] };
-      let binding = state.bindings.find(b => b.roomId === room.id && b.faction === faction && b.deviceId === command.deviceId);
-      const payload = JSON.stringify(['notifications', command.revision, command.enabled, command.expoPushToken ? tokenHash(command.expoPushToken) : command.enabled ? 'retain-token' : null,
-        ...(command.incoming === undefined ? [] : ['incoming', command.incoming])]);
-      const prior = binding?.requests.find(r => r.id === command.requestId);
-      requireThat(!prior || prior.payload === payload, 409, 'command.conflict.reused_id', 'This command ID was used for different content.');
-      if (prior) return this.notificationView(db, room, faction, command.deviceId, version);
-      const hadConsent = this.consenting(db, room, faction);
-      requireThat(command.revision === (binding?.revision ?? revisionFloor(state, room.id, faction)), 409, 'notification.conflict.stale', 'Notification settings changed. Refresh before changing them.');
-      // A version-2 consent change without a token only edits an existing enabled, current binding; it never attaches a device.
-      const flagOnly = command.enabled && command.expoPushToken === undefined;
-      if (flagOnly) requireThat(binding?.enabled && binding.token && isCurrent(db, binding), 409, 'notification.conflict.unbound', 'Enable notifications on this device before changing attack alerts.');
-      requireThat(!command.enabled || this.pushAvailable || flagOnly && command.incoming === false, 503, 'notification.unavailable.delivery', 'This server does not deliver notifications.');
-      if (!binding) {
-        const own = state.bindings.filter(b => b.roomId === room.id && b.faction === faction);
-        if (own.length >= NOTIFICATION_LIMITS.devicesPerSeat) {
-          const oldest = own.filter(b => !b.enabled || !isCurrent(db, b)).sort((a, b) => a.updatedAt - b.updatedAt)[0];
-          requireThat(oldest, 409, 'notification.capacity.devices', `Message notifications are limited to ${NOTIFICATION_LIMITS.devicesPerSeat} devices per seat. Disable one first.`);
-          evict(state, oldest);
-        }
-        requireThat(state.bindings.length < NOTIFICATION_LIMITS.bindings, 503, 'notification.capacity.reached', 'This server has reached its notification device limit.');
-        binding = { id: newBindingId(), roomId: room.id, faction, deviceId: command.deviceId, generation: seatGeneration(seat), revision: command.revision, enabled: false, updatedAt: this.now(), requests: [] };
-        state.bindings.push(binding);
-      }
-      if (!isCurrent(db, binding)) { detach(state, binding); binding.generation = seatGeneration(seat); }
-      if (command.enabled) {
-        const token = command.expoPushToken ?? binding.token!;
-        for (const other of state.bindings) if (other !== binding && other.token === token) detach(state, other);
-        if (!binding.enabled) binding.id = newBindingId();
-        binding.enabled = true; binding.token = token;
-        if (command.incoming === true) binding.incoming = true;
-        else if (command.incoming === false) { delete binding.incoming; state.jobs = state.jobs.filter(job => job.bindingId !== binding!.id || job.kind !== 'incoming'); }
-      } else detach(state, binding);
-      binding.revision++; binding.updatedAt = this.now();
-      binding.requests = [...binding.requests, { id: command.requestId, payload }].slice(-NOTIFICATION_LIMITS.requestsPerBinding);
-      const hasConsent = this.consenting(db, room, faction);
-      if (!hasConsent) setIncomingLedger(state, room.id, faction, undefined);
-      else if (!hadConsent) this.seedIncoming(db, room, faction);
-      return this.notificationView(db, room, faction, command.deviceId, version);
+      const result = setNotificationPreferences(db, room, faction, command, { version, available: this.pushAvailable, now: () => this.now() });
+      if (result.seedIncoming) this.seedIncoming(db, room, faction);
+      return result.settings;
     });
   }
   notificationQueue(): NotificationQueue {

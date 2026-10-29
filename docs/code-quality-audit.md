@@ -42,3 +42,29 @@ Characterized persistence concurrency, caller mutation isolation, legacy default
 - All three standalone-server build tests passed, including offline restoration and Clerk session restoration.
 
 Native-device layout and gestures weren't exercised. No layout or gesture handlers changed.
+
+## Notification follow-up
+
+The same goal was revisited against `e0707cb`, after account, notification, combat-report, and specialist work expanded the production tree to 149 TypeScript files. Indexed the current tree and revisited the service, notification lifecycle, operation screens, and simulation/combat boundaries. The original review remains the record for unchanged areas; this follow-up doesn't claim a fresh line-by-line review of every file.
+
+### Changes
+
+- **Responsibilities:** preference decoding, binding views, revisions, token ownership, device limits, and consent changes now belong to `server/notification-preferences.ts`. Its transaction-local interface accepts an authorized seat and returns settings plus whether incoming threats need seeding. `GameService` retains authorization, transaction ownership, time advancement, and threat seeding. The preference module needs no service callbacks or persistence access.
+- **Responsibilities:** `server/failure.ts` owns the failure class shared by authentication, HTTP, preferences, and service commands. Existing service exports retain the same class identity for callers.
+- **Branching:** token validation previously nested two ternaries and consulted token-property presence in two alternative paths. It now resolves presence once, then uses two guards for disabled requests and requests requiring a token. Ternary nesting falls from two levels to zero; the guards have no nested statements. Version-two omission still means a consent-only update, while an explicitly invalid token is rejected.
+- **Shared policy:** settlement and preferences consult the same seat-consent predicate in `server/notifications.ts`.
+
+### Boundaries retained
+
+Notification delivery and durable-state validation remain in `server/notifications.ts`: their lease, expiry, token, and retry invariants share one state model. The client notification hook retains its async lifecycle because cancellation, seat changes, queued token rotations, and confirmed revisions must coordinate. Local and online screens retain their different authority models. Combat and simulation retain their ordered transitions. None warrants splitting solely to reduce file size.
+
+Pre-existing `BeltMap`, map-layering test, and `PracticeDialogue` changes remain outside this refactor. Game rules, rendered output, API payloads, errors, persisted formats, and public service signatures are preserved.
+
+### Evidence
+
+- Before extraction, two added service tests passed for omitted versus invalid tokens, validation before authorization, atomic preference rollback, identical retries, and restart.
+- All 46 focused preference, incoming-alert, delivery-worker, account, and HTTP-routing tests passed after extraction.
+- A direct comparison against the original decoder matched accepted values and failure status/code/message across 648 combinations of versions, enablement, consent, and omitted/invalid/valid tokens.
+- TypeScript, server frontmatter validation, and the web production export passed.
+- Final `npm run check` passed: 1,045 behavior tests, TypeScript, and three standalone server build/restart tests. No tests failed or were skipped. The shared-tree count includes the pre-existing map-layering test. The acceptance runtime was Node 24.14.1.
+- Native delivery and device interactions weren't exercised; this refactor changes server ownership only.

@@ -86,6 +86,8 @@ const deliverable = (db: Database, binding: Binding | undefined): binding is Bin
   !!binding && binding.enabled && !!binding.token && isCurrent(db, binding);
 export const acceptsIncoming = (db: Database, binding: Binding | undefined): binding is Binding & { token: string; incoming: true } =>
   deliverable(db, binding) && binding.incoming === true;
+export const seatAcceptsIncoming = (db: Database, roomId: string, faction: Faction): boolean =>
+  !!db.notifications?.bindings.some(b => b.roomId === roomId && b.faction === faction && acceptsIncoming(db, b));
 const jobDeliverable = (db: Database, job: Job, binding: Binding | undefined) => job.kind === 'incoming' ? acceptsIncoming(db, binding) : deliverable(db, binding);
 export const incomingLedger = (state: NotificationState | undefined, roomId: string, faction: Faction) =>
   state?.incoming?.find(l => l.roomId === roomId && l.faction === faction);
