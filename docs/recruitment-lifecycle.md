@@ -22,6 +22,14 @@ The [v42.2 notes](https://www.secretplan.com/subterfuge-news/rules-v42-2.html) e
 
 The publisher-linked [Tutorial 2: Combat and specialists](https://vimeo.com/111760398) is another primary footage source, uploaded November 13, 2014. A partial visual review in Chrome now works despite the scripted-fetch block. The confirmed 04:08 frame shows a contextual Combat report, tracked in [#71](https://github.com/mcclowes/machination/issues/71), but the sampled frames do not resolve hiring or cancellation. The full recruitment sequence remains unreviewed; this is not evidence that those controls are absent. Its alpha-era behavior still needs comparison with current rules.
 
+## Mobile gallery and historical FAQ follow-up
+
+The publisher's [Google Play gallery](https://play.google.com/store/apps/details?id=com.snappytouch.subterfuge), image 7 in the October 29 capture, shows a Queen card with one unused hire and separate three-icon rows labeled Current hire options and Next hire options. The [Apple gallery](https://apps.apple.com/us/app/subterfuge/id702951905) also shows a next-hire row. This directly establishes a published preview approach. Machination exposes only current offers and the next credit time, so the missing preview is an implementation gap. Whether the displayed set changes after a choice, promotion, cancellation, or credit accumulation remains unverified; the images do not specify generation or depletion. Showing a hypothetical draw as a known future offer would be misleading.
+
+A [June 2016 community FAQ](https://herbertzhb.wordpress.com/2016/06/28/subterfuge-2/) corroborates a current/next display, describes visible launches and hires during a confirmation period, and reports an unsupported future-promotion finalization action. These are historical secondary leads. Visibility does not establish ability activation, and an unsupported action does not establish absence of its control. The rulebook's silence about undo does not contradict these leads or prove immediate permanence. The original forum discussion about future-hire finalization remains inaccessible.
+
+The gallery sweep reviewed five iPhone images, five iPad variants, and ten Google Play images. Local images and URL manifests are `/tmp/machination-mobile-reference/{apple-images,google-images}.json`; the explicit Queen preview is `google-7-large.png`. No reviewed gallery image establishes cancellation refunds, the deadline clock, or finalization behavior. The corrected source trace is `/tmp/machination-faq-trace/FINDINGS.md`.
+
 ## Behavior to resolve before implementation
 
 | Question | Required observation |
