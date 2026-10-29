@@ -9,7 +9,7 @@ import { validPortraits, type CharacterId } from './characters';
 export type GameOptions = { playerCount: number; mode: 'mining' | 'domination'; portraits?: CharacterId[]; driftingBases?: boolean };
 export type GameRules = { mechanicsVersion?: 2 | 3 | 4 | 5 | 6; players: Faction[]; portraits?: CharacterId[]; mode: GameOptions['mode']; victoryTarget: number; map: MapGeometry & { generator: 'balanced.v1' | 'balanced.v2'; seed: number } };
 export type PublicRules = Omit<GameRules, 'map'> & { map: Omit<GameRules['map'], 'seed'> };
-export const DEFAULT_GAME_OPTIONS: GameOptions = { playerCount: 3, mode: 'mining', driftingBases: true };
+export const DEFAULT_GAME_OPTIONS: GameOptions = { playerCount: 3, mode: 'mining', driftingBases: false };
 export const OUTPOSTS_PER_PLAYER = 10;
 export function validateOptions(value: unknown): GameOptions {
   const v = value as Partial<GameOptions> | null;

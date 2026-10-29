@@ -40,6 +40,7 @@ test('drifting rooms retain setup, rendezvous, observations, and history through
   assert.deepEqual(forecast.rocks.find(r => r.id === target.id), captured);
   service = await GameService.open(file, () => now);
   assert.deepEqual((await service.snapshot(room.id, host)).game, live.game);
+  assert.deepEqual((await service.create(host)).game, live.game, 'omitting setup on retry retains an existing drifting room');
   const past = await service.history(room.id, host, 0);
   assert.deepEqual(past.game.rocks.find(r => r.id === target.id)!.drift, target.drift);
   assert.ok(worldDistance(past.game, past.game.rocks.find(r => r.id === target.id)!, target) < 1e-8);

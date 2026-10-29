@@ -43,7 +43,7 @@ test('ten-seat domination rooms preserve immutable setup, authorize every seat, 
   assert.equal((await service.snapshot(created.id, tokens[9]!)).game.draw, true);
 });
 
-test('HTTP setup validates options and starts a two-player game while defaults remain a three-player mining game', async t => {
+test('HTTP setup validates options and defaults to a stationary three-player mining game', async t => {
   const { createApi } = await import('./http');
   const { once } = await import('node:events');
   const dir = await mkdtemp(join(tmpdir(), 'machination-config-http-')); t.after(() => rm(dir, { recursive: true, force: true }));
@@ -67,4 +67,10 @@ test('HTTP setup validates options and starts a two-player game while defaults r
   assert.equal(JSON.stringify(started.data).includes('"seed"'), false);
   const defaults = await post('games', randomBytes(32).toString('hex'), {});
   assert.equal(defaults.status, 200); assert.equal(defaults.data.game.rules.players.length, 3); assert.equal(defaults.data.game.rules.mode, 'mining'); assert.equal(defaults.data.game.rocks.length, 30);
+  assert.equal(defaults.data.game.rules.mechanicsVersion, 5);
+  assert.ok(defaults.data.game.rocks.every((rock: { drift?: unknown }) => !rock.drift));
+  const variant = await post('games', randomBytes(32).toString('hex'), { options: { playerCount: 2, mode: 'mining', driftingBases: true } });
+  assert.equal(variant.status, 200);
+  assert.equal(variant.data.game.rules.mechanicsVersion, 6);
+  assert.equal(variant.data.game.rocks.filter((rock: { drift?: unknown }) => rock.drift).length, 4);
 });
