@@ -9,7 +9,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SPECIALISTS, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
-import { SpecialistIcon } from './Artwork';
+import { SpecialistIcon } from './SpecialistIcon';
 
 const kinds = Object.keys(SPECIALISTS) as SpecialistKind[];
 const groups = [

@@ -6,7 +6,7 @@ import type { GameView, ObservedRock } from '../game/visibility';
 import { recruitmentStatus } from '../game/specialists';
 import { SPECIALISTS, promotion, type SpecialistKind } from '../game/specialist-catalog';
 import { gameClock } from '../game/time-machine';
-import { SpecialistIcon } from './Artwork';
+import { SpecialistIcon } from './SpecialistIcon';
 import { RecruitmentOffers } from './SpecialistBay';
 
 export type SpecialistPanelProps = {

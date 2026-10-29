@@ -10,7 +10,7 @@ import { gameClock } from '../game/time-machine';
 import { recruitmentStatus } from '../game/specialists';
 import type { Faction, Game, Rock } from '../game/simulation';
 import type { GameView } from '../game/visibility';
-import { SpecialistIcon } from './Artwork';
+import { SpecialistIcon } from './SpecialistIcon';
 
 export type SpecialistBayProps = {
   game: Game | GameView; rock: Rock; owner: Faction; enabled: boolean;

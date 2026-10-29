@@ -1,29 +1,11 @@
-/** Project scenes, specialist insignia, and the complete in-game art archive. */
+/** Project scenes and the complete in-game art archive. */
 import React, { useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { SpecialistKind } from '../game/specialist-catalog';
-import { ARTWORK, ARTWORK_SOURCES, type ArtworkId } from './artwork-catalog';
+import { ARTWORK, type ArtworkId } from './artwork-catalog';
 
 export function ArtworkImage({ id }: { id: ArtworkId }) {
   const image = ARTWORK.find(entry => entry.id === id)!;
   return <View style={s.frame}><Image source={image.source} accessibilityLabel={image.title} resizeMode="contain" style={s.image} /></View>;
-}
-
-const specialistIcons = {
-  queen: 9, diplomat: 17, elder: 12, foreman: 6, engineer: 7, pirate: 13,
-  lieutenant: 1, general: 10, princess: 0, infiltrator: 5, warHero: 10,
-  sentry: 15, intelligence: 0, tinkerer: 14, energy: 11, saboteur: 2,
-  assassin: 1, inspector: 8, security: 9, doubleAgent: 4, thief: 14,
-  smuggler: 13, tycoon: 6, navigator: 12, admiral: 13, martyr: 10,
-  helmsman: 13, hypnotist: 3, king: 9,
-} satisfies Record<SpecialistKind, number>;
-
-export function SpecialistIcon({ kind, size = 36 }: { kind: SpecialistKind; size?: number }) {
-  const cell = specialistIcons[kind];
-  const scale = size / 216;
-  return <View accessible={false} style={{ width: size, height: size, overflow: 'hidden', flexShrink: 0 }}>
-    <Image accessible={false} source={ARTWORK_SOURCES['specialist-icons-ivory']} resizeMode="stretch" style={{ position: 'absolute', width: 1536 * scale, height: 1024 * scale, left: -(30 + cell % 6 * 252) * scale, top: -(60 + Math.floor(cell / 6) * 310) * scale }} />
-  </View>;
 }
 
 const categories = ['All', 'Scenes', 'Commanders', 'Icons', 'Design sheets'] as const;

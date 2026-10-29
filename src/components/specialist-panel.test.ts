@@ -18,7 +18,7 @@ const loaded = build({
   bundle: true, write: false, format: 'esm', platform: 'node',
   plugins: [{ name: 'hosts', setup(b) {
     b.onResolve({ filter: /^react(?:\/.*)?$/ }, a => ({ path: pathToFileURL(require.resolve(a.path)).href, external: true }));
-    b.onResolve({ filter: /^react-native$|\/Artwork$/ }, a => ({ path: a.path, namespace: 'host' }));
+    b.onResolve({ filter: /^react-native$|\/(Artwork|SpecialistIcon)$/ }, a => ({ path: a.path, namespace: 'host' }));
     b.onLoad({ filter: /.*/, namespace: 'host' }, a => ({ contents: a.path === 'react-native' ? `export const View='View',Text='Text',Pressable='Pressable',StyleSheet={create:x=>x};` : `export const ArtworkImage='ArtworkImage',SpecialistIcon='SpecialistIcon';` }));
   } }],
 }).then(async r => import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0]!.text).toString('base64')}`));
