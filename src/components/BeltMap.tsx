@@ -21,7 +21,7 @@ import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulatio
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
-import { chartOffsets, chartPosition, chartRoute, chartTransform } from '../game/chart-projection';
+import { chartOffsets, chartPosition, chartRoute, chartTransform, revealAboveCamera } from '../game/chart-projection';
 import { layoutSiteNames } from './map-labels';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & { kind: Rock['kind'] | 'unknown'; owner?: Faction | null; drones?: number; known?: boolean };
@@ -141,6 +141,17 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const names = layoutSiteNames(sites, size);
   const fleet = game.fleets.find(f => f.id === contact);
   const reference = fleet && fleetReference?.(fleet);
+  const [card, setCard] = useState<{ id: number; height: number }>();
+  const revealed = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!fleet) { revealed.current = undefined; return; }
+    const key = `${fleet.id}:${inspectFleet?.request ?? 0}:${size.width}:${size.height}:${card?.height}`;
+    if (card?.id !== fleet.id || revealed.current === key) return;
+    revealed.current = key;
+    const state = current.current;
+    const next = revealAboveCamera(state.world, state.camera, fleetPosition(state.world, fleet), state.size, card.height + styles.inspector.bottom);
+    if (next !== state.camera) state.onChange(next);
+  }, [fleet?.id, card, inspectFleet?.request, size.width, size.height]);
   const arrival = fleet && timeInspection ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
   const measure = () => map.current?.measureInWindow((x, y) => { origin.current = { x, y }; });
   return <View ref={map} testID="belt-map" style={[styles.chart, fill && { flex: 1, height: '100%' }]} onTouchStart={measure} onLayout={event => { setSize(event.nativeEvent.layout); measure(); }} {...pan.panHandlers}>
@@ -191,7 +202,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       return <Pressable key={`contact-${tile}-${f.id}`} accessibilityRole="button" accessibilityLabel={`${FACTIONS[f.owner].name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}><View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View></Pressable>;
     }))}
     <View style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
-    {fleet && <View style={styles.inspector}>
+    {fleet && <View style={styles.inspector} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       <Text style={styles.contactText}>{fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}</Text>
       <Text style={styles.contactText}>{fleet.specialists?.map(u => `${SPECIALISTS[u.kind].name}${u.captive ? ' (captive)' : ''}`).join(', ')}</Text>

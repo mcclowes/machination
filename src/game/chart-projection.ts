@@ -1,5 +1,5 @@
 import { nearestImage, wrappedBounds, type GeometryWorld, type Point } from './geometry';
-import type { MapCamera } from './chart-camera';
+import { constrainCamera, type MapCamera } from './chart-camera';
 
 type Viewport = { width: number; height: number };
 
@@ -28,4 +28,19 @@ export function chartOffsets(world: GeometryWorld, camera: MapCamera, viewport: 
 
 export function chartRoute(world: GeometryWorld, from: Point, to: Point): { from: Point; to: Point } {
   return { from, to: nearestImage(world, from, to) };
+}
+
+const REVEAL_MARGIN = 22;
+
+/** Pans vertically so a point sits mid-way through the chart band left uncovered by a bottom overlay, unless it is already clear. */
+export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: Viewport, coveredBottom: number): MapCamera {
+  const clear = Math.max(0, viewport.height - coveredBottom);
+  const target = Math.max(REVEAL_MARGIN, clear / 2);
+  const transform = chartTransform(world, camera, viewport);
+  const images = chartOffsets(world, camera, viewport).map(offset => transform.y + (point.y + offset.y) * transform.scale);
+  const nearest = images.reduce((best, y) => Math.abs(y - target) < Math.abs(best - target) ? y : best);
+  if (nearest >= REVEAL_MARGIN && nearest <= clear - REVEAL_MARGIN) return camera;
+  const fit = transform.scale / camera.scale;
+  const height = world.rules?.map.height ?? 100;
+  return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 });
 }

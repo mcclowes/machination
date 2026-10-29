@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartOffsets, chartPosition, chartRoute, chartTransform } from './chart-projection';
-import { constrainCamera } from './chart-camera';
+import { chartOffsets, chartPosition, chartRoute, chartTransform, revealAboveCamera } from './chart-projection';
+import { constrainCamera, focusCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
 const world = { rules: { map: { width: 200, height: 80, topology: 'torus' as const } } };
@@ -64,4 +64,39 @@ test('tall torus viewports remain tiled across the entire screen after panning',
       return first.x <= x && last.x >= x && first.y <= y && last.y >= y;
     }), `Wrapped geometry must cover screen position ${x}, ${y}`);
   }
+});
+
+// Issue #59: an inspected hauler must stay in the chart band above its bottom contextual card.
+const screenY = (w: typeof world | { rules?: undefined }, camera: Parameters<typeof chartTransform>[1], point: { x: number; y: number }, viewport: { width: number; height: number }) =>
+  chartOffsets(w, camera, viewport).map(offset => chartPosition(w, camera, { x: point.x + offset.x, y: point.y + offset.y }, viewport).y / 100 * viewport.height);
+
+test('a focused point moves from under a tall bottom card to the centre of the clear band', () => {
+  const phone = { width: 393, height: 616 }, card = 330;
+  for (const point of [{ x: 100, y: 40 }, { x: 3, y: 78 }, { x: 197, y: 1 }]) for (const scale of [2, 4]) {
+    const focused = focusCamera(world, { scale, x: 0, y: 0 }, point);
+    assert.ok(screenY(world, focused, point, phone).some(y => Math.abs(y - phone.height / 2) < 1e-6), 'focus centres on the whole chart');
+    const revealed = revealAboveCamera(world, focused, point, phone, card);
+    assert.equal(revealed.scale, focused.scale); assert.equal(revealed.x, focused.x);
+    assert.ok(screenY(world, revealed, point, phone).some(y => Math.abs(y - (phone.height - card) / 2) < 1e-6), `clear-band centre at ${point.x},${point.y} x${scale}`);
+  }
+});
+
+test('a point already clear of the card keeps the manual camera', () => {
+  const phone = { width: 393, height: 616 };
+  const camera = constrainCamera(world, { scale: 2, x: 30, y: 40 });
+  const point = { x: 100, y: 10 };
+  const [y] = screenY(world, camera, point, phone).filter(y => y >= 22 && y <= 616 - 330 - 22);
+  assert.ok(y !== undefined);
+  assert.deepEqual(revealAboveCamera(world, camera, point, phone, 330), camera);
+});
+
+test('a bounded chart clamps the reveal instead of leaving the map, and no card leaves focus unchanged', () => {
+  const bounded = {}; const phone = { width: 393, height: 616 };
+  const focused = focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 50 });
+  assert.deepEqual(revealAboveCamera(bounded, focused, { x: 50, y: 50 }, phone, 0), focused);
+  const nearBottom = focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 95 });
+  const revealed = revealAboveCamera(bounded, nearBottom, { x: 50, y: 95 }, phone, 330);
+  // Already at the lower edge bound (scale 2 allows ±50), so the reveal cannot pan further on an untiled chart.
+  assert.deepEqual(nearBottom, { scale: 2, x: 0, y: -50 });
+  assert.deepEqual(revealed, nearBottom);
 });
