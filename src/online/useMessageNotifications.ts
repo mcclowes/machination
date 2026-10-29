@@ -56,6 +56,7 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       if (!current(started)) return;
       const [settings, permission] = await Promise.all([deps.read(seat, deviceId), deps.device.permission()]);
       publish(started, { settings, permission, loading: false });
+      return settings;
     } catch (error) {
       publish(started, { loading: false, failure: { message: `Could not read notification settings. ${(error as Error).message}`, retry: 'read' } });
     }
@@ -67,7 +68,7 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
     if (scope && device && device !== 'loading') void read(scope);
   }, [scope, device, read]);
 
-  async function write(started: string, body: SetMessageNotifications): Promise<void> {
+  async function write(started: string, body: SetMessageNotifications, reconcileToken = false): Promise<void> {
     const { seat, deps } = latest.current;
     if (!current(started) || !seat) return;
     try {
@@ -78,8 +79,14 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       publish(started, { settings, failure: undefined });
     } catch (error) {
       if (!current(started)) return;
+      registeredToken.current = undefined;
       if (error instanceof RejectedCommand && error.issue === 'notification.conflict.stale') {
-        await read(started);
+        const settings = await read(started);
+        if (reconcileToken && settings?.enabled && current(started)) {
+          await register(started, settings.revision, true);
+          return;
+        }
+        if (!settings) return;
         publish(started, { failure: { message: 'This device’s notification setting changed elsewhere. Review it and try again.', retry: 'read' } });
         return;
       }
@@ -148,7 +155,8 @@ export function useMessageNotifications(seat: NotificationSeat | undefined, deps
       try {
         const token = await native.pushToken();
         if (!current(started)) return;
-        await write(started, token === body.expoPushToken ? body : { ...body, requestId: deps.requestId(), expoPushToken: token });
+        const changed = token !== body.expoPushToken;
+        await write(started, changed ? { ...body, requestId: deps.requestId(), expoPushToken: token } : body, changed);
       } catch (error) {
         publish(started, { failure: { message: (error as Error).message, retry: { body } } });
       }

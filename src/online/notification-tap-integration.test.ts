@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { test, type TestContext } from 'node:test';
 import { build } from 'esbuild';
-import { GameService } from '../../server/service';
+import { Failure, GameService } from '../../server/service';
 import { createApi } from '../../server/http';
 
 const require = createRequire(import.meta.url);
@@ -22,8 +22,11 @@ const globals = globalThis as typeof globalThis & Record<string, any>;
 
 // Real App, OnlineOperation, notification hooks, HTTP API, and GameService. Only native IO is replaced:
 // secure storage, crypto, and the notification device. This is host evidence, not native tap acceptance.
-const bundle = build({
+const bundles = new Map<boolean, Promise<string>>();
+// The account variant configures Clerk with a host stub; the server decides whether its token is accepted.
+const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(account, build({
   entryPoints: [new URL('../../App.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, logLevel: 'silent',
+  ...(account ? { define: { 'process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY': JSON.stringify('pk_test_host_stub') } } : {}),
   plugins: [{ name: 'tap-native-hosts', setup(builder) {
     builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
     const host = (path: string) => ({ path, namespace: 'tap-host' });
@@ -52,7 +55,7 @@ const bundle = build({
       'expo-secure-store': `export const getItemAsync=async k=>${g}.secure.get(k)??null,setItemAsync=async(k,v)=>{${g}.secure.set(k,v)},deleteItemAsync=async k=>{${g}.secure.delete(k)};`,
       'expo-clipboard': `export const setStringAsync=async()=>true;`,
       '@react-native-async-storage/async-storage': `export default {getItem:async k=>${g}.async.get(k)??null,setItem:async(k,v)=>{${g}.async.set(k,v)},removeItem:async k=>{${g}.async.delete(k)}};`,
-      '@clerk/expo': `export const ClerkProvider=({children})=>children,useAuth=()=>{throw new Error('Clerk is not configured in this test')};`,
+      '@clerk/expo': `export const ClerkProvider=({children})=>children,useAuth=()=>${g}.auth??(()=>{throw new Error('Clerk is not configured in this test')})();`,
     };
     builder.onLoad({ filter: /.*/, namespace: 'tap-host' }, args => {
       const contents = stubs[args.path] ?? (args.path.startsWith('@clerk/expo/') ? 'export const tokenCache={},useHostedAuth=()=>({}),SignInButton=()=>null;' : undefined);
@@ -60,7 +63,7 @@ const bundle = build({
       return { contents, resolveDir: process.cwd() };
     });
   } }],
-}).then(output => output.outputFiles[0]!.text);
+}).then(output => output.outputFiles[0]!.text)).get(account)!;
 
 type Tap = { kind: string; version: number; gameId: string; bindingId: string; notificationId: string };
 function fakeDevice() {
@@ -82,7 +85,7 @@ function fakeDevice() {
   };
 }
 
-async function scenario(t: TestContext, options: { token?: string } = {}) {
+async function scenario(t: TestContext, options: { token?: string; account?: 'expired' | 'valid'; linked?: boolean; stored?: boolean } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'machination-tap-'));
   const file = join(dir, 'games.json');
   const service = await GameService.open(file, () => 1_900_000_000_000, undefined, { notifications: true });
@@ -90,20 +93,28 @@ async function scenario(t: TestContext, options: { token?: string } = {}) {
   const room = await service.create(seats[0]!);
   await service.join(room.invite, seats[1]!); await service.join(room.invite, seats[2]!);
   await service.start(room.id, seats[0]!);
+  // A linked seat is controlled by the account; its bindings belong to that credential generation.
+  if (options.linked) await service.linkAccount(room.id, seats[0]!, { accountId: 'user_alice' });
+  const owner = options.linked ? { accountId: 'user_alice' } : seats[0]!;
   const deviceId = randomBytes(32).toString('hex');
-  const enable = (revision: number) => service.setNotifications(room.id, seats[0]!, { requestId: randomUUID(), deviceId, revision, enabled: true, expoPushToken: `ExponentPushToken[${randomBytes(8).toString('hex')}]` });
+  const enable = (revision: number) => service.setNotifications(room.id, owner, { requestId: randomUUID(), deviceId, revision, enabled: true, expoPushToken: `ExponentPushToken[${randomBytes(8).toString('hex')}]` });
   const first = await enable(0);
-  await service.setNotifications(room.id, seats[0]!, { requestId: randomUUID(), deviceId, revision: 1, enabled: false });
+  await service.setNotifications(room.id, owner, { requestId: randomUUID(), deviceId, revision: 1, enabled: false });
   const current = await enable(2);
   assert.notEqual(first.bindingId, current.bindingId);
 
-  const failing = { game: false, settings: false };
+  const failing = { game: false, settings: false, session: false };
   const requests: string[] = [];
-  const api = createApi(service).listeners('request')[0] as (req: IncomingMessage, res: ServerResponse) => void;
+  // Only the explicit valid account bearer authenticates; legacy seat bearers use the real service path.
+  const authenticate = options.account && (async (bearer: string) => {
+    if (bearer === 'valid-clerk-session') return { accountId: 'user_alice' };
+    throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Marginal Utility account.');
+  });
+  const api = createApi(service, undefined, authenticate).listeners('request')[0] as (req: IncomingMessage, res: ServerResponse) => void;
   const server = createServer((req, res) => {
     requests.push(`${req.method} ${req.url!.replace(/\?.*$/, '')}`);
-    const settings = req.url!.includes('/notifications');
-    if (settings ? failing.settings : failing.game) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ issues: [{ message: { detail: 'Temporarily unavailable.' } }] })); return; }
+    const kind = req.url!.includes('/notifications') ? 'settings' : req.url!.includes('/account/session') ? 'session' : 'game';
+    if (failing[kind]) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ issues: [{ message: { detail: 'Temporarily unavailable.' } }] })); return; }
     api(req, res);
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -113,12 +124,16 @@ async function scenario(t: TestContext, options: { token?: string } = {}) {
   globals[KEY] = {
     loads: 0, device: fake.device,
     secure: new Map<string, string>([
-      ['machination.online.v1', JSON.stringify({ url, token: options.token ?? seats[0], id: room.id })],
+      ...(options.stored === false ? [] : [['machination.online.v1', JSON.stringify({ url, token: options.token ?? seats[0], id: room.id })] as [string, string]]),
       ['machination.notifications.v1.device', deviceId],
       ['machination.notifications.v1.registered', '1'],
     ]),
     async: new Map<string, string>([['machination.briefing.v1', '1']]),
+    ...(options.account ? { auth: { isLoaded: true, isSignedIn: true, userId: 'user_alice', getToken: async () => `${options.account}-clerk-session`, signOut: async () => {} } } : {}),
   };
+  // Without a stored seat, account restore starts from the configured server address.
+  const originalServer = process.env.EXPO_PUBLIC_GAME_SERVER;
+  process.env.EXPO_PUBLIC_GAME_SERVER = url;
   const originalInterval = globalThis.setInterval;
   globalThis.setInterval = (() => 0) as unknown as typeof setInterval;
   globals.IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,10 +141,11 @@ async function scenario(t: TestContext, options: { token?: string } = {}) {
   t.after(async () => {
     if (renderer) await act(async () => renderer.unmount());
     globalThis.setInterval = originalInterval; delete globals[KEY];
+    if (originalServer === undefined) delete process.env.EXPO_PUBLIC_GAME_SERVER; else process.env.EXPO_PUBLIC_GAME_SERVER = originalServer;
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   });
-  const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(`${await bundle}\n// ${randomUUID()}`).toString('base64')}`);
+  const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(`${await bundleFor(!!options.account)}\n// ${randomUUID()}`).toString('base64')}`);
   const settle = async () => { for (let i = 0; i < 20; i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); }); };
   const hosts = (type: string) => renderer.root.findAll((node: Node) => node.type === type) as Node[];
   const label = (node: Node) => node.props.accessibilityLabel ?? text(node);
@@ -287,4 +303,72 @@ test('a warm app re-reads the binding for each tap instead of trusting cached se
   assert.ok(s.signalsOpen());
   assert.equal(s.fake.calls.prompts + s.fake.calls.tokens, 0, 'taps never request permission or register');
   assert.deepEqual(s.requests.filter(r => !r.startsWith('GET ')), []);
+});
+
+test('a rejected account link does not reject the stored legacy seat or drop a pending tap', async t => {
+  const s = await scenario(t, { account: 'expired' });
+  s.failing.settings = true;
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.match(s.visible(), /could not be checked/, 'the tap waits on unreadable settings');
+  await s.press('Setup');
+  await s.press('Link seat to my account');
+  assert.match(s.visible(), /could not link this seat/);
+  assert.doesNotMatch(s.visible(), /was not opened/, 'the legacy seat was not treated as rejected');
+  assert.equal(s.fake.calls.cleared, 0, 'the tap is still pending');
+  assert.match(s.visible(), /Link seat to my account/, 'the legacy seat and its snapshot are kept');
+  assert.equal(s.requests.filter(r => r === 'POST /v1/account/link').length, 1, 'linking ran once, only on the explicit action');
+  s.failing.settings = false;
+  await s.press('Retry notification');
+  assert.ok(s.signalsOpen(), 'the legacy seat still confirms its binding and opens Signals');
+  assert.equal(s.requests.filter(r => r === 'POST /v1/account/link').length, 1, 'the tap caused no link retry');
+  assert.deepEqual(s.requests.filter(r => r.startsWith('POST ') && r !== 'POST /v1/account/link'), []);
+});
+
+test('a valid account link with an invalidated legacy seat keeps the terminal seat-loss path', async t => {
+  const s = await scenario(t, { account: 'valid' });
+  s.failing.settings = true;
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.match(s.visible(), /could not be checked/, 'the tap waits on unreadable settings');
+  // The seat is recovered elsewhere after restore, so the stored legacy token no longer controls it.
+  const secret = randomBytes(32).toString('hex');
+  await s.service.setRecovery(s.room.id, s.seats[0]!, { requestId: randomUUID(), secret });
+  await s.service.recover(s.room.id, randomBytes(32).toString('hex'), { secret });
+  await s.press('Setup');
+  await s.press('Link seat to my account');
+  assert.doesNotMatch(s.visible(), /could not link this seat/, 'a rejected seat token is not reported as an account problem');
+  assert.match(s.visible(), /existing seat credential is required/);
+  assert.match(s.visible(), /Machination \/ uplink/, 'the snapshot is cleared as for any lost seat');
+  assert.match(s.visible(), /was not opened because it does not match/, 'the pending tap is terminally ignored');
+  assert.equal(s.fake.calls.cleared, 1);
+  assert.equal(s.requests.filter(r => r === 'POST /v1/account/link').length, 1);
+  assert.deepEqual(s.requests.filter(r => r.startsWith('POST ') && r !== 'POST /v1/account/link'), []);
+});
+
+test('an account cold start with no stored seat waits through a transient restore failure, then opens on retry', async t => {
+  const s = await scenario(t, { account: 'valid', linked: true, stored: false });
+  s.failing.session = true;
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.match(s.visible(), /Temporarily unavailable/);
+  assert.match(s.visible(), /waiting for this operation to reconnect/);
+  assert.doesNotMatch(s.visible(), /was not opened/);
+  assert.equal(s.fake.calls.cleared, 0, 'the tap is still pending after a failed account restore');
+  s.failing.session = false;
+  await s.press('Retry notification');
+  assert.ok(s.signalsOpen(), 'the restored account seat confirms its binding and opens Signals');
+  assert.equal(s.requests.filter(r => r === 'GET /v1/account/session').length, 2, 'one automatic restore and one explicit retry');
+  assert.deepEqual(s.requests.filter(r => r.startsWith('POST ')), []);
+});
+
+test('an account cold start rejected by the server is terminal for the tap', async t => {
+  const s = await scenario(t, { account: 'expired', linked: true, stored: false });
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.match(s.visible(), /Sign in to your Marginal Utility account/);
+  assert.match(s.visible(), /was not opened because it does not match/);
+  assert.doesNotMatch(s.visible(), /waiting for this operation/);
+  assert.equal(s.fake.calls.cleared, 1);
+  assert.equal(s.requests.filter(r => r === 'GET /v1/account/session').length, 1, 'no automatic retry');
 });

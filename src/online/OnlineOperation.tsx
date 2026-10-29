@@ -137,7 +137,9 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   const latestSession = useRef(session);
   latestSession.current = session;
   const seatRejected = !!session && rejectedSeat === seatIdentity(session);
-  const confirming = !!notification && !!session?.id && session.id === notification.gameId && !notificationSeat && !seatRejected;
+  // An account restore that failed for a transient reason has no session to compare yet, so the tap waits for Retry.
+  const [accountRestoreFailed, setAccountRestoreFailed] = useState(false);
+  const confirming = !!notification && (!!session?.id && session.id === notification.gameId && !notificationSeat && !seatRejected || !session && accountRestoreFailed);
   // Each tap re-reads this seat's binding, so a warm app never trusts settings cached before a detach, recovery, or token move.
   const tapKey = notification && notificationSeat?.id === notification.gameId ? JSON.stringify([notification.notificationId, seatIdentity(session)]) : undefined;
   const [tapCheck, setTapCheck] = useState<{ key: string; bindingId?: string | null; failed?: true }>();
@@ -166,6 +168,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   function retryTap() {
     if (notificationSeat) checkTap();
     else if (session) void run(async () => { const result = await connect(session); setSession(result.session); accept(result.snapshot); });
+    else if (accountRestoreFailed) void run(restoreAccount);
   }
   useEffect(() => {
     if (!notification || !tapDisposition || tapDisposition === 'wait') return;
@@ -176,7 +179,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   const pendingTap = notification && tapWaiting && (!notificationSeat || tapCheck?.failed) && <View style={s.panel}><Text accessibilityLiveRegion="polite" style={s.detail}>{notificationSeat ? 'A message notification is waiting. Notification settings for this seat could not be checked.' : 'A message notification is waiting for this operation to reconnect.'}</Text><Action text="Retry notification" disabled={busy} onPress={retryTap} /><Action text="Dismiss notification" onPress={dismissTap} /></View>;
   useEffect(() => { void run(async () => {
     const stored = account ? await restoreSession(account.accountId) ?? await restoreSession() : await restoreSession();
-    if (!stored) { if (account) await restoreAccountSeat(); return; }
+    if (!stored) { if (account) await restoreAccount(); return; }
     const saved = stored.accountId && account ? { ...stored, ...account } : stored;
     setUrl(saved.url);
     setSession(saved);
@@ -197,6 +200,10 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
     const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(true); });
     return () => { clearInterval(timer); subscription.remove(); };
   }, [session]);
+  async function restoreAccount() {
+    try { await restoreAccountSeat(); setAccountRestoreFailed(false); }
+    catch (error) { setAccountRestoreFailed(!(error instanceof RejectedCommand && error.status === 401)); throw error; }
+  }
   async function restoreAccountSeat() {
     if (!account) return;
     const fresh = { ...await newSession(url), ...account };
@@ -209,7 +216,13 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   async function linkAccountSeat() {
     if (!session?.id || !account || session.pending) return;
     const linked = { ...session, ...account };
-    const snapshot = await api(linked, 'account/link', { id: session.id, token: session.token });
+    let snapshot: Snapshot;
+    try { snapshot = await api(linked, 'account/link', { id: session.id, token: session.token }); }
+    catch (error) {
+      // Only an account rejection is about the link credential; a rejected seat token keeps the general seat-loss path.
+      if (error instanceof RejectedCommand && error.status === 401 && error.issue?.startsWith('account.unauthorized.')) throw new Error(`Your account could not link this seat. ${error.message}`);
+      throw error;
+    }
     await storeSession(linked); await storeSession(null);
     setSession(linked); accept(snapshot); setRecoveryCode('');
   }
@@ -359,7 +372,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
       {!!recoveryCode && <><Text style={s.detail}>Save this code with the server address in a private place, such as a password manager. It controls your seat. This app only shows it until you leave this screen.</Text><Text selectable style={s.code}>{recoveryCode}</Text><Action text="Hide recovery code" onPress={() => setRecoveryCode('')} /></>}
       {disconnect ? <><Text style={s.error}>{session.accountId ? 'Removing this connection keeps the operation on your account. Use Restore account operation to return.' : "Disconnecting removes this device's seat credential. You can return only with a recovery code saved earlier. The server operation continues."}</Text><Action text="Keep connection" onPress={() => setDisconnect(false)} /><Action text="Remove seat from this device" disabled={busy || recoveryPending} onPress={() => void run(async () => { await storeSession(null, session.accountId); setSession(null); setSnapshot(undefined); setDisconnect(false); setRecoveryCode(''); })} /></> : <Action text="Disconnect…" disabled={busy || recoveryPending} onPress={() => setDisconnect(true)} />}
     </View> : <View key="connection-entry" style={s.panel}><Text style={s.label}>Game server</Text><TextInput key="server-url" secureTextEntry={false} accessibilityLabel="Game server URL" autoCapitalize="none" autoCorrect={false} value={url} onChangeText={setUrl} style={s.input} keyboardType="url" />
-      {account && <Action text="Restore account operation" disabled={busy} onPress={() => void run(restoreAccountSeat)} />}
+      {account && <Action text="Restore account operation" disabled={busy} onPress={() => void run(restoreAccount)} />}
       <Text style={s.label}>New operation</Text><GameSetup value={options} onChange={setOptions} disabled={busy} /><Action text="Create private operation" disabled={busy} onPress={() => void enter(false)} /><Text style={s.label}>Invitation code</Text><TextInput key="invite-code" secureTextEntry={false} accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} value={invite} onChangeText={setInvite} style={s.input} maxLength={24} /><Action text="Join operation" disabled={busy || invite.length !== 24} onPress={() => void enter(true)} />
       <Text style={s.label}>Restore your seat</Text><Text style={s.detail}>Use the server address above and a code you saved earlier. Restoring disconnects your old device and consumes the code. Generate a new code afterward.</Text><TextInput key="seat-recovery" accessibilityLabel="Recovery code" autoCapitalize="none" autoCorrect={false} secureTextEntry value={recoveryInput} onChangeText={setRecoveryInput} style={s.input} maxLength={180} /><Action text="Restore seat and revoke old connection" disabled={busy || !recoveryInput.trim()} onPress={restoreSeat} /></View>}</>;
   const setup = <><View style={s.panel}><Text style={s.title}>Operation participation</Text>
@@ -388,7 +401,7 @@ function ConnectedOperation({ onOpenReplays, account, notification, onNotificati
   if (snapshot && past && !game) {
     const waiting = <View style={s.panel}><Text accessibilityRole={history.error ? 'alert' : undefined} style={s.detail}>{!snapshot.history ? 'Observed history is unavailable on this server.' : history.error ?? 'Loading observed history…'}</Text><Action text="Now" onPress={() => inspectTime(null)} />{history.error && <Action text="Retry history" onPress={history.retry} />}</View>;
     return <OperationShell player={snapshot.faction} portraits={snapshot.game.rules?.portraits} section={section} onSection={changeSection} panelScrollRef={scroll}
-      status={<><Text style={s.label}>{FACTIONS[snapshot.faction].name} · loading history · {gameClock(inspectedHour!)}</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</>}
+      status={<>{!!notificationNotice && <Text accessibilityLiveRegion="polite" style={s.detail}>{notificationNotice}</Text>}{pendingTap}<Text style={s.label}>{FACTIONS[snapshot.faction].name} · loading history · {gameClock(inspectedHour!)}</Text>{!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}</>}
       chart={<View style={{ flex: 1, justifyContent: 'center', padding: 20 }}>{waiting}</View>} timeline={timeline}
       panels={{ asset: { title: 'Historical asset', content: waiting }, orders: { title: 'Historical orders', content: waiting }, units: { title: 'Historical units', content: waiting }, intel: { title: 'Historical intelligence', content: waiting }, signals: { title: 'Diplomacy and signals', content: <><Text style={s.label}>Chat · current</Text>{diplomacy}</> }, settings: { title: 'Setup', content: setup } }} />;
   }

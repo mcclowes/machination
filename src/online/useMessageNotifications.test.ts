@@ -93,6 +93,23 @@ test('capacity conflicts retain the server explanation', async () => {
   await m.unmount();
 });
 
+test('a failed stale-preference refresh retains its network error and read retry', async () => {
+  const server = fakeServer();
+  let reads = 0;
+  const m = await mount(seatA, fakeDevice('granted').device, server, { read: async seat => {
+    if (++reads === 2) throw new Error('Connection lost during refresh');
+    return server.read(seat);
+  } });
+  server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 7, available: true, enabled: false });
+  await press(m.out.current!.enable);
+  assert.match(m.out.current!.error!, /Connection lost during refresh/);
+  await press(m.out.current!.retry);
+  assert.equal(m.out.current!.settings?.revision, 7);
+  assert.equal(m.out.current!.error, undefined);
+  assert.equal(server.writes.length, 1, 'Retry only reads after the failed refresh');
+  await m.unmount();
+});
+
 test('retrying an enable refreshes a rotated token without reusing its request ID', async () => {
   const fake = fakeDevice('granted');
   const m = await mount(seatA, fake.device);
@@ -115,6 +132,35 @@ test('native token events do not rewrite an unchanged Expo subscription', async 
   await act(async () => fake.rotate('ExponentPushToken[first]'));
   assert.equal(m.server.writes.length, 1);
   await m.unmount();
+});
+
+test('a lost enable response and rotated token reconcile an enabled binding without undoing a later disable', async () => {
+  for (const disabledElsewhere of [false, true]) {
+    const fake = fakeDevice('granted');
+    const server = fakeServer();
+    let lose = true, boundToken: string | undefined;
+    const m = await mount(seatA, fake.device, server, { write: async (seat, body) => {
+      const result = await server.write(seat, body);
+      boundToken = body.expoPushToken;
+      if (lose) { lose = false; throw new Error('Response lost after acceptance'); }
+      return result;
+    } });
+    await press(m.out.current!.enable);
+    assert.equal(server.records.get(seatA.id)!.enabled, true);
+    assert.equal(m.out.current!.settings?.enabled, false, 'only the response was lost');
+    if (disabledElsewhere) {
+      server.records.set(seatA.id, { gameId: seatA.id, deviceId, revision: 2, available: true, enabled: false });
+      boundToken = undefined;
+    }
+    fake.rotate('ExponentPushToken[second]');
+    await press(m.out.current!.retry);
+    assert.equal(m.out.current!.settings?.enabled, !disabledElsewhere);
+    assert.equal(boundToken, disabledElsewhere ? undefined : 'ExponentPushToken[second]');
+    assert.equal(server.writes.length, disabledElsewhere ? 2 : 3);
+    if (!disabledElsewhere) assert.equal(m.out.current!.error, undefined);
+    assert.equal(fake.calls.requests, 1, 'reconciliation never prompts again');
+    await m.unmount();
+  }
 });
 
 test('web and unsupported builds never read settings; native mount reads without prompting', async () => {
