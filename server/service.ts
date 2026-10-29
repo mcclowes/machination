@@ -133,6 +133,10 @@ export class GameService {
     if (room.startedAt !== null && room.game.version === 2 && !room.game.winner && !room.game.draw && !room.game.eliminated.includes(faction)) room.seats.find(s => s.faction === faction)!.lastActiveHour = room.game.hour;
   }
   private revision(room: Room, faction: Faction): number { return room.seats.find(s => s.faction === faction)!.revision ?? 0; }
+  private reviseOrders(room: Room, owners: readonly Faction[]): void {
+    room.revision++;
+    for (const seat of room.seats) if (owners.includes(seat.faction)) seat.revision = (seat.revision ?? 0) + 1;
+  }
   private identify(room: Room, faction: Faction, kind: 'hauler' | 'message' | 'unit', id: number | string): number {
     const seat = room.seats.find(s => s.faction === faction)!;
     const key = seat.identityHash ?? seat.hash;
@@ -293,7 +297,7 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'resign.conflict.stale', 'Your orders changed. Refresh before resigning.');
       try { this.act(r, { type: 'resign', owner: f }); }
       catch (e) { throw new Failure(409, 'resign.conflict.invalid', (e as Error).message); }
-      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -302,7 +306,7 @@ export class GameService {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
       requireThat(r.seats.length === playersIn(r.game).length, 409, 'game.conflict.seats', `Wait for all ${playersIn(r.game).length} intelligences to join.`);
-      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1; }
+      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; this.reviseOrders(r, [f]); }
       this.settle(r); return this.view(r, f);
     });
   }
@@ -363,7 +367,7 @@ export class GameService {
           else throw new Error('Unknown module command.');
         }
       } catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
-      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -375,8 +379,7 @@ export class GameService {
       requireThat(Number.isSafeInteger(order.revision) && order.revision === this.revision(r, f), 409, 'order.conflict.stale', 'The operation changed. Refresh before issuing this order.');
       try { this.act(r, { type: 'dispatch', owner: f, from: order.from, to: order.to, drones: order.drones, carryModule: order.carryModule, specialists: this.manifest(r, f, order.from, order.specialists) }); }
       catch (e) { throw new Failure(409, 'order.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -388,8 +391,7 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'gift.conflict.stale', 'Your orders changed. Refresh before gifting.');
       try { this.act(r, { type: 'gift', owner: f, from: command.from, to: command.to, drones: command.drones, recipient: command.recipient, carryModule: command.carryModule, specialists: this.manifest(r, f, command.from, command.specialists) }); }
       catch (e) { throw new Failure(409, 'gift.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      for (const seat of r.seats) if (seat.faction === f || r.game.version === 1 && seat.faction === command.recipient) seat.revision = this.revision(r, seat.faction) + 1;
+      this.reviseOrders(r, r.game.version === 1 ? [f, command.recipient] : [f]);
       return this.view(r, f);
     });
   }
@@ -401,8 +403,7 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'module.conflict.stale', 'The operation changed. Refresh before building a module.');
       try { this.act(r, { type: 'install-module', owner: f, rock: command.rock, kind: command.module }); }
       catch (e) { throw new Failure(409, 'module.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -422,7 +423,7 @@ export class GameService {
         this.act(r, { type: 'hauler', owner: f, change });
       }
       catch (e) { throw new Failure(409, 'hauler.conflict.invalid', (e as Error).message); }
-      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -438,8 +439,7 @@ export class GameService {
         else if (command.action === 'shields') this.act(r, { type: 'shields', owner: f, rock: command.rock, disabled: command.disabled });
         else throw new Error('Choose a mine or shield command.');
       } catch (e) { throw new Failure(409, 'site.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -455,8 +455,7 @@ export class GameService {
       const target = r.game.fleets.find(fleet => this.identify(r, f, 'hauler', fleet.id) === contact.id)!;
       try { this.act(r, { type: 'intercept', owner: f, from: command.from, target: target.id, drones: command.drones, specialists: command.specialists === undefined ? undefined : this.manifest(r, f, command.from, command.specialists) }); }
       catch (e) { throw new Failure(409, 'interception.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -481,8 +480,7 @@ export class GameService {
           specialists: command.specialists?.map(unit => this.futureUnit(r, f, unit, true)) ?? [] } });
       }
       catch (e) { throw new Failure(409, 'schedule.conflict.invalid', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -515,8 +513,7 @@ export class GameService {
         this.act(r, { type: 'edit-schedule', owner: f, change: { planId: command.planId, drones: command.drones,
           ...(command.specialists === undefined ? {} : { specialists: command.specialists.map(alias => existingUnits.find(unit => String(this.identify(r, f, 'unit', unit)) === alias) ?? this.futureUnit(r, f, alias, true)) }) } });
       } catch (error) { throw new Failure(409, 'schedule.conflict.invalid', (error as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -527,8 +524,7 @@ export class GameService {
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'schedule.conflict.stale', 'Your orders changed. Refresh before canceling.');
       try { this.act(r, { type: 'cancel-schedule', owner: f, id: command.planId }); }
       catch (e) { throw new Failure(409, 'schedule.conflict.missing', (e as Error).message); }
-      r.revision++;
-      r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
@@ -541,7 +537,7 @@ export class GameService {
       requireThat(r.seats.some(s => s.faction === command.recipient), 400, 'funding.validation.recipient', 'Choose a joined intelligence.');
       try { this.act(r, { type: 'funding', owner: f, to: command.recipient, enabled: command.enabled }); }
       catch (e) { throw new Failure(409, 'funding.conflict.invalid', (e as Error).message); }
-      r.revision++; r.seats.find(s => s.faction === f)!.revision = this.revision(r, f) + 1;
+      this.reviseOrders(r, [f]);
       return this.view(r, f);
     });
   }
