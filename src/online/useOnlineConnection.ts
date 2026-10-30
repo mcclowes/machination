@@ -9,6 +9,7 @@
  * @format
  */
 
+import { loadProfile } from '../solo/profile';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import type { Snapshot } from '../contracts/protocol';
@@ -196,6 +197,7 @@ export function useOnlineConnection(account: AccountAccess | undefined, events: 
     { invite, options, variant }: { invite: string; options: GameOptions; variant?: 'faction' },
   ) {
     await run(async () => {
+      const { preferredColor } = await loadProfile();
       const created: Session =
         reuse && session
           ? {
@@ -215,6 +217,7 @@ export function useOnlineConnection(account: AccountAccess | undefined, events: 
               )),
               ...account,
             };
+      created.preferredColor = preferredColor;
       await storeSession(created);
       setSnapshot(undefined);
       callbacks.current.onReset();

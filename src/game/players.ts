@@ -3,6 +3,7 @@
  * purpose: Bounded intelligence identities and the participants belonging to an operation.
  * ---
  */
+import { PLAYER_COLORS, type PlayerColor } from './player-colors';
 import { CHARACTERS, DEFAULT_PORTRAITS, type CharacterId } from './characters';
 export const FACTIONS = {
   you: { name: 'Mnemosyne', code: 'MN', ...CHARACTERS.admiral },
@@ -21,10 +22,10 @@ export type Faction = keyof typeof FACTIONS;
 export type PlayerValues<T> = Partial<Record<Faction, T>>;
 export const LEGACY_PLAYERS: readonly Faction[] = ['you', 'vesper', 'null'];
 export const ALL_PLAYERS = Object.keys(FACTIONS) as Faction[];
-export function playerAppearance(faction: Faction, portraits?: readonly CharacterId[]) {
+export function playerAppearance(faction: Faction, portraits?: readonly CharacterId[], colors?: readonly PlayerColor[]) {
   const index = ALL_PLAYERS.indexOf(faction);
   const character = portraits?.[index] ?? DEFAULT_PORTRAITS[index]!;
-  return { ...FACTIONS[faction], ...CHARACTERS[character] };
+  return { ...FACTIONS[faction], ...CHARACTERS[character], ...(colors?.[index] ? PLAYER_COLORS[colors[index]!] : {}) };
 }
 export function playersIn(game: { rules?: { players: readonly Faction[] } }): readonly Faction[] { return game.rules?.players ?? LEGACY_PLAYERS; }
 export function isFaction(value: unknown): value is Faction { return typeof value === 'string' && Object.hasOwn(FACTIONS, value); }

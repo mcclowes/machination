@@ -1,3 +1,4 @@
+import { validPlayerColors } from '../game/player-colors';
 import { validCompact } from '../game/compact-save';
 import { PLANET_RESERVES } from '../game/depletion';
 import type { Faction } from '../game/players';
@@ -78,7 +79,7 @@ function inspect(value: unknown) {
 }
 
 function rules(v: unknown) {
-  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases', 'beltCompact', 'teams']);
+  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['colors', 'pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases', 'beltCompact', 'teams']);
   optional(v, 'beltCompact', n => one(n, [1]));
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
@@ -89,6 +90,7 @@ function rules(v: unknown) {
   optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]));
   optional(v, 'teams', t => { need((v.mechanicsVersion ?? 1) >= 17 && v.mode !== 'pulse'); validateTeams(t, v.players); });
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
+  optional(v, 'colors', c => need(validPlayerColors(c, v.players.length)));
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));

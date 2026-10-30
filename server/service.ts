@@ -10,6 +10,7 @@
  * @format
  */
 
+import { assignPlayerColor, isPlayerColor } from '../src/game/player-colors';
 import { councilCommand } from './council-command';
 import { factionStandings, finished, profileId } from './factions';
 import { isAllegiance, type FactionStandings } from '../src/game/factions';
@@ -541,7 +542,16 @@ export class GameService {
       return this.view(room, seat.faction);
     });
   }
-  create(token: Credential, options?: unknown, variant?: unknown): Promise<Snapshot> {
+  create(
+    token: Credential,
+    options?: unknown,
+    variant?: unknown,
+    preferredColor?: unknown,
+  ): Promise<Snapshot> {
+    if (preferredColor !== undefined && !isPlayerColor(preferredColor))
+      return Promise.reject(
+        new Failure(400, 'player.validation.color', 'Choose a known player color.'),
+      );
     if (variant !== undefined && variant !== 'faction')
       return Promise.reject(
         new Failure(400, 'game.validation.variant', 'Choose standard or faction mode.'),
@@ -624,6 +634,8 @@ export class GameService {
         messages: [],
         receipts: {},
       };
+      if (room.game.rules)
+        room.game.rules.colors = assignPlayerColor(room.game.rules, [], 'you', preferredColor);
       if (room.game.pulse && this.pulseDefaults) {
         room.game.rules!.pulse = { ...this.pulseDefaults };
         room.game.pulse = createPulseSystem(room.game);
@@ -632,7 +644,11 @@ export class GameService {
       return this.view(room, 'you');
     });
   }
-  join(invite: string, token: Credential): Promise<Snapshot> {
+  join(invite: string, token: Credential, preferredColor?: unknown): Promise<Snapshot> {
+    if (preferredColor !== undefined && !isPlayerColor(preferredColor))
+      return Promise.reject(
+        new Failure(400, 'player.validation.color', 'Choose a known player color.'),
+      );
     return this.transaction((db) => {
       credentialHash(token);
       const room = db.rooms.find((r) => r.invite === invite);
@@ -657,6 +673,13 @@ export class GameService {
         'This operation is no longer accepting players.',
       );
       const faction = playersIn(room.game)[room.seats.length]!;
+      if (room.game.rules)
+        room.game.rules.colors = assignPlayerColor(
+          room.game.rules,
+          room.seats.map((s) => s.faction),
+          faction,
+          preferredColor,
+        );
       room.seats.push(this.newSeat(db, token, faction, room.variant));
       room.revision++;
       return this.view(room, faction);

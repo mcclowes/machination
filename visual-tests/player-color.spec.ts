@@ -29,3 +29,32 @@ test('solo player bases use teal while unclaimed sites stay neutral', async ({ p
   await expect(neutral.locator('feFlood').first()).toHaveAttribute('flood-color', '#829195');
   await page.screenshot({ path: `.fettle/shots/solo-player-color-${info.project.name}.png` });
 });
+
+test('profile color persists and colors a new solo operation without recoloring a resumed one', async ({ page }, info) => {
+  await page.clock.setFixedTime(new Date(epoch));
+  await page.addInitScript(() => {
+    if (location.protocol.startsWith('http')) localStorage.setItem('machination.briefing.v1', '1');
+  });
+  await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Player profile', exact: true }).click();
+  await page.getByRole('radio', { name: 'gold player color', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'gold player color', exact: true })).toBeChecked();
+  await page.screenshot({ path: `.fettle/shots/profile-color-${info.project.name}.png` });
+  await page.getByRole('button', { name: 'Close player profile' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Player profile', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'gold player color', exact: true })).toBeChecked();
+  await page.getByRole('button', { name: 'Close player profile' }).click();
+  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  const core = page.getByRole('button', { name: /, core site, Mnemosyne,/ }).filter({ visible: true }).first();
+  await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#e3ba5e');
+  await page.screenshot({ path: `.fettle/shots/solo-preferred-color-${info.project.name}.png` });
+  await page.getByRole('button', { name: '‹ Games', exact: true }).click();
+  await page.getByRole('button', { name: 'Player profile', exact: true }).click();
+  await page.getByRole('radio', { name: 'violet player color', exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'violet player color', exact: true })).toBeChecked();
+  await page.getByRole('button', { name: 'Close player profile' }).click();
+  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#e3ba5e');
+});

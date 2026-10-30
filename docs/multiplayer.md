@@ -23,6 +23,8 @@ Private messages are returned only to their sender and recipient. They are store
 
 ## HTTP contract
 
+`POST /v1/games` and `POST /v1/join` accept an optional top-level `preferredColor`: `teal`, `rust`, `gold`, `olive`, `plum`, `blue`, `coral`, `violet`, `lime`, or `orange`. This preference is separate from host-controlled game options. Joined seats keep their colors; unoccupied seats can yield their colors to a joiner's preference. A collision falls back to an available color. Retrying create/join returns the existing assignment. New operations expose the assigned palette IDs in `game.rules.colors`, in player order. These assignments persist in saves, observations, historical views, and replay exports; older games without the optional field retain portrait-based colors.
+
 Base path: `/v1`. When Clerk is not configured, all game endpoints except `/games/:id/recover` use the **seat token** scheme: `Authorization: Bearer <64 lowercase hex characters>`. A client generates this token from 32 cryptographically random bytes and saves it before bootstrap. The server stores only its SHA-256 hash. Possession of the token controls that seat. A player can opt into offline seat recovery, described below. With Clerk configured, new and linked seats use [verified account sessions](accounts.md#http-authentication); Clerk provides account recovery. `/health` is public.
 
 | Method | Path | JSON body | Result |

@@ -14,7 +14,7 @@ function fixture(): SharedReplay {
     ],
     fleets: [{ id: 987, owner: 'you', from: 'a', to: 'b', drones: 3, departed: 0, arrives: 2.5, preparing: true, returning: true, giftAt: 1, speed: 4, module: 'scavenger', specialists: [{ id: 'private-2', kind: 'pirate', owner: 'vesper', captive: true }], route: { from: { x: 0, y: 0 }, to: { x: 10, y: 20 } }, intercept: { home: 'a', target: 987 } }],
     coverage: [{ x: 0, y: 0, radius: 30 }], cargo: { you: 0.25 }, standings: { you: { cargo: 0.25, funders: 1 } }, eliminated: [], winner: null,
-    rules: { players: ['you', 'vesper'], portraits: ['pilot', 'admiral'], mode: 'mining', victoryTarget: 200, mechanicsVersion: 5, map: { generator: 'balanced.v2', width: 100, height: 80, topology: 'torus' } },
+    rules: { players: ['you', 'vesper'], portraits: ['pilot', 'admiral'], colors: ['gold', 'violet'], mode: 'mining', victoryTarget: 200, mechanicsVersion: 5, map: { generator: 'balanced.v2', width: 100, height: 80, topology: 'torus' } },
   };
   const first = presentObservation(view);
   const second = structuredClone(first); second.hour = 0.5; second.rocks[0]!.drones = 8;
@@ -90,7 +90,7 @@ const cases: [string, (r: any) => void][] = [
   ['target ref', r => r.groups[0].states[0].fleets[0].intercept.target = 2], ['negative cargo', r => r.groups[0].states[0].cargo.you = -1],
   ['fractional funders', r => r.groups[0].states[0].standings.you.funders = 1.2], ['foreign roster', r => r.groups[0].states[0].cargo.echo = 2],
   ['portrait', r => r.groups[0].states[0].rules.portraits[0] = 'https://host/image'], ['portrait count', r => r.groups[0].states[0].rules.portraits.pop()],
-  ['portrait duplicate', r => r.groups[0].states[0].rules.portraits[0] = 'admiral'], ['rules version', r => r.groups[0].states[0].rules.mechanicsVersion = 6],
+  ['color unknown', r => r.groups[0].states[0].rules.colors[0] = 'invalid'], ['color duplicate', r => r.groups[0].states[0].rules.colors[1] = 'gold'], ['color count', r => r.groups[0].states[0].rules.colors.pop()], ['portrait duplicate', r => r.groups[0].states[0].rules.portraits[0] = 'admiral'], ['rules version', r => r.groups[0].states[0].rules.mechanicsVersion = 6],
   ['radius', r => r.groups[0].states[0].coverage[0].radius = -1], ['eliminated', r => r.groups[0].states[0].eliminated = ['you', 'you']],
 ];
 for (const [name, change] of cases) test(`rejects ${name} without mutation`, () => reject(change));

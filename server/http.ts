@@ -38,13 +38,13 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
   }
   if (req.method === 'POST' && url.pathname === '/v1/games') {
     const input = await body(req);
-    if (Object.keys(input).some(key => !['options', 'variant'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
-    return service.create(token, input.options, input.variant);
+    if (Object.keys(input).some(key => !['options', 'variant', 'preferredColor'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
+    return service.create(token, input.options, input.variant, input.preferredColor);
   }
   if (req.method === 'POST' && url.pathname === '/v1/join') {
     const input = await body(req);
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
-    return service.join(input.invite, token);
+    return service.join(input.invite, token, input.preferredColor);
   }
   const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');

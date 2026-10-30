@@ -92,6 +92,8 @@ test('configured seats accept catalog members and reject seats outside the opera
 test('creation sends validated explicit options and preserves the legacy omitted-options request', async t => {
   const { creationPayload } = await import('./network');
   assert.deepEqual(creationPayload(), {});
+  assert.deepEqual(creationPayload(undefined, undefined, 'gold'), { preferredColor: 'gold' });
+  assert.throws(() => creationPayload(undefined, undefined, 'invalid' as never), /known player color/);
   const options = { playerCount: 10, mode: 'domination' as const };
   const payload = creationPayload(options);
   options.playerCount = 2;

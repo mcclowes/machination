@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import { BeltMap } from './BeltMap';
-import { PlayerIdentity, PlayerPortraits } from './PlayerIdentity';
+import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 import { SpecialistManifest } from './SpecialistManifest';
 import { mapSpecialistSummary } from './map-specialists';
 import { MODULES } from '../game/modules';
@@ -29,7 +29,6 @@ import type { SharedReplay } from '../replay/timeline';
 import { gameClock } from '../game/time-machine';
 import { playerAppearance } from '../game/players';
 
-const PlayerRosterProvider = PlayerPortraits.Provider;
 export function SharedReplayViewer({
   replay,
   onExit,
@@ -114,7 +113,7 @@ export function SharedReplayViewer({
       });
   };
   return (
-    <PlayerRosterProvider value={scene.rules?.portraits}>
+    <PlayerRoster portraits={scene.rules?.portraits} colors={scene.rules?.colors}>
       <KeyboardAvoidingView
         style={s.screen}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -363,7 +362,7 @@ export function SharedReplayViewer({
           </View>
         </View>
       </KeyboardAvoidingView>
-    </PlayerRosterProvider>
+    </PlayerRoster>
   );
 }
 function Control({

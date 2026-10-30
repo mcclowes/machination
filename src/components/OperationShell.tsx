@@ -3,10 +3,12 @@
  * purpose: Persistent chart, contextual drawers, and operation navigation on phone and desktop.
  * ---
  */
+
+import type { PlayerColor } from '../game/player-colors';
 import React, { useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Faction } from '../game/players';
-import { PlayerPortraits } from './PlayerIdentity';
+import { PlayerRoster } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
 import { nativeDriver, useAmbientMotion } from './use-ambient-motion';
 
@@ -16,6 +18,7 @@ type Props = {
   chart: React.ReactNode; timeline: React.ReactNode; status: React.ReactNode;
   player?: Faction;
   portraits?: readonly CharacterId[];
+  colors?: readonly PlayerColor[];
   section: OperationSection | null; onSection: (section: OperationSection | null) => void;
   panels: Record<OperationSection, Panel>; hint?: React.ReactNode;
   panelScrollRef?: React.RefObject<ScrollView | null>; onPanelResize?: () => void;
@@ -25,7 +28,7 @@ const navigation = [
   ['signals', 'Signals', '≋'], ['intel', 'Intel', '▥'], ['settings', 'Setup', '⋯'],
 ] as const;
 
-export function OperationShell({ chart, timeline, status, player = 'you', portraits, section, onSection, panels, hint, panelScrollRef, onPanelResize }: Props) {
+export function OperationShell({ chart, timeline, status, player = 'you', portraits, colors, section, onSection, panels, hint, panelScrollRef, onPanelResize }: Props) {
   const { width } = useWindowDimensions();
   const wide = width >= 1000;
   const panel = section && panels[section];
@@ -41,7 +44,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     reveal.start();
     return () => reveal.stop();
   }, [animate, section, wide, entrance]);
-  return <PlayerPortraits.Provider value={portraits}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <PlayerRoster portraits={portraits} colors={colors}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
       <View style={s.chart}>{chart}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
@@ -61,7 +64,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
       const selected = key === null ? section === null || section === 'asset' : section === key;
       return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={({ pressed }) => [s.tab, selected && s.selected, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
     })}</View>
-  </KeyboardAvoidingView></PlayerPortraits.Provider>;
+  </KeyboardAvoidingView></PlayerRoster>;
 }
 const s = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { maxHeight: '35%', flexShrink: 1, paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0 }, statusBody: { gap: 6 },

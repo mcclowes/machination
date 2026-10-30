@@ -6,6 +6,9 @@
  * @format
  */
 
+import { PlayerProfile } from './src/components/PlayerProfile';
+import { loadProfile } from './src/solo/profile';
+import { assignPlayerColor, type PlayerColor } from './src/game/player-colors';
 import { usePlanningMode } from './src/components/usePlanningMode';
 import { displayGameText, resourceName } from './src/content/terminology';
 import { DisruptorControls } from './src/components/DisruptorControls';
@@ -108,8 +111,19 @@ import { INCOMING_NOTIFICATION_KIND } from './src/contracts/notifications';
 function operationFor(game: Game): LocalOperation {
   return { game, archive: createArchive(game, { rivals: true }) };
 }
-function newOperation(options: GameOptions = DEFAULT_GAME_OPTIONS): LocalOperation {
-  return operationFor(createSoloGame(options, Date.now(), Math.floor(Math.random() * 2 ** 32)));
+function newOperation(
+  options: GameOptions = DEFAULT_GAME_OPTIONS,
+  preferred?: PlayerColor,
+): LocalOperation {
+  const game = createSoloGame(options, Date.now(), Math.floor(Math.random() * 2 ** 32));
+  game.rules!.colors = assignPlayerColor(game.rules!, [], 'you', preferred);
+  return operationFor(game);
+}
+async function newProfileOperation(
+  options: GameOptions = DEFAULT_GAME_OPTIONS,
+): Promise<LocalOperation> {
+  const profile = await loadProfile();
+  return newOperation(options, profile.preferredColor);
 }
 const ink = '#e5eadc';
 const green = '#b8e986';
@@ -254,12 +268,17 @@ function HomeMenu({ open }: { open: (mode: 'solo' | 'online' | 'practice' | 'rep
               <Text style={s.resumeDetail}>{describeSolo(solo)}</Text>
             </View>
           )}
-          {multiplayer && <Button label="Resume multiplayer operation" onPress={() => open('online')} />}
+          {multiplayer && (
+            <Button label="Resume multiplayer operation" onPress={() => open('online')} />
+          )}
         </View>
       )}
       <Button label="Start tactical practice" quiet={resuming} onPress={() => open('practice')} />
       {!solo && <Button label="Open solo operation" quiet onPress={() => open('solo')} />}
-      {!multiplayer && <Button label="Open multiplayer uplink" quiet onPress={() => open('online')} />}
+      {!multiplayer && (
+        <Button label="Open multiplayer uplink" quiet onPress={() => open('online')} />
+      )}
+      <PlayerProfile />
       <Button label="Open shared replay" quiet onPress={() => open('replays')} />
     </StartScreen>
   );
@@ -274,7 +293,7 @@ function Operation({
         {
           initial: () => operationFor(createGame()),
           create: newOperation,
-          load: loadGame,
+          load: async () => (await loadGame()) ?? (await newProfileOperation()),
           save: saveGame,
         },
         practice?.scenario.id,
@@ -696,6 +715,7 @@ function Operation({
     <View style={s.safe}>
       <OperationShell
         portraits={shown.rules?.portraits}
+        colors={shown.rules?.colors}
         section={section}
         onSection={setSection}
         status={
@@ -1347,8 +1367,14 @@ function Operation({
             <GameSetup value={newOptions} onChange={setNewOptions} />
             <Button
               label="Replace operation"
-              onPress={() => {
-                const next = newOperation(newOptions);
+              onPress={async () => {
+                let next: LocalOperation;
+                try {
+                  next = await newProfileOperation(newOptions);
+                } catch {
+                  setError('Could not load your profile. Operation was kept.');
+                  return;
+                }
                 replace(next);
                 restartClock();
                 setLoadFailed(false);

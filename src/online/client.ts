@@ -1,3 +1,4 @@
+import { isPlayerColor, type PlayerColor } from '../game/player-colors';
 import type { CouncilOrder, PulseOrder } from '../contracts/protocol';
 import type { RequestSession } from './account-auth';
 import { validateOptions, type GameOptions } from '../game/rules';
@@ -9,7 +10,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../contracts/protocol';
 export type Pending = { kind: 'council'; body: CouncilOrder } | { kind: 'pulse'; body: PulseOrder } | { kind: 'edit-schedule'; body: EditSchedule } | { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
-export type Session = RequestSession & { id?: string; invite?: string; variant?: 'faction'; options?: GameOptions; pending?: Pending };
+export type Session = RequestSession & { id?: string; invite?: string; preferredColor?: PlayerColor; variant?: 'faction'; options?: GameOptions; pending?: Pending };
 const KEY = 'machination.online.v1';
 function sessionKey(accountId?: string) {
   if (accountId && !/^user_[a-zA-Z0-9]+$/.test(accountId)) throw new Error('Invalid account identity.');
@@ -30,6 +31,7 @@ export async function restoreSession(accountId?: string): Promise<Session | null
   const s = JSON.parse(raw) as Session;
   if (!s || typeof s.url !== 'string' || !/^[a-f0-9]{64}$/.test(s.token)) throw new Error('Saved connection is invalid.');
   if (s.accountId !== accountId) throw new Error('Saved connection belongs to another account.');
+  if (s.preferredColor !== undefined && !isPlayerColor(s.preferredColor)) throw new Error('Saved player color is invalid.');
   if (s.options !== undefined) s.options = validateOptions(s.options);
   if (s.variant !== undefined && s.variant !== 'faction') throw new Error('Saved operation variant is invalid.');
   return s;
@@ -49,7 +51,7 @@ export async function newSession(url: string, invite?: string, options?: GameOpt
 }
 export async function connect(session: Session): Promise<{ session: Session; snapshot: Snapshot }> {
   const snapshot = session.id ? await api(session, `games/${session.id}`)
-    : session.invite ? await api(session, 'join', { invite: session.invite }) : await api(session, 'games', creationPayload(session.options, session.variant));
+    : session.invite ? await api(session, 'join', { invite: session.invite, ...(session.preferredColor ? { preferredColor: session.preferredColor } : {}) }) : await api(session, 'games', creationPayload(session.options, session.variant, session.preferredColor));
   const current = session.id && AppState.currentState === 'active' && snapshot.inactivity
     ? await api(session, `games/${snapshot.id}/activity`, {}) : snapshot;
   const connected = { ...session, id: snapshot.id };

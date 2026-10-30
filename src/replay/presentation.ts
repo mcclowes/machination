@@ -120,6 +120,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     scene.rules = { players: r.players.map(f => f), mode: r.mode, victoryTarget: r.victoryTarget,
       map: { generator: r.map.generator, width: r.map.width, height: r.map.height } };
     if (r.teams !== undefined) scene.rules.teams = validateTeams(r.teams, r.players);
+    if (r.colors !== undefined) scene.rules.colors = [...r.colors];
     if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
     if (r.beltCompact !== undefined) scene.rules.beltCompact = r.beltCompact;
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;

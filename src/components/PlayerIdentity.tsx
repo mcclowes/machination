@@ -1,4 +1,6 @@
 /** Player portraits and scalable ownership emblems, shared by native and web views. */
+
+import type { PlayerColor } from '../game/player-colors';
 import React, { createContext, useContext } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
@@ -12,10 +14,15 @@ const rosters = {
   cybernetic: require('../../assets/players/cybernetic-roster.png'),
   nomad: require('../../assets/players/nomad-roster.png'),
 };
+export const PlayerColors = createContext<readonly PlayerColor[] | undefined>(undefined);
 export const PlayerPortraits = createContext<readonly CharacterId[] | undefined>(undefined);
+export function PlayerRoster({ portraits, colors, children }: { portraits?: readonly CharacterId[]; colors?: readonly PlayerColor[]; children: React.ReactNode }) {
+  return <PlayerColors.Provider value={colors}><PlayerPortraits.Provider value={portraits}>{children}</PlayerPortraits.Provider></PlayerColors.Provider>;
+}
 export function usePlayerRoster() {
   const portraits = useContext(PlayerPortraits);
-  return (faction: Faction) => playerAppearance(faction, portraits);
+  const colors = useContext(PlayerColors);
+  return (faction: Faction) => playerAppearance(faction, portraits, colors);
 }
 const portraitEdge = 488;
 const emblems = {

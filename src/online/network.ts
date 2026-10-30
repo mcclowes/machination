@@ -1,3 +1,4 @@
+import { isPlayerColor, type PlayerColor } from '../game/player-colors';
 import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
@@ -50,9 +51,10 @@ export async function historicalApi(session: RequestSession & { id: string }, ho
   return historicalResponse(session.id, hour, data);
 }
 
-export function creationPayload(options?: GameOptions, variant?: 'faction'): { options?: GameOptions; variant?: 'faction' } {
+export function creationPayload(options?: GameOptions, variant?: 'faction', preferredColor?: PlayerColor): { options?: GameOptions; variant?: 'faction'; preferredColor?: PlayerColor } {
+  if (preferredColor !== undefined && !isPlayerColor(preferredColor)) throw new Error('Choose a known player color.');
   if (variant !== undefined && variant !== 'faction') throw new Error('Unsupported operation variant.');
-  return { ...(options === undefined ? {} : { options: validateOptions(options) }), ...(variant ? { variant } : {}) };
+  return { ...(preferredColor ? { preferredColor } : {}), ...(options === undefined ? {} : { options: validateOptions(options) }), ...(variant ? { variant } : {}) };
 }
 export async function factionsApi(session: RequestSession, faction?: Allegiance): Promise<FactionStandings> {
   const data = await request(session, 'factions', faction === undefined ? undefined : { faction });

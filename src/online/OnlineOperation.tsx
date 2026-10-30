@@ -998,6 +998,7 @@ function ConnectedOperation({
       <OperationShell
         player={snapshot.faction}
         portraits={snapshot.game.rules?.portraits}
+        colors={snapshot.game.rules?.colors}
         section={section}
         onSection={changeSection}
         panelScrollRef={scroll}
@@ -1081,6 +1082,7 @@ function ConnectedOperation({
     <OperationShell
       player={snapshot.faction}
       portraits={game.rules?.portraits}
+      colors={game.rules?.colors}
       section={section}
       onSection={changeSection}
       panelScrollRef={scroll}
@@ -1670,7 +1672,13 @@ function ConnectedOperation({
                 <Text
                   style={[
                     s.title,
-                    { color: playerAppearance(snapshot.faction, game.rules?.portraits).color },
+                    {
+                      color: playerAppearance(
+                        snapshot.faction,
+                        game.rules?.portraits,
+                        game.rules?.colors,
+                      ).color,
+                    },
                   ]}
                 >
                   {FACTIONS[snapshot.faction].name}

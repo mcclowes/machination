@@ -9,7 +9,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { decodeSharedReplay, encodeSharedReplay, utf8Size } from '../replay/codec';
 import { saveSharedReplay } from '../replay/files';
 import type { SharedReplay } from '../replay/timeline';
-import { PlayerIdentity, PlayerPortraits } from './PlayerIdentity';
+import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 
 type Props = {
   historyStart: number;
@@ -192,12 +192,15 @@ export function ReplayExport({ historyStart, hour, createReplay, disabled = fals
       {button('Prepare replay', prepare, disabled || busy || !valid)}
       {shareable && (
         <View style={s.panel}>
-          <PlayerPortraits.Provider value={artifact.replay.groups[0]?.states[0]?.rules?.portraits}>
+          <PlayerRoster
+            colors={artifact.replay.groups[0]?.states[0]?.rules?.colors}
+            portraits={artifact.replay.groups[0]?.states[0]?.rules?.portraits}
+          >
             <PlayerIdentity
               faction={artifact.replay.perspective}
               detail={`Recorded perspective: ${artifact.replay.perspective}`}
             />
-          </PlayerPortraits.Provider>
+          </PlayerRoster>
           <Text style={s.text}>
             Included interval: {artifact.replay.from} through {artifact.replay.through}. Size:{' '}
             {artifact.bytes} bytes.

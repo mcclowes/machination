@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GameOptions } from '../game/rules';
 import { ALL_PLAYERS, FACTIONS } from '../game/players';
 import { CHARACTERS, CHARACTER_IDS, DEFAULT_PORTRAITS, type CharacterId } from '../game/characters';
-import { PlayerAvatar, PlayerIdentity, PlayerPortraits } from './PlayerIdentity';
+import { PlayerAvatar, PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 
 export function GameSetup({ value, onChange, disabled = false, council = false }: { value: GameOptions; onChange: (options: GameOptions) => void; disabled?: boolean; council?: boolean }) {
   const [editing, setEditing] = useState<number | null>(null);
@@ -23,7 +23,7 @@ export function GameSetup({ value, onChange, disabled = false, council = false }
     next[seat] = character;
     onChange({ ...value, portraits: next });
   }
-  return <PlayerPortraits.Provider value={portraits}><View style={s.panel}>
+  return <PlayerRoster portraits={portraits}><View style={s.panel}>
     <Text style={s.label}>Teams</Text>
     <View style={s.choices}>{(['individual', '2v2', '4v4'] as const).map(format => <Pressable key={format} accessibilityRole="radio" accessibilityLabel={format === 'individual' ? 'Individual game' : format === '2v2' ? 'Doubles (2v2)' : format} aria-checked={(value.teamFormat ?? 'individual') === format} accessibilityState={{ checked: (value.teamFormat ?? 'individual') === format, disabled }} disabled={disabled} onPress={() => {
       if (format === 'individual') { const { teamFormat: _, ...individual } = value; onChange(individual); }
@@ -32,7 +32,7 @@ export function GameSetup({ value, onChange, disabled = false, council = false }
     {value.teamFormat && <Text style={s.detail}>Seats {value.teamFormat === '2v2' ? '1–2 and 3–4' : value.teamFormat === '3v3v3' ? '1–3, 4–6, and 7–9' : '1–4 and 5–8'} form fixed teams in join order. Teammates share sensors, future plans, and victory. Each player controls their own assets.</Text>}
     <Text style={s.label}>Players</Text>
     <View style={s.choices}>{Array.from({ length: 9 }, (_, i) => i + 2).map(count => <Pressable key={count} accessibilityRole="radio" accessibilityLabel={`${count} players`} aria-checked={value.playerCount === count} accessibilityState={{ checked: value.playerCount === count, disabled }} disabled={disabled} onPress={() => resize(count)} style={[s.choice, value.playerCount === count && s.selected, disabled && s.disabled]}><Text style={s.text}>{count}</Text></Pressable>)}</View>
-    <Text style={s.label}>Player portraits</Text><Text style={s.detail}>Tap a player to choose from {CHARACTER_IDS.length} commanders. Each portrait includes its colors and insignia.</Text>
+    <Text style={s.label}>Player portraits</Text><Text style={s.detail}>Tap a player to choose from {CHARACTER_IDS.length} commanders. Portraits supply automatic colors and insignia. A player’s profile can override their color.</Text>
     <View style={s.roster}>{ALL_PLAYERS.slice(0, value.playerCount).map((faction, index) => <Pressable key={faction} accessibilityRole="button" accessibilityLabel={`Choose portrait for ${FACTIONS[faction].name}`} accessibilityState={{ expanded: seat === index, disabled }} disabled={disabled} onPress={() => setEditing(seat === index ? null : index)} style={[s.player, seat === index && s.selected, disabled && s.disabled]}><PlayerIdentity faction={faction} size={56} detail={`${value.teamFormat ? `Team ${Math.floor(index / (value.teamFormat === '2v2' ? 2 : value.teamFormat === '3v3v3' ? 3 : 4)) + 1} · ` : ''}${index === 0 ? 'You' : `Player ${index + 1}`} · ${CHARACTERS[portraits[index]!].label}`} /></Pressable>)}</View>
     {seat !== null && <View style={s.gallery}><Text style={s.label}>Choose {FACTIONS[ALL_PLAYERS[seat]!].name}'s portrait</Text><View style={s.choices}>{CHARACTER_IDS.map(id => <Pressable key={id} accessibilityRole="radio" accessibilityLabel={`${CHARACTERS[id].label} portrait`} accessibilityState={{ checked: portraits[seat] === id, disabled }} disabled={disabled} onPress={() => assign(id)} style={[s.portraitChoice, { borderColor: portraits[seat] === id ? CHARACTERS[id].color : '#30402e' }, disabled && s.disabled]}><PlayerAvatar faction={ALL_PLAYERS[seat]!} character={id} size={72} /><Text style={s.detail}>{CHARACTERS[id].label}</Text></Pressable>)}</View><Text style={s.detail}>Choosing an assigned portrait swaps the two players.</Text></View>}
     <Pressable accessibilityRole="checkbox" accessibilityLabel="Drifting asteroid bases" accessibilityState={{ checked: !!value.driftingBases, disabled }} disabled={disabled} onPress={() => onChange({ ...value, driftingBases: !value.driftingBases })} style={[s.choice, value.driftingBases && s.selected, disabled && s.disabled]}><Text style={s.text}>{value.driftingBases ? '☑' : '☐'} Drifting asteroid bases</Text></Pressable>
@@ -42,7 +42,7 @@ export function GameSetup({ value, onChange, disabled = false, council = false }
     <View style={s.choices}>{(value.teamFormat ? ['mining', 'domination'] as const : ['pulse', 'mining', 'domination'] as const).map(mode => <Pressable key={mode} accessibilityRole="radio" accessibilityLabel={mode === 'pulse' ? "King’s Pulse" : mode === 'mining' ? 'Mining' : 'Domination'} aria-checked={value.mode === mode} accessibilityState={{ checked: value.mode === mode, disabled }} disabled={disabled} onPress={() => onChange({ ...value, mode })} style={[s.choice, value.mode === mode && s.selected, disabled && s.disabled]}><Text style={s.text}>{mode === 'pulse' ? "King’s Pulse" : mode === 'mining' ? 'Mining' : 'Domination'}</Text></Pressable>)}</View>
     <Text style={s.detail}>{value.mode === 'pulse' ? 'Mine pulse material, charge your stationary King, and fire an expanding pulse. The last surviving King wins.' : value.mode === 'mining' ? value.teamFormat ? 'Team mining: pool 300 cargo. Mine prices count every mine built by your team.' : 'Mining: extract 300 cargo to complete your quota.' : `${value.teamFormat ? 'Team domination' : 'Domination'}: control ${5 * value.playerCount} sites, half the chart. Mines supply recruitment cargo.`}</Text>
     <Text style={s.detail}>Each player starts with six sites, including one mine, 160 drones, and 5 cargo. Hiring costs 1 credit and 5 cargo. The generated chart has 10 sites per player ({10 * value.playerCount} total).</Text>
-  </View></PlayerPortraits.Provider>;
+  </View></PlayerRoster>;
 }
 const s = StyleSheet.create({
   panel: { gap: 12 }, label: { color: '#96ad89', fontSize: 11, letterSpacing: 1 },
