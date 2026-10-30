@@ -21,7 +21,7 @@ const swing = (value: Animated.Value, high: number, low: number, duration: numbe
   Animated.loop(Animated.sequence([timing(value, high, duration / 2), timing(value, low, duration / 2)]));
 const cycle = (value: Animated.Value, duration: number) =>
   Animated.loop(timing(value, 1, duration, Easing.linear), { resetBeforeIteration: true });
-const phased = (value: Animated.Value, phase: number) => Animated.modulo(Animated.add(value, phase), 1);
+const phased = (value: Parameters<typeof Animated.add>[0], phase: number) => Animated.modulo(Animated.add(value, phase), 1);
 
 const Glow = memo(function Glow({ size, inner, outer }: { size: number; inner: string; outer: string }) {
   const id = `glow-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
