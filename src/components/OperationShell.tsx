@@ -45,7 +45,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
       <View style={s.chart}>{chart}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
-      {panel && <Animated.View testID="operation-drawer" style={[s.drawer, wide ? s.sidebar : s.sheet, {
+      {panel && <Animated.View testID="operation-drawer" style={[s.drawer, wide ? s.sidebar : s.sheet, !wide && section === 'intel' && s.intelSheet, {
         opacity: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }),
         transform: [wide
           ? { translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }
@@ -67,6 +67,7 @@ const s = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { maxHeight: '35%', flexShrink: 1, paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0 }, statusBody: { gap: 6 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' }, wide: { flexDirection: 'row' }, chart: { flex: 1, minWidth: 0 },
   drawer: { backgroundColor: '#14232b', borderTopWidth: 1, borderColor: '#30454c', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '55%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  intelSheet: { maxHeight: '90%' },
   footer: { padding: 12, borderTopWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' },
   heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#23363e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: 14, gap: 14, paddingBottom: 24 },
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
