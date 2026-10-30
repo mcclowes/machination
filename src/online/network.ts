@@ -3,7 +3,8 @@ import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
 import { ALLEGIANCE_IDS, isAllegiance, type Allegiance, type FactionStandings } from '../game/factions';
-import type { HistorySnapshot, Snapshot } from '../contracts/protocol';
+import type { HistorySnapshot, OperationListing, Snapshot } from '../contracts/protocol';
+import { operationListingResponse } from '../contracts/operation-listing';
 import { snapshotResponse, historicalResponse } from '../contracts/snapshot';
 import type { MessageNotificationSettings, SetMessageNotifications } from '../contracts/notifications';
 
@@ -51,10 +52,13 @@ export async function historicalApi(session: RequestSession & { id: string }, ho
   return historicalResponse(session.id, hour, data);
 }
 
-export function creationPayload(options?: GameOptions, variant?: 'faction', preferredColor?: PlayerColor): { options?: GameOptions; variant?: 'faction'; preferredColor?: PlayerColor } {
+export function creationPayload(options?: GameOptions, variant?: 'faction', preferredColor?: PlayerColor, requestId?: string): { options?: GameOptions; variant?: 'faction'; preferredColor?: PlayerColor; requestId?: string } {
   if (preferredColor !== undefined && !isPlayerColor(preferredColor)) throw new Error('Choose a known player color.');
   if (variant !== undefined && variant !== 'faction') throw new Error('Unsupported operation variant.');
-  return { ...(preferredColor ? { preferredColor } : {}), ...(options === undefined ? {} : { options: validateOptions(options) }), ...(variant ? { variant } : {}) };
+  return { ...(preferredColor ? { preferredColor } : {}), ...(options === undefined ? {} : { options: validateOptions(options) }), ...(variant ? { variant } : {}), ...(requestId ? { requestId } : {}) };
+}
+export async function accountOperationsApi(session: RequestSession): Promise<OperationListing[]> {
+  return operationListingResponse(await request(session, 'account/operations'));
 }
 export async function factionsApi(session: RequestSession, faction?: Allegiance): Promise<FactionStandings> {
   const data = await request(session, 'factions', faction === undefined ? undefined : { faction });

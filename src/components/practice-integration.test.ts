@@ -67,7 +67,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'practice-host' }));
         builder.onResolve({ filter: /MultiplayerAccount$/ }, () => ({ path: 'account-boundary', namespace: 'practice-host' }));
-        builder.onLoad({ filter: /^account-boundary$/, namespace: 'practice-host' }, () => ({ contents: `export const useAccountId=()=>null;` }));
+        builder.onLoad({ filter: /^account-boundary$/, namespace: 'practice-host' }, () => ({ contents: `export const useAccountAccess=()=>null;` }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'practice-host' }));
         builder.onResolve({ filter: /\/audio\/sound$/ }, () => ({ path: 'silent-audio', namespace: 'practice-host' }));
         builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'practice-host' }));

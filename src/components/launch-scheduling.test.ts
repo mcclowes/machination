@@ -66,7 +66,7 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'launch-host' }));
         builder.onResolve({ filter: /MultiplayerAccount$/ }, () => ({ path: 'account-boundary', namespace: 'launch-host' }));
-        builder.onLoad({ filter: /^account-boundary$/, namespace: 'launch-host' }, () => ({ contents: `export const useAccountId=()=>null;` }));
+        builder.onLoad({ filter: /^account-boundary$/, namespace: 'launch-host' }, () => ({ contents: `export const useAccountAccess=()=>null;` }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'launch-host' }));
         builder.onResolve({ filter: /\/audio\/sound$/ }, () => ({ path: 'silent-audio', namespace: 'launch-host' }));
         builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'launch-host' }));

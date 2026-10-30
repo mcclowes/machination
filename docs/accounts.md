@@ -42,7 +42,7 @@ For production, configure this application’s production domain and account por
 
 ## Restore or link an operation
 
-Sign in, then create or join an operation. Each account controls one operation per game server, matching the existing single-operation connection model. Opening multiplayer restores its saved connection or looks up the account at the default server. On another server, enter its origin and choose **Restore account operation**. Restoring does not create an operation, and changing devices does not revoke another signed-in device.
+Sign in, then create or join an operation. An account may hold up to 10 unfinished operations per game server, with one seat in each. Finished operations don't count toward the limit. Creation requests carry a client `requestId`, so a retried request returns its operation instead of starting another. Requests without one keep the older behavior and return the account's unfinished operation if it has one. Opening multiplayer while signed in shows the account's operations at the default server: open one, or start or join another. The start screen also lists up to three active operations to resume directly, and a notification tap opens the operation it names. Each operation keeps its own saved connection and pending request on the device, so switching between them never drops an unsent command. A creation in flight waits in a separate draft slot until the server confirms it. Device seats without an account still keep a single saved connection. On another server, enter its origin and choose **Restore account operation**. Restoring does not create an operation, and changing devices does not revoke another signed-in device.
 
 An existing device seat remains usable. Choose **Link seat to my account** while signed in. Linking proves possession of the existing token, is safe to retry, and prevents replacement by another account. It revokes the legacy token and all offline recovery codes. Seats are saved separately per Clerk user; changing accounts remounts the operation screen and removes the previous account's visible game state. Pending commands stay with their original account.
 
@@ -54,11 +54,12 @@ When Clerk is configured, new seats require `Authorization: Bearer <Clerk sessio
 
 | Method | Path | Body | Result |
 | --- | --- | --- | --- |
-| GET | `/v1/account/session` | None | `{snapshot: Snapshot \| null}` for the verified user |
+| GET | `/v1/account/session` | None | `{snapshot: Snapshot \| null}` for the verified user's newest operation |
+| GET | `/v1/account/operations` | None | `{operations: OperationListing[]}`, newest first: every unfinished operation plus the 20 most recent finished ones |
 | POST | `/v1/account/link` | `{id, token}` | Linked snapshot; `token` is the existing device seat credential |
 
 Account routes always require a verified Clerk session. The legacy bearer scheme remains available for existing unlinked seats and their offline recovery. A linked seat rejects its old bearer token. `/health` stays public. Never send credentials in a URL.
 
-Account IDs and credential hashes stay out of snapshots. Linking retains the original seat identity, command receipts, and sensor perspective. Persistence adds an optional `accountId` to seats; old databases load unchanged, while malformed identities and duplicate account assignments are rejected. Back up the database before activation; older server versions do not enforce the account binding, so do not roll back to one with linked-seat data.
+Account IDs and credential hashes stay out of snapshots. Linking retains the original seat identity, command receipts, and sensor perspective. Persistence adds an optional `accountId` to seats; old databases load unchanged, while malformed identities and two seats for one account in the same operation are rejected. Back up the database before activation; older server versions do not enforce the account binding, so do not roll back to one with linked-seat data.
 
 Session JWT verification is local or uses cached signing keys; it is not an online check of Clerk session revocation on every request. Already issued tokens can remain valid until their short expiry. A live sign-in and native browser round trip still require registered apps. Changing Clerk applications creates a separate user pool; migrate existing account-linked seats explicitly before switching a populated service. This local setup does not alter hosted configuration or migrate users.

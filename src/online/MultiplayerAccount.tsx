@@ -5,7 +5,7 @@
  *   - ./OnlineOperation.tsx - account-aware operation connection
  * ---
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
@@ -18,9 +18,12 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   if (!publishableKey) return children;
   return <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>{children}</ClerkProvider>;
 }
-/** Signed-in account id; `undefined` while loading, `null` when signed out or accounts are off. */
-export const useAccountId: () => string | null | undefined = publishableKey
-  ? () => { const { isLoaded, userId } = useAuth(); return isLoaded ? userId ?? null : undefined; }
+/** Signed-in account access; `undefined` while loading, `null` when signed out or accounts are off. */
+export const useAccountAccess: () => AccountAccess | null | undefined = publishableKey
+  ? () => {
+      const { isLoaded, userId, getToken } = useAuth();
+      return useMemo(() => (isLoaded ? (userId ? { accountId: userId, getToken } : null) : undefined), [isLoaded, userId, getToken]);
+    }
   : () => null;
 export function MultiplayerAccount({ children }: { children: (account?: AccountAccess) => React.ReactNode }) {
   return publishableKey ? <AccountGate>{children}</AccountGate> : children();

@@ -26,6 +26,7 @@ import {
 } from '../game/rules';
 import { playersIn } from '../game/players';
 import { MultiplayerAccount } from './MultiplayerAccount';
+import { OperationDirectory } from './OperationDirectory';
 import { FactionPanel } from './FactionPanel';
 import { ALLEGIANCES, type Allegiance } from '../game/factions';
 import type { AccountAccess } from './account-auth';
@@ -123,11 +124,49 @@ type OnlineOperationProps = {
   notification?: NotificationRequest;
   onNotificationHandled?: (notificationId: string, opened: boolean) => void;
 };
-export function OnlineOperation(props: OnlineOperationProps = {}) {
+/** `operationId` opens that operation directly; otherwise account players start at their operation list. */
+export function OnlineOperation({ operationId, ...props }: OnlineOperationProps & { operationId?: string } = {}) {
   return (
     <MultiplayerAccount>
-      {(account) => <ConnectedOperation {...props} account={account} />}
+      {(account) =>
+        account ? (
+          <AccountOperations {...props} account={account} initial={operationId} />
+        ) : (
+          <ConnectedOperation {...props} />
+        )
+      }
     </MultiplayerAccount>
+  );
+}
+type Selection = 'list' | { id?: string; instance: number };
+function AccountOperations({
+  account,
+  initial,
+  ...props
+}: OnlineOperationProps & { account: AccountAccess; initial?: string }) {
+  const instances = useRef(0);
+  const [selection, setSelection] = useState<Selection>(() =>
+    initial ? { id: initial, instance: instances.current } : 'list',
+  );
+  const open = (id?: string) => setSelection({ id, instance: ++instances.current });
+  const tapped = props.notification?.gameId;
+  useEffect(() => {
+    if (tapped && (selection === 'list' || selection.id !== tapped)) open(tapped);
+  }, [tapped]);
+  if (selection === 'list') return <OperationDirectory account={account} onOpen={open} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Pressable accessibilityRole="button" onPress={() => setSelection('list')} style={s.backToList}>
+        <Text style={s.backToListText}>‹ All operations</Text>
+      </Pressable>
+      <ConnectedOperation
+        key={selection.instance}
+        {...props}
+        account={account}
+        operationId={selection.id}
+        onOpened={(id) => setSelection((current) => (current === 'list' ? current : { ...current, id }))}
+      />
+    </View>
   );
 }
 function ConnectedOperation({
@@ -135,7 +174,13 @@ function ConnectedOperation({
   account,
   notification,
   onNotificationHandled,
-}: OnlineOperationProps & { account?: AccountAccess }) {
+  operationId,
+  onOpened,
+}: OnlineOperationProps & {
+  account?: AccountAccess;
+  operationId?: string;
+  onOpened?: (id: string) => void;
+}) {
   const [section, setSection] = useState<OperationSection | null>(null);
   const [mapCamera, setMapCamera] = useState({ scale: 1, x: 0, y: 0 });
   const [invite, setInvite] = useState('');
@@ -162,10 +207,12 @@ function ConnectedOperation({
   const referenceSequence = useRef(0);
   const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
   const uplink = useOnlineConnection(account, {
-    onConnected: (next) =>
+    onConnected: (next) => {
+      onOpened?.(next.id);
       setSelected(
         (next.game.rocks.find((r) => r.owner === next.faction) ?? next.game.rocks[0]!).id,
-      ),
+      );
+    },
     onReset: () => setInspectedHour(null),
     onCompleted(pending, next) {
       if (pending.kind === 'recover') {
@@ -197,7 +244,7 @@ function ConnectedOperation({
         setNavigating(undefined);
       }
     },
-  });
+  }, operationId);
   const {
     session,
     snapshot,
@@ -1788,6 +1835,8 @@ function ConnectedOperation({
   );
 }
 const s = StyleSheet.create({
+  backToList: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
+  backToListText: { color: '#b4c7ca', fontSize: 14 },
   page: {
     padding: 20,
     gap: 18,

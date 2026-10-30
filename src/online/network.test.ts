@@ -93,6 +93,7 @@ test('creation sends validated explicit options and preserves the legacy omitted
   const { creationPayload } = await import('./network');
   assert.deepEqual(creationPayload(), {});
   assert.deepEqual(creationPayload(undefined, undefined, 'gold'), { preferredColor: 'gold' });
+  assert.deepEqual(creationPayload(undefined, undefined, undefined, 'retry-safe-request-1'), { requestId: 'retry-safe-request-1' });
   assert.throws(() => creationPayload(undefined, undefined, 'invalid' as never), /known player color/);
   const options = { playerCount: 10, mode: 'domination' as const };
   const payload = creationPayload(options);

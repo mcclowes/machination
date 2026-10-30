@@ -98,7 +98,8 @@ import { ReplayLibraryScreen } from './src/components/ReplayLibraryScreen';
 import { ReplayExport } from './src/components/ReplayExport';
 import { generateSharedReplay } from './src/replay/generate';
 import { StartScreen } from './src/components/StartScreen';
-import { describeSolo, useOngoingOperations } from './src/components/useOngoingOperations';
+import { useOngoingOperations } from './src/components/useOngoingOperations';
+import { describeListing, describeSolo } from './src/online/operation-labels';
 import type { LocalOperation } from './src/game/operation-save';
 import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
 import { SignalLog } from './src/components/SignalLog';
@@ -162,7 +163,12 @@ function Label({ children }: { children: React.ReactNode }) {
   return <Text style={s.label}>{children}</Text>;
 }
 export default function App() {
-  const [mode, setMode] = useState<'solo' | 'online' | 'practice' | 'replays' | null>(null);
+  const [mode, setModeState] = useState<Mode | null>(null);
+  const [onlineOperation, setOnlineOperation] = useState<string>();
+  const setMode = (next: Mode | null, operationId?: string) => {
+    setOnlineOperation(operationId);
+    setModeState(next);
+  };
   const launch = useNotificationLaunch(launchDeps);
   // A tap opens multiplayer from the start screen, but never abandons a solo, practice, or replay session.
   const autoOpened = useRef<string>(undefined);
@@ -241,6 +247,8 @@ export default function App() {
           <Operation onOpenReplays={() => setMode('replays')} />
         ) : mode === 'online' ? (
           <OnlineOperation
+            key={onlineOperation}
+            operationId={onlineOperation}
             onOpenReplays={() => setMode('replays')}
             notification={launch.request}
             onNotificationHandled={launch.consume}
@@ -254,9 +262,12 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-function HomeMenu({ open }: { open: (mode: 'solo' | 'online' | 'practice' | 'replays') => void }) {
-  const { solo, multiplayer } = useOngoingOperations();
-  const resuming = !!solo || multiplayer;
+type Mode = 'solo' | 'online' | 'practice' | 'replays';
+const HOME_OPERATION_LIMIT = 3;
+function HomeMenu({ open }: { open: (mode: Mode, operationId?: string) => void }) {
+  const { solo, multiplayer, deviceSeat } = useOngoingOperations();
+  const online = multiplayer.length > 0 || deviceSeat;
+  const resuming = !!solo || online;
   return (
     <StartScreen>
       {resuming && (
@@ -268,15 +279,29 @@ function HomeMenu({ open }: { open: (mode: 'solo' | 'online' | 'practice' | 'rep
               <Text style={s.resumeDetail}>{describeSolo(solo)}</Text>
             </View>
           )}
-          {multiplayer && (
-            <Button label="Resume multiplayer operation" onPress={() => open('online')} />
+          {multiplayer.slice(0, HOME_OPERATION_LIMIT).map((operation, i) => (
+            <View key={operation.id} style={{ gap: 4 }}>
+              <Button
+                label="Resume multiplayer operation"
+                quiet={!!solo || i > 0}
+                onPress={() => open('online', operation.id)}
+              />
+              <Text style={s.resumeDetail}>{describeListing(operation)}</Text>
+            </View>
+          ))}
+          {deviceSeat && (
+            <Button label="Resume multiplayer operation" quiet={!!solo} onPress={() => open('online')} />
           )}
         </View>
       )}
       <Button label="Start tactical practice" quiet={resuming} onPress={() => open('practice')} />
       {!solo && <Button label="Open solo operation" quiet onPress={() => open('solo')} />}
-      {!multiplayer && (
-        <Button label="Open multiplayer uplink" quiet onPress={() => open('online')} />
+      {!deviceSeat && (
+        <Button
+          label={multiplayer.length ? `All multiplayer operations (${multiplayer.length})` : 'Open multiplayer uplink'}
+          quiet
+          onPress={() => open('online')}
+        />
       )}
       <PlayerProfile />
       <Button label="Open shared replay" quiet onPress={() => open('replays')} />

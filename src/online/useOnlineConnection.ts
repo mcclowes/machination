@@ -19,6 +19,7 @@ import { api, accountSessionApi, RejectedCommand } from './network';
 import {
   commandId,
   connect,
+  DEFAULT_GAME_SERVER,
   newCredential,
   newSession,
   restoreSession,
@@ -44,12 +45,17 @@ type Events = {
   onReset(): void;
 };
 
-export function useOnlineConnection(account: AccountAccess | undefined, events: Events) {
+/** With an account, `operationId` picks one of its operations; without one, it opens setup or a creation in flight. */
+export function useOnlineConnection(
+  account: AccountAccess | undefined,
+  events: Events,
+  operationId?: string,
+) {
   const callbacks = useRef(events);
   callbacks.current = events;
   const [session, setSession] = useState<Session | null>(null);
   const [snapshot, setSnapshot] = useState<Snapshot>();
-  const [url, setUrl] = useState(process.env.EXPO_PUBLIC_GAME_SERVER ?? 'http://localhost:8787');
+  const [url, setUrl] = useState(DEFAULT_GAME_SERVER);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
@@ -93,13 +99,16 @@ export function useOnlineConnection(account: AccountAccess | undefined, events: 
   }
   const restoreStored = useEffectEvent(() =>
     run(async () => {
-      const stored = account
-        ? ((await restoreSession(account.accountId)) ?? (await restoreSession()))
-        : await restoreSession();
-      if (!stored) {
-        if (account) await restoreAccount();
-        return;
-      }
+      const stored = !account
+        ? await restoreSession()
+        : operationId
+          ? ((await restoreSession(account.accountId, operationId)) ?? {
+              ...(await newSession(url)),
+              ...account,
+              id: operationId,
+            })
+          : ((await restoreSession(account.accountId)) ?? (await restoreSession()));
+      if (!stored) return;
       const saved = stored.accountId && account ? { ...stored, ...account } : stored;
       setUrl(saved.url);
       setSession(saved);
@@ -204,6 +213,7 @@ export function useOnlineConnection(account: AccountAccess | undefined, events: 
               ...session,
               id: undefined,
               pending: undefined,
+              requestId: join ? undefined : commandId(),
               invite: join ? invite : undefined,
               options: join ? undefined : options,
               variant: join ? undefined : variant,
@@ -288,7 +298,7 @@ export function useOnlineConnection(account: AccountAccess | undefined, events: 
   }
   async function removeConnection() {
     if (!session) return;
-    await storeSession(null, session.accountId);
+    await storeSession(null, session.accountId, session.id);
     setSession(null);
     setSnapshot(undefined);
     setRecoveryCode('');
