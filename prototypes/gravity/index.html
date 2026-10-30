@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gravity sandbox</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0d14; --panel: #141826; --text: #dfe3f0; --muted: #8a90a8; --line: #252b40; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; display: flex; gap: 16px; padding: 16px; flex-wrap: wrap; }
+  canvas { width: min(92vh, 100%); aspect-ratio: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; cursor: crosshair; }
+  aside { width: 320px; display: flex; flex-direction: column; gap: 10px; }
+  fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--panel); margin: 0; }
+  legend { color: var(--muted); padding: 0 4px; }
+  label { display: grid; grid-template-columns: 110px 1fr 36px; align-items: center; gap: 6px; margin: 3px 0; }
+  label.check { grid-template-columns: 18px 1fr; }
+  output { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  select, button { background: #1d2234; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  button { cursor: pointer; }
+  pre { margin: 0; white-space: pre-wrap; font: 12px/1.5 ui-monospace, monospace; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-height: 120px; }
+  .note { color: var(--muted); font-size: 12px; margin: 0; }
+  .key span { display: inline-block; width: 10px; height: 3px; margin: 0 4px 2px 8px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<canvas id="chart" width="900" height="900"></canvas>
+<aside>
+  <p class="note"><strong>Prototype #104.</strong> Click a site, then a destination. Courses are plotted once at launch. The dashed line is the straight chord.</p>
+  <p class="note key">Course speed:<span style="background:#7be08a"></span>faster<span style="background:#ff8a5c"></span>slower<span style="background:#e8e8f0"></span>base</p>
+  <pre id="readout"></pre>
+  <fieldset>
+    <legend>Flight</legend>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button id="launch">Launch hauler</button>
+      <button id="clear">Clear wells + waypoints</button>
+    </div>
+    <label>Playback h/s <input id="playRate" type="range" min="0.5" max="8" step="0.5" value="2"><output for="playRate"></output></label>
+  </fieldset>
+  <fieldset>
+    <legend>Click mode</legend>
+    <label>Mode <select id="mode"><option value="select">Select sites</option><option value="waypoint">Add waypoint</option><option value="antigravity">Place antigravity well</option></select><span></span></label>
+    <label>Well owner <select id="antiOwner"><option value="you">Mnemosyne (blue)</option><option value="vesper">Vesper (red)</option><option value="null">Null (yellow)</option></select><span></span></label>
+  </fieldset>
+  <fieldset>
+    <legend>Bodies</legend>
+    <label>Gas giants <input id="giants" type="range" min="0" max="6" step="1" value="3"><output for="giants"></output></label>
+    <label>Giant mass <input id="giantMass" type="range" min="0" max="3" step="0.1" value="1"><output for="giantMass"></output></label>
+    <label>Giant radius <input id="giantRadius" type="range" min="1" max="8" step="0.5" value="3.5"><output for="giantRadius"></output></label>
+    <label>Site mass <input id="siteMass" type="range" min="0" max="1" step="0.05" value="0"><output for="siteMass"></output></label>
+    <label>Antigravity <input id="antigravityMass" type="range" min="0" max="3" step="0.1" value="1.5"><output for="antigravityMass"></output></label>
+  </fieldset>
+  <fieldset>
+    <legend>Physics</legend>
+    <label>Bend <input id="bend" type="range" min="0" max="8" step="0.1" value="1"><output for="bend"></output></label>
+    <label>Speed gain <input id="speedGain" type="range" min="0" max="2" step="0.05" value="0.6"><output for="speedGain"></output></label>
+    <label>Reach (u) <input id="reach" type="range" min="2" max="30" step="1" value="10"><output for="reach"></output></label>
+    <label class="check"><input id="ownerAware" type="checkbox" checked> Antigravity speeds its owner, slows rivals</label>
+  </fieldset>
+  <fieldset>
+    <legend>Chart</legend>
+    <label>Seed <input id="seed" type="range" min="1" max="60" step="1" value="7"><output for="seed"></output></label>
+    <label>Players <input id="players" type="range" min="2" max="6" step="1" value="3"><output for="players"></output></label>
+    <label class="check"><input id="allRoutes" type="checkbox"> Show every course from the selected site</label>
+    <label class="check"><input id="field" type="checkbox"> Show the speed field</label>
+    <label class="check"><input id="chord" type="checkbox" checked> Show the straight chord</label>
+  </fieldset>
+</aside>
+<script src="dist/app.js"></script>
+</body>
+</html>
