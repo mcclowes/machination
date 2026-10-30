@@ -36,7 +36,12 @@ async function main() {
     },
     origins,
   );
-  const storage = databaseUrl ? await openPostgres(databaseUrl, dataFile) : undefined;
+  const storage = databaseUrl
+    ? await openPostgres(databaseUrl, dataFile, {
+        tls: process.env.MACHINATION_DATABASE_TLS,
+        ca: process.env.MACHINATION_DATABASE_CA,
+      })
+    : undefined;
   try {
     const service = await GameService.open(storage ?? dataFile, Date.now, undefined, {
       notifications: push.enabled,

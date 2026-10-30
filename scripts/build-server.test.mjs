@@ -11,9 +11,11 @@ import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
 import postgres from 'postgres';
 
 const testDatabase = process.env.MACHINATION_TEST_DATABASE_URL;
+const tlsDatabase = process.env.MACHINATION_TEST_DATABASE_TLS_URL;
+const databaseCa = process.env.MACHINATION_TEST_DATABASE_CA;
 
-async function isolatedPostgres(t) {
-  const sql = postgres(testDatabase, { max: 1, prepare: false, onnotice: () => {} });
+async function isolatedPostgres(t, databaseUrl = testDatabase, ssl = false) {
+  const sql = postgres(databaseUrl, { ssl, max: 1, prepare: false, onnotice: () => {} });
   const schema = `machination_runtime_${randomBytes(8).toString('hex')}`;
   try { await sql.unsafe(`create schema "${schema}"`); }
   catch (error) { await sql.end({ timeout: 1 }); throw error; }
@@ -21,14 +23,14 @@ async function isolatedPostgres(t) {
     try { await sql.unsafe(`drop schema "${schema}" cascade`); }
     finally { await sql.end({ timeout: 1 }); }
   });
-  const url = new URL(testDatabase);
+  const url = new URL(databaseUrl);
   url.searchParams.set('options', `-c search_path=${schema}`);
   return { url: url.toString(), sql, schema };
 }
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -191,6 +193,40 @@ test('standalone bundle verifies Clerk sessions and restores an account without 
   } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
+test('standalone Postgres TLS verifies its CA and hostname and restores stored state', { timeout: 30_000, skip: !tlsDatabase && 'Run npm run test:postgres-tls for the disposable TLS server.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-tls-bundle-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { url } = await isolatedPostgres(t, tlsDatabase, { ca: databaseCa, rejectUnauthorized: true });
+  const entry = join(dir, 'main.mjs'), file = join(dir, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const configuration = { DATABASE_URL: url, MACHINATION_DATABASE_CA: databaseCa };
+  await assert.rejects(start(entry, file, { ...configuration, MACHINATION_DATABASE_CA: '' }), /unable to verify the first certificate/);
+  const mismatch = new URL(url); mismatch.hostname = '127.0.0.1';
+  await assert.rejects(start(entry, file, { ...configuration, DATABASE_URL: mismatch.toString() }), /does not match certificate/);
+  const token = randomBytes(32).toString('hex');
+  let runtime;
+  try {
+    runtime = await start(entry, file, configuration);
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const created = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers, body: '{}' });
+    assert.equal(created.status, 200);
+    const snapshot = await created.json();
+    await runtime.stop(); runtime = undefined;
+    runtime = await start(entry, file, configuration);
+    const restored = await fetch(`${runtime.origin}/v1/games/${snapshot.id}`, { headers });
+    assert.equal(restored.status, 200);
+    assert.equal((await restored.json()).id, snapshot.id);
+  } finally { if (runtime) await runtime.stop(); }
+});
+
+test('invalid database TLS configuration fails without exposing credentials', async () => {
+  for (const configuration of [{ MACHINATION_DATABASE_TLS: 'require' }, { MACHINATION_DATABASE_TLS: 'local' }, { MACHINATION_DATABASE_CA: '/private/secret-ca.pem' }]) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', DATABASE_URL: 'postgres://private-user:private-password@db.example.test/game', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', ...configuration },
+    }), error => error.code === 1 && !error.killed && /MACHINATION_DATABASE_(TLS|CA)/.test(error.stderr) && !/private-user|private-password|secret-ca/.test(error.stderr));
+  }
+});
+
 test('standalone Postgres drains accepted work, closes connections, and restores retry history', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-runtime-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -206,7 +242,7 @@ test('standalone Postgres drains accepted work, closes connections, and restores
     return data;
   };
   try {
-    runtime = await start(entry, dataFile, { DATABASE_URL: url });
+    runtime = await start(entry, dataFile, { DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local' });
     let view = await request('games', 0, { options: { playerCount: 2, mode: 'pulse' } });
     await request('join', 1, { invite: view.invite });
     const path = `games/${view.id}`;
@@ -235,7 +271,7 @@ test('standalone Postgres drains accepted work, closes connections, and restores
       late = await response;
       await runtime.stop(); runtime = undefined;
     } finally { incoming.destroy(); }
-    runtime = await start(entry, dataFile, { DATABASE_URL: url });
+    runtime = await start(entry, dataFile, { DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local' });
     const resumed = await request(path, 0);
     assert.equal(resumed.game.scheduled.length, 1);
     assert.equal(resumed.messages[0].text, 'Preserve this message.');
@@ -257,7 +293,7 @@ test('standalone Postgres closes its client when startup import fails', { timeou
   const file = join(dir, 'damaged.json');
   await writeFile(file, '{damaged');
   await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: url, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: file, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: file, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
   }), error => error.code === 1 && !error.killed && /Cannot start game service:/.test(error.stderr));
 });
 
@@ -270,7 +306,7 @@ test('standalone Postgres closes its client after a listener startup failure', {
   t.after(() => new Promise(resolve => busy.close(resolve)));
   const port = busy.address().port;
   await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: String(port), DATABASE_URL: url, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: join(dir, 'games.json'), MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: String(port), DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: join(dir, 'games.json'), MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
   }), error => error.code === 1 && !error.killed && /EADDRINUSE/.test(error.stderr));
 });
 
@@ -284,7 +320,7 @@ test('standalone Postgres bounds a blocked write at shutdown and preserves safe 
   await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
   const token = randomBytes(32).toString('hex');
   const appName = `shutdown-${randomBytes(8).toString('hex')}`;
-  const configuration = { DATABASE_URL: url, PGAPPNAME: appName };
+  const configuration = { DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', PGAPPNAME: appName };
   let runtime, release, held;
   const request = (path, body) => fetch(`${runtime.origin}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
   try {

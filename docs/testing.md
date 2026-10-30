@@ -71,9 +71,11 @@ Add regressions at the boundary where behavior can fail. Prefer observable resul
 
 ## Postgres runtime
 
-The server-packaging workflow supplies a disposable Postgres 17.11 service and sets `MACHINATION_TEST_DATABASE_URL` for both the real-driver test and standalone bundle checks. The bundle scenarios use isolated schemas and cover accepted writes during shutdown, restart/retry, failed imports, listener failures, and a write held behind a real SQL lock until the shutdown deadline. The deadline case requires a failure exit, rollback of the interrupted write, preservation of prior state, and safe retry after restart.
+The server-packaging workflow supplies a disposable Postgres 17.11 service and sets `MACHINATION_TEST_DATABASE_URL` for both the real-driver test and standalone bundle checks. The bundle scenarios use isolated schemas and explicitly select the adapter's local plaintext mode. They cover accepted writes during shutdown, restart/retry, failed imports, listener failures, and a write held behind a real SQL lock until the shutdown deadline. The deadline case requires a failure exit, rollback of the interrupted write, preservation of prior state, and safe retry after restart.
 
-Without that variable, local bundle checks explicitly skip the SQL cases; the ordinary JSON/Clerk checks still run. Only use a disposable database: the separate driver test drops Machination tables, and lifecycle cases create and remove their own schemas. These loopback checks don't establish hosted Supabase TLS, cloud backup/restore, or native-device behavior. See [Postgres operations](postgres.md).
+The same CI job runs `npm run test:postgres-tls`, which requires Docker and OpenSSL and owns separate plaintext and TLS containers plus a short-lived CA. A guard verifies the TLS fixture rejects unencrypted sessions. Real-driver and packaged-service checks cover trusted certificates, unknown CA and hostname rejection, plaintext refusal, rollback, fencing, and restored state/retries. To run the full gate with those fixtures locally, use `npm run test:postgres-tls -- --full`.
+
+Without the fixture variables, local checks explicitly skip the SQL/TLS cases; the ordinary JSON/Clerk and configuration checks still run. Only use disposable databases: the separate driver test drops Machination tables, and lifecycle cases create and remove their own schemas. These loopback checks don't establish the selected hosted Supabase endpoint, cloud backup/restore, or native-device behavior. See [Postgres operations](postgres.md).
 
 ## Device acceptance
 

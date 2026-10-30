@@ -68,6 +68,7 @@ jobs:
       - run: npm ci
       - run: node --import tsx --test server/postgres-client.test.ts
       - run: npm run test:server-build
+      - run: npm run test:postgres-tls
       - run: npm run build:server-image
       - run: npm run test:server-image
       - run: docker build -f Dockerfile.railway -t machination-server:railway .

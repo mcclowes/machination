@@ -26,10 +26,14 @@ On startup, if Postgres has no game state and `MACHINATION_DATA` points to an ex
 1. Create a Pro project in the same region as the Railway service. Free projects pause when idle.
 2. Enable point-in-time recovery.
 3. Copy a direct or session-pooler **database connection string** into the server's `DATABASE_URL` secret. Use the exact hostname and username from the project's Connect dialog. Don't use the HTTP API URL or an API key, and never expose it through `EXPO_PUBLIC_` settings. Keep the direct/session connection choice from #111; don't substitute transaction mode for this release path.
-4. Verify encryption and server-certificate validation before opening player operations. `sslmode=require` encrypts without authenticating the server. The current driver accepts `sslmode=verify-full` with its default trust roots, but the adapter doesn't load a custom CA file from a URL's `sslrootcert` path. A successful encrypted connection alone doesn't establish certificate validation. Follow [Supabase's connection and SSL guidance](https://supabase.com/docs/guides/database/connecting-to-postgres) for the chosen endpoint.
+4. Keep `MACHINATION_DATABASE_TLS=verify-full`, or leave it unset. Every connection encrypts traffic and verifies the certificate chain and the exact URL hostname. If the endpoint's CA isn't in Node's default trust roots, download the provider root certificate from the project's Database settings and supply its PEM text as the server-only `MACHINATION_DATABASE_CA` secret. This replaces the default trust roots; never put it in `EXPO_PUBLIC_` settings. Follow [Supabase's connection and SSL guidance](https://supabase.com/docs/guides/database/connecting-to-postgres) for the chosen direct or session endpoint, and enable the provider's enforcement of encrypted connections separately.
 5. Stop the old writer, deploy one instance, and check `Game state stored in Postgres.` and the first-boot import line. Verify an authenticated synthetic operation, a retry, private delivery, and preserved access after restart. `/health` is listener liveness, so it can't establish storage readiness.
 
-Prepared statements are disabled by the adapter. That setting doesn't choose the connection mode or provision database infrastructure. Local store tests don't establish a deployed Supabase connection, TLS behavior, backup configuration, or service shutdown.
+The connection URL can omit SSL parameters or use `sslmode=verify-full`. Weaker modes, duplicate SSL parameters, client-certificate flags, and `sslrootcert` file paths fail before connection. Use the PEM setting for a custom CA. `sslrootcert=system` is accepted only without a custom CA. Configuration errors don't echo the URL, password, CA contents, or an ignored certificate path.
+
+For a disposable local database, explicitly set `MACHINATION_DATABASE_TLS=local`. It accepts only `127.0.0.1`, `::1`, or `localhost` (pinned to `127.0.0.1`) and disables TLS. It rejects a custom CA and every SSL URL flag except `sslmode=disable`. Never use this exception for hosted storage. Other `PGSSL*` environment settings cannot weaken the adapter's explicit TLS policy.
+
+Prepared statements are disabled by the adapter. That setting doesn't choose the connection mode or provision database infrastructure. Local TLS and lifecycle checks don't establish a deployed Supabase connection, backup configuration, or cloud recovery.
 
 ## Backups and recovery
 
@@ -49,3 +53,5 @@ MACHINATION_TEST_DATABASE_URL=postgres://postgres:test@localhost:55432/postgres 
 ```
 
 That test drops and recreates the Machination tables, so point it only at a disposable database.
+
+With Docker and OpenSSL available, `npm run test:postgres-tls` owns two disposable Postgres 17.11 containers and a two-day fixture CA. One server rejects plaintext; the other doesn't support TLS. It checks trusted encryption, unknown CA and hostname refusal, plaintext refusal, rollback, writer fencing, state/retry restoration, and the packaged server's CA configuration. It removes only its own containers, volumes, and certificates. `npm run test:postgres-tls -- --full` runs the entire `npm run check` gate with both databases configured, including all SQL/TLS cases.

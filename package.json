@@ -27,6 +27,7 @@
     "server:production": "node dist-server/main.mjs",
     "build:server-image": "docker build -t machination-server:playtest .",
     "test:server-image": "node scripts/test-server-image.mjs",
+    "test:postgres-tls": "node scripts/test-postgres-tls.mjs",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "lint": "eslint App.tsx src server --max-warnings=0 --no-warn-ignored",
