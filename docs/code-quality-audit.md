@@ -135,6 +135,16 @@ Practice asserts the title's accessible header rather than requiring text childr
 
 Verification: all 17 notification-tap scenarios, solo scheduling, practice isolation, and both real motion lifecycle tests pass. The final nine shield-capacity tests pass. The combined focused run had one historical replay failure in concurrent gameplay work; that exact test passes against committed source. The latest web export, three standalone server build/restart tests, and source-frontmatter validation pass. Earlier strict TypeScript verification passed before concurrent faction changes; the final repeat was stopped without a result to yield the Ambient release window.
 
-Full acceptance is unresolved. Concurrent battle-event and faction identity changes produce failures recorded on #106 and #107. The committed snapshot also imports two rival-AI dependencies still implemented only in the working tree. Broad checks were stopped at the user's request, and no new heavy runs will start until the coordinated release window ends. The notification review records the current verification limits; earlier green checkpoints above remain historical evidence.
+Full acceptance is unresolved. The historical replay and profile-identity findings recorded on #106 and #107 now pass in the resumed current-tree run, and the earlier committed rival-AI dependency gap is resolved by `d4ea0a7`. The resumed acceptance results below supersede the earlier hold state; earlier green checkpoints above remain historical evidence.
 
 The motion-host changes were included by a concurrent commit, `270581d`; that history was left intact. Fixture isolation and its source-revision correction are committed as `e1e3910` and `d7f0d97`. No changes were pushed or deployed.
+
+### Resumed acceptance #3234
+
+A fixed copy of the current tree captured 610 source, configuration, and asset files plus the owned cadence-fixture correction. Dependencies were shared through a symlink. Node 24.14.1 and the existing bounded runner were selected explicitly, with a single Turnstile job and no duplicate acceptance or compiler jobs.
+
+The cadence comparison and historical mine-replay restoration pass. Buffered output records 23 failing test cases in shared-replay UI, contested/generated matches, and historical archive tracing; the configuration-invariant matrix was interrupted separately. No final suite summary exists, and the chained typecheck and standalone-build stages weren't reached. The full goal remains unverified.
+
+At the release owner's request, a one-second stack sample and two process snapshots inspected only this job. The remaining configuration test consumed CPU while its RSS fell from about 255 MB to 240 MB; the first full process-tree reading was about 443 MB. These observations don't establish a growing leak or explain the scheduler's earlier 5 GB estimate. The already-failing run was stopped to release the Ambient window. All observed child processes exited, and the requested notification was delivered to Saggar session `0C10F5B2`. New heavy work remains held.
+
+Evidence: `/private/tmp/machination-quality-resumed-final.log`, `/private/tmp/machination-quality-resumed-acceptance/QUALITY_SOURCE_MANIFEST.json`, `/private/tmp/machination-quality-3234-processes.json`, and `/private/tmp/machination-quality-3234-stack.txt`. The next acceptance attempt must inspect the recorded failures before scheduling a retry.
