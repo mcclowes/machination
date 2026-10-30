@@ -30,6 +30,13 @@ export function powerCapacity(game: Pick<Game, 'rocks' | 'fleets' | 'funding'>, 
   return 150 * Math.min(1, unitCount(game, owner, 'queen')) + FUNDING_POWER * fundingCount(game, owner) + 50 * game.rocks.filter(r => r.owner === owner && !r.destroyed && r.kind === 'generator' && hasReserves(r)).length + 300 * unitCount(game, owner, 'energy')
     + game.rocks.filter(r => r.owner === owner).reduce((n, rock) => n + 3 * maximumShield(rock) * unitsAtRock(game, rock.id).filter(u => u.owner === owner && u.kind === 'tinkerer').length, 0);
 }
+export function factoryOutput(game: Game, rock: Rock): number {
+  if (!rock.owner || rock.destroyed || !hasReserves(rock)) return 0;
+  const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
+  const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
+  const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
+  return Math.floor(output * (waiverActive(game, 'replication') ? 1.5 : 1));
+}
 export function maximumShield(rock: Rock): number { return rock.destroyed ? 0 : Math.max(0, (rock.shieldMax ?? 0) + (rock.coreOf && rock.owner === rock.coreOf ? 20 : 0) + (rock.shieldBonus ?? 0)); }
 export function mineCost(game: Pick<Game, 'minesDrilled'> & TeamWorld, owner: Faction): number {
   const built = teamMembers(game, owner).reduce((sum, f) => sum + (game.minesDrilled?.[f] ?? 0), 0);
@@ -92,10 +99,7 @@ export function settleEconomy(game: Game): void {
       rock.shieldAt = afterWork(game, game.hour, SHIELD_RECHARGE / max);
     }
     if (rock.kind === 'factory' && isDue(game, rock.productionAt!)) {
-      const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
-      const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
-      const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
-      rock.drones += spendReserves(game, rock, Math.max(0, Math.min(Math.floor(output * (waiverActive(game, 'replication') ? 1.5 : 1)), powerCapacity(game, rock.owner) - droneInventory(game, rock.owner))));
+      rock.drones += spendReserves(game, rock, Math.max(0, Math.min(factoryOutput(game, rock), powerCapacity(game, rock.owner) - droneInventory(game, rock.owner))));
       rock.productionAt = afterWork(game, game.hour, rock.productionInterval ?? FACTORY_CYCLE);
     }
   }

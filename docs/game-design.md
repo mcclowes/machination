@@ -31,6 +31,14 @@ New launches reserve their manifests and prepare for ten minutes; editing and ca
 
 Version-one saves and ongoing server rooms retain the prototype rules below. New rooms default to version two. Module, transport, leadership, and sensor parity work is tracked in [#18](https://github.com/mcclowes/machination/issues/18); this economy upgrade doesn't establish complete parity.
 
+## Intelligence reports
+
+The Intel drawer opens with a ranked scoreboard in solo and online operations. Mining ranks public cargo, domination ranks controlled sites, and King's Pulse ranks available Material without treating it as a victory target. Ties share a rank; eliminated intelligences remain below active players. Team operations rank combined victory progress once per team while keeping each player's military and funding details separate.
+
+The Drones, Sites, and Funding tabs compare the same ranked roster. Your drones include stationed and traveling inventory, with capacity and current production bonuses. Rival drone totals include only observed forces; hidden capacity, production, and site types stay unknown. Sponsor counts are public, while identities remain private to the parties. Funding actions retain the same cargo-lead requirement and support live or scheduled changes. Historical reports are read-only, and forecasts are labeled as projections.
+
+Mining reports show a possible winner and time at current rates only when all active contenders' scores and mining rates are known and one has the earliest finish. The estimate assumes unchanged ownership and rates; it doesn't predict battles, future orders, or reserve exhaustion. Incomplete observations and uncertain forecasts suppress the estimate. Online presence and last-seen times aren't tracked.
+
 ## Version-one first playable
 
 Three intelligences begin with a core and a second rock. Cores and reactors create four drones per hour; mines produce two cargo per hour. Reach 300 cargo or eliminate both rival cores to win.
