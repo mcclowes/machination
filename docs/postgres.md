@@ -15,6 +15,8 @@ Row-level security is enabled with no policies, withholding row reads and writes
 
 The service is still the only authority, holding state in memory. On startup each instance records itself as the writer. A save from an instance that has since been replaced fails with `WriterReplacedError` instead of overwriting newer state. Keep one replica.
 
+On SIGTERM or SIGINT, the service stops accepting new connections, drains active requests and notification work, and closes its SQL client. Failed startup also closes an opened client. The existing fifteen-second grace deadline ends with a failure exit if work remains blocked; don't treat an interrupted request as a rejected command. Preserve its retry identity and reconnect to determine the authoritative result.
+
 ## Moving from the JSON file
 
 On startup, if Postgres has no game state and `MACHINATION_DATA` points to an existing file, the service validates that file and copies it in, logging `Imported the JSON game snapshot into Postgres.` Later starts ignore the file. Take a restricted backup before importing: legacy validation can add missing metadata to the source file. The file remains in place, but subsequent Postgres writes don't update it. It isn't an ongoing backup.

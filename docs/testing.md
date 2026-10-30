@@ -69,6 +69,12 @@ Both mining fixtures and domination seed 7 reach the configured quota. Dominatio
 
 Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
 
+## Postgres runtime
+
+The server-packaging workflow supplies a disposable Postgres 17.11 service and sets `MACHINATION_TEST_DATABASE_URL` for both the real-driver test and standalone bundle checks. The bundle scenarios use isolated schemas and cover accepted writes during shutdown, restart/retry, failed imports, listener failures, and a write held behind a real SQL lock until the shutdown deadline. The deadline case requires a failure exit, rollback of the interrupted write, preservation of prior state, and safe retry after restart.
+
+Without that variable, local bundle checks explicitly skip the SQL cases; the ordinary JSON/Clerk checks still run. Only use a disposable database: the separate driver test drops Machination tables, and lifecycle cases create and remove their own schemas. These loopback checks don't establish hosted Supabase TLS, cloud backup/restore, or native-device behavior. See [Postgres operations](postgres.md).
+
 ## Device acceptance
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.

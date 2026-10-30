@@ -3,11 +3,28 @@ import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { request as httpRequest } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto';
+import postgres from 'postgres';
+
+const testDatabase = process.env.MACHINATION_TEST_DATABASE_URL;
+
+async function isolatedPostgres(t) {
+  const sql = postgres(testDatabase, { max: 1, prepare: false, onnotice: () => {} });
+  const schema = `machination_runtime_${randomBytes(8).toString('hex')}`;
+  try { await sql.unsafe(`create schema "${schema}"`); }
+  catch (error) { await sql.end({ timeout: 1 }); throw error; }
+  t.after(async () => {
+    try { await sql.unsafe(`drop schema "${schema}" cascade`); }
+    finally { await sql.end({ timeout: 1 }); }
+  });
+  const url = new URL(testDatabase);
+  url.searchParams.set('options', `-c search_path=${schema}`);
+  return { url: url.toString(), sql, schema };
+}
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
@@ -29,19 +46,19 @@ async function start(entry, dataFile, configuration = {}) {
   try { origin = await ready; } catch (error) { child.kill('SIGKILL'); await exited; throw error; }
   finally { clearTimeout(startupTimer); }
   let stopping = false;
-  return { origin, async beginShutdown() {
+  return { origin, signal() { child.kill('SIGTERM'); }, async beginShutdown() {
     const observed = new Promise((resolve, reject) => {
       const timer = setTimeout(() => { child.stdout.off('data', inspect); reject(new Error('Shutdown was not acknowledged.')); }, 3000);
       function inspect() { if (output.includes('draining active requests')) { clearTimeout(timer); child.stdout.off('data', inspect); resolve(); } }
       child.stdout.on('data', inspect);
     });
     stopping = true; child.kill('SIGTERM'); await observed;
-  }, async stop() {
+  }, async stop({ timeoutMs = 5000, expectedCode = 0 } = {}) {
     if (!stopping && child.exitCode === null && child.signalCode === null) { stopping = true; child.kill('SIGTERM'); }
     let stopTimer;
     try {
-      const result = await Promise.race([exited, new Promise((_, reject) => { stopTimer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('Graceful shutdown timed out.')); }, 5000); })]);
-      assert.deepEqual(result, { code: 0, signal: null }, output);
+      const result = await Promise.race([exited, new Promise((_, reject) => { stopTimer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error('Graceful shutdown timed out.')); }, timeoutMs); })]);
+      assert.deepEqual(result, { code: expectedCode, signal: null }, output);
     } finally { clearTimeout(stopTimer); }
   } };
 }
@@ -172,4 +189,143 @@ test('standalone bundle verifies Clerk sessions and restores an account without 
     assert.equal(restored.status, 200);
     assert.equal((await restored.json()).snapshot.id, snapshot.id);
   } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('standalone Postgres drains accepted work, closes connections, and restores retry history', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-runtime-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { url } = await isolatedPostgres(t);
+  const entry = join(dir, 'main.mjs'), dataFile = join(dir, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const tokens = Array.from({ length: 3 }, () => randomBytes(32).toString('hex'));
+  let runtime;
+  const request = async (path, seat, body) => {
+    const response = await fetch(`${runtime.origin}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${tokens[seat]}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const data = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(data));
+    return data;
+  };
+  try {
+    runtime = await start(entry, dataFile, { DATABASE_URL: url });
+    let view = await request('games', 0, { options: { playerCount: 2, mode: 'pulse' } });
+    await request('join', 1, { invite: view.invite });
+    const path = `games/${view.id}`;
+    view = await request(`${path}/start`, 0, {});
+    await request(`${path}/messages`, 0, { requestId: randomUUID(), to: 'vesper', text: 'Preserve this message.' });
+    view = await request(path, 0);
+    const from = view.game.rocks.find(r => r.owner === 'you' && r.drones >= 5);
+    const to = view.game.rocks.find(r => r.owner === 'you' && r.id !== from?.id);
+    assert.ok(from && to);
+    const order = { requestId: randomUUID(), revision: view.revision, from: from.id, to: to.id, drones: 5, executeAt: 1 };
+    const accepted = await request(`${path}/schedules`, 0, order);
+    assert.equal(accepted.game.scheduled.length, 1);
+    let incoming;
+    const response = new Promise((resolve, reject) => {
+      incoming = httpRequest(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${tokens[2]}`, 'Content-Type': 'application/json', 'Content-Length': '2', Expect: '100-continue', Connection: 'close' } }, result => {
+        let raw = ''; result.on('data', chunk => { raw += chunk; });
+        result.on('end', () => { try { assert.equal(result.statusCode, 200); resolve(JSON.parse(raw)); } catch (error) { reject(error); } });
+      });
+      incoming.on('error', reject);
+    });
+    let late;
+    try {
+      const continued = new Promise(resolve => incoming.once('continue', resolve));
+      incoming.flushHeaders(); await continued; incoming.write('{');
+      await runtime.beginShutdown(); runtime.signal(); incoming.end('}');
+      late = await response;
+      await runtime.stop(); runtime = undefined;
+    } finally { incoming.destroy(); }
+    runtime = await start(entry, dataFile, { DATABASE_URL: url });
+    const resumed = await request(path, 0);
+    assert.equal(resumed.game.scheduled.length, 1);
+    assert.equal(resumed.messages[0].text, 'Preserve this message.');
+    const retried = await request(`${path}/schedules`, 0, order);
+    assert.equal(retried.revision, accepted.revision, 'the original command ID remains accepted without another revision');
+    assert.deepEqual(retried.game.scheduled, accepted.game.scheduled, 'retry preserves one original plan');
+    assert.deepEqual(retried.messages, accepted.messages);
+    assert.ok(retried.serverTime >= accepted.serverTime, 'retry returns the current snapshot');
+    assert.equal((await request(path, 0)).game.scheduled.length, 1);
+    assert.equal((await request(`games/${late.id}`, 2)).id, late.id, 'work accepted while draining is committed before storage closes');
+    await runtime.stop(); runtime = undefined;
+  } finally { if (runtime) await runtime.stop().catch(() => {}); }
+});
+
+test('standalone Postgres closes its client when startup import fails', { timeout: 15_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-startup-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { url } = await isolatedPostgres(t);
+  const file = join(dir, 'damaged.json');
+  await writeFile(file, '{damaged');
+  await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: url, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: file, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+  }), error => error.code === 1 && !error.killed && /Cannot start game service:/.test(error.stderr));
+});
+
+test('standalone Postgres closes its client after a listener startup failure', { timeout: 15_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-listener-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { url } = await isolatedPostgres(t);
+  const busy = createServer();
+  await new Promise(resolve => busy.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => busy.close(resolve)));
+  const port = busy.address().port;
+  await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: String(port), DATABASE_URL: url, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: join(dir, 'games.json'), MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+  }), error => error.code === 1 && !error.killed && /EADDRINUSE/.test(error.stderr));
+});
+
+test('standalone Postgres bounds a blocked write at shutdown and preserves safe retry after restart', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-deadline-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const { url, sql, schema } = await isolatedPostgres(t);
+  const observer = postgres(testDatabase, { max: 1, prepare: false, onnotice: () => {} });
+  t.after(() => observer.end({ timeout: 1 }));
+  const entry = join(dir, 'main.mjs'), dataFile = join(dir, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const token = randomBytes(32).toString('hex');
+  const appName = `shutdown-${randomBytes(8).toString('hex')}`;
+  const configuration = { DATABASE_URL: url, PGAPPNAME: appName };
+  let runtime, release, held;
+  const request = (path, body) => fetch(`${runtime.origin}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  try {
+    runtime = await start(entry, dataFile, configuration);
+    const response = await request('games', {});
+    assert.equal(response.status, 200);
+    const before = await response.json();
+    let locked;
+    const ready = new Promise(resolve => { locked = resolve; });
+    held = sql.begin(async tx => {
+      await tx.unsafe(`select data from "${schema}".machination_state where key = 'writer' for update`);
+      locked();
+      await new Promise(resolve => { release = resolve; });
+    });
+    await ready;
+    const extra = randomBytes(32).toString('hex');
+    const pending = fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${extra}`, 'Content-Type': 'application/json' }, body: '{}' }).then(result => { result.body?.cancel(); return 'responded'; }, () => 'uncertain');
+    const deadline = Date.now() + 3000;
+    let blocked = false;
+    while (Date.now() < deadline) {
+      blocked = (await observer`select 1 from pg_stat_activity where application_name = ${appName} and wait_event_type = 'Lock'`).length > 0;
+      if (blocked) break;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(blocked, 'the write must be blocked in Postgres before shutdown');
+    await runtime.beginShutdown();
+    await runtime.stop({ timeoutMs: 20_000, expectedCode: 1 }); runtime = undefined;
+    assert.equal(await pending, 'uncertain', 'a blocked write is never acknowledged');
+    release(); await held; held = undefined;
+    runtime = await start(entry, dataFile, configuration);
+    assert.equal((await (await request(`games/${before.id}`)).json()).id, before.id);
+    assert.equal((await observer.unsafe(`select count(*)::int as count from "${schema}".machination_rooms`))[0].count, 1, 'the interrupted write was rolled back');
+    const retry = () => fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${extra}`, 'Content-Type': 'application/json' }, body: '{}' });
+    const created = await retry(); assert.equal(created.status, 200);
+    const restored = await created.json();
+    const duplicate = await retry(); assert.equal(duplicate.status, 200);
+    assert.equal((await duplicate.json()).id, restored.id);
+    assert.equal((await observer.unsafe(`select count(*)::int as count from "${schema}".machination_rooms`))[0].count, 2, 'retry creates only one room');
+    await runtime.stop(); runtime = undefined;
+  } finally {
+    release?.(); if (held) await held.catch(() => {});
+    if (runtime) await runtime.stop().catch(() => {});
+  }
 });
