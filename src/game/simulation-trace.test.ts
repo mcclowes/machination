@@ -235,15 +235,22 @@ test('whole combat outcomes keep simultaneous swaps and destruction atomic', () 
   }
 });
 
-test('historical planar and mining archives trace to their exact stored frontiers', async () => {
+test('historical planar and mining archives trace to their exact stored simulation frontiers', async () => {
+  const simulationState = (game: ReturnType<typeof createGame>) => ({
+    ...game,
+    events: game.events.map(({ battle: _annotation, ...event }) => event),
+  });
   for (const path of ['src/game/fixtures/planar-replay-aec9546.json', 'src/game/fixtures/mine-replays-e92b028.json']) {
     const parsed = JSON.parse(await readFile(path, 'utf8'));
     for (const fixture of Array.isArray(parsed) ? parsed : [parsed]) {
       const loaded = decodeOperation(JSON.stringify(fixture), fixture.savedAt);
       const options = { rivals: true, knownThrough: loaded.game.hour };
       const records: SimulationTrace[] = [];
-      assert.deepEqual(traceReplayTo(loaded.archive, loaded.game.hour, options, r => records.push(r)), fixture.game);
-      assert.deepEqual(points(records, 'replay:final').at(-1), fixture.game);
+      const traced = traceReplayTo(loaded.archive, loaded.game.hour, options, r => records.push(r));
+      assert.deepEqual(loaded.game, fixture.game, 'Restoration retains the exact historical record');
+      assert.deepEqual(traced, replayTo(loaded.archive, loaded.game.hour, options));
+      assert.deepEqual(points(records, 'replay:final').at(-1), traced);
+      assert.deepEqual(simulationState(traced), simulationState(fixture.game), 'Later map annotations do not change recorded simulation');
     }
   }
 });
