@@ -211,6 +211,65 @@ test('older databases load unchanged, ordinary flows add no notification state, 
   await assert.rejects(open(), /Damaged notification metadata/);
 });
 
+test('restart rejects inconsistent notification bindings, ledgers, and delivery metadata without rewriting the file', async t => {
+  const { service, file, open, tokens: [a, b], room, stored, clock } = await fixture(t);
+  await service.setNotifications(room.id, b!, enable(device(), 0));
+  await service.message(room.id, a!, { requestId: randomUUID(), to: 'vesper', text: 'Restart validation' });
+  const database = await stored();
+  const state = database.notifications!;
+  const binding = state.bindings[0]!;
+  const job = state.jobs[0]!;
+  const bindingState = (change: object) => ({ ...state, bindings: [{ ...binding, ...change }] });
+  const jobState = (change: object) => ({ ...state, jobs: [{ ...job, ...change }] });
+  const lease = { owner: 'worker', token: 'a'.repeat(32), until: clock.now + 60_000 };
+  const ticket = { ticketId: 'provider-ticket', ticketAt: clock.now };
+  const ledger = { roomId: room.id, faction: binding.faction, keys: ['1|incoming-threat'] };
+  const floor = { roomId: room.id, faction: binding.faction, revision: 2 };
+  const invalid: [string, unknown][] = [
+    ['missing bindings', { jobs: [] }], ['missing jobs', { bindings: [] }],
+    ['duplicate binding', { ...state, bindings: [binding, binding] }],
+    ['unknown room', bindingState({ roomId: 'unknown' })], ['unknown seat', bindingState({ faction: 'zenith' })],
+    ['bad device', bindingState({ deviceId: 'not-hex' })], ['bad generation', bindingState({ generation: 'not-hex' })],
+    ['bad revision', bindingState({ revision: -1 })], ['enabled without token', bindingState({ token: undefined })],
+    ['disabled with token', bindingState({ enabled: false })], ['invalid token', bindingState({ token: 'not-a-token' })],
+    ['invalid consent', bindingState({ incoming: false })], ['invalid requests', bindingState({ requests: [{ id: 'short', payload: '' }] })],
+    ['duplicate floor', { ...state, floors: [floor, floor] }],
+    ['invalid floor', { ...state, floors: [{ ...floor, revision: 0 }] }],
+    ['duplicate ledger', { ...state, incoming: [ledger, ledger] }],
+    ['unknown ledger seat', { ...state, incoming: [{ ...ledger, faction: 'zenith' }] }],
+    ['duplicate threat', { ...state, incoming: [{ ...ledger, keys: ['threat', 'threat'] }] }],
+    ['invalid threat', { ...state, incoming: [{ ...ledger, keys: [''] }] }],
+    ['duplicate job', { ...state, jobs: [job, job] }], ['unknown binding', jobState({ bindingId: 'f'.repeat(32) })],
+    ['mismatched room', jobState({ roomId: 'unknown' })], ['invalid attempts', jobState({ attempts: -1 })],
+    ['invalid state', jobState({ state: 'unknown' })], ['queued lease', jobState({ lease })],
+    ['sending without lease', jobState({ state: 'sending' })],
+    ['invalid lease', jobState({ state: 'sending', lease: { ...lease, token: 'short' } })],
+    ['queued ticket', jobState(ticket)], ['ticketed without ticket', jobState({ state: 'ticketed' })],
+    ['checking without lease', jobState({ state: 'checking', ...ticket })], ['bad token hash', jobState({ tokenHash: 'short' })],
+    ['message with alert', jobState({ alert: { faction: binding.faction, fleet: 1, key: '1|threat' } })],
+    ['incoming without alert', jobState({ kind: 'incoming' })],
+    ['incoming wrong faction', jobState({ kind: 'incoming', alert: { faction: 'you', fleet: 1, key: '1|threat' } })],
+    ['incoming wrong key', jobState({ kind: 'incoming', alert: { faction: binding.faction, fleet: 1, key: '2|threat' } })],
+  ];
+  for (const [name, notifications] of invalid) {
+    const bytes = JSON.stringify({ ...database, notifications });
+    await writeFile(file, bytes);
+    await assert.rejects(open(), /Damaged notification metadata/, name);
+    assert.equal(await readFile(file, 'utf8'), bytes, `${name}: damaged data stays recoverable`);
+  }
+  for (const notifications of [
+    state, jobState({ state: 'sending', lease }), jobState({ state: 'ticketed', ...ticket }),
+    jobState({ state: 'checking', lease, ...ticket }),
+    { ...state, floors: [floor], incoming: [ledger] },
+    jobState({ kind: 'incoming', alert: { faction: binding.faction, fleet: 1, key: '1|threat' } }),
+  ]) {
+    const bytes = JSON.stringify({ ...database, notifications });
+    await writeFile(file, bytes);
+    await open();
+    assert.equal(await readFile(file, 'utf8'), bytes, 'valid restarts preserve pending work');
+  }
+});
+
 test('an evicted device record cannot be resurrected by an old enable, its retry, or an outstanding request', async t => {
   const { service, tokens: [a], room, stored } = await fixture(t);
   const evicted = device();

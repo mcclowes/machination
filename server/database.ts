@@ -14,7 +14,7 @@ import { exportArchive, type ReplayData } from '../src/game/replay';
 import { decodeReplay } from '../src/game/replay-save';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS, type Group, type ChannelMessage, type Message } from '../src/online/protocol';
-import { validateNotifications, type NotificationState } from './notifications';
+import { validateNotifications, type NotificationState } from './notification-state';
 
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 export type Room = {
