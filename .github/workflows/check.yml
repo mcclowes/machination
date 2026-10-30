@@ -19,10 +19,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            website/package-lock.json
       - name: Show acceptance runtime
         run: |
           node -p 'JSON.stringify({node: process.versions.node, v8: process.versions.v8})'
       - run: npm ci
+      - run: npm ci --prefix website
+      - run: npm run check:docs
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:docs
       - run: npm run build:brand
       - run: npm run check
       - run: npm run build:server-image

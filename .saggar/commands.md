@@ -11,6 +11,10 @@ Project documentation is in docs, Saggar's default documentation folder.
 - Tests: `npm test` - Run the behavior suite without the separate production bundle tests. #quick
 - Typecheck: `npm run typecheck` - Check TypeScript without emitting files. #quick
 - Export web: `npm run build:web` - Export the browser app to dist. #quick
+- Player guide: `npm run docs` - Start the Docusaurus guide on port 3000; first run npm ci --prefix website. #monitor #browser
+- Build player guide: `npm run build:docs` - Generate the static guide in website/build. #quick
+- Guide checks: `npm run check:docs` - Check site TypeScript, generate shared references, and build with strict link validation. #quick
+- Guide browser checks: `npm run test:docs` - Check the production guide on desktop and phone; run build:docs first. #quick
 
 ## Layout
 

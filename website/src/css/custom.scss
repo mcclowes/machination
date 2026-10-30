@@ -1,0 +1,60 @@
+:root {
+  --ifm-color-primary: #355d37;
+  --ifm-color-primary-dark: #305432;
+  --ifm-color-primary-darker: #2d4f2f;
+  --ifm-color-primary-darkest: #254127;
+  --ifm-color-primary-light: #3a663c;
+  --ifm-color-primary-lighter: #3d6b3f;
+  --ifm-color-primary-lightest: #457948;
+  --ifm-background-color: #f4f2e9;
+  --ifm-background-surface-color: #e9e8dd;
+  --ifm-navbar-background-color: #f4f2e9;
+  --ifm-footer-background-color: #e9e8dd;
+  --ifm-font-color-base: #38463a;
+  --ifm-heading-color: #172b1d;
+  --ifm-font-family-base: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-family-monospace: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --ifm-line-height-base: 1.75;
+  --ifm-global-radius: 3px;
+  --ifm-toc-border-color: #cbd0c0;
+  --ifm-navbar-shadow: none;
+  --ifm-menu-color: #38463a;
+  --ifm-footer-link-color: #38463a;
+  --ifm-footer-title-color: #172b1d;
+  --ifm-code-font-size: 90%;
+  --doc-sidebar-width: 280px;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #b8e986;
+  --ifm-color-primary-dark: #a4e365;
+  --ifm-color-primary-darker: #9ae054;
+  --ifm-color-primary-darkest: #7cd625;
+  --ifm-color-primary-light: #ccefaa;
+  --ifm-color-primary-lighter: #d6f2ba;
+  --ifm-color-primary-lightest: #ebf9de;
+  --ifm-background-color: #080f0d;
+  --ifm-background-surface-color: #111d16;
+  --ifm-navbar-background-color: #080f0d;
+  --ifm-footer-background-color: #111d16;
+  --ifm-font-color-base: #b2bfb0;
+  --ifm-heading-color: #e5eadc;
+  --ifm-menu-color: #b2bfb0;
+  --ifm-footer-link-color: #b2bfb0;
+  --ifm-footer-title-color: #e5eadc;
+  --ifm-toc-border-color: #30442b;
+}
+
+.navbar { border-bottom: 1px solid var(--ifm-toc-border-color); }
+.navbar__title { letter-spacing: -.02em; }
+.navbar__logo { background: #111d16; border-radius: 3px; }
+.footer { border-top: 1px solid var(--ifm-toc-border-color); }
+.footer__copyright { font-size: .8rem; font-family: var(--ifm-font-family-monospace); }
+.markdown h1 { font-size: clamp(2.2rem, 5vw, 3rem); letter-spacing: -.035em; }
+.markdown h2 { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--ifm-toc-border-color); }
+.markdown a { text-decoration: underline; text-underline-offset: 3px; }
+.button--primary { --ifm-button-color: #10200e; }
+[data-theme='light'] .button--primary { --ifm-button-color: #fff; }
+.theme-doc-markdown { padding-block: 1rem 2rem; }
+.theme-doc-sidebar-menu { font-size: .95rem; }
+:focus-visible { outline: 2px solid var(--ifm-color-primary); outline-offset: 3px; }

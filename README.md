@@ -35,6 +35,10 @@ Launches prepare for ten minutes with reserved manifests. Edit or cancel before 
 
 Haulers take hours to arrive. Time continues while the app is closed, and **Advance simulation +6h** speeds up solo play. The Time Machine scrubs up to seven days ahead, accepts minute-precision inspection, and schedules transfers directly from that future context. Tap haulers to inspect them; pinch, scroll the mouse wheel or trackpad, or use chart controls to zoom, then drag to pan. Chart controls are visible by default on web. Forecasts include known orders and rival decisions without changing the live operation. Local saves survive app restarts; resetting requires confirmation.
 
+## Player guide
+
+The [Docusaurus player guide](website/README.md) contains first-move tutorials, practice walkthroughs, planning and diplomacy guides, and generated rules and specialist references shared with the game. Run `npm ci --prefix website`, then `npm run docs` to open it locally. `npm run check:docs` builds and validates the site; `npm run test:docs` checks its desktop and phone navigation.
+
 ## Check
 
 ```sh

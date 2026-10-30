@@ -1,0 +1,8 @@
+node_modules/
+build/
+.docusaurus/
+docs/reference/rules.md
+docs/reference/specialists.md
+static/img/
+*.tsbuildinfo
+.test-results/

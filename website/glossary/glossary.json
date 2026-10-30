@@ -1,0 +1,21 @@
+{
+  "description": "The places, units, and orders used in Machination.",
+  "terms": [
+    { "term": "Intelligence", "definition": "A player-controlled machine faction. In multiplayer, a human makes its decisions and agreements.", "relatedTerms": ["Core"] },
+    { "term": "Core", "definition": "Your movable leadership specialist. In King's Pulse it is your King, and losing it eliminates you. In mining and domination, a fallback core can succeed it.", "relatedTerms": ["King", "Specialist"] },
+    { "term": "King", "definition": "The intelligence core in King's Pulse mode. The last surviving King wins. This is distinct from the Siege controller specialist.", "relatedTerms": ["Core", "Pulse Material"] },
+    { "term": "Rock", "definition": "A site on the chart that can hold drones, specialists, and an installation. Also called an outpost or site.", "relatedTerms": ["Factory", "Generator", "Mine"] },
+    { "term": "Drone", "definition": "A unit used for attack, defense, and mine construction. Total stationed and traveling drones count toward your production capacity.", "relatedTerms": ["Hauler", "Generator"] },
+    { "term": "Hauler", "definition": "A transport created for an order. It carries a chosen manifest of drones and specialists between sites or on an interception mission.", "relatedTerms": ["Manifest", "Drone", "Specialist"] },
+    { "term": "Manifest", "definition": "The drones and specialists explicitly loaded onto a hauler. Specialists can travel without drones.", "relatedTerms": ["Hauler", "Specialist"] },
+    { "term": "Factory", "definition": "An installation that manufactures drones in timed cycles, subject to your total power capacity.", "relatedTerms": ["Drone", "Generator"] },
+    { "term": "Generator", "definition": "An installation that increases power capacity, allowing factories to produce more total drones. Also called a reactor.", "relatedTerms": ["Factory", "Drone"] },
+    { "term": "Mine", "definition": "An installation drilled by spending drones at a controlled site. It replaces the existing factory or generator and produces cargo based on your territory.", "relatedTerms": ["Cargo", "Pulse Material"] },
+    { "term": "Cargo", "definition": "The mined resource used for the mining-mode victory target and funding eligibility. In King's Pulse it serves as Pulse Material.", "relatedTerms": ["Mine", "Pulse Material"] },
+    { "term": "Pulse Material", "definition": "Mined cargo used to fund a King's strategic pulse or a Disruptor's tactical pulse in King's Pulse mode.", "relatedTerms": ["King", "Cargo"] },
+    { "term": "Specialist", "definition": "A movable unit with an ability that changes ordinary rules. Called a module in parts of the interface. Captured specialists are inactive.", "relatedTerms": ["Core", "Manifest"] },
+    { "term": "Time Machine", "definition": "The control for inspecting available history and conditional futures. Looking forward doesn't advance live time or guarantee an outcome.", "relatedTerms": ["Scheduled order", "Sensors"] },
+    { "term": "Scheduled order", "definition": "A private future command. Resources and other requirements are checked when it executes; queueing it doesn't reserve them.", "relatedTerms": ["Time Machine", "Manifest"] },
+    { "term": "Sensors", "definition": "Coverage that determines which enemy inventories and haulers you can observe. Public ownership and unknown inventory are different kinds of information.", "relatedTerms": ["Rock", "Time Machine"] }
+  ]
+}
