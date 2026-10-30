@@ -8,12 +8,13 @@ import { createConfiguredGame } from '../game/world';
 import { createArchive } from '../game/replay';
 import { generateSharedReplay } from '../replay/generate';
 import { encodeSharedReplay } from '../replay/codec';
+import { testSnapshot } from './test-snapshot';
 
 const require = createRequire(import.meta.url);
 // This is the implementation installed by React Native's setUpXHR, not Node's fuller API.
 const { AbortController: NativeAbortController } = require('abort-controller/dist/abort-controller');
 const session = { url: 'https://example.test', token: 'a'.repeat(64), id: 'b'.repeat(24) };
-const snapshot = { id: session.id, visibility: 'sensors.v1', faction: 'vesper', messages: [], game: { scheduled: [] } };
+const snapshot = testSnapshot(session.id, 'vesper');
 
 function nativeController(t: TestContext) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'AbortController')!;

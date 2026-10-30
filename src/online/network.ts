@@ -1,13 +1,19 @@
-import { validCompact } from '../game/compact-save';
 import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
-import { isFaction, playersIn } from '../game/players';
 import type { HistorySnapshot, Snapshot } from './protocol';
+import { snapshotResponse, historicalResponse } from './snapshot-response';
 import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
 
 export class RejectedCommand extends Error { constructor(public status: number, message: string, public issue?: string) { super(message); } }
-async function request(session: RequestSession, path: string, payload?: unknown, signal?: AbortSignal): Promise<any> {
+const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+function rejection(data: unknown): { detail: string; issue?: string } {
+  const first = record(data) && Array.isArray(data.issues) ? data.issues[0] as unknown : undefined;
+  const message = record(first) && record(first.message) ? first.message : undefined;
+  return { detail: typeof message?.detail === 'string' ? message.detail : 'Command was not accepted.',
+    ...(record(first) && typeof first.issue === 'string' ? { issue: first.issue } : {}) };
+}
+async function request(session: RequestSession, path: string, payload?: unknown, signal?: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort);
@@ -19,10 +25,10 @@ async function request(session: RequestSession, path: string, payload?: unknown,
     const response = await fetch(`${session.url}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST',
       headers: { Authorization: bearer, 'Content-Type': 'application/json' },
       body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal });
-    const data = await response.json();
+    const data: unknown = await response.json();
     if (!response.ok) {
-      const detail = data.issues?.[0]?.message?.detail ?? 'Command was not accepted.';
-      if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new RejectedCommand(response.status, detail, data.issues?.[0]?.issue);
+      const { detail, issue } = rejection(data);
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new RejectedCommand(response.status, detail, issue);
       throw new Error(detail);
     }
     return data;
@@ -30,49 +36,17 @@ async function request(session: RequestSession, path: string, payload?: unknown,
 }
 export async function api(session: RequestSession & { id?: string }, path: string, payload?: unknown): Promise<Snapshot> {
   const data = await request(session, path, payload);
-  return snapshotResponse(session, data);
+  return snapshotResponse(session.id, data);
 }
-export async function accountSessionApi(session: RequestSession): Promise<Snapshot | null> {
+export async function accountSessionApi(session: RequestSession & { id?: string }): Promise<Snapshot | null> {
   const data = await request(session, 'account/session');
-  return data?.snapshot === null ? null : snapshotResponse(session, data?.snapshot);
-}
-function snapshotResponse(session: RequestSession & { id?: string }, data: any): Snapshot {
-  if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || session.id !== undefined && data.id !== session.id || !data.game || !Array.isArray(data.game.scheduled) || !Array.isArray(data.messages) || !validSeat(data) || !validReferences(data) || !validCouncil(data)) throw new Error('Unsupported server response.');
-  return data as Snapshot;
+  const snapshot = record(data) ? data.snapshot : undefined;
+  return snapshot === null ? null : snapshotResponse(session.id, snapshot);
 }
 export async function historicalApi(session: RequestSession & { id: string }, hour: number, signal?: AbortSignal): Promise<HistorySnapshot> {
   if (!Number.isFinite(hour)) throw new Error('Choose a finite historical hour.');
   const data = await request(session, `games/${session.id}/history?hour=${encodeURIComponent(hour)}`, undefined, signal);
-  const bounds = data?.history;
-  if (!data || data.visibility !== 'sensors.v1' || data.id !== session.id || !validSeat(data) || !data.game || !Array.isArray(data.game.scheduled) || !bounds || ![bounds.from, bounds.through, bounds.at].every(Number.isFinite) || bounds.from > bounds.at || bounds.at > bounds.through || bounds.at !== hour || !validReferences(data) || !validCouncil(data)) throw new Error('Unsupported historical server response.');
-  return data as HistorySnapshot;
-}
-
-function validCouncil(data: any): boolean {
-  return data.game.compact === undefined ? data.game.rules?.beltCompact === undefined : data.game.rules?.beltCompact === 1 && validCompact(data.game.compact, playersIn(data.game), data.game.hour, !!data.game.winner || !!data.game.draw);
-}
-
-function validSeat(data: any): boolean {
-  return isFaction(data.faction) && !!data.game && (!data.game.rules || Array.isArray(data.game.rules.players)) && playersIn(data.game).includes(data.faction);
-}
-
-function validReferences(data: any): boolean {
-  const refs = data.references;
-  if (refs === undefined) return true;
-  if (!refs || refs.version !== 1 || Object.keys(refs).sort().join(',') !== 'haulers,outposts,version' || !Array.isArray(refs.outposts) || !Array.isArray(refs.haulers) || !Array.isArray(data.game?.rocks) || !Array.isArray(data.game?.fleets)) return false;
-  const rocks = new Set(data.game.rocks.map((r: any) => r.id));
-  const fleets = new Set(data.game.fleets.map((f: any) => f.id));
-  const seen = new Set<string>();
-  for (const [kind, entries, ids] of [['outpost', refs.outposts, rocks], ['hauler', refs.haulers, fleets]] as const) {
-    if (entries.length > ids.size) return false;
-    const used = new Set();
-    for (const item of entries) {
-      if (!item || Object.keys(item).sort().join(',') !== 'id,ref' || !ids.has(item.id) || used.has(item.id) || typeof item.ref !== 'string' || !/^[a-f0-9]{64}$/.test(item.ref) || seen.has(item.ref)
-        || (kind === 'outpost' ? typeof item.id !== 'string' : !Number.isSafeInteger(item.id) || item.id <= 0)) return false;
-      used.add(item.id); seen.add(item.ref);
-    }
-  }
-  return true;
+  return historicalResponse(session.id, hour, data);
 }
 
 export function creationPayload(options?: GameOptions): { options?: GameOptions } {
@@ -102,10 +76,11 @@ export async function setMessageNotificationsApi(session: SeatSession, body: Set
     || body.incoming !== undefined && (typeof body.incoming !== 'boolean' || body.incoming && !body.enabled)) throw new Error('Invalid notification preference.');
   return notificationSettings(session.id, body.deviceId, await request(session, `games/${session.id}/notifications${body.incoming === undefined ? '' : '?version=2'}`, body));
 }
-function notificationSettings(gameId: string, deviceId: string, data: any): MessageNotificationSettings {
-  const keys = data && typeof data === 'object' ? Object.keys(data) : [];
+function notificationSettings(gameId: string, deviceId: string, data: unknown): MessageNotificationSettings {
+  if (!record(data)) throw new Error('Unsupported notification settings response.');
+  const keys = Object.keys(data);
   if (!keys.length || keys.some(key => !['gameId', 'deviceId', 'revision', 'available', 'enabled', 'bindingId', 'incoming'].includes(key)) || data.gameId !== gameId || data.deviceId !== deviceId
-    || !Number.isSafeInteger(data.revision) || data.revision < 0 || typeof data.available !== 'boolean' || typeof data.enabled !== 'boolean'
+    || typeof data.revision !== 'number' || !Number.isSafeInteger(data.revision) || data.revision < 0 || typeof data.available !== 'boolean' || typeof data.enabled !== 'boolean'
     || data.enabled !== (data.bindingId !== undefined)
     || data.incoming !== undefined && (typeof data.incoming !== 'boolean' || data.incoming && !data.enabled)
     || data.bindingId !== undefined && (typeof data.bindingId !== 'string' || !OPAQUE_ID.test(data.bindingId))) throw new Error('Unsupported notification settings response.');
