@@ -2,7 +2,7 @@
 
 Slow orbits. Cold decisions.
 
-An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. Play solo against two deterministic AI rivals, or connect three human players through the invite-only multiplayer service.
+An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. Play solo against one to nine deterministic AI rivals, or connect two to ten human players through the invite-only multiplayer service.
 
 ## Run
 
@@ -63,9 +63,9 @@ Open **Manual → Art archive** to browse all 24 generated illustrations from th
 
 ## Scope
 
-This is a playable foundation, not a store release. Opt-in message notification code is implemented, with delivery disabled by default; provider configuration and actual device delivery remain unverified. See [notification setup and boundaries](docs/notifications.md). Public frontend hosting and native distribution remain unimplemented. Clerk login with a dedicated Machination account, cross-device seat restoration, and legacy seat linking are implemented; production activation needs production-instance configuration and native registration. See [account setup](docs/accounts.md). Players can save a single-use offline recovery code for their multiplayer seat. Invite-only multiplayer and private bilateral messages run against the included local service. Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, save restoration, core commands, private messaging, and seat recovery are verified. Android and physical-device behavior still need verification.
+This is a playable foundation, not a store release. Opt-in message notification code is implemented, with delivery disabled by default; provider configuration and actual device delivery remain unverified. See [notification setup and boundaries](docs/notifications.md). Public frontend hosting and public store distribution remain unimplemented; an internal TestFlight build is out (see [native builds](docs/native-builds.md)). Clerk login with a dedicated Machination account, cross-device seat restoration, and legacy seat linking are implemented; production activation needs production-instance configuration and native registration. See [account setup](docs/accounts.md). Players can save a single-use offline recovery code for their multiplayer seat. Invite-only multiplayer and private bilateral messages run against the included local service or the [Railway playtest API](docs/railway.md). Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, save restoration, core commands, private messaging, and seat recovery are verified. Android and physical-device behavior still need verification.
 
-Run `npm run server` and open **Multiplayer uplink** to create or join a three-player operation. Online play uses sensor-limited views: unknown sites display `?`, and scouts reveal nearby contacts. Forecasts leave hidden arrival outcomes unresolved. Solo remains a full-information training simulation. See [multiplayer setup and API](docs/multiplayer.md).
+Run `npm run server` and open **Multiplayer uplink** to create or join an operation of two to ten players. Online play uses sensor-limited views: unknown sites display `?`, and scouts reveal nearby contacts. Forecasts leave hidden arrival outcomes unresolved. Solo remains a full-information training simulation. See [multiplayer setup and API](docs/multiplayer.md).
 
 See [game design](docs/game-design.md) and [implementation tracking](https://github.com/mcclowes/machination/issues/1).
 
