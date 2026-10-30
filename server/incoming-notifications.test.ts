@@ -180,7 +180,7 @@ test('single catch-up and minute ticks give identical rooms, including an offlin
     if (step) for (f.clock.now = step; f.clock.now < end; f.clock.now += step) await f.tick();
     f.clock.now = end; await f.tick();
     const { rooms, notifications } = await f.stored();
-    return { rooms: rooms.map(r => ({ ...r, id: '', invite: '', referenceKey: '', receipts: {}, seats: r.seats.map(s => ({ ...s, hash: '' })) })), incoming: notifications!.incoming };
+    return { rooms: rooms.map(r => ({ ...r, id: '', invite: '', referenceKey: '', receipts: {}, seats: r.seats.map(s => ({ ...s, hash: '', profileId: '' })) })), incoming: notifications!.incoming };
   };
   const once = await run(0);
   const ticked = await run(15 * 60_000);
