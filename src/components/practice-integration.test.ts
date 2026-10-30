@@ -132,7 +132,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.equal(hosts('Pressable').find(node => text(node) === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
     await press(/^Quiet landing,/);
-    await press('Units');
+    await press('Specialists');
     assert.match(visible(), /Next recruitment:/, 'global recruitment remains available while a non-owned site is selected');
     await press('Inspect site Core berth');
     assert.match(visible(), /Core berth/);
@@ -183,7 +183,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Time Machine');
     await press('History start');
     assert.match(visible(), /History · D01 · 00:00/);
-    await press('Units');
+    await press('Specialists');
     const historicalHires = hosts('Pressable').filter(node => /^Hire /.test(node.props.accessibilityLabel ?? ''));
     assert.ok(historicalHires.length > 0 && historicalHires.every(node => node.props.disabled));
     await press('Inspect site Core berth');

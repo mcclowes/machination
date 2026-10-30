@@ -23,7 +23,7 @@ export function GiftTransfer({ from, to, recipient, drones, carry, disabled, onG
       <Pressable accessibilityRole="button" onPress={() => setReview(false)} style={s.button}><Text style={s.buttonText}>Keep drones</Text></Pressable>
     </> : <>
       <Text style={s.detail}>Use the bottom launch button to attack. Review a gift only if you want to give these units away.</Text>
-      <Text style={s.detail}>{legacy ? "Give this manifest and any loaded module to the destination's intelligence. Gifts launch immediately." : 'Give this manifest and any loaded module on contact. A passing hauler can accept it before the destination.'}</Text>
+      <Text style={s.detail}>{legacy ? "Give this manifest and any loaded module to the destination's intelligence. Gifts launch immediately." : 'Give this manifest on contact. A passing hauler can accept it before the destination.'}</Text>
       {button('Review gift instead of attack', () => setReview(true))}
     </>}
   </View>;

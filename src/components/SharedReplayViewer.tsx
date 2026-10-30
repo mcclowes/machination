@@ -1,3 +1,4 @@
+import { siteKindLabel } from '../content/terminology';
 /** Read-only playback of validated public observations. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -88,7 +89,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
       <View style={s.drawerHeading}><Text style={s.title}>{rock.name}</Text><Control label="Close site details" text="×" onPress={() => setSelected('')} /></View>
       <ScrollView contentContainerStyle={s.details}>
       {rock.owner !== undefined && (rock.owner ? <PlayerIdentity faction={rock.owner} detail="Observed owner" /> : <Text style={s.text}>Unclaimed</Text>)}
-      {rock.kind !== 'unknown' && <Text style={s.text}>{rock.kind}</Text>}
+      {rock.kind !== 'unknown' && <Text style={s.text}>{siteKindLabel(rock.kind)}</Text>}
       {!rock.known ? <Text style={s.text}>Outside recorded sensor coverage</Text> : <>
         {rock.destroyed && <Text style={s.text}>Destroyed</Text>}
         {rock.coreOf && <PlayerIdentity faction={rock.coreOf} detail="Intelligence core" />}

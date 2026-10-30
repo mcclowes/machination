@@ -15,8 +15,8 @@ export function DisruptorControls({ game, owner, site, enabled, onCommand }: { g
   const active = enabled && !game.winner && !game.draw && !game.eliminated.includes(owner);
   return <View style={s.panel}>
     <Text style={s.heading}>Disruptor · tactical pulse</Text>
-    <Text style={s.detail}>Spend Pulse Material now or save it for your King. Charges for {config.chargeDuration * 60} minutes, then fires automatically.</Text>
-    <Text style={s.detail}>Pulse Material ({config.minimumResourceCost}–{config.maximumResourceCost}) · available {Math.floor(game.cargo[owner] ?? 0)}</Text>
+    <Text style={s.detail}>Spend pulse material now or save it for your King. Charges for {config.chargeDuration * 60} minutes, then fires automatically.</Text>
+    <Text style={s.detail}>pulse material ({config.minimumResourceCost}–{config.maximumResourceCost}) · available {Math.floor(game.cargo[owner] ?? 0)}</Text>
     <TextInput accessibilityLabel="Tactical pulse material" keyboardType="number-pad" value={material} onChangeText={setMaterial} editable={!!active} style={s.input} />
     {validCost && <Text style={s.detail}>Strong effects within {Math.max(0, (cost * config.strengthPerResource - config.chargeInterruptThreshold) / config.attenuationPerDistance).toFixed(1)} chart units · sensor jamming within {Math.max(0, (cost * config.strengthPerResource - config.communicationsJamThreshold) / config.attenuationPerDistance).toFixed(1)}. Travel speed: {config.propagationSpeed} units/h.</Text>}
     <Text style={s.detail}>Strong hits disable engines and mining, damage pulse shields, and reset a charging King. A firing King’s wave slows temporarily. Kings resist further interruption for {config.resistanceDuration}h. Tactical pulses cannot destroy a King.</Text>
@@ -24,8 +24,8 @@ export function DisruptorControls({ game, owner, site, enabled, onCommand }: { g
       const charge = system.charges.find(c => c.specialistId === unit.id);
       const disabled = !active || !charge && (!validCost || (game.cargo[owner] ?? 0) < cost);
       return <View key={unit.id} style={s.unit}>
-        {charge && <><Text accessibilityLiveRegion="polite" style={s.detail}>Charging · launches {gameClock(charge.readyAt)} · {charge.resourceCost} material committed</Text><Text accessibilityRole="alert" style={s.warning}>Movement cancels this charge without a refund.</Text></>}
-        <Pressable accessibilityRole="button" accessibilityLabel={charge ? 'Cancel Disruptor charge' : 'Charge Disruptor'} accessibilityState={{ disabled: !!disabled }} disabled={!!disabled} onPress={() => onCommand(charge ? { action: 'CANCEL_DISRUPTOR', specialistId: unit.id } : { action: 'CHARGE_DISRUPTOR', specialistId: unit.id, resourceCost: cost })} style={[s.button, disabled && { opacity: .35 }]}><Text style={s.heading}>{charge ? 'Cancel charge' : `Charge tactical pulse · ${validCost ? cost : 'choose'} material`}</Text></Pressable>
+        {charge && <><Text accessibilityLiveRegion="polite" style={s.detail}>Charging · launches {gameClock(charge.readyAt)} · {charge.resourceCost} pulse material committed</Text><Text accessibilityRole="alert" style={s.warning}>Movement cancels this charge without a refund.</Text></>}
+        <Pressable accessibilityRole="button" accessibilityLabel={charge ? 'Cancel Disruptor charge' : 'Charge Disruptor'} accessibilityState={{ disabled: !!disabled }} disabled={!!disabled} onPress={() => onCommand(charge ? { action: 'CANCEL_DISRUPTOR', specialistId: unit.id } : { action: 'CHARGE_DISRUPTOR', specialistId: unit.id, resourceCost: cost })} style={[s.button, disabled && { opacity: .35 }]}><Text style={s.heading}>{charge ? 'Cancel charge' : `Charge tactical pulse · ${validCost ? cost : 'choose'} pulse material`}</Text></Pressable>
       </View>;
     })}
     <Text style={s.detail}>Once launched, the fading wave travels independently of the Disruptor. Your own assets are immune.</Text>

@@ -23,7 +23,7 @@ A useful border agreement names the sites involved, who can move through, and wh
 
 Review a gift at launch, or turn one of your traveling haulers into a gift. The gift order has a ten-minute cancellation window. Ownership remains yours until contact.
 
-The current owner of the destination receives the manifest without ordinary combat. A passing hostile hauler can accept the gift first. Drones exceeding the recipient's power capacity are discarded in new operations; specialists still transfer.
+The current owner of the destination receives the manifest without ordinary combat. A passing hostile hauler can accept the gift first. Drones exceeding the recipient's drone capacity are discarded in new operations; specialists still transfer.
 
 For a negotiated site handover, coordinate its timing and [shield settings](../reference/rules.md#production-and-time). A promise in chat doesn't automatically change defenses or ownership.
 
@@ -35,7 +35,7 @@ Sponsor counts are public. Sponsor identities are visible only when you're invol
 
 ## Share an object at a specific time
 
-Inspect an observed site or hauler in live state or history, choose **Copy outpost reference** or **Copy hauler reference**, and paste it into chat.
+Inspect an observed site or hauler in live state or history, choose **Copy site reference** or **Copy hauler reference**, and paste it into chat.
 
 **Inspect** opens the copied time; **Inspect now** uses current observations. The recipient sees only what their own information permits at that time. Forwarding a reference doesn't grant sensor access, and forecasts can't be copied as observed contacts.
 

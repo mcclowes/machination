@@ -40,3 +40,12 @@ test('specialist signals show current names without changing canonical replay me
     assert.equal(event.message, stored);
   }
 });
+
+
+test('generic telemetry uses current terms without mutating saves or named prefixes', () => {
+  const event = { hour: 4, message: 'Generator Rock: opposing modules captured.' };
+  assert.equal(eventMessage({ ...ended, version: 2 }, event), 'Generator Rock: opposing specialists captured.');
+  assert.equal(eventMessage({ ...ended, version: 1 }, event), event.message);
+  assert.equal(event.message, 'Generator Rock: opposing modules captured.');
+  assert.equal(eventMessage(ended, { hour: 4, message: 'Generators spend six reserves every eight hours.' }), 'Reactors spend six reserves every eight hours.');
+});

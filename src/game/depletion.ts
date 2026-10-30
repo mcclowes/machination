@@ -31,9 +31,9 @@ export function spendReserves(game: Game, rock: Rock, amount: number): number {
   return spent;
 }
 
-export function reserveDescription(rock: Pick<Rock, 'reserves' | 'kind'>): string | undefined {
+export function reserveDescription(rock: Pick<Rock, 'reserves' | 'kind'>, resource = 'cargo'): string | undefined {
   if (rock.reserves === undefined) return undefined;
-  if (!rock.reserves) return 'Reserves exhausted · no production, extraction, or generator capacity';
-  const usage = rock.kind === 'factory' ? '1 per drone produced' : rock.kind === 'mine' ? '1 per cargo extracted' : '6 per 8h of generator supply';
+  if (!rock.reserves) return 'Reserves exhausted · no production, extraction, or drone capacity';
+  const usage = rock.kind === 'factory' ? '1 per drone produced' : rock.kind === 'mine' ? `1 per ${resource} extracted` : '6 per 8h of reactor supply';
   return `${rock.reserves} / ${PLANET_RESERVES} reserves${rock.reserves <= LOW_RESERVES ? ' · low' : ''} · ${usage}`;
 }

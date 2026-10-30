@@ -20,7 +20,7 @@ type Props = {
   panelScrollRef?: React.RefObject<ScrollView | null>; onPanelResize?: () => void;
 };
 const navigation = [
-  [null, 'Chart', '◎'], ['orders', 'Orders', '↗'], ['units', 'Units', '◈'],
+  [null, 'Chart', '◎'], ['orders', 'Orders', '↗'], ['units', 'Specialists', '◈'],
   ['signals', 'Signals', '≋'], ['intel', 'Intel', '▥'], ['settings', 'Setup', '⋯'],
 ] as const;
 

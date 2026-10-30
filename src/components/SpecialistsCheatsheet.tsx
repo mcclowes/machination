@@ -23,13 +23,13 @@ export function SpecialistsCheatsheet() {
   return <ScrollView contentContainerStyle={s.content}>
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.title}>Specialists cheatsheet</Text>
-      <Text style={s.body}>Modules change the rules wherever you send them. Local effects apply to the carrying site or hauler; global effects apply across your operation. Captives have no abilities. Speed bonuses use the fastest applicable multiplier.</Text>
+      <Text style={s.body}>Specialists change the rules wherever you send them. Local effects apply to the carrying site or hauler; global effects apply across your operation. Captives have no abilities. Speed bonuses use the fastest applicable multiplier. Cargo costs below are called pulse material in King’s Pulse.</Text>
     </View>
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Recruitment and promotions</Text>
       <Text style={s.body}>Earn a credit after four normal-rate hours, then every 18. Credits accumulate. The opening runs recruitment at 1.5× for 12 game hours, bringing the first credit at 2h 40m.</Text>
-      <Text style={s.body}>Each hire offers one attack, one defense, and one other module. In new operations, hire at your core's controlled site for one credit and 5 cargo. You start with 5 cargo and one mine. Older operations retain credit-only hiring. A traveling core can't hire. Diversion worm and Purger give two units for the same hiring cost; other hires give one.</Text>
-      <Text style={s.body}>Spend one credit to promote an eligible module docked at a controlled site, even while your core travels. Promotion replaces the old ability and refreshes the offers. Hires and promotions take effect immediately when executed.</Text>
+      <Text style={s.body}>Each hire offers one attack, one defense, and one other specialist. In new operations, hire at your core's controlled site for one credit and 5 cargo. You start with 5 cargo and one mine. Older operations retain credit-only hiring. A traveling core can't hire. Diversion worm and Purger give two specialists for the same hiring cost; other hires give one.</Text>
+      <Text style={s.body}>Spend one credit to promote an eligible specialist docked at a controlled site, even while your core travels. Promotion replaces the old ability and refreshes the offers. Hires and promotions take effect immediately when executed.</Text>
     </View>
     {groups.map(([category, title]) => <View key={category} style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>{title}</Text>
@@ -41,9 +41,9 @@ export function SpecialistsCheatsheet() {
           <SpecialistIcon kind={kind} size={36} />
           <View style={s.details}>
             <Text accessibilityRole="header" style={s.name}>{unit.name}</Text>
-            <Text style={s.reference}>{unit.reference}</Text>
+            <Text style={s.reference}>Subterfuge: {unit.reference}</Text>
             <Text style={s.body}>{unit.description}</Text>
-            {hireAmount(kind) > 1 && <Text style={s.note}>{hireAmount(kind)} units per hire</Text>}
+            {hireAmount(kind) > 1 && <Text style={s.note}>{hireAmount(kind)} specialists per hire</Text>}
             {promoted && <Text style={s.note}>Promotes to {SPECIALISTS[promoted].name}</Text>}
             {from && <Text style={s.note}>Promoted from {SPECIALISTS[from].name}</Text>}
           </View>
@@ -52,15 +52,15 @@ export function SpecialistsCheatsheet() {
     </View>)}
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Combat order</Text>
-      <Text style={s.body}>Earlier abilities can end combat or remove modules before later ones act. Equal-priority effects resolve simultaneously.</Text>
+      <Text style={s.body}>Earlier abilities can end combat or remove specialists before later ones act. Equal-priority effects resolve simultaneously.</Text>
       {combatOrder.map(unit => <Text key={unit.name} style={s.body}>{unit.priority}. {unit.name}</Text>)}
       <Text style={s.body}>Meltdown charge detonates before suppression. Arbiter suppresses local combat abilities if only one side carries it; arbiters on both sides allow those abilities again.</Text>
-      <Text style={s.body}>If combat continues, Warmind and Overclock apply global damage, then shields absorb site attacks, then drones fight. More active local modules break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Reclaimer recovery still apply under local suppression.</Text>
-      <Text style={s.body}>Gift contacts transfer modules without combat abilities. Captured modules keep their original owner but become inactive captives.</Text>
+      <Text style={s.body}>If combat continues, Warmind and Overclock apply global damage, then shields absorb site attacks, then drones fight. More active local specialists break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Reclaimer recovery still apply under local suppression.</Text>
+      <Text style={s.body}>Gift contacts transfer specialists without combat abilities. Captured specialists keep their original owner but become inactive captives.</Text>
     </View>
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Travel reminders</Text>
-      <Text style={s.body}>Load modules explicitly onto haulers; they can travel without drones. Interceptor's 2× outbound and 4× return speed apply to targeted interceptions, not ordinary site-bound travel or captive release.</Text>
+      <Text style={s.body}>Load specialists explicitly onto haulers; they can travel without drones. Interceptor's 2× outbound and 4× return speed apply to targeted interceptions, not ordinary site-bound travel or captive release.</Text>
       <Text style={s.body}>Navigator turns take effect after a cancelable ten-minute delay. The eight-hour cooldown starts at the turn. Watchdog, Capacitor, and Navigator timers keep their ordinary timing during opening acceleration.</Text>
       <Text style={s.body}>These are current operation rules. Older saves retain their recorded mechanics.</Text>
     </View>

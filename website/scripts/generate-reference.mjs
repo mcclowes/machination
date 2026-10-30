@@ -21,14 +21,14 @@ export async function generateReference(destination = website) {
     '---\ntitle: Rules\nslug: /rules\ndescription: The current Machination field manual, shared with the game.\n---',
     'The same rules appear in the game’s **Manual**. New operations use the rules below; existing operations keep their saved rules. Check the mode in your operation before planning.',
     '[Start with your first 10 minutes](../learn/first-ten-minutes.md), or use the contents to look up a rule.',
-    ...FIELD_MANUAL_SECTIONS.map(([title, body]) => `## ${title} {#${headingId(title)}}\n\n${body}`),
+    ...FIELD_MANUAL_SECTIONS.map(([title, body]) => `${title === 'Specialists and interception' ? '<span id="units-and-interception"></span>\n\n' : ''}## ${title} {#${headingId(title)}}\n\n${body}`),
   ].join('\n\n');
 
   const specialists = [
     '---\ntitle: Specialist reference\nslug: /specialists\ndescription: Every Machination specialist, its abilities, hiring amount, and promotion.\n---',
     'Names, abilities, and promotions come from the game’s specialist catalog. Load specialists explicitly when planning a transfer. Captives have no active abilities.',
     'In King’s Pulse, your **Intelligence core** is your King. The **Overclock** is a different specialist; its Subterfuge counterpart is called King. Fallback cores cannot replace your King in pulse mode.',
-    'Core hiring takes four normal-rate hours for the first credit, then 18 per credit. Opening acceleration changes that timing. Check the operation’s displayed cargo cost before hiring. Offers and eligibility depend on the operation; Disruptors are available in new pulse operations. See [the rules](rules.md#units-and-interception).',
+    'Core hiring takes four normal-rate hours for the first credit, then 18 per credit. Opening acceleration changes that timing. Check the operation’s displayed cargo cost before hiring. Offers and eligibility depend on the operation; Disruptors are available in new pulse operations. See [the rules](rules.md#specialists-and-interception).',
     ...Object.entries(SPECIALISTS).map(([kind, definition]) => {
       const next = promotion(kind);
       return [

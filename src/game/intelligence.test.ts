@@ -100,7 +100,7 @@ test('domination uses public sites, pulse has no cargo victory projection, and l
   assert.equal(report.projection, undefined);
   const pulse = createConfiguredGame({ playerCount: 2, mode: 'pulse' }, 0, 42);
   const pulseReport = intelligenceReport(observe(pulse, 'you'), 'you');
-  assert.equal(pulseReport.scoreLabel, 'Material');
+  assert.equal(pulseReport.scoreLabel, 'Pulse material');
   assert.equal(pulseReport.target, undefined);
   assert.equal(pulseReport.projection, undefined);
   const legacy = observe(game, 'you');

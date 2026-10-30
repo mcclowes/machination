@@ -16,7 +16,7 @@ const ACKNOWLEDGED = 'machination.briefing.v1';
 
 const illustrations: Partial<Record<typeof sections[number][0], ArtworkId>> = {
   'Your mandate': 'mining-world', 'Your first transfer': 'fleet-sheet',
-  'Production and time': 'mining-drones', 'Units and interception': 'ritual-tech-clash',
+  'Production and time': 'mining-drones', 'Specialists and interception': 'ritual-tech-clash',
   Gifts: 'command-bridge', Sensors: 'cloaked-ship', 'Time Machine': 'time-ship',
   'Private scheduled orders': 'industrial-cockpit',
 };

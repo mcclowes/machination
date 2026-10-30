@@ -13,13 +13,13 @@ The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfu
 
 | Source mission | Practice exercise | Goal |
 | --- | --- | --- |
-| Combat 1 | Open a foothold | Capture a neighboring outpost |
+| Combat 1 | Open a foothold | Capture a neighboring site |
 | Combat 2 | Joint attack | Combine attacks from two sites |
-| Combat 3 | Reinforcements | Keep a threatened outpost |
+| Combat 3 | Reinforcements | Keep a threatened site |
 | Combat 4 | Orders after arrival | Queue an attack before its incoming supply arrives |
 | Specialists 1 | The factory | Overcome shields and ongoing defender production |
 | Specialists 2 | Recruit a specialist | Recruit diversion worms and stop a raid |
-| Specialists 3 | Combat priority | Use detonation before an Elder suppresses local abilities |
+| Specialists 3 | Combat priority | Use detonation before an Arbiter suppresses local abilities |
 | Specialists 4 | Promotion | Promote before attacking a stronger garrison |
 | Winning 1 | Drill a mine | Construct a mine and extract five cargo |
 | Diplomacy 1 | The gift | Reinforce an ally through a gift |
@@ -27,12 +27,12 @@ The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfu
 | Combat 5 | A specialist | Consolidate against a defending combat specialist |
 | Combat 6 | Hauler combat | Survive a route encounter and capture its defended source |
 | Specialists 5 | Global abilities | Schedule a promotion that repairs remote victories |
-| Specialists 6 | Power capacity | Resume production before an incoming raid |
+| Specialists 6 | Drone capacity | Resume production before an incoming raid |
 | Winning 2 | Mining rate | Expand extraction and win before hour 48 |
 | Winning 3 | Losing a mine | Protect a mine from 197 drones and win before hour 48 |
-| Winning 4 | Losing a core | Liberate a kill protocol and eliminate the enemy core |
-| Diplomacy 3 | Disabling shields | Hand over a generator so an ally can resume production |
-| Diplomacy 4 | Captive specialists | Release a captive to help an ally hold its outpost |
+| Winning 4 | Losing a core | Liberate a Purger and eliminate the enemy core |
+| Diplomacy 3 | Disabling shields | Hand over a reactor so an ally can resume production |
+| Diplomacy 4 | Captive specialists | Release a captive to help an ally hold its site |
 | Advanced 1 | Order matters | Remove a global combat bonus before the next attack |
 | Advanced 2 | The fastest route | Relocate, recruit, consolidate, and attack before the deadline |
 | Advanced 3 | Against the odds | Keep the core through two specialist-led waves |
