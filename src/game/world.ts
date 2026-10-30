@@ -59,6 +59,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   const { rocks, width, height } = generateWorld(players, mapSeed);
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
+    rivalPolicy: 1,
     rules: { mechanicsVersion: settings.mode === 'pulse' ? 16 : 14, ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),

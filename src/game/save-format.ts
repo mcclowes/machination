@@ -29,6 +29,7 @@ export function decodeSave(raw: string): Save {
   try { save = JSON.parse(raw); } catch { return fail(); }
   if (!record(save) || !nonnegative(save.savedAt) || !record(save.game)) return fail();
   const g = save.game;
+  if (g.rivalPolicy !== undefined && (g.version !== 2 || g.rivalPolicy !== 1)) return fail();
   let rules;
   try { rules = g.rules === undefined ? undefined : validateRules(g.rules); } catch { return fail(); }
   if (rules && (g.version !== 2 || g.specialistVersion !== 1)) return fail();

@@ -28,7 +28,11 @@ function drawOffers(input: Recruitment, tactical = false): Recruitment {
 }
 export type UnitWorld = { rocks: readonly { id: string; owner?: Faction | null; specialists?: Specialist[] }[]; fleets: readonly { id: number; from: string; owner: Faction; preparing?: true; specialists?: Specialist[] }[] };
 export function activeUnits(game: UnitWorld, owner?: Faction): Specialist[] {
-  return [...game.rocks.flatMap(a => (a.specialists ?? []).filter(u => u.owner === a.owner)), ...game.fleets.flatMap(a => (a.specialists ?? []).filter(u => u.owner === a.owner))].filter(u => !u.captive && (owner === undefined || u.owner === owner));
+  const units: Specialist[] = [];
+  for (const assets of [game.rocks, game.fleets]) for (const asset of assets) for (const unit of asset.specialists ?? []) {
+    if (unit.owner === asset.owner && !unit.captive && (owner === undefined || unit.owner === owner)) units.push(unit);
+  }
+  return units;
 }
 export function restoreControl(game: Game, unit: Specialist, owner: Faction, cargo: readonly Specialist[] = []): void {
   if (unit.kind === 'queen') {

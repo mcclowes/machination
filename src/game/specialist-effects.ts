@@ -12,23 +12,31 @@ import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
 import { applyStationPassives } from './specialist-actions';
 import type { Faction, Game } from './simulation';
 import type { Specialist, UnitWorld } from './specialists';
-import { cloneUnits, unitCount, unitsAtRock } from './specialists';
+import { activeUnits, cloneUnits, unitCount } from './specialists';
 import { maximumShield } from './economy';
 
 export function refreshUnitEffects(game: Game, preserveDueClocks = false): void {
   if (game.version !== 2) return;
+  const counts = new Map<string, number>();
+  for (const unit of activeUnits(game)) {
+    const key = `${unit.owner}:${unit.kind}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const count = (owner: Faction, kind: Specialist['kind']) => counts.get(`${owner}:${kind}`) ?? 0;
+  const stationed = new Map(game.rocks.map(r => [r.id, (r.specialists ?? []).filter(u => !u.captive)]));
+  for (const fleet of game.fleets) if (fleet.preparing) stationed.get(fleet.from)?.push(...(fleet.specialists ?? []).filter(u => !u.captive));
   for (const rock of game.rocks) {
     if (rock.owner && rock.kind === 'factory') {
-      const interval = 8 / (1 + 0.5 * unitCount(game, rock.owner, 'tycoon'));
+      const interval = 8 / (1 + 0.5 * count(rock.owner, 'tycoon'));
       if (interval !== (rock.productionInterval ?? 8)) rock.productionAt = afterWork(game, game.hour, Math.max(0, workBetween(game, game.hour, rock.productionAt!) / (rock.productionInterval ?? 8)) * interval);
       rock.productionInterval = interval;
     }
-    for (const unit of unitsAtRock(game, rock.id)) if ((unit.kind === 'sentry' || unit.kind === 'tinkerer') && (unit.nextActionAt === undefined || !preserveDueClocks && unit.nextActionAt <= game.hour)) unit.nextActionAt = game.hour + (unit.kind === 'sentry' ? 2 : 1 / 3);
+    const units = stationed.get(rock.id)!;
+    for (const unit of units) if ((unit.kind === 'sentry' || unit.kind === 'tinkerer') && (unit.nextActionAt === undefined || !preserveDueClocks && unit.nextActionAt <= game.hour)) unit.nextActionAt = game.hour + (unit.kind === 'sentry' ? 2 : 1 / 3);
     const oldMax = maximumShield(rock);
-    const units = unitsAtRock(game, rock.id);
     const core = units.find(u => u.kind === 'queen' && u.owner === rock.owner);
     if (core) rock.coreOf = core.owner; else delete rock.coreOf;
-    rock.shieldBonus = rock.owner ? 10 * unitCount(game, rock.owner, 'security') + 10 * units.filter(u => u.owner === rock.owner && u.kind === 'security').length - 20 * unitCount(game, rock.owner, 'king') : 0;
+    rock.shieldBonus = rock.owner ? 10 * count(rock.owner, 'security') + 10 * units.filter(u => u.owner === rock.owner && u.kind === 'security').length - 20 * count(rock.owner, 'king') : 0;
     const max = maximumShield(rock);
     rock.shield = Math.min(rock.shield ?? 0, max);
     if (rock.owner && (max !== oldMax || (rock.shieldAt === undefined || !preserveDueClocks && rock.shieldAt <= game.hour) && rock.shield! < max)) rock.shieldAt = afterWork(game, game.hour, max > 0 ? 48 / max : 48);
