@@ -1,6 +1,6 @@
 # Endless frontier proposal
 
-Status: design proposal, not implemented. Keep time-bound multiplayer rules unchanged.
+Status: design proposal. Only the depletion-only experiment is implemented, in [solo depletion](solo-depletion.md). Keep time-bound multiplayer rules unchanged.
 
 An endless solo operation should reward surviving, exploring, and making good local decisions without accumulating an empire the player can no longer manage. A large map provides somewhere to go; it shouldn't require watching the entire map. This is useful practice between multiplayer turns, but isn't a substitute for assessed tutorials.
 
@@ -49,9 +49,9 @@ Keep both specialists out of the first balance experiment. Prove migration is en
 
 ## Tutorial quality and first experiment
 
-The current five exercises cover capture, shields, specialist transport, future production, and interception. On October 30, 2026, their engine, progress, and dialogue tests passed: 22 checks. That establishes executable solutions and assessment safeguards, not teaching quality. Existing documentation still lists rendered, small-screen, accessibility, and native acceptance gaps.
+When this proposal was written, five exercises covered capture, shields, specialist transport, future production, and interception. On October 30, 2026, their engine, progress, and dialogue tests passed: 22 checks. That establishes executable solutions and assessment safeguards, not teaching quality. Practice has since grown to 40 exercises; see [tutorial coverage](tutorial-coverage.md). Existing documentation still lists rendered, small-screen, accessibility, and native acceptance gaps.
 
-First play through all five using the actual UI on desktop and a small touch screen. Verify objective wording, discoverable controls, hints, resolution playback, retry, completion persistence, and returning to a retained solo save. Observe an unfamiliar player without coaching. Fix blockers before adding depletion lessons.
+First play through every exercise using the actual UI on desktop and a small touch screen. Verify objective wording, discoverable controls, hints, resolution playback, retry, completion persistence, and returning to a retained solo save. Observe an unfamiliar player without coaching. Fix blockers before adding depletion lessons.
 
 Then compare a larger-map baseline, depletion alone, and depletion plus supply and settlement limits using the same seeds. Run accelerated AI soaks over many planet lifecycles, followed by human sessions with pauses and interruptions. Track active settlement count, force and material concentration, orders per minute, simultaneous threats, migration frequency, idle travel, and time to recover after losses. A useful outcome is sustained local competition without monotonically growing forces or administrative work. Set numerical acceptance thresholds after measuring the baseline, before choosing the winning variant.
 

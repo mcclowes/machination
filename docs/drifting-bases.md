@@ -2,7 +2,7 @@
 
 Fresh solo and multiplayer setup starts with a stationary chart. Enable **Drifting asteroid bases** to opt into the experiment, as required by [#32](https://github.com/mcclowes/machination/issues/32). Explicit creation options without the flag are also stationary. Existing drifting operations, their saved histories, and retries without new setup options retain their recorded motion. Resetting an existing operation initially presents that operation's current settings; the checkbox remains editable before replacement.
 
-The variant adds two small, initially neutral asteroid installations per player. Starting stations stay fixed. Selection alternates between starting territories, taking each core's closest remaining neutral sites. This provides equal counts, not a guarantee of equal expansion opportunity throughout a match. Drift directions differ between territories and between their two asteroids.
+The variant converts two initially neutral sites per player into small asteroid installations. Starting stations stay fixed. Selection alternates between starting territories, taking each core's closest remaining neutral sites. This provides equal counts, not a guarantee of equal expansion opportunity throughout a match. Drift directions differ between territories and between their two asteroids.
 
 Asteroids move in straight lines at 0.5 chart units per game hour, or 12 per day. Both map axes wrap. The smaller chart marker and gold dotted course distinguish them from stations. Selecting an asteroid highlights its position 24 hours ahead. The Time Machine shows its position at the inspected time. Bodies can pass each other without collision damage.
 
@@ -14,7 +14,7 @@ Motion origins and velocities are public chart information even outside sonar. G
 
 ## Compatibility
 
-Drifting operations record mechanics revision 6. Each moving site's `drift` stores an immutable hour-zero origin and velocity; its `x` and `y` reflect the current simulation hour. Positions are calculated from the origin instead of accumulating elapsed deltas, avoiding polling-dependent drift. Save validation requires finite, bounded motion, a wrapped chart, the matching mechanics revision, and coordinates consistent with the saved hour.
+Revision 6 operations imply drift; from mechanics revision 7, `rules.driftingBases` records the variant independently of the revision. Each moving site's `drift` stores an immutable hour-zero origin and velocity; its `x` and `y` reflect the current simulation hour. Positions are calculated from the origin instead of accumulating elapsed deltas, avoiding polling-dependent drift. Save validation requires finite, bounded motion, a wrapped chart, drifting enabled in the saved rules, and coordinates consistent with the saved hour.
 
 Shared replays with drift use schema version 2 and preserve only disclosed motion. Readers continue to accept stationary schema version 1. Version 2 validates immutable courses and coordinates across frames; playback evaluates both sites and coverage between recorded boundaries. Analytic visibility intervals retain brief observations as moving sensors enter or leave range. Older readers reject the new schema instead of showing frozen bases.
 
