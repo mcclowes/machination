@@ -24,6 +24,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
   const seeded = [[soloKey, 'recognizable solo archive bytes'], [onlineKey, 'recognizable online credentials bytes']] as const;
   const bytes = new Map<string, string>([...seeded, ['machination.briefing.v1', '1']]);
   const reads: string[] = [], writes: string[] = [], subscriptions: string[] = [];
+  let expectedSoloReads = 1;
   let mounts = 0, network = 0, intervals = 0, now = 1_800_000_000_000;
   globals[key] = {
     storage: { getItem: async (name: string) => { reads.push(name); return bytes.get(name) ?? null; }, setItem: async (name: string, value: string) => { writes.push(name); bytes.set(name, value); } },
@@ -58,16 +59,19 @@ test('App practice isolates live lifecycles and awards only actual capture, with
             ${OPERATION_MOTION_NATIVE}`,
           'react-native-safe-area-context': `export const SafeAreaProvider='SafeAreaProvider',SafeAreaView='SafeAreaView';`,
           'expo-status-bar': `export const StatusBar='StatusBar';`,
-          'expo-crypto': `export const randomUUID=()=> 'practice-host-uuid';`,
+          'expo-crypto': `export const randomUUID=()=> 'practice-host-uuid'; export const getRandomBytesAsync=async()=>{throw Error('Unexpected credential generation');};`,
+          'expo-secure-store': `const unexpected=async()=>{throw Error('Unexpected native credential access');}; export const getItemAsync=unexpected,setItemAsync=unexpected,deleteItemAsync=unexpected;`,
           'expo-clipboard': `export const setStringAsync=async()=>true;`,
           '@react-native-async-storage/async-storage': `export default globalThis[${JSON.stringify(key)}].storage;`,
           'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'practice-host' }));
+        builder.onResolve({ filter: /MultiplayerAccount$/ }, () => ({ path: 'account-boundary', namespace: 'practice-host' }));
+        builder.onLoad({ filter: /^account-boundary$/, namespace: 'practice-host' }, () => ({ contents: `export const useAccountId=()=>null;` }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'practice-host' }));
         builder.onResolve({ filter: /\/audio\/sound$/ }, () => ({ path: 'silent-audio', namespace: 'practice-host' }));
         builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'practice-host' }));
-        builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'practice-host' }));
+        builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|expo-secure-store|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'practice-host' }));
         builder.onLoad({ filter: /.*/, namespace: 'practice-host' }, args => ({ contents: args.path === 'silent-audio' ? `export const playSound=()=>{},useSoundCues=()=>{},useSoundEnabled=()=>false,setSoundEnabled=()=>{};` : args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : args.path === 'notification-boundary' ? `export const launchDeps=undefined;` : args.path === 'replay-files' ? `export const pickSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile(),saveSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile();` : stubs[args.path]! }));
       } }],
     });
@@ -103,18 +107,21 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     const mapSite = (name: string) => hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${name},`))!;
     const quiet = () => {
       assert.equal(mounts, 0); assert.equal(network, 0); assert.equal(intervals, 0); assert.deepEqual(subscriptions, []);
-      assert.ok(reads.every(name => name === progressKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
+      assert.ok(reads.every(name => name === soloKey || name === progressKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
+      assert.equal(reads.filter(name => name === soloKey).length, expectedSoloReads, 'Only the games menu inspects the saved solo operation; practice and replays never reopen it');
       assert.ok(writes.every(name => name === progressKey), `Unexpected writes: ${writes}`);
       for (const [name, value] of seeded) assert.equal(bytes.get(name), value);
     };
     await flush(() => { renderer = create(React.createElement(App)); });
     assert.ok(hosts('View').some(node => node.props.accessibilityRole === 'header' && node.props.accessibilityLabel === 'Machination'));
-    assert.deepEqual(reads, ['machination.briefing.v1']); assert.deepEqual(writes, []);
+    assert.deepEqual(reads, ['machination.briefing.v1', soloKey]); assert.deepEqual(writes, []);
     assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel?.startsWith('Foundry,')), false);
     quiet();
     await press('Open shared replay');
     assert.match(visible(), /Shared replays/); quiet();
     await press('Exit replay library');
+    expectedSoloReads = 2;
+    quiet();
     await press('Practice');
     await press('Start: Open a foothold');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[0]!.text));

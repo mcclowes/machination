@@ -58,16 +58,19 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
             ${OPERATION_MOTION_NATIVE}`,
           'react-native-safe-area-context': `export const SafeAreaProvider='SafeAreaProvider',SafeAreaView='SafeAreaView';`,
           'expo-status-bar': `export const StatusBar='StatusBar';`,
-          'expo-crypto': `export const randomUUID=()=> 'launch-host-uuid';`,
+          'expo-crypto': `export const randomUUID=()=> 'launch-host-uuid'; export const getRandomBytesAsync=async()=>{throw Error('Unexpected credential generation');};`,
+          'expo-secure-store': `const unexpected=async()=>{throw Error('Unexpected native credential access');}; export const getItemAsync=unexpected,setItemAsync=unexpected,deleteItemAsync=unexpected;`,
           'expo-clipboard': `export const setStringAsync=async()=>true;`,
           '@react-native-async-storage/async-storage': `export default globalThis[${JSON.stringify(key)}].storage;`,
           'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'launch-host' }));
+        builder.onResolve({ filter: /MultiplayerAccount$/ }, () => ({ path: 'account-boundary', namespace: 'launch-host' }));
+        builder.onLoad({ filter: /^account-boundary$/, namespace: 'launch-host' }, () => ({ contents: `export const useAccountId=()=>null;` }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'launch-host' }));
         builder.onResolve({ filter: /\/audio\/sound$/ }, () => ({ path: 'silent-audio', namespace: 'launch-host' }));
         builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'replay-files', namespace: 'launch-host' }));
-        builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'launch-host' }));
+        builder.onResolve({ filter: /^(react-native(?:-svg|-safe-area-context)?|expo-status-bar|expo-crypto|expo-clipboard|expo-secure-store|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'launch-host' }));
         builder.onLoad({ filter: /.*/, namespace: 'launch-host' }, args => ({ contents: args.path === 'silent-audio' ? `export const playSound=()=>{},useSoundCues=()=>{},useSoundEnabled=()=>false,setSoundEnabled=()=>{};` : args.path === 'online-boundary' ? `export const OnlineOperation=()=>globalThis[${JSON.stringify(key)}].online();` : args.path === 'notification-boundary' ? `export const launchDeps=undefined;` : args.path === 'replay-files' ? `export const pickSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile(),saveSharedReplay=()=>globalThis[${JSON.stringify(key)}].replayFile();` : stubs[args.path]! }));
       } }],
     });
@@ -90,7 +93,7 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
       await flush(() => node.props.onChangeText(value));
     };
     await flush(() => { renderer = create(React.createElement(App)); });
-    await press('Open solo operation');
+    await press('Resume solo operation');
     await press('Time Machine');
     await input('Go to hours from now', '2');
     await press('Inspect');

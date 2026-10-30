@@ -16,7 +16,7 @@ test('team setup labels immutable seat groups, and teammate plans expose read-on
     const output = await build({ stdin: { contents: `export { GameSetup } from './src/components/GameSetup'; export { ScheduledOrders } from './src/components/ScheduledOrders';`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, platform: 'node', format: 'esm', plugins: [{ name: 'team-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /^(react-native)$|\/PlayerIdentity$|\/LaunchReview$/ }, args => ({ path: args.path, namespace: 'team-host' }));
-      builder.onLoad({ filter: /.*/, namespace: 'team-host' }, args => ({ contents: args.path === 'react-native' ? `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',StyleSheet={create:x=>x};` : args.path.endsWith('LaunchReview') ? `export const LaunchReview='LaunchReview';` : `export const PlayerPortraits={Provider:({children})=>children},PlayerIdentity='PlayerIdentity',PlayerAvatar='PlayerAvatar';` }));
+      builder.onLoad({ filter: /.*/, namespace: 'team-host' }, args => ({ contents: args.path === 'react-native' ? `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',StyleSheet={create:x=>x};` : args.path.endsWith('LaunchReview') ? `export const LaunchReview='LaunchReview';` : `export const PlayerRoster=({children})=>children,PlayerIdentity='PlayerIdentity',PlayerAvatar='PlayerAvatar';` }));
     } }] });
     const ui = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     let selected: GameOptions = { playerCount: 3, mode: 'pulse' };

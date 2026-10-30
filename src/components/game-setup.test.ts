@@ -22,7 +22,7 @@ test('setup starts stationary and keeps drifting bases an explicit choice across
         builder.onResolve({ filter: /^(react-native)$|\/PlayerIdentity$/ }, args => ({ path: args.path, namespace: 'setup-host' }));
         builder.onLoad({ filter: /.*/, namespace: 'setup-host' }, args => ({ contents: args.path === 'react-native'
           ? `export const View='View',Text='Text',Pressable='Pressable',StyleSheet={create:x=>x};`
-          : `export const PlayerPortraits={Provider:({children})=>children},PlayerIdentity='PlayerIdentity',PlayerAvatar='PlayerAvatar';` }));
+          : `export const PlayerRoster=({children})=>children,PlayerIdentity='PlayerIdentity',PlayerAvatar='PlayerAvatar';` }));
       } }],
     });
     const setup = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`) as typeof import('./GameSetup') & typeof import('../game/rules') & typeof import('../game/world');

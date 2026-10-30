@@ -33,7 +33,7 @@ async function motionHost(platform: string, check: (host: any) => Promise<void>)
         builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
         builder.onResolve({ filter: /^(react-native(?:-svg)?)$|\/PlayerIdentity$/ }, args => ({ path: args.path, namespace: 'motion-host' }));
         builder.onLoad({ filter: /.*/, namespace: 'motion-host' }, args => ({ contents: args.path.endsWith('PlayerIdentity')
-          ? `export const PlayerPortraits={Provider:({children})=>children};`
+          ? `export const PlayerRoster=({children})=>children;`
           : args.path === 'react-native-svg'
             ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path';`
             : `const host=globalThis.__operationAnimationHost;
