@@ -19,7 +19,7 @@ All timestamps and durations use the engine's game hours. Propagation speed uses
 
 `MACHINATION_PULSE_CONFIG` accepts validated JSON overrides for new server operations. Saved operations retain their original balance. See [the server configuration example](../.env.example) and [the balancing reference](../README.md#pulse-balancing-and-abilities).
 
-`applyPulseSpecialistEffect` supports timed charge rates, uniform pulse speeds, shield drain, charge interruption, and emission termination. Each effect command requires a unique ID and can be retained in private replay history. Ability handlers must validate ownership, range, costs, and cooldowns; the HTTP API does not accept arbitrary specialist multipliers. The [Disruptor](disruptor.md) uses the hook’s pulse-speed modifier for temporary strategic slowdown. Temporal and gravity abilities have not been assigned to the existing specialist roster.
+`applyPulseSpecialistEffect` supports timed charge rates, uniform pulse speeds, shield drain, charge interruption, and emission termination. Each effect command requires a unique ID and can be retained in private replay history. Ability handlers must validate ownership, range, costs, and cooldowns; the HTTP API does not accept arbitrary specialist multipliers. The [Disruptor](disruptor.md) uses the hook’s pulse-speed modifier for temporary strategic slowdown. Revision-18 operations add [temporal specialists](temporal-specialists.md), including Anchor pauses for local charging and recharge. Gravity abilities remain unassigned.
 
 The `miningDamage` option chooses destruction or disabled extraction. Regional wave distortion, alliance immunity, and finite pulse fuel remain outside this version's rules.
 

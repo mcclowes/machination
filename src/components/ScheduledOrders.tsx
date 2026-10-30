@@ -47,7 +47,7 @@ export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; n
   return queueActionLabel(plan.action, rocks, route);
 }
 type QueueProps = { owner?: Faction; plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean; compact?: boolean };
-const orderIcons: Record<FutureAction['type'], string> = { gift: '◇', intercept: '⌖', hauler: '↗', hire: '+', promote: '★', release: '↥', 'drill-mine': '▼', shields: '◉', funding: '⇄' };
+const orderIcons: Record<FutureAction['type'], string> = { gift: '◇', intercept: '⌖', hauler: '↗', hire: '+', promote: '★', activate: '◷', release: '↥', 'drill-mine': '▼', shields: '◉', funding: '⇄' };
 export function ScheduledOrders({ owner, plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation, compact }: QueueProps) {
   const [review, setReview] = useState<string>();
   const [expanded, setExpanded] = useState(true);

@@ -24,6 +24,7 @@ export function flightEndpoints(world: FlightWorld, fleet: Fleet): { from: Point
 }
 export const flightDeparture = (fleet: Fleet): number => Math.max(fleet.departed, fleet.enginesDisabledUntil ?? 0);
 export function fleetPosition(world: FlightWorld, fleet: Fleet): Point {
+  if (fleet.heldAt) { const site = world.rocks.find(r => r.id === fleet.heldAt); if (site) return sitePosition(world, site, world.hour); }
   if (fleet.preparing && world.hour < fleet.departed) {
     const site = world.rocks.find(r => r.id === fleet.from);
     if (site?.drift) return sitePosition(world, site, world.hour);

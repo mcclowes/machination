@@ -6,6 +6,7 @@
  *   - ./tactical-pulse-save.ts - persisted state validation
  * ---
  */
+import { requireUnfrozen } from './temporal-facilities';
 import type { Faction, Game } from './simulation';
 import type { Point } from './geometry';
 import { reconcileFunding } from './funding';
@@ -61,6 +62,7 @@ export function commandTacticalPulse(input: Game, owner: Faction, command: Tacti
   if (!site) throw new Error('Choose your stationed Disruptor at a controlled site.');
   const charging = system.charges.find(c => c.specialistId === command.specialistId);
   if (command.action === 'CHARGE_DISRUPTOR') {
+    requireUnfrozen(game, site);
     if (charging) throw new Error('This Disruptor is already charging.');
     if (!Number.isSafeInteger(command.resourceCost) || command.resourceCost < config.minimumResourceCost || command.resourceCost > config.maximumResourceCost) throw new Error(`Choose ${config.minimumResourceCost}–${config.maximumResourceCost} Pulse Material.`);
     if ((game.cargo[owner] ?? 0) < command.resourceCost) throw new Error('Not enough Pulse Material.');

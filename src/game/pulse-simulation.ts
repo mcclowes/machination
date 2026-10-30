@@ -6,6 +6,7 @@
  *   - ./pulse-contact.ts - asset motion and contact geometry
  * ---
  */
+import { inStasis } from './temporal';
 import { nextTacticalPulseEvent, advanceTacticalPulseTime, settleTacticalPulses } from './tactical-pulse-simulation';
 import { reconcileFunding } from './funding';
 import type { Game, Rock } from './simulation';
@@ -37,13 +38,13 @@ export function nextPulseEvent(game: Game, limit: number): number {
   if (game.hour < OPENING_HOURS) next = Math.min(next, OPENING_HOURS);
   for (const m of game.pulse.modifiers) if (m.expiresAt > game.hour) next = Math.min(next, m.expiresAt);
   for (const king of game.pulse.kings) if (king.state === 'charging') {
-    const rate = pulseRate(game, king.factionId, 'charge_rate');
+    const rate = game.rocks.some(r => inStasis(game, r) && r.specialists?.some(u => u.id === king.kingId)) ? 0 : pulseRate(game, king.factionId, 'charge_rate');
     if (rate) next = Math.min(next, game.hour + Math.max(0, pulseConfig(game).chargeDuration - king.chargeProgress) / rate);
   }
   for (const rock of game.rocks) {
     if (!rock.owner || rock.destroyed) continue;
     const shield = game.pulse.shields[rock.id];
-    if (shield && !shield.exposed && shield.energy < pulseConfig(game).shieldMaxEnergy && pulseConfig(game).shieldRechargePerHour > 0) next = Math.min(next, game.hour + (pulseConfig(game).shieldMaxEnergy - shield.energy) / pulseConfig(game).shieldRechargePerHour);
+    if (!inStasis(game, rock) && shield && !shield.exposed && shield.energy < pulseConfig(game).shieldMaxEnergy && pulseConfig(game).shieldRechargePerHour > 0) next = Math.min(next, game.hour + (pulseConfig(game).shieldMaxEnergy - shield.energy) / pulseConfig(game).shieldRechargePerHour);
     if (shield?.exposed && shield.energy > 0 && !rock.shieldsDisabled) {
       const drain = shield.exposed * pulseConfig(game).shieldDrainPerHour * pulseRate(game, rock.owner, 'shield_drain');
       if (drain) next = Math.min(next, game.hour + shield.energy / drain);
@@ -59,13 +60,13 @@ export function advancePulseTime(game: Game, through: number): void {
   if (!game.pulse) return;
   const elapsed = Math.max(0, through - game.hour), config = pulseConfig(game);
   advanceTacticalPulseTime(game, through);
-  for (const king of game.pulse.kings) if (king.state === 'charging') king.chargeProgress += elapsed * pulseRate(game, king.factionId, 'charge_rate');
+  for (const king of game.pulse.kings) if (king.state === 'charging' && !game.rocks.some(r => inStasis(game, r) && r.specialists?.some(u => u.id === king.kingId))) king.chargeProgress += elapsed * pulseRate(game, king.factionId, 'charge_rate');
   for (const p of game.pulse.pulses) p.radius += elapsed * config.propagationSpeed * pulseRate(game, p.factionId, 'pulse_speed');
   for (const rock of game.rocks) {
     const shield = game.pulse.shields[rock.id];
     if (!shield || rock.destroyed) continue;
     const drain = shield.exposed && !rock.shieldsDisabled && rock.owner ? shield.exposed * config.shieldDrainPerHour * pulseRate(game, rock.owner, 'shield_drain') : 0;
-    shield.energy = Math.max(0, Math.min(config.shieldMaxEnergy, shield.energy + elapsed * (shield.exposed ? -drain : config.shieldRechargePerHour)));
+    shield.energy = Math.max(0, Math.min(config.shieldMaxEnergy, shield.energy + elapsed * (shield.exposed ? -drain : inStasis(game, rock) ? 0 : config.shieldRechargePerHour)));
   }
 }
 function shieldProtects(game: Game, rock: Rock): boolean { return !rock.destroyed && !rock.shieldsDisabled && (game.pulse!.shields[rock.id]?.energy ?? 0) > EPS; }

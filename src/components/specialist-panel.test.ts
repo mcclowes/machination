@@ -208,3 +208,26 @@ test('local all mode still gates recruitment to the core site and selected cargo
   assert.deepEqual(selected,[]);
   await act(async()=>tree.unmount());
 });
+
+test('temporal controls activate docked units and retain visible cooldown and repayment costs', async () => {
+  const game = fixture();
+  const site = game.rocks.find(r => r.owner === 'you' && r.kind === 'factory')!;
+  site.specialists!.push({ id: 'ui-anchor', kind: 'anchor', owner: 'you' }, { id: 'ui-overclock', kind: 'overclock', owner: 'you' });
+  const activated: string[] = [];
+  const panel = await render({ ...props(observe(game, 'you')), onActivate: id => activated.push(id) });
+  for (const name of ['Activate stasis · 2h', 'Overclock · 4h boost, 4h repayment']) {
+    const button = panel.buttons().find((n: any) => n.props.accessibilityLabel === name);
+    assert.equal(button.props.disabled, false);
+    await act(async () => button.props.onPress());
+  }
+  assert.deepEqual(activated, ['ui-anchor', 'ui-overclock']);
+  await panel.close();
+  site.overclock = { boostUntil: 10, debtUntil: 14 };
+  const repaying = await render({ ...props(observe(game, 'you')), onActivate: () => {} });
+  assert.equal(repaying.buttons().find((n: any) => n.props.accessibilityLabel === 'Overclock · 4h boost, 4h repayment').props.disabled, true);
+  assert.match(repaying.text(), /Double production until/);
+  await repaying.close();
+  const historical = await render({ ...props(observe(game, 'you')), enabled: false, onActivate: () => {} });
+  assert.equal(historical.buttons().find((n: any) => n.props.accessibilityLabel === 'Activate stasis · 2h').props.disabled, true);
+  await historical.close();
+});

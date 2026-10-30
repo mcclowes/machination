@@ -5,6 +5,10 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { cloneTemporalIntelligence, recordTemporalAction, recordTemporalCommand, settleHindsight, nextHindsightEvent, refreshForesight, type TemporalIntelligence } from './temporal-intelligence';
+import { requireUnfrozen, nextTemporalFacilityEvent, settleTemporalFacilities, holdStasisArrival } from './temporal-facilities';
+import { nextDilationEvent } from './temporal-travel';
+import { temporalEnabled, type OverclockLoan } from './temporal';
 import { cloneCompact, nextCouncilEvent, settleCouncil, compactTransitMultiplier, type BeltCompact } from './compact';
 import { settleTacticalPulses } from './tactical-pulse-simulation';
 import { actStrategicRivals, RIVAL_DECISION_INTERVAL } from './rival-ai';
@@ -39,16 +43,16 @@ import { FACTIONS, playersIn, type Faction, type PlayerValues } from './players'
 import { victoryProgress, victoryTarget, type GameRules } from './rules';
 export { FACTIONS, type Faction } from './players';
 export type Rock = {
-  reserves?: number; supplyAt?: number;
+  anchorReadyAt?: number; productionPausedUntil?: number; stasisUntil?: number; overclock?: OverclockLoan; reserves?: number; supplyAt?: number;
   id: string; name: string; x: number; y: number; drift?: Drift;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator';
   shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number; miningInterval?: number;
   sensorJammedUntil?: number; miningDisabledUntil?: number; pulseDisabled?: true; specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { thrust?: 1.5; enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
+export type Fleet = { heldAt?: string; thrust?: 1.5; enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
 export type Game = {
-  compact?: BeltCompact;
+  temporalIntel?: TemporalIntelligence; compact?: BeltCompact;
   rivalPolicy?: 1;
   version: 1 | 2; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   pulse?: PulseSystem; rules?: GameRules; cargo: PlayerValues<number>; eliminated: Faction[]; nextId: number;
@@ -92,6 +96,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   const to = game.rocks.find(r => r.id === toId);
   if (!playersIn(game).includes(owner) || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   if (!from || !to || from === to || from.owner !== owner || from.destroyed || to.destroyed) throw new Error('Select an owned departure rock and a different destination.');
+  requireUnfrozen(game, from);
   const manifest = manifestUnits(from, owner, specialists);
   if (!Number.isSafeInteger(drones) || drones < (game.version === 2 && specialists.length ? 0 : 1) || drones > from.drones) throw new Error('Drone count exceeds available inventory.');
   if (typeof carryModule !== 'boolean' || carryModule && !from.module) throw new Error('There is no module available to load.');
@@ -100,7 +105,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   const duration = game.version === 2 ? Math.max(1e-6, worldDistance(game, from, to) / speed) : travelHours(from, to, module, game.version);
   const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
   const course = game.version === 2 && (from.drift || to.drift) ? stationCourse(game, from, to, speed, departed) : undefined;
-  return withPulseMovement({
+  const result = withPulseMovement({
     ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0),
     rocks: game.rocks.map(r => {
       if (r.id !== fromId) return r;
@@ -111,12 +116,14 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
     fleets: [...game.fleets, { id: fleetId ?? game.nextId, owner, from: fromId, to: toId, drones, departed, arrives: course?.arrives ?? afterWork(game, departed, duration), ...(course ? { route: course.route } : {}), ...(game.version === 2 ? { preparing: true as const } : {}), ...(module ? { module } : {}), ...(game.version === 2 ? { specialists: manifest, speed, ...(compactTransitMultiplier(game) === 1.5 ? { thrust: 1.5 as const } : {}) } : {}) }],
     events: recentEvents([{ hour: game.hour, audience: game.version === 2 ? [owner] : [...new Set([owner, ...observers(game, from)])], message: `${FACTIONS[owner].name}: ${drones} drones dispatched to ${to.name}.` }, ...game.events]),
   });
+  recordTemporalAction(result, owner, `${owner}: transfer from ${from.name} to ${to.name} with ${drones} drones.`, from);
+  return result;
 }
-export function advance(saved: Game, targetHour: number, options: { trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean; encounters?: EncounterSink } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { temporalForecast?: boolean; trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean; encounters?: EncounterSink } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
-    ...input, ...(input.compact ? { compact: cloneCompact(input.compact) } : {}), ...(input.rules ? { rules: { ...input.rules, ...(input.rules.teams ? { teams: validateTeams(input.rules.teams, input.rules.players) } : {}), ...(input.rules.tacticalPulse ? { tacticalPulse: { ...input.rules.tacticalPulse } } : {}), ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
+    ...input, ...(input.temporalIntel ? { temporalIntel: cloneTemporalIntelligence(input.temporalIntel) } : {}), ...(input.compact ? { compact: cloneCompact(input.compact) } : {}), ...(input.rules ? { rules: { ...input.rules, ...(input.rules.teams ? { teams: validateTeams(input.rules.teams, input.rules.players) } : {}), ...(input.rules.tacticalPulse ? { tacticalPulse: { ...input.rules.tacticalPulse } } : {}), ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
     ...(input.scheduled ? { scheduled: input.scheduled.map(p => ({ ...p })) } : {}),
     ...(input.minesDrilled ? { minesDrilled: { ...input.minesDrilled } } : {}),
     ...(input.pulse ? { pulse: clonePulse(input.pulse) } : {}),
@@ -132,6 +139,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
   if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game, preserveDueClocks); tracePoint(trace, 'effects', game); }
   if (mechanicsVersion(game) >= 10) { const before = game; game = settleCourseChanges(game); if (game !== before) tracePoint(trace, 'course-change', game); }
   settlePulseHazards(game); evaluatePulseVictory(game);
+  if (!options.temporalForecast && Number.isInteger(game.hour)) { refreshForesight(game); tracePoint(trace, 'temporal-intelligence', game); }
   if (game.pulse) tracePoint(trace, 'pulse', game);
   while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));
@@ -142,7 +150,8 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     });
     const contacts = mechanicsVersion(game) >= 5 ? routeCandidates(game) : undefined;
     const routeHour = game.version === 2 ? contacts ? Math.min(...contacts.map(c => c.hour)) : nextRouteEncounter(game) : Infinity;
-    const boundary = Math.min(targetHour, nextCouncilEvent(game), game.version === 2 ? Math.min(nextEconomyEvent(game), routeHour, nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.flatMap(f => f.pendingCourse ? [f.pendingCourse.executeAt] : []), ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
+    const naturalBoundary = Math.min(nextHindsightEvent(game), nextTemporalFacilityEvent(game), nextDilationEvent(game), nextCouncilEvent(game), game.version === 2 ? Math.min(nextEconomyEvent(game), routeHour, nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.flatMap(f => f.pendingCourse ? [f.pendingCourse.executeAt] : []), ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
+    const boundary = Math.min(targetHour, naturalBoundary);
     const pulseEvent = nextPulseEvent(game, boundary);
     const candidate = Math.abs(boundary - pulseEvent) < 1e-9 ? boundary : Math.min(boundary, pulseEvent);
     const commandHour = Math.min(...(game.scheduled ?? []).map(p => p.executeAt));
@@ -166,6 +175,8 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     completePulseCharges(game);
     settleTacticalPulses(game);
     if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
+    settleTemporalFacilities(game);
+    settleHindsight(game);
     if (game.version === 2) resolveRouteEncounters(game, trace, contacts, options.encounters);
     if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace, options.encounters);
     else resolveInterceptions(game, options.unknownInterceptions, trace);
@@ -182,7 +193,18 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
           game.events.unshift({ hour: next, audience: [fleet.owner], unresolvedDestination: fleet.to, message: `${rock.name}: arrival outcome unknown outside observed territory.` });
           continue;
         }
-        if (game.version === 2) { resolveStationArrival(game, fleet, rock, options.encounters); continue; }
+        if (game.version === 2 && holdStasisArrival(game, fleet, rock)) continue;
+        if (game.version === 2) {
+          const defender = rock.owner;
+          const hastening = temporalEnabled(game) && defender && defender !== fleet.owner && fleet.specialists?.some(u => u.owner === fleet.owner && !u.captive && u.kind === 'hastener');
+          resolveStationArrival(game, fleet, rock, options.encounters);
+          // Preparing launches defend the initial battle; force the queue afterward to create a follow-up window.
+          if (hastening && rock.owner === defender) {
+            const pulled = (game.scheduled ?? []).filter(p => !isActionPlan(p) && p.owner === defender && p.from === rock.id);
+            game = executeScheduled(game, trace, pulled);
+          }
+          continue;
+        }
         const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
         if (rock.owner === fleet.owner) {
           rock.drones += fleet.drones;
@@ -252,6 +274,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     tracePoint(trace, 'victory', game);
     if (!game.pulse && !game.winner && !game.draw) game = executeScheduled(game, trace);
     if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy === 1 ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy === 1 ? actStrategicRivals(game, trace) : actRivals(game, trace);
+    if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary)) refreshForesight(game);
     game.events = recentEvents(game.events);
     tracePoint(trace, 'retention', game);
   }
@@ -275,14 +298,14 @@ function actRivals(input: Game, trace?: SimulationTraceSink): Game {
   return game;
 }
 
-function executeScheduled(input: Game, trace?: SimulationTraceSink): Game {
+function executeScheduled(input: Game, trace?: SimulationTraceSink, selected?: readonly ScheduledOrder[]): Game {
   let game = input;
-  const due = (game.scheduled ?? []).filter(p => p.executeAt <= game.hour);
+  const due = selected ?? (game.scheduled ?? []).filter(p => p.executeAt <= game.hour);
   if (!due.length) return game;
-  game = { ...game, scheduled: game.scheduled!.filter(p => p.executeAt > game.hour) };
+  game = { ...game, scheduled: game.scheduled!.filter(p => !due.includes(p)) };
   for (const plan of due) {
     try {
-      if (isActionPlan(plan)) { game = executeScheduledAction(game, plan); continue; }
+      if (isActionPlan(plan)) { const before = game; game = executeScheduledAction(game, plan); recordTemporalCommand(before, game, { ...plan.action, owner: plan.owner }); continue; }
       if (game.rocks.find(r => r.id === plan.from)?.owner !== plan.owner) throw new Error('The departure rock is no longer controlled.');
       if (plan.module && game.rocks.find(r => r.id === plan.from)?.module !== plan.module) throw new Error('The planned module is no longer in the departure bay.');
       game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists, plan.fleetId);

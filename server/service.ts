@@ -452,6 +452,7 @@ export class GameService {
           const unit = r.game.rocks.filter(rock => rock.owner === f).flatMap(rock => rock.specialists ?? []).find(u => String(this.identify(r, f, 'unit', u.id)) === command.unit);
           if (!unit) throw new Error('Choose a module at a controlled site.');
           if (command.action === 'promote') this.act(r, { type: 'promote', owner: f, id: unit.id });
+          else if (command.action === 'activate') this.act(r, { type: 'activate', owner: f, id: unit.id });
           else if (command.action === 'release') this.act(r, { type: 'release', owner: f, id: unit.id });
           else throw new Error('Unknown module command.');
         }

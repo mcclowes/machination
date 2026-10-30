@@ -83,10 +83,10 @@ function rules(v: unknown) {
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
   optional(v, 'pulse', validatePulseConfig);
-  need(v.mode !== 'pulse' || v.pulse && [15, 16, 17].includes(v.mechanicsVersion));
+  need(v.mode !== 'pulse' || v.pulse && [15, 16, 17, 18].includes(v.mechanicsVersion));
   optional(v, 'tacticalPulse', validateTacticalPulseConfig);
   need(v.mode === 'pulse' && (v.mechanicsVersion ?? 1) >= 16 ? !!v.tacticalPulse : !v.tacticalPulse);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]));
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]));
   optional(v, 'teams', t => { need((v.mechanicsVersion ?? 1) >= 17 && v.mode !== 'pulse'); validateTeams(t, v.players); });
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
@@ -94,7 +94,7 @@ function rules(v: unknown) {
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));
 }
 function scene(v: unknown) : asserts v is ReplayScene {
-  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules', 'compact']);
+  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules', 'compact', 'foresight', 'discoveries']);
   num(v.hour); optional(v, 'version', n => one(n, [1, 2])); optional(v, 'draw', n => one(n, [true])); optional(v, 'rules', rules);
   const roster: string[] = v.rules?.players ?? factions;
   need(!!v.rules?.beltCompact === !!v.compact);
@@ -110,7 +110,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
   }
   array(v.rocks, L.sites); const sites = new Set<string>();
   for (const r of v.rocks) {
-    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift', 'sensorJammedUntil', 'miningDisabledUntil', 'reserves']);
+    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift', 'sensorJammedUntil', 'miningDisabledUntil', 'reserves', 'stasisUntil', 'overclock']);
     text(r.id); text(r.name); need(!sites.has(r.id)); sites.add(r.id); coord(r.x); coord(r.y); one(r.known, [true, false]);
     one(r.kind, ['core', 'reactor', 'mine', 'factory', 'generator', 'unknown']);
     if (r.drift !== undefined) { need(driftingBasesEnabled(v) && validDrift(r.drift, v)); const expected = sitePosition(v, { x: r.x, y: r.y, drift: r.drift }, v.hour); need(Math.hypot(r.x - expected.x, r.y - expected.y) < 1e-8); }
@@ -119,15 +119,18 @@ function scene(v: unknown) : asserts v is ReplayScene {
     else { need(r.kind !== 'unknown' && own(r, 'drones')); num(r.drones); }
     optional(r, 'destroyed', n => one(n, [true])); optional(r, 'coreOf', member);
     optional(r, 'sensorJammedUntil', num); optional(r, 'miningDisabledUntil', num);
+    optional(r, 'stasisUntil', n => { need(v.rules?.mechanicsVersion >= 18); num(n); });
+    optional(r, 'overclock', loan => { need(v.rules?.mechanicsVersion >= 18); object(loan, ['boostUntil', 'debtUntil'], ['repaying']); num(loan.boostUntil); num(loan.debtUntil, loan.boostUntil); optional(loan, 'repaying', n => one(n, [true])); });
     optional(r, 'reserves', n => num(n, 0, PLANET_RESERVES));
     optional(r, 'shield', num); optional(r, 'shieldMax', num); optional(r, 'shieldsDisabled', n => one(n, [true, false]));
     optional(r, 'module', n => need(isModule(n))); optional(r, 'specialists', manifest);
   }
   array(v.fleets, L.fleets); const fleetIds = new Set<number>();
   for (const f of v.fleets) {
-    object(f, ['id', 'owner', 'from', 'to', 'drones', 'departed', 'arrives'], ['preparing', 'returning', 'giftAt', 'module', 'specialists', 'speed', 'route', 'intercept', 'enginesDisabledUntil', 'sensorJammedUntil']);
+    object(f, ['id', 'owner', 'from', 'to', 'drones', 'departed', 'arrives'], ['preparing', 'returning', 'giftAt', 'module', 'specialists', 'speed', 'route', 'intercept', 'enginesDisabledUntil', 'sensorJammedUntil', 'heldAt']);
     integer(f.id, 1); need(!fleetIds.has(f.id)); fleetIds.add(f.id); member(f.owner); need(sites.has(f.from) && sites.has(f.to));
     num(f.drones); num(f.departed); num(f.arrives); need(f.arrives > f.departed);
+    optional(f, 'heldAt', site => { need(v.rules?.mechanicsVersion >= 18 && sites.has(site) && f.to === site); });
     optional(f, 'enginesDisabledUntil', num); optional(f, 'sensorJammedUntil', num);
     optional(f, 'preparing', n => one(n, [true])); optional(f, 'returning', n => one(n, [true])); optional(f, 'giftAt', num);
     optional(f, 'module', n => need(isModule(n))); optional(f, 'specialists', manifest); optional(f, 'speed', n => num(n, Number.MIN_VALUE));
@@ -173,6 +176,8 @@ function scene(v: unknown) : asserts v is ReplayScene {
       object(m, ['factionId', 'type', 'multiplier', 'expiresAt']); member(m.factionId); one(m.type, ['charge_rate', 'pulse_speed', 'shield_drain']); num(m.multiplier, 0, 100); num(m.expiresAt, v.hour);
     }
   });
+  optional(v, 'foresight', warnings => { need(v.rules?.mechanicsVersion >= 18); array(warnings, L.units); for (const w of warnings) { object(w, ['specialistId', 'deathAt', 'source']); need(units.has(w.specialistId)); num(w.deathAt); text(w.source); } });
+  optional(v, 'discoveries', discoveries => { need(v.rules?.mechanicsVersion >= 18); array(discoveries, 80); for (const d of discoveries) { object(d, ['hour', 'discoveredAt', 'message']); num(d.hour, 0, v.hour); num(d.discoveredAt, d.hour, v.hour); text(d.message); } });
   array(v.eliminated, factions.length); v.eliminated.forEach(member); unique(v.eliminated); if (v.winner !== null) member(v.winner);
 }
 function validate(value: unknown): asserts value is SharedReplay {

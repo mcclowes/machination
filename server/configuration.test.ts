@@ -67,10 +67,10 @@ test('HTTP setup validates options and defaults to a stationary three-player pul
   assert.equal(JSON.stringify(started.data).includes('"seed"'), false);
   const defaults = await post('games', randomBytes(32).toString('hex'), {});
   assert.equal(defaults.status, 200); assert.equal(defaults.data.game.rules.players.length, 3); assert.equal(defaults.data.game.rules.mode, 'pulse'); assert.equal(defaults.data.game.rocks.length, 30);
-  assert.equal(defaults.data.game.rules.mechanicsVersion, 17);
+  assert.equal(defaults.data.game.rules.mechanicsVersion, 18);
   assert.ok(defaults.data.game.rocks.every((rock: { drift?: unknown }) => !rock.drift));
   const variant = await post('games', randomBytes(32).toString('hex'), { options: { playerCount: 2, mode: 'mining', driftingBases: true } });
   assert.equal(variant.status, 200);
-  assert.equal(variant.data.game.rules.mechanicsVersion, 17);
+  assert.equal(variant.data.game.rules.mechanicsVersion, 18);
   assert.equal(variant.data.game.rocks.filter((rock: { drift?: unknown }) => rock.drift).length, 4);
 });

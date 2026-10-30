@@ -3,6 +3,8 @@
  * purpose: Private future actions with execution-time requirements and stable planned unit and fleet identities.
  * ---
  */
+import { activateTemporal } from './temporal-facilities';
+import { temporalEnabled } from './temporal';
 import { allied } from './teams';
 import { playersIn, isFaction } from './players';
 import { hireSpecialist, promoteSpecialist } from './specialists';
@@ -21,7 +23,7 @@ import { recentEvents } from './events';
 
 export type FutureAction = { type: 'gift'; from: string; to: string; drones: number; recipient: Faction; carryModule?: boolean; specialists?: string[] }
   | { type: 'intercept'; from: string; target: number; drones: number; specialists?: string[] }
-  | { type: 'hauler'; change: HaulerChange } | { type: 'hire'; kind: SpecialistKind } | { type: 'promote' | 'release'; id: string }
+  | { type: 'hauler'; change: HaulerChange } | { type: 'hire'; kind: SpecialistKind } | { type: 'promote' | 'release' | 'activate'; id: string }
   | { type: 'drill-mine'; rock: string } | { type: 'shields'; rock: string; disabled: boolean } | { type: 'funding'; to: Faction; enabled: boolean };
 export type ActionPlan = { id: string; owner: Faction; executeAt: number; action: FutureAction };
 export type ScheduledAction = ActionPlan & { hireCycle?: number; hireUnits?: string[]; fleetId?: number };
@@ -65,7 +67,7 @@ export function validateFutureAction(value: unknown): FutureAction {
     case 'hire':
       if (!shape(value, ['type', 'kind']) || !isSpecialistKind(value.kind)) throw invalid();
       return { type: 'hire', kind: value.kind };
-    case 'promote': case 'release':
+    case 'promote': case 'release': case 'activate':
       if (!shape(value, ['type', 'id']) || !id(value.id)) throw invalid();
       return { type: value.type, id: value.id as string };
     case 'drill-mine':
@@ -89,6 +91,7 @@ export function actionLabel(action: FutureAction, rocks: readonly { id: string; 
     case 'hire': return `Recruit ${SPECIALISTS[action.kind].name}`;
     case 'promote': return 'Promote specialist';
     case 'release': return 'Release captive';
+    case 'activate': return 'Activate temporal specialist';
     case 'drill-mine': return `Drill mine at ${name(action.rock)}`;
     case 'shields': return `${action.disabled ? 'Disable' : 'Enable'} shields at ${name(action.rock)}`;
     case 'funding': return `${action.enabled ? 'Fund' : 'Stop funding'} ${action.to}`;
@@ -104,6 +107,7 @@ export function scheduleAction(game: Game, plan: ActionPlan): Game {
   const existing = game.scheduled ?? [];
   if (existing.some(p => p.id === plan.id && p.owner === plan.owner)) throw new Error('This plan ID is already in use.');
   const action = validateFutureAction(plan.action);
+  if (action.type === 'activate' && !temporalEnabled(game)) throw new Error('Temporal abilities require a new operation.');
   if (('rock' in action) && !game.rocks.some(r => r.id === action.rock)) throw new Error('Choose a known chart site.');
   if (action.type === 'drill-mine' && !minesAllowed(game) || action.type === 'funding' && game.rules?.mode === 'domination') throw new Error('Mining and funding are unavailable in this operation.');
   if (action.type === 'funding' && (action.to === plan.owner || !playersIn(game).includes(action.to))) throw new Error('Choose another participant to fund.');
@@ -116,6 +120,7 @@ export function scheduleAction(game: Game, plan: ActionPlan): Game {
   if (reference !== undefined && !game.fleets.some(f => f.id === reference && (f.owner === plan.owner || canObserveHauler(game, plan.owner, f))) && !plannedFleetIds(game, plan.owner).includes(reference)) throw new Error('Choose an owned, observed, or planned hauler.');
   const manifest = action.type === 'hauler' ? action.change.action === 'edit-launch' ? action.change.specialists : undefined : 'specialists' in action ? action.specialists : undefined;
   const available = new Set([...game.rocks, ...game.fleets].filter(a => a.owner === plan.owner).flatMap(a => (a.specialists ?? []).filter(u => u.owner === plan.owner && !u.captive).map(u => u.id)).concat(plannedUnitIds(game, plan.owner)));
+  if (action.type === 'activate' && !available.has(action.id)) throw new Error('Choose an owned or planned temporal specialist.');
   if (manifest?.some(unit => !available.has(unit))) throw new Error('Planned modules must be owned or supplied by your queued hire.');
   const reserves = mechanicsVersion(game) >= 4 && (action.type === 'gift' || action.type === 'intercept');
   const state = game.recruitment?.[plan.owner];
@@ -135,6 +140,7 @@ export function executeScheduledAction(game: Game, plan: ScheduledAction): Game 
       return hireSpecialist(game, owner, action.kind, plan.hireUnits);
     }
     case 'promote': return promoteSpecialist(game, owner, action.id);
+    case 'activate': return activateTemporal(game, owner, action.id);
     case 'release': return releaseSpecialist(game, owner, action.id);
     case 'drill-mine': return drillMine(game, action.rock, owner);
     case 'shields': return setShields(game, action.rock, owner, action.disabled);
@@ -145,7 +151,7 @@ export function executeScheduledAction(game: Game, plan: ScheduledAction): Game 
 export function mapActionUnits(action: FutureAction, identify: (id: string) => string): FutureAction {
   if (action.type === 'gift' || action.type === 'intercept') return { ...action, ...(action.specialists ? { specialists: action.specialists.map(identify) } : {}) };
   if (action.type === 'hauler' && action.change.action === 'edit-launch') return { ...action, change: { ...action.change, ...(action.change.specialists ? { specialists: action.change.specialists.map(identify) } : {}) } };
-  return action.type === 'promote' || action.type === 'release' ? { ...action, id: identify(action.id) } : { ...action };
+  return action.type === 'promote' || action.type === 'release' || action.type === 'activate' ? { ...action, id: identify(action.id) } : { ...action };
 }
 export function mapActionFleets(action: FutureAction, identify: (id: number) => number): FutureAction {
   if (action.type === 'intercept') return { ...action, target: identify(action.target) };

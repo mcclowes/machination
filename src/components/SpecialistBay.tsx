@@ -3,9 +3,11 @@
  * purpose: Shared specialist recruitment, promotion, captive release, and explicit transport selection.
  * ---
  */
+import { TemporalSiteStatus, TemporalSpecialistControl } from './TemporalControls';
+import { inStasis } from '../game/temporal';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SPECIALISTS, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
+import { SPECIALISTS, specialistReference, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
 import { gameClock } from '../game/time-machine';
 import { recruitmentCost, recruitmentStatus } from '../game/specialists';
 import type { Faction, Game, Rock } from '../game/simulation';
@@ -16,17 +18,18 @@ export type SpecialistBayProps = {
   game: Game | GameView; rock: Rock; owner: Faction; enabled: boolean;
   mode?: 'all' | 'cargo'; scheduledAt?: number;
   selectionEnabled?: boolean; selected: string[]; onSelect: (ids: string[]) => void;
-  onHire: (kind: SpecialistKind) => void; onPromote: (id: string) => void; onRelease: (id: string) => void;
+  onHire: (kind: SpecialistKind) => void; onPromote: (id: string) => void; onRelease: (id: string) => void; onActivate?: (id: string) => void;
 };
 
-export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', scheduledAt, selectionEnabled = enabled, selected, onSelect, onHire, onPromote, onRelease }: SpecialistBayProps) {
+export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', scheduledAt, selectionEnabled = enabled, selected, onSelect, onHire, onPromote, onRelease, onActivate }: SpecialistBayProps) {
   const label = (action: string) => scheduledAt === undefined ? action : `Schedule at ${gameClock(scheduledAt)}: ${action}`;
   const status = recruitmentStatus(game, owner);
-  const controlled = rock.owner === owner && !rock.destroyed;
+  const controlled = rock.owner === owner && !rock.destroyed && !inStasis(game, rock);
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   const canPromote = active && status.credits > 0;
   const units = rock.specialists ?? [];
   return <View style={s.bay}>
+    <TemporalSiteStatus site={rock} hour={game.hour} />
     {mode !== 'cargo' && <RecruitmentOffers game={game} owner={owner} enabled={enabled} scheduledAt={scheduledAt} siteAllowed={controlled && status.at === rock.id} onHire={onHire} />}
     <Text style={s.label}>At this site · {units.length}</Text>
     {units.length === 0 && <Text style={s.detail}>No specialists at this site.</Text>}
@@ -38,7 +41,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
       const canLoad = game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner) && controlled && owned && !unit.captive && selectionEnabled;
       return <View key={unit.id} style={[s.card, checked && s.selected]}>
         <View style={s.between}><View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your unit' : 'Foreign unit'}</Text></View>
-        {mode !== 'cargo' && <><Text style={s.reference}>{entry.reference}</Text>
+        {mode !== 'cargo' && <><Text style={s.reference}>{specialistReference(unit.kind)}</Text>
         <Text style={s.detail}>{unit.captive ? 'Captive units have no abilities and cannot be loaded.' : entry.description}</Text></>}
         {!unit.captive && owned && <Pressable accessibilityRole="checkbox" accessibilityLabel={`Load ${entry.name} onto the next hauler`} accessibilityState={{ checked, disabled: !canLoad }} disabled={!canLoad} onPress={() => onSelect(checked ? selected.filter(id => id !== unit.id) : [...selected, unit.id])} style={[s.button, checked && s.selected, !canLoad && s.disabled]}>
           <Text style={s.buttonText}>{checked ? '☑ Unload from next hauler' : '☐ Load onto next hauler'}</Text>
@@ -47,6 +50,7 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
           <Text style={s.detail}>Promote to {SPECIALISTS[next].name}: {SPECIALISTS[next].description}</Text>
           <Action label={label('Promote · 1 credit')} accessibilityLabel={label(`Promote ${entry.name} to ${SPECIALISTS[next].name} for 1 credit`)} disabled={!canPromote || !controlled} onPress={() => onPromote(unit.id)} />
         </>}
+        {owned && !unit.captive && <TemporalSpecialistControl game={game} site={rock.owner === owner && !rock.destroyed ? rock : undefined} unit={unit} enabled={active} scheduledAt={scheduledAt} onActivate={onActivate} />}
         {mode !== 'cargo' && unit.captive && controlled && <Action label={label('Release captive')} accessibilityLabel={label(`Release captive ${entry.name}`)} disabled={!active} onPress={() => onRelease(unit.id)} />}
       </View>;
     })}
@@ -64,7 +68,7 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
   const cost = recruitmentCost(game);
   const price = `1 credit${cost ? ` and ${cost} cargo` : ''}`;
   const affordable = (game.cargo[owner] ?? 0) >= cost;
-  const canRecruit = active && status.credits > 0 && !!coreSite && affordable;
+  const canRecruit = active && !(coreSite && 'stasisUntil' in coreSite && inStasis(game, coreSite)) && status.credits > 0 && !!coreSite && affordable;
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
   const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, cargo, ownership, and unit availability are checked at execution.</Text>}
@@ -78,7 +82,7 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
       const amount = hireAmount(kind);
       return <View key={kind} style={s.card}>
         <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
-        <Text style={s.reference}>{entry.reference}</Text>
+        <Text style={s.reference}>{specialistReference(kind)}</Text>
         <Text style={s.detail}>{entry.description}</Text>
         <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · ${price}`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for ${price}`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
       </View>;

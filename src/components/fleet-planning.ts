@@ -10,6 +10,7 @@ export function launchBlockReason({ game, owner, source, target, liveHour, execu
   if (unavailable) return unavailable;
   if (game.winner || game.draw || game.eliminated.includes(owner)) return 'This intelligence is no longer operational at the selected time.';
   if (!source || source.owner !== owner) return 'Choose a departure site you control at the selected time.';
+  if (source.known && (source.stasisUntil ?? 0) > executeAt) return 'This site is in Anchor stasis at the selected launch time.';
   if (source.destroyed || target?.destroyed) return 'Destroyed sites cannot send or receive haulers.';
   if (!target || target.id === source.id) return 'Choose a different destination on the chart.';
   if (!Number.isFinite(executeAt) || executeAt > liveHour + MAX_PLAN_DELAY) return 'Choose a launch within seven days of now.';

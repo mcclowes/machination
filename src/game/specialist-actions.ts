@@ -3,6 +3,7 @@
  * purpose: Timed sentry fire and capacitor drain at exact event boundaries, independent of polling.
  * ---
  */
+import { inStasis } from './temporal';
 import { afterWork } from './opening-clock';
 import { siteRangeWindows } from './drift';
 import { isDue } from './event-timing';
@@ -18,7 +19,7 @@ import { sendUnitsHome } from './specialist-travel';
 export function nextSpecialistEvent(game: Game): number {
   const contacts: number[] = [];
   for (const rock of game.rocks) {
-    if (!rock.owner || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
+    if (!rock.owner || inStasis(game, rock) || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
       if ((!rock.drift && !holding.drift) || !holding.specialists?.some(u => u.owner === rock.owner && u.captive)) continue;
       contacts.push(...siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).map(w => w.from).filter(hour => hour > game.hour && hour <= game.hour + 1));
@@ -28,7 +29,7 @@ export function nextSpecialistEvent(game: Game): number {
 }
 export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink): void {
   for (const rock of game.rocks) for (const unit of unitsAtRock(game, rock.id)) {
-    if (!rock.owner || unit.owner !== rock.owner || unit.nextActionAt === undefined || !isDue(game, unit.nextActionAt)) continue;
+    if (inStasis(game, rock) || !rock.owner || unit.owner !== rock.owner || unit.nextActionAt === undefined || !isDue(game, unit.nextActionAt)) continue;
     try {
       if (unit.kind === 'tinkerer') {
         if ((rock.shield ?? 0) >= maximumShield(rock) && maximumShield(rock) > 0) rock.shieldAt = afterWork(game, game.hour, 48 / maximumShield(rock));
@@ -50,7 +51,7 @@ export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink)
 }
 export function applyStationPassives(game: Game, trace?: SimulationTraceSink): void {
   for (const rock of game.rocks) {
-    if (!rock.owner) continue;
+    if (!rock.owner || inStasis(game, rock)) continue;
     if (unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'hypnotist')) {
       for (const unit of rock.specialists ?? []) if (unit.captive) {
         restoreControl(game, unit, rock.owner);
@@ -59,7 +60,7 @@ export function applyStationPassives(game: Game, trace?: SimulationTraceSink): v
     }
   }
   for (const rock of game.rocks) {
-    if (!rock.owner || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
+    if (!rock.owner || inStasis(game, rock) || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
       const inRange = rock.drift || holding.drift
         ? siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).some(w => game.hour >= w.from && game.hour <= w.through)

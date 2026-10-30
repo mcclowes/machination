@@ -67,6 +67,8 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
     <View style={s.header}>
       <View style={s.between}><PlayerIdentity faction={replay.perspective} size={32} detail="Unverified replay · recorded perspective" /><Control label="Exit replay" text="×" onPress={() => { setPlaying(false); onExit(); }} /></View>
       {scene.winner && <Text style={s.text}>Winner · {playerAppearance(scene.winner, scene.rules?.portraits).name}</Text>}
+      {scene.foresight?.map(w => <Text key={w.specialistId} style={s.text}>Foresight: death predicted at {gameClock(w.deathAt)} from {w.source}.</Text>)}
+      {scene.discoveries?.slice(0, 2).map((d, i) => <Text key={i} style={s.text}>{d.message}</Text>)}
       {scene.draw && <Text style={s.text}>Draw</Text>}
     </View>
     <View style={s.stage}>

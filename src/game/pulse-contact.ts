@@ -19,6 +19,7 @@ export function pulseAssetMotion(world: Game, asset: Rock | Fleet): Motion {
     return { point: sitePosition(world, rock, world.hour), velocity: rock.drift?.velocity ?? { x: 0, y: 0 } };
   }
   const fleet = asset as Fleet;
+  if (fleet.heldAt) return pulseAssetMotion(world, world.rocks.find(r => r.id === fleet.heldAt)!);
   if (fleet.preparing) return pulseAssetMotion(world, world.rocks.find(r => r.id === fleet.from)!);
   if ((fleet.enginesDisabledUntil ?? 0) > world.hour) return { point: fleetPosition(world, fleet), velocity: { x: 0, y: 0 } };
   const leg = flightEndpoints(world, fleet), duration = workBetween(world, flightDeparture(fleet), fleet.arrives), rate = openingRate(world, world.hour);

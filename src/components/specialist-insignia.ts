@@ -13,6 +13,12 @@ export const INSIGNIA_STROKE = 1.8;
 export const INSIGNIA_VIEWBOX = 24;
 
 export const SPECIALIST_INSIGNIA = {
+  dilation: { outline: ['M4 3H20M4 21H20M6 3C6 9 18 15 18 21M18 3C18 9 6 15 6 21', 'M3 12H8M16 12H21'] },
+  anchor: { outline: ['M12 3V19M4 12C4 22 20 22 20 12M2 14L4 11L7 13M17 13L20 11L22 14'], circles: [{ x: 12, y: 5, radius: 2 }] },
+  overclock: { outline: ['M3 18A10 10 0 1 1 21 18', 'M12 13L18 6M5 18H19'], circles: [{ x: 12, y: 13, radius: 2 }] },
+  hindsight: { outline: ['M3 12Q12 2 21 12Q12 22 3 12Z', 'M9 3L5 6L9 9M5 6H16'], circles: [{ x: 12, y: 12, radius: 3 }] },
+  foresight: { outline: ['M3 13Q12 3 21 13Q12 23 3 13Z', 'M16 2L20 5L16 8M20 5H10'], circles: [{ x: 12, y: 13, radius: 3 }] },
+  hastener: { outline: ['M2 6L9 12L2 18M10 6L17 12L10 18M21 4V20'] },
   disruptor: { outline: ['M7 5A9 9 0 0 0 7 19M17 5A9 9 0 0 1 17 19'], solid: ['M12 3L8 13H12L10 21L17 10H13L15 3Z'] },
   queen: {
     outline: ['M8 6H16V18H8Z', 'M3 8H8M3 12H8M3 16H8M16 8H21M16 12H21M16 16H21M10 3V6M14 3V6M10 18V21M14 18V21'],

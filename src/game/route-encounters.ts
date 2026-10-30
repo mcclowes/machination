@@ -17,7 +17,7 @@ function ordinaryPair(a: Fleet, b: Fleet): boolean {
   return a.from === b.from && a.to === b.to || a.from === b.to && a.to === b.from;
 }
 export function encounterHour(game: FlightWorld & { rules?: PublicRules }, a: Fleet, b: Fleet): number {
-  if (a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
+  if (a.heldAt || b.heldAt || a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
   if (mechanicsVersion(game) >= 12 && !driftingBasesEnabled(game) && !a.returning && !b.returning && !a.courseChanged && !b.courseChanged && !ordinaryPair(a, b)) return Infinity;
   const aa = flightEndpoints(game, a); const bb = flightEndpoints(game, b);
   const ta = workBetween(game, flightDeparture(a), a.arrives); const tb = workBetween(game, flightDeparture(b), b.arrives);

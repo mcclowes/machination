@@ -6,6 +6,7 @@
  *   - ../online/snapshot-response.ts - live and historical envelope decoding
  * ---
  */
+import { temporalEnabled, isTemporalKind } from './temporal';
 import { validCompact } from './compact-save';
 import { validDrift } from './drift';
 import { validateFutureAction } from './future-actions';
@@ -39,17 +40,19 @@ function publicRules(value: unknown): value is PublicRules {
   try { validateRules({ ...value, map: { ...value.map, seed: 0 } }); return true; } catch { return false; }
 }
 function units(value: unknown, world: World): boolean {
-  return value === undefined || list(value, unit => record(unit) && text(unit.id) && player(unit.owner, world) && isSpecialistKind(unit.kind)
-    && optional(unit, 'captive', flag) && numbers(unit, ['nextActionAt', 'lastCourseAt']));
+  return value === undefined || list(value, unit => record(unit) && text(unit.id) && player(unit.owner, world) && isSpecialistKind(unit.kind) && (!isTemporalKind(unit.kind) || temporalEnabled(world))
+    && (unit.temporalReadyAt === undefined || temporalEnabled(world)) && optional(unit, 'captive', flag) && numbers(unit, ['nextActionAt', 'lastCourseAt', 'temporalReadyAt']));
 }
 function rock(value: unknown, world: World): value is ObservedRock {
   if (!record(value) || !text(value.id) || typeof value.name !== 'string' || !point(value) || typeof value.known !== 'boolean'
     || !['core', 'reactor', 'mine', 'factory', 'generator', 'unknown'].includes(value.kind as string)
     || !optional(value, 'drift', drift => validDrift(drift, world))) return false;
   if (!value.known) return optional(value, 'owner', owner => owner === null || player(owner, world))
-    && ['destroyed', 'drones', 'module', 'specialists', 'coreOf'].every(key => value[key] === undefined);
+    && ['destroyed', 'drones', 'module', 'specialists', 'coreOf', 'anchorReadyAt', 'stasisUntil', 'overclock', 'productionPausedUntil'].every(key => value[key] === undefined);
+  if (!temporalEnabled(world) && ['anchorReadyAt', 'stasisUntil', 'overclock', 'productionPausedUntil'].some(key => value[key] !== undefined)) return false;
   return value.kind !== 'unknown' && (value.owner === null || player(value.owner, world)) && nonnegative(value.drones)
-    && numbers(value, ['reserves', 'supplyAt', 'shield', 'shieldMax', 'shieldAt', 'productionAt', 'productionInterval', 'miningAt', 'miningInterval', 'sensorJammedUntil', 'miningDisabledUntil'])
+    && numbers(value, ['anchorReadyAt', 'stasisUntil', 'productionPausedUntil', 'reserves', 'supplyAt', 'shield', 'shieldMax', 'shieldAt', 'productionAt', 'productionInterval', 'miningAt', 'miningInterval', 'sensorJammedUntil', 'miningDisabledUntil'])
+    && optional(value, 'overclock', loan => temporalEnabled(world) && record(loan) && nonnegative(loan.boostUntil) && nonnegative(loan.debtUntil) && loan.debtUntil > loan.boostUntil && optional(loan, 'repaying', flag))
     && optional(value, 'shieldBonus', finite) && optional(value, 'coreOf', owner => player(owner, world)) && optional(value, 'module', isModule)
     && optional(value, 'shieldsDisabled', boolean) && optional(value, 'destroyed', flag) && optional(value, 'pulseDisabled', flag) && units(value.specialists, world);
 }
@@ -60,6 +63,7 @@ function fleet(value: unknown, world: World, sites: ReadonlySet<string>): value 
     || !numbers(value, ['speed', 'giftAt', 'enginesDisabledUntil', 'sensorJammedUntil'])
     || !['preparing', 'courseChanged', 'returning', 'interceptionReturn', 'courseLocked'].every(key => optional(value, key, flag))
     || !optional(value, 'thrust', thrust => thrust === 1.5)) return false;
+  if (!optional(value, 'heldAt', site => temporalEnabled(world) && text(site) && sites.has(site) && value.to === site)) return false;
   if (!optional(value, 'route', route => record(route) && point(route.from) && point(route.to))) return false;
   if (!optional(value, 'intercept', intercept => record(intercept) && text(intercept.home) && sites.has(intercept.home) && optional(intercept, 'target', fleetId))) return false;
   if (!optional(value, 'pendingCourse', course => record(course) && player(course.owner, world) && text(course.to) && sites.has(course.to) && nonnegative(course.executeAt))) return false;
@@ -68,7 +72,7 @@ function fleet(value: unknown, world: World, sites: ReadonlySet<string>): value 
 function plan(value: unknown, world: World, sites: ReadonlySet<string>): boolean {
   if (!record(value) || !text(value.id) || !player(value.owner, world) || !nonnegative(value.executeAt) || !optional(value, 'fleetId', fleetId)) return false;
   if (Object.hasOwn(value, 'action')) {
-    try { validateFutureAction(value.action); } catch { return false; }
+    try { if (validateFutureAction(value.action).type === 'activate' && !temporalEnabled(world)) return false; } catch { return false; }
     return optional(value, 'hireCycle', count) && optional(value, 'hireUnits', ids => list(ids, text));
   }
   return text(value.from) && text(value.to) && sites.has(value.from) && sites.has(value.to) && count(value.drones)
@@ -104,7 +108,7 @@ export function validObservation(value: unknown): value is GameView {
     || new Set(value.fleets.map(item => item.id)).size !== value.fleets.length || !list(value.scheduled, item => plan(item, world, sites))) return false;
   const unitIds = [...value.rocks, ...value.fleets].flatMap(asset => asset.specialists?.map(unit => unit.id) ?? []);
   if (new Set(unitIds).size !== unitIds.length) return false;
-  if (!list(value.events, event => record(event) && nonnegative(event.hour) && typeof event.message === 'string' && optional(event, 'battle', point))
+  if (!list(value.events, event => record(event) && nonnegative(event.hour) && typeof event.message === 'string' && optional(event, 'battle', point) && optional(event, 'discoveredAt', at => nonnegative(at) && at >= (event.hour as number) && at <= (value.hour as number)))
     || !list(value.coverage, sensor => record(sensor) && point(sensor) && nonnegative(sensor.radius) && optional(sensor, 'drift', drift => validDrift(drift, world)))
     || !list(value.uncertain, text) || typeof value.interceptionUncertain !== 'boolean'
     || !playerValues(value.cargo, world, nonnegative) || !Array.isArray(value.eliminated) || !value.eliminated.every(owner => player(owner, world))
@@ -114,6 +118,7 @@ export function validObservation(value: unknown): value is GameView {
     || !optional(value, 'funding', states => list(states, state => record(state) && player(state.from, world) && player(state.to, world)))
     || !optional(value, 'standings', states => playerValues(states, world, state => record(state) && nonnegative(state.cargo) && count(state.funders)))
     || !optional(value, 'minesDrilled', states => playerValues(states, world, count))) return false;
+  if (!optional(value, 'foresight', warnings => temporalEnabled(world) && Array.isArray(warnings) && warnings.length <= 10000 && warnings.every(w => record(w) && text(w.specialistId) && unitIds.includes(w.specialistId) && nonnegative(w.deathAt) && typeof w.source === 'string'))) return false;
   if (!pulse(value.pulse, world, sites)) return false;
   return value.compact === undefined ? rules?.beltCompact === undefined
     : rules?.beltCompact === 1 && validCompact(value.compact, world.players, value.hour, !!value.winner || !!value.draw);

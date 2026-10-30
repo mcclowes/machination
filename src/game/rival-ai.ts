@@ -6,6 +6,7 @@
  *   - ./rival-ai.test.ts - adversarial decisions and persistence invariants
  * ---
  */
+import { inStasis } from './temporal';
 import type { Faction, Game } from './simulation';
 import { allied } from './teams';
 import { hasReserves } from './depletion';
@@ -47,12 +48,12 @@ export function actStrategicPlayer(input: Game, owner: Faction): Game {
 function pursuePulse(game: Game, owner: Faction): Game {
   const king = game.pulse?.kings.find(k => k.factionId === owner);
   const action = king?.state === 'ready' ? 'FIRE_PULSE' : king?.state === 'idle' && (game.cargo[owner] ?? 0) >= pulseConfig(game).activationResourceCost ? 'START_CHARGE' : undefined;
-  if (!action) return game;
+  if (!action || game.rocks.some(r => inStasis(game, r) && r.specialists?.some(u => u.id === king?.kingId))) return game;
   return commandPulse(game, owner, { action, id: `rival-v1-${owner}-${Math.round(game.hour * 1e6)}-${action.replaceAll('_', '-')}` });
 }
 function recruit(game: Game, owner: Faction): Game {
   const status = recruitmentStatus(game, owner);
-  if (!status.credits || !status.at) return game;
+  if (!status.credits || !status.at || game.rocks.some(r => r.id === status.at && inStasis(game, r))) return game;
   const capacityTight = powerCapacity(game, owner) - droneInventory(game, owner) < 30;
   const promotable = ownedSites(game, owner).flatMap(r => (r.specialists ?? []).filter(u => u.owner === owner && !u.captive).map(unit => ({ unit, kind: promotion(unit.kind) })))
     .map(p => ({ ...p, score: p.kind === 'tycoon' ? 120 : p.kind === 'general' ? 100 : p.kind === 'energy' && capacityTight ? 130 : p.kind === 'security' ? 80 : p.kind === 'admiral' ? 70 : 0 }))

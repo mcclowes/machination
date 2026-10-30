@@ -3,6 +3,8 @@
  * purpose: Industry cycles, power capacity, mining construction, and shield recharge for version-two operations.
  * ---
  */
+import { inStasis, repayingProduction } from './temporal';
+import { requireUnfrozen } from './temporal-facilities';
 import { waiverActive } from './compact';
 import { hasReserves, spendReserves, SUPPLY_CYCLE, SUPPLY_RESERVES } from './depletion';
 import { teamMembers, type TeamWorld } from './teams';
@@ -48,6 +50,7 @@ export function drillMine(game: Game, id: string, owner: Faction): Game {
   const rock = game.rocks.find(r => r.id === id);
   if (!rock || rock.destroyed || rock.owner !== owner || !['factory', 'generator'].includes(rock.kind)) throw new Error('Choose a controlled factory or generator.');
   if (!hasReserves(rock)) throw new Error('This planet has no reserves left to mine.');
+  requireUnfrozen(game, rock);
   const cost = mineCost(game, owner);
   if (rock.drones < cost) throw new Error(`This mine needs ${cost} drones on station.`);
   return { ...game, minesDrilled: { ...game.minesDrilled!, [owner]: (game.minesDrilled![owner] ?? 0) + 1 },
@@ -59,6 +62,7 @@ export function setShields(game: Game, id: string, owner: Faction, disabled: boo
   if (game.version !== 2 || game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('Shield controls are unavailable in this operation.');
   const rock = game.rocks.find(r => r.id === id);
   if (!rock || rock.destroyed || rock.owner !== owner || typeof disabled !== 'boolean') throw new Error('Choose a controlled rock and a shield state.');
+  requireUnfrozen(game, rock);
   return { ...game, rocks: game.rocks.map(r => r.id === id ? { ...r, shieldsDisabled: disabled } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: shields ${disabled ? 'disabled' : 'enabled'}.` }, ...game.events]),
   };
@@ -75,7 +79,7 @@ export function nextEconomyEvent(game: Game): number {
   return Math.min(...game.rocks.filter(r => !r.destroyed).flatMap(r => [
     r.kind === 'generator' && r.supplyAt !== undefined ? r.supplyAt : Infinity,
     ...(r.owner ? [
-      r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity,
+      r.kind === 'factory' && !inStasis(game, r) && !repayingProduction(game, r) ? r.productionAt ?? Infinity : Infinity,
       r.kind === 'mine' && !r.pulseDisabled ? r.miningAt ?? Infinity : Infinity,
       (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity,
     ] : []),
@@ -98,7 +102,7 @@ export function settleEconomy(game: Game): void {
       rock.shield = (rock.shield ?? 0) + 1;
       rock.shieldAt = afterWork(game, game.hour, SHIELD_RECHARGE / max);
     }
-    if (rock.kind === 'factory' && isDue(game, rock.productionAt!)) {
+    if (rock.kind === 'factory' && !inStasis(game, rock) && !repayingProduction(game, rock) && isDue(game, rock.productionAt!)) {
       rock.drones += spendReserves(game, rock, Math.max(0, Math.min(factoryOutput(game, rock), powerCapacity(game, rock.owner) - droneInventory(game, rock.owner))));
       rock.productionAt = afterWork(game, game.hour, rock.productionInterval ?? FACTORY_CYCLE);
     }

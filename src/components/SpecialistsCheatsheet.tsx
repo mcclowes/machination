@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SPECIALISTS, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
+import { SPECIALISTS, specialistReference, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
 import { SpecialistIcon } from './SpecialistIcon';
 
 const kinds = Object.keys(SPECIALISTS) as SpecialistKind[];
@@ -23,6 +23,7 @@ export function SpecialistsCheatsheet() {
   return <ScrollView contentContainerStyle={s.content}>
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.title}>Specialists cheatsheet</Text>
+      <Text style={s.body}>Temporal specialists are available in new revision-18 operations. Anchor and Overclock activate from specialist management or their site, including at a scheduled future time.</Text>
       <Text style={s.body}>Modules change the rules wherever you send them. Local effects apply to the carrying site or hauler; global effects apply across your operation. Captives have no abilities. Speed bonuses use the fastest applicable multiplier.</Text>
     </View>
     <View style={s.section}>
@@ -41,7 +42,7 @@ export function SpecialistsCheatsheet() {
           <SpecialistIcon kind={kind} size={36} />
           <View style={s.details}>
             <Text accessibilityRole="header" style={s.name}>{unit.name}</Text>
-            <Text style={s.reference}>{unit.reference}</Text>
+            <Text style={s.reference}>{specialistReference(kind)}</Text>
             <Text style={s.body}>{unit.description}</Text>
             {hireAmount(kind) > 1 && <Text style={s.note}>{hireAmount(kind)} units per hire</Text>}
             {promoted && <Text style={s.note}>Promotes to {SPECIALISTS[promoted].name}</Text>}
@@ -55,7 +56,7 @@ export function SpecialistsCheatsheet() {
       <Text style={s.body}>Earlier abilities can end combat or remove modules before later ones act. Equal-priority effects resolve simultaneously.</Text>
       {combatOrder.map(unit => <Text key={unit.name} style={s.body}>{unit.priority}. {unit.name}</Text>)}
       <Text style={s.body}>Meltdown charge detonates before suppression. Arbiter suppresses local combat abilities if only one side carries it; arbiters on both sides allow those abilities again.</Text>
-      <Text style={s.body}>If combat continues, Warmind and Overclock apply global damage, then shields absorb site attacks, then drones fight. More active local modules break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Reclaimer recovery still apply under local suppression.</Text>
+      <Text style={s.body}>If combat continues, Warmind and Siege controller apply global damage, then shields absorb site attacks, then drones fight. More active local modules break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Reclaimer recovery still apply under local suppression.</Text>
       <Text style={s.body}>Gift contacts transfer modules without combat abilities. Captured modules keep their original owner but become inactive captives.</Text>
     </View>
     <View style={s.section}>

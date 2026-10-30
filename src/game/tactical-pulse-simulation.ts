@@ -56,7 +56,7 @@ function affectKing(game: Game, asset: Rock | Fleet, strength: number): void {
   }
 }
 function disableEngines(game: Game, fleet: Fleet): void {
-  if (fleet.preparing || fleet.arrives <= game.hour + EPS) return;
+  if (fleet.heldAt || fleet.preparing || fleet.arrives <= game.hour + EPS) return;
   const config = tacticalConfig(game), until = game.hour + config.disruptionDuration;
   if ((fleet.enginesDisabledUntil ?? 0) >= until) return;
   const point = fleetPosition(game, fleet), destination = nearestImage(game, point, flightEndpoints(game, fleet).to);
@@ -91,7 +91,7 @@ export function settleTacticalPulses(game: Game): void {
         if (rock) {
           if (rock.kind === 'mine' && !rock.pulseDisabled) {
             const until = game.hour + config.disruptionDuration;
-            rock.miningAt! += Math.max(0, until - Math.max(game.hour, rock.miningDisabledUntil ?? 0));
+            rock.miningAt! += Math.max(0, until - Math.max(game.hour, rock.miningDisabledUntil ?? 0, rock.stasisUntil ?? 0));
             rock.miningDisabledUntil = Math.max(rock.miningDisabledUntil ?? 0, until);
           }
           const shield = game.pulse!.shields[rock.id];

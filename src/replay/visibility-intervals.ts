@@ -15,6 +15,12 @@ export const MAX_VISIBILITY_IMAGES = 65_536;
 export class VisibilityCapacityError extends Error { constructor() { super('Replay geometry exceeds the supported sweep capacity.'); } }
 
 export function flightMotionSpans(world: FlightWorld, fleet: Fleet, from: number, through: number): MotionSpan[] {
+  if (fleet.heldAt) {
+    const site = world.rocks.find(r => r.id === fleet.heldAt)!;
+    return [{ from, through, motion: site.drift
+      ? { position: site.drift.origin, velocity: site.drift.velocity, origin: 0, wrapped: true }
+      : { position: { x: site.x, y: site.y }, velocity: { x: 0, y: 0 } } }];
+  }
   if (![from, through, flightDeparture(fleet), fleet.arrives].every(Number.isFinite) || from < 0 || through < from || fleet.arrives <= flightDeparture(fleet)) throw new RangeError('Provide a finite ordered flight span.');
   const route = flightEndpoints(world, fleet);
   if (![route.from.x, route.from.y, route.to.x, route.to.y].every(Number.isFinite)) throw new RangeError('Provide finite flight endpoints.');

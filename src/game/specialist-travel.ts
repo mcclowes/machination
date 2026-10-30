@@ -3,6 +3,7 @@
  * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
  * ---
  */
+import { requireUnfrozen } from './temporal-facilities';
 import { compactTransitMultiplier } from './compact';
 import { afterWork } from './opening-clock';
 import { stationCourse } from './drift';
@@ -30,6 +31,7 @@ export function releaseSpecialist(input: Game, owner: Faction, id: string): Game
   const site = game.rocks.find(r => r.owner === owner && r.specialists?.some(u => u.id === id && u.captive));
   const unit = site?.specialists?.find(u => u.id === id);
   if (!site || !unit || !game.rocks.some(r => r.owner === unit.owner && !r.destroyed)) throw new Error('Choose a captive module with a friendly site to return to.');
+  requireUnfrozen(game, site);
   site.specialists = site.specialists!.filter(u => u.id !== id);
   restoreControl(game, unit, unit.owner);
   sendUnitsHome(game, site, unit.owner, [unit]);

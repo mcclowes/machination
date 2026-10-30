@@ -19,7 +19,7 @@ The Director can become the corporate authority in flavor text. The core is the 
 
 ## Faithful rules upgrade
 
-New operations use version two with mechanics revision 17. Each intelligence starts with six sites, including one mine, and 5 cargo. Four industry sites hold 40 drones each; the core's site and the mine hold none. The generated chart retains ten sites per player, leaving four dormant expansion sites per player. The existing factory and generator mix is preserved; the mine occupies the sixth starting site. Older operations retain their saved starting layout and economy.
+New operations use version two with mechanics revision 18. Each intelligence starts with six sites, including one mine, and 5 cargo. Four industry sites hold 40 drones each; the core's site and the mine hold none. The generated chart retains ten sites per player, leaving four dormant expansion sites per player. The existing factory and generator mix is preserved; the mine occupies the sixth starting site. Older operations retain their saved starting layout and economy.
 
 Factories deliver six drones every eight hours. Total stationed and traveling drones count toward capacity: 150 from an active core plus 50 per controlled generator, with specialist and funding modifiers. Capacity limits production; it doesn't destroy drones after territorial losses. Mines replace factories or generators and cost 50/100/200/300… drones according to lifetime construction count. The starting mine counts as the first, so the next mine costs 100 drones. Each mine produces one cargo per controlled site per day, paid one unit at a time every 24 / controlled-site-count hours. The starting mine pays its first unit at hour four; mining does not use opening acceleration. Territorial changes preserve progress toward the next unit. Capturing a mine resets its clock and removes 20% of the former owner's cargo. New mining operations require 300 cargo to win; older configured operations retain 200.
 
@@ -59,7 +59,7 @@ The defining feature should be human diplomacy under long travel commitments. AI
 
 Potential module mappings: interceptor, thruster, hijacker, and meltdown charge. The initial playable rules are specified below; further balancing needs human playtests.
 
-The [temporal specialist proposal](temporal-specialists.md) explores Dilation → Anchor, Overclock, Hindsight, Foresight, Hastener, and the power-for-time concept. It records tradeoffs and open rules; these abilities aren't part of the playable roster.
+New revision-18 operations add [temporal specialists](temporal-specialists.md): Dilation → Anchor, Overclock, Hindsight, Foresight, and Hastener. They change local travel and production clocks, reveal delayed actions and conditional lethal threats, and pull enemy transfers forward.
 
 ## Release milestones
 

@@ -3,6 +3,8 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validTemporalSave } from './temporal-save';
+import { isTemporalKind, temporalEnabled } from './temporal';
 import { validCompact } from './compact-save';
 import { PLANET_RESERVES, SUPPLY_CYCLE } from './depletion';
 import { validPulseSave } from './pulse-save';
@@ -53,7 +55,7 @@ export function decodeSave(raw: string): Save {
     if (value === undefined) return true;
     if (g.version !== 2 || !Array.isArray(value) || value.length > 10000) return false;
     for (const u of value) {
-      if (!record(u) || typeof u.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(u.id) || unitIds.has(u.id) || !isSpecialistKind(u.kind) || u.kind === 'disruptor' && !rules?.tacticalPulse || !isFaction(u.owner)
+      if (!record(u) || typeof u.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(u.id) || unitIds.has(u.id) || !isSpecialistKind(u.kind) || isTemporalKind(u.kind) && !temporalEnabled({ rules }) || u.kind === 'disruptor' && !rules?.tacticalPulse || !isFaction(u.owner)
         || !(u.captive === undefined || u.captive === true) || !(u.nextActionAt === undefined || nonnegative(u.nextActionAt)) || !(u.lastCourseAt === undefined || nonnegative(u.lastCourseAt))) return false;
       unitIds.add(u.id);
     }
@@ -64,7 +66,7 @@ export function decodeSave(raw: string): Save {
     for (const f of factions) {
       const state = g.recruitment[f as string];
       if (!record(state) || !Number.isSafeInteger(state.used) || (state.used as number) < 0 || !Number.isSafeInteger(state.seed) || (state.seed as number) < 0 || (state.seed as number) >= 2 ** 32
-        || !record(state.pool) || !Object.entries(state.pool).every(([k, v]) => isSpecialistKind(k) && (k !== 'disruptor' || !!rules?.tacticalPulse) && Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 3)
+        || !record(state.pool) || !Object.entries(state.pool).every(([k, v]) => isSpecialistKind(k) && (!isTemporalKind(k) || temporalEnabled({ rules })) && (k !== 'disruptor' || !!rules?.tacticalPulse) && Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 3)
         || !Array.isArray(state.offers) || state.offers.length !== 3 || !state.offers.every((k, i) => isSpecialistKind(k) && SPECIALISTS[k].category === HIRE_CATEGORIES[i] && ((state.pool as Record<string, number>)[k] ?? 0) > 0)) return fail();
     }
   }
@@ -160,6 +162,7 @@ export function decodeSave(raw: string): Save {
           if (g.version !== 2) return fail();
           const plan = validateScheduledAction(p);
           const action = plan.action;
+          if (action.type === 'activate' && !temporalEnabled({ rules })) return fail();
           if ('from' in action && !ids.has(action.from) || action.type === 'gift' && (!ids.has(action.to) || action.from === action.to || action.recipient === plan.owner || !factions.includes(action.recipient)) || action.type === 'hauler' && action.change.action === 'course' && !ids.has(action.change.to)) return fail();
           const reference = action.type === 'intercept' ? action.target : action.type === 'hauler' ? action.change.fleet : undefined;
           if (reference !== undefined && reference >= (g.nextId as number)) return fail();
@@ -177,6 +180,7 @@ export function decodeSave(raw: string): Save {
     }
   }
   if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.battle === undefined || record(e.battle) && finite(e.battle.x) && finite(e.battle.y)) && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
+  if (!validTemporalSave(g as Game)) return fail();
   if (!validPulseSave(g as Game)) return fail();
   const decoded = save as Save;
   if (rules?.teams) {

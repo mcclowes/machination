@@ -12,7 +12,7 @@ export function validTacticalPulseSave(game: Game): boolean {
   const config = tacticalConfig(game), factions = playersIn(game);
   if (!object(system) || Object.keys(system).sort().join() !== 'charges,resistance,waves' || !Array.isArray(system.charges) || !Array.isArray(system.waves) || !object(system.resistance) || system.charges.length + system.waves.length > 1000) return false;
   const charges = system.charges;
-  if (charges.some(c => !object(c) || !id(c.id) || !id(c.specialistId) || !factions.includes(c.factionId) || !nonnegative(c.readyAt) || c.readyAt <= game.hour || c.readyAt > game.hour + config.chargeDuration + 1e-9 || !Number.isSafeInteger(c.resourceCost) || c.resourceCost < config.minimumResourceCost || c.resourceCost > config.maximumResourceCost
+  if (charges.some(c => !object(c) || !id(c.id) || !id(c.specialistId) || !factions.includes(c.factionId) || !nonnegative(c.readyAt) || c.readyAt <= game.hour || c.readyAt > Math.max(game.hour, game.rocks.find(r => r.id === c.siteId)?.stasisUntil ?? 0) + config.chargeDuration + 1e-9 || !Number.isSafeInteger(c.resourceCost) || c.resourceCost < config.minimumResourceCost || c.resourceCost > config.maximumResourceCost
     || !game.rocks.some(r => r.id === c.siteId && !r.destroyed && r.owner === c.factionId && r.specialists?.some(u => u.id === c.specialistId && u.owner === c.factionId && u.kind === 'disruptor' && !u.captive)))) return false;
   if (new Set(charges.map(c => c.specialistId)).size !== charges.length) return false;
   const waves = system.waves;

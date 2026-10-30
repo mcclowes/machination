@@ -5,6 +5,7 @@
  *   - ./pulse-simulation.ts - chronological propagation and shield damage
  * ---
  */
+import { requireUnfrozen } from './temporal-facilities';
 import { cloneTacticalPulse, commandTacticalPulse, reconcileTacticalCharges, type TacticalPulseSystem, type TacticalPulseCommand } from './tactical-pulse';
 import { reconcileFunding } from './funding';
 import type { Faction, Game } from './simulation';
@@ -98,6 +99,8 @@ export function commandPulse(input: Game, owner: Faction, command: PulseCommand)
   if (game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This King is no longer operational.');
   const king = game.pulse!.kings.find(k => k.factionId === owner);
   if (!king) throw new Error('Choose your living King.');
+  const site = game.rocks.find(r => r.specialists?.some(u => u.id === king.kingId));
+  if (site && ['START_CHARGE', 'FIRE_PULSE'].includes(command.action)) requireUnfrozen(game, site);
   const config = pulseConfig(game);
   switch (command.action) {
     case 'START_CHARGE':

@@ -5,6 +5,7 @@
  *   - ./rival-ai.ts - policy, investment, and decision cadence
  * ---
  */
+import { inStasis } from './temporal';
 import { advance, dispatch, type Faction, type Game, type Rock } from './simulation';
 import { allied } from './teams';
 import { hasReserves } from './depletion';
@@ -19,7 +20,7 @@ const MAX_ATTACK_CANDIDATES = 4;
 const MOBILE_KINDS = new Set(['thief', 'infiltrator', 'lieutenant', 'warHero', 'assassin', 'helmsman', 'smuggler', 'elder', 'engineer']);
 export const byId = (a: { id: string }, b: { id: string }): number => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 export const ownsKing = (rock: Rock, owner: Faction): boolean => !!rock.specialists?.some(u => u.owner === owner && u.kind === 'queen' && !u.captive);
-export const ownedSites = (game: Game, owner: Faction): Rock[] => game.rocks.filter(r => !r.destroyed && r.owner === owner);
+export const ownedSites = (game: Game, owner: Faction): Rock[] => game.rocks.filter(r => !r.destroyed && r.owner === owner && !inStasis(game, r));
 export const mobileUnits = (rock: Rock, owner: Faction): Specialist[] => (rock.specialists ?? []).filter(u => u.owner === owner && !u.captive && MOBILE_KINDS.has(u.kind));
 
 export type RivalForecast = (game: Game, hour: number) => Game | undefined;

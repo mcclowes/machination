@@ -13,6 +13,19 @@ Quick reference for current Machination operations. Specialists are called **mod
 
 “Local” means the specialist's site or hauler. “Global” applies to all your eligible assets, including while the specialist travels. Site abilities require a controlled site. Speed bonuses use the fastest applicable multiplier; they don't multiply together. Times below use game hours unless labeled normal-rate hours; Watchdog, Capacitor, and Navigator timers don't accelerate during the opening.
 
+## Temporal specialists
+
+New revision-18 operations add the following roles. Earlier saves retain their original decks. Activate Anchor and Overclock from the specialist panel or site; both support scheduled activation. See [temporal specialist rules](temporal-specialists.md) for timing, privacy, and counterplay.
+
+| Specialist | Category | Effect and cost |
+| --- | --- | --- |
+| Dilation | Defense | Friendly and hostile haulers within its site's sensor range travel at half speed. Fields don't stack. Promotes to Anchor. |
+| Anchor | Promotion | Two hours of local stasis, holding arrivals and pausing production and local clocks. Twelve-hour cooldown on the specialist and site. |
+| Overclock | Other | Four hours of double local factory production speed, then four hours without output. Site-owned debt survives movement and capture. |
+| Hindsight | Other | Reveals successful enemy actions within twice local sensor range two hours later, retaining the action and discovery times. |
+| Foresight | Defense | Privately warns about committed actions that would kill one of your specialists within 24 hours. Predictions change with plans. |
+| Hastener | Attack | After hostile arrival combat, pulls that defender's outbound transfers forward if it still controls the site. Present resources and normal preparation apply; failures abort once. |
+
 ## Core
 
 | Module | Subterfuge name | Effect |
@@ -52,7 +65,7 @@ Quick reference for current Machination operations. Specialists are called **mod
 | Capacitor | Tinkerer | Adds global power capacity equal to 3× its site's maximum shields. Drains 1 local shield every 20 minutes, to a minimum of zero. Promotes to Power governor. |
 | Navigator | Navigator | Changes its carrying hauler's course, with an 8h cooldown shared by the Navigators aboard. Current operations have a 10-minute cancelable delay before turning. Promotes to Swarm coordinator. |
 | Thruster | Helmsman | Travels at 2× speed. |
-| Assimilator | Hypnotist | Takes ownership of captive modules at its site. An acquired enemy Intelligence core becomes a Fallback core. Promotes to Overclock. |
+| Assimilator | Hypnotist | Takes ownership of captive modules at its site. An acquired enemy Intelligence core becomes a Fallback core. Promotes to Siege controller. |
 
 ## Promotions
 
@@ -65,7 +78,7 @@ Quick reference for current Machination operations. Specialists are called **mod
 | Bulwark | Security Chief | Custodian | +10 global shield capacity, plus another +10 at its site. |
 | Overseer | Tycoon | Courier | +50% global factory production speed, plus 3 drones per cycle at its own factory. One Overseer changes an 8-normal-rate-hour cycle to 5h 20m. |
 | Swarm coordinator | Admiral | Navigator | +50% speed for your haulers carrying no modules; travels at 1.5× speed itself. Even captive modules prevent a hauler from qualifying as empty. |
-| Overclock | King | Assimilator | After local specialist abilities, destroys 1 opposing drone per 4 of your remaining drones, rounded down. Multiple Overclocks don't multiply this damage. Each Overclock reduces global shield capacity by 20, floored at zero. |
+| Siege controller | King | Assimilator | After local specialist abilities, destroys 1 opposing drone per 4 of your remaining drones, rounded down. Multiple Siege controllers don't multiply this damage. Each Siege controller reduces global shield capacity by 20, floored at zero. |
 
 Promotions replace the original ability. For example, Watchdog no longer deals Mauler's 20 combat damage, and Swarm coordinator no longer changes course.
 
@@ -84,7 +97,7 @@ Earlier abilities can end the encounter or remove modules before later abilities
 | 7 | Purger | Removes opposing modules; reciprocal Purgers kill both sides' opposing modules. |
 | 8 | Striker and Mauler | Deal their drone damage simultaneously. |
 
-If combat continues, Warmind and Overclock apply global damage simultaneously, then shields absorb attacks at sites, then drones fight. Tied drone counts favor the side with more active local modules; a complete hauler tie sends surviving modules home. Victory recovery and combat shield refill follow. The current engine still applies global combat bonuses and global Reclaimer recovery under local Arbiter suppression.
+If combat continues, Warmind and Siege controller apply global damage simultaneously, then shields absorb attacks at sites, then drones fight. Tied drone counts favor the side with more active local modules; a complete hauler tie sends surviving modules home. Victory recovery and combat shield refill follow. The current engine still applies global combat bonuses and global Reclaimer recovery under local Arbiter suppression.
 
 Gift contacts transfer cargo and modules without invoking these combat abilities. Captured modules keep their original owner but become inactive captives.
 

@@ -1,3 +1,5 @@
+import type { OverclockLoan } from '../game/temporal';
+import type { ObservedEvent } from '../game/events';
 import { cloneCompact, type BeltCompact } from '../game/compact';
 import type { PublicRules } from '../game/rules';
 import { validateTeams } from '../game/teams';
@@ -12,7 +14,7 @@ import { maximumShield } from '../game/economy';
 export type ReplayUnit = { id: string; kind: SpecialistKind; owner: Faction; captive?: true };
 type ReplayPoint = { x: number; y: number };
 export type ReplayRock = ReplayPoint & {
-  reserves?: number;
+  stasisUntil?: number; overclock?: OverclockLoan; reserves?: number;
   id: string; name: string; known: boolean; drift?: Drift;
   kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator' | 'unknown';
   owner?: Faction | null; drones?: number; destroyed?: true; coreOf?: Faction;
@@ -20,11 +22,11 @@ export type ReplayRock = ReplayPoint & {
 };
 export type ReplayFleet = {
   id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number;
-  enginesDisabledUntil?: number; sensorJammedUntil?: number; preparing?: true; returning?: true; giftAt?: number; module?: ModuleKind; specialists?: ReplayUnit[]; speed?: number;
+  heldAt?: string; enginesDisabledUntil?: number; sensorJammedUntil?: number; preparing?: true; returning?: true; giftAt?: number; module?: ModuleKind; specialists?: ReplayUnit[]; speed?: number;
   route?: { from: ReplayPoint; to: ReplayPoint }; intercept?: { home: string; target?: number };
 };
 export type ReplayScene = {
-  compact?: BeltCompact;
+  discoveries?: ObservedEvent[]; foresight?: GameView['foresight']; compact?: BeltCompact;
   version?: 1 | 2; hour: number; rocks: ReplayRock[]; fleets: ReplayFleet[];
   coverage: { x: number; y: number; radius: number; drift?: Drift }[];
   cargo: Partial<Record<Faction, number>>;
@@ -48,6 +50,8 @@ const factions: readonly Faction[] = ['you', 'vesper', 'null', 'aether', 'umbra'
 /** Projects an already filtered observation. Observed preparations belong to the chart; private queued intents never do. */
 export function presentObservation(view: GameView, aliases = createReplayAliases()): ReplayScene {
   const scene: ReplayScene = {
+    ...(view.foresight?.length ? { foresight: view.foresight.map(w => ({ ...w, specialistId: aliases.unit(w.specialistId) })) } : {}),
+    ...(view.events.some(e => e.discoveredAt !== undefined) ? { discoveries: view.events.filter(e => e.discoveredAt !== undefined).map(e => ({ hour: e.hour, discoveredAt: e.discoveredAt!, message: e.message })) } : {}),
     ...(view.compact ? { compact: cloneCompact(view.compact) } : {}),
     hour: view.hour, rocks: [], fleets: [], coverage: view.coverage.map(s => ({ x: s.x, y: s.y, radius: s.radius, ...(s.drift ? { drift: { origin: { x: s.drift.origin.x, y: s.drift.origin.y }, velocity: { x: s.drift.velocity.x, y: s.drift.velocity.y } } } : {}) })),
     cargo: {}, eliminated: view.eliminated.map(f => f), winner: view.winner,
@@ -62,6 +66,8 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.drift) rock.drift = { origin: { x: r.drift.origin.x, y: r.drift.origin.y }, velocity: { x: r.drift.velocity.x, y: r.drift.velocity.y } };
     if (r.owner !== undefined) rock.owner = r.owner;
     if (r.known) {
+      if (r.stasisUntil !== undefined) rock.stasisUntil = r.stasisUntil;
+      if (r.overclock) rock.overclock = { ...r.overclock };
       if (r.reserves !== undefined) rock.reserves = r.reserves;
       rock.drones = r.drones;
       if (r.sensorJammedUntil !== undefined) rock.sensorJammedUntil = r.sensorJammedUntil;
@@ -80,6 +86,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
   const visible = new Map(view.fleets.map(f => [f.id, aliases.fleet(f.id)]));
   for (const f of view.fleets) {
     const fleet: ReplayFleet = { id: visible.get(f.id)!, owner: f.owner, from: f.from, to: f.to, drones: f.drones, departed: f.departed, arrives: f.arrives };
+    if (f.heldAt !== undefined) fleet.heldAt = f.heldAt;
     if (f.enginesDisabledUntil !== undefined) fleet.enginesDisabledUntil = f.enginesDisabledUntil;
     if (f.sensorJammedUntil !== undefined) fleet.sensorJammedUntil = f.sensorJammedUntil;
     if (f.preparing !== undefined) fleet.preparing = f.preparing;

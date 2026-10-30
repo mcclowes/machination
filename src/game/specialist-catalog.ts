@@ -3,9 +3,15 @@
  * purpose: Original machine identities mapped to the official Subterfuge specialist roster and promotion graph.
  * ---
  */
-type Definition = { name: string; eventName?: string; reference: string; category: 'attack' | 'defense' | 'other' | 'promotion' | 'core'; description: string; promotesTo?: string; amount?: number; priority?: number };
+type Definition = { name: string; eventName?: string; reference: string; source?: 'machination'; category: 'attack' | 'defense' | 'other' | 'promotion' | 'core'; description: string; promotesTo?: string; amount?: number; priority?: number };
 export const SPECIALISTS = {
-  disruptor: { name: 'Disruptor', reference: 'Disruptor', category: 'attack', description: 'Available in new pulse operations. Spends 10–25 Pulse Material and charges for 30 minutes while stationed. Launches a fading tactical wave that jams sensors, disables engines and mining, damages pulse shields, and interrupts strong-hit King charges. Cannot destroy a King.' },
+  dilation: { name: 'Dilation', reference: 'Dilation', source: 'machination', category: 'defense', promotesTo: 'anchor', description: 'Halves friendly and hostile hauler speed within its controlled site’s sensor range. Fields do not stack. Promotes to Anchor.' },
+  anchor: { name: 'Anchor', reference: 'Anchor', source: 'machination', category: 'promotion', description: 'Activate two hours of local stasis: production, mining, recharge, departures, and arrivals pause. Incoming haulers wait. Twelve-hour cooldown; both sides resume when it lifts.' },
+  overclock: { name: 'Overclock', reference: 'Overclock', source: 'machination', category: 'other', description: 'Activate four hours of double local factory production speed, followed by four hours without production. The site retains its debt if the specialist moves or control changes.' },
+  hindsight: { name: 'Hindsight', reference: 'Hindsight', source: 'machination', category: 'other', description: 'Reveals nearby enemy actions two hours after they happen, even outside ordinary visibility. The original action time remains visible; historical orders stay read-only.' },
+  foresight: { name: 'Foresight', reference: 'Foresight', source: 'machination', category: 'defense', description: 'Warns when committed enemy actions would kill one of your specialists within the next 24 hours. Warnings change with plans and provide no immunity.' },
+  hastener: { name: 'Hastener', reference: 'Hastener', source: 'machination', category: 'attack', description: 'On hostile arrival, pulls that site’s queued outbound transfers forward. Orders use current resources and normal ten-minute preparation. Empty queues give no advantage.' },
+  disruptor: { name: 'Disruptor', reference: 'Disruptor', source: 'machination', category: 'attack', description: 'Available in new pulse operations. Spends 10–25 Pulse Material and charges for 30 minutes while stationed. Launches a fading tactical wave that jams sensors, disables engines and mining, damages pulse shields, and interrupts strong-hit King charges. Cannot destroy a King.' },
   queen: { name: 'Intelligence core', reference: 'Queen', category: 'core', description: 'Adds 20 local shield capacity. Recruits modules every 18h after hour four. An additional acquired core becomes a fallback core. Capture or destruction can end your operation.' },
   diplomat: { name: 'Envoy', eventName: 'Envoy protocol', reference: 'Diplomat', category: 'other', description: 'Releases your captive modules held at sites within this site’s sensor range.' },
   elder: { name: 'Arbiter', eventName: 'Precedence kernel', reference: 'Revered Elder', category: 'defense', priority: 2, description: 'Suppresses other local combat abilities unless both sides carry an arbiter.' },
@@ -34,7 +40,7 @@ export const SPECIALISTS = {
   martyr: { name: 'Meltdown charge', eventName: 'Self-destruct charge', reference: 'Martyr', category: 'defense', priority: 1, description: 'Destroys every site, hauler, and module within 20% of standard sensor range when participating in combat.' },
   helmsman: { name: 'Thruster', eventName: 'Routing daemon', reference: 'Helmsman', category: 'other', description: 'Travels at double speed.' },
   hypnotist: { name: 'Assimilator', eventName: 'Assimilation daemon', reference: 'Hypnotist', category: 'other', promotesTo: 'king', description: 'Takes ownership of captive modules at its site. An acquired core becomes a fallback core.' },
-  king: { name: 'Overclock', eventName: 'Siege controller', reference: 'King', category: 'promotion', description: 'Destroys one enemy drone per four of your drones after the specialist phase. Reduces global shield capacity by 20.' },
+  king: { name: 'Siege controller', eventName: 'Siege controller', reference: 'King', category: 'promotion', description: 'Destroys one enemy drone per four of your drones after the specialist phase. Reduces global shield capacity by 20.' },
 } as const satisfies Record<string, Definition>;
 export type SpecialistKind = keyof typeof SPECIALISTS;
 export const isSpecialistKind = (value: unknown): value is SpecialistKind => typeof value === 'string' && Object.hasOwn(SPECIALISTS, value);
@@ -58,4 +64,9 @@ export function displaySpecialistNames(text: string): string {
   return previousNames.reduce((message, { pattern, current }) => message.replace(pattern,
     match => match[0] === match[0]!.toLowerCase() ? current[0]!.toLowerCase() + current.slice(1) : current), text)
     .replace(/\ba interceptor\b/g, 'an interceptor');
+}
+
+export function specialistReference(kind: SpecialistKind): string {
+  const entry: Definition = SPECIALISTS[kind];
+  return entry.source === 'machination' ? 'Machination original' : `Subterfuge: ${entry.reference}`;
 }

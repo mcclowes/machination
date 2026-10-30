@@ -3,6 +3,8 @@
  * purpose: Specialist identity, time-based recruitment, promotion, and shared active-unit queries.
  * ---
  */
+import { requireUnfrozen } from './temporal-facilities';
+import { isTemporalKind, temporalEnabled } from './temporal';
 import { compactAllows } from './compact';
 import { workClock, workHour, type OpeningWorld } from './opening-clock';
 import { isActionPlan } from './future-actions';
@@ -17,13 +19,13 @@ import { reconcileFunding } from './funding';
 export const RECRUITMENT_CARGO_COST = 5;
 export function recruitmentCost(game: OpeningWorld): number { return (game.rules?.mechanicsVersion ?? 1) >= 17 ? RECRUITMENT_CARGO_COST : 0; }
 
-export type Specialist = { id: string; kind: SpecialistKind; owner: Faction; captive?: true; nextActionAt?: number; lastCourseAt?: number };
+export type Specialist = { id: string; kind: SpecialistKind; owner: Faction; captive?: true; nextActionAt?: number; lastCourseAt?: number; temporalReadyAt?: number };
 export type Recruitment = { used: number; seed: number; pool: Partial<Record<SpecialistKind, number>>; offers: SpecialistKind[] };
-export function newRecruitment(seed: number, tactical = false): Recruitment { return drawOffers({ used: 0, seed: seed >>> 0, pool: {}, offers: [] }, tactical); }
-function drawOffers(input: Recruitment, tactical = false): Recruitment {
+export function newRecruitment(seed: number, tactical = false, temporal = false): Recruitment { return drawOffers({ used: 0, seed: seed >>> 0, pool: {}, offers: [] }, tactical, temporal); }
+function drawOffers(input: Recruitment, tactical = false, temporal = false): Recruitment {
   const next: Recruitment = { ...input, pool: { ...input.pool }, offers: [] };
   for (const category of HIRE_CATEGORIES) {
-    const kinds = HIRE_KINDS.filter(k => SPECIALISTS[k].category === category && (k !== 'disruptor' || tactical));
+    const kinds = HIRE_KINDS.filter(k => SPECIALISTS[k].category === category && (k !== 'disruptor' || tactical) && (!isTemporalKind(k) || temporal));
     if (kinds.every(k => (next.pool[k] ?? 0) === 0)) for (const kind of kinds) next.pool[kind] = 3;
     const deck = kinds.flatMap(k => Array<SpecialistKind>(next.pool[k] ?? 0).fill(k));
     next.seed = (Math.imul(1664525, next.seed) + 1013904223) >>> 0;
@@ -66,9 +68,11 @@ function requireRecruitment(game: Game, owner: Faction): { status: ReturnType<ty
 }
 export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind, ids?: readonly string[]): Game {
   const { status, state } = requireRecruitment(game, owner);
+  if (isTemporalKind(kind) && !temporalEnabled(game)) throw new Error('Temporal specialists require a new operation.');
   if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
   if (!status.at) throw new Error('Hiring needs your active core at a controlled site.');
   if (!state.offers.includes(kind)) throw new Error('Choose one of the three current recruitment offers.');
+  requireUnfrozen(game, game.rocks.find(r => r.id === status.at)!);
   const cost = recruitmentCost(game);
   if ((game.cargo[owner] ?? 0) < cost) throw new Error(`Recruitment needs ${cost} cargo.`);
   const amount = hireAmount(kind);
@@ -79,7 +83,7 @@ export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind,
   const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: ids?.[index] ?? `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
   const result = withUnitEffects({ ...game, nextId: game.nextId + amount,
     cargo: { ...game.cargo, [owner]: (game.cargo[owner] ?? 0) - cost },
-    recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }, !!game.rules?.tacticalPulse) },
+    recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }, !!game.rules?.tacticalPulse, temporalEnabled(game)) },
     rocks: game.rocks.map(r => r.id === status.at ? { ...r, specialists: [...(r.specialists ?? []), ...units] } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${specialistEventName(kind)}${amount > 1 ? ' units' : ''} recruited at the core${cost ? ` for ${cost} cargo` : ''}.` }, ...game.events]),
   });
@@ -92,13 +96,14 @@ export function promoteSpecialist(game: Game, owner: Faction, id: string): Game 
   const unit = site?.specialists?.find(u => u.id === id);
   const kind = unit && promotion(unit.kind);
   if (!site || !unit || !kind) throw new Error('Choose a promotable module at one of your sites.');
+  requireUnfrozen(game, site);
   if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
-  return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }, !!game.rules?.tacticalPulse) },
+  return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }, !!game.rules?.tacticalPulse, temporalEnabled(game)) },
     rocks: game.rocks.map(r => r.id === site.id ? { ...r, specialists: r.specialists!.map(u => u.id === id ? { ...u, kind, ...(kind === 'sentry' ? { nextActionAt: game.hour + 2 } : {}) } : u) } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, site), message: `${site.name}: ${specialistEventName(unit.kind)} promoted to ${specialistEventName(kind)}.` }, ...game.events]),
   });
 }
-export function cloneUnits<T extends Rock | Fleet>(asset: T): T { return { ...asset, ...(asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u })) } : {}) }; }
+export function cloneUnits<T extends Rock | Fleet>(asset: T): T { return { ...asset, ...('overclock' in asset && asset.overclock ? { overclock: { ...asset.overclock } } : {}), ...(asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u })) } : {}) }; }
 export function upgradeSpecialists(input: Game): Game {
   if (input.version !== 2 || input.specialistVersion === 1) return input;
   const game: Game = { ...input, specialistVersion: 1, rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits), recruitment: input.recruitment ?? { you: newRecruitment(input.epoch), vesper: newRecruitment(input.epoch + 1), null: newRecruitment(input.epoch + 2) } };

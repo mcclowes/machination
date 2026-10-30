@@ -4,12 +4,13 @@
  * ---
  */
 import { cloneCompact, type BeltCompact } from './compact';
+import type { DeathWarning } from './temporal-intelligence';
 import { clonePulse, type PulseSystem } from './pulse';
 import { allied, teamMembers } from './teams';
 import { sitePosition } from './drift';
 import { publicRules, type PublicRules } from './rules';
 import { playersIn } from './players';
-import { unitCount, type Recruitment } from './specialists';
+import { activeUnits, unitCount, type Recruitment } from './specialists';
 import { fundingCount, type Funding } from './funding';
 import { simulationFromObservation } from './observation-simulation';
 import { isActionPlan, mapActionUnits, mapActionFleets } from './future-actions';
@@ -20,6 +21,7 @@ import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'drift'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: Faction | null; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
+  foresight?: Omit<DeathWarning, 'owner'>[];
   compact?: BeltCompact;
   pulse?: Omit<PulseSystem, 'receipts'>; rules?: PublicRules; funding?: Funding[]; standings?: Partial<Record<Faction, { cargo: number; funders: number }>>; fundingUncertain?: boolean;
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>; recruitmentUncertain?: boolean;
@@ -54,8 +56,11 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     pulse.shields = Object.fromEntries(Object.entries(pulse.shields).filter(([id]) => game.rocks.some(r => r.id === id && r.owner === faction)));
     pulse.modifiers = pulse.modifiers.filter(m => m.factionId === faction || m.type === 'pulse_speed' && pulse.pulses.some(p => p.factionId === m.factionId));
   }
+  const activeIds = new Set(game.temporalIntel?.warnings.length ? activeUnits(game).map(u => u.id) : []);
+  const deathWarnings = (game.temporalIntel?.warnings ?? []).filter(w => allied(game, w.owner, faction) && activeIds.has(w.specialistId) && w.deathAt >= game.hour);
   const { receipts: _receipts, ...disclosedPulse } = pulse ?? { receipts: {} };
   return {
+    ...(deathWarnings.length ? { foresight: deathWarnings.map(({ owner: _owner, ...w }) => ({ ...w, specialistId: identifyUnit(w.specialistId) })) } : {}),
     ...(game.compact ? { compact: cloneCompact(game.compact) } : {}),
     ...(pulse ? { pulse: disclosedPulse as Omit<PulseSystem, 'receipts'> } : {}),
     ...(game.rules ? { rules: publicRules(game.rules) } : {}),
@@ -67,7 +72,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
       ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, ...(r.drift ? { drift: r.drift } : {}), kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false, ...(game.version === 2 ? { owner: r.owner } : {}) }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: Object.fromEntries(teamMembers(game, faction).map(f => [f, game.cargo[f]])), eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
-    events: game.events.filter(e => e.audience?.some(f => allied(game, faction, f))).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message, ...(e.battle ? { battle: { ...e.battle } } : {}) })),
+    events: game.events.filter(e => e.audience?.some(f => allied(game, faction, f))).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message, ...(e.discoveredAt === undefined ? {} : { discoveredAt: e.discoveredAt }), ...(e.battle ? { battle: { ...e.battle } } : {}) })),
     scheduled: (game.scheduled ?? []).filter(p => allied(game, faction, p.owner)).map(p => isActionPlan(p) ? { ...p, ...(p.fleetId === undefined ? {} : { fleetId: identify(p.fleetId) }), action: mapActionFleets(mapActionUnits(p.action, identifyUnit), identify), ...(p.hireUnits ? { hireUnits: p.hireUnits.map(identifyUnit) } : {}) } : { ...p, ...(p.fleetId === undefined ? {} : { fleetId: identify(p.fleetId) }), ...(p.specialists ? { specialists: p.specialists.map(identifyUnit) } : {}) }),
     coverage, uncertain: [], interceptionUncertain: false,
   };
@@ -79,6 +84,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);
+  if (view.foresight?.length) { projected.foresight = view.foresight.map(w => ({ ...w })); projected.forecastUncertain = true; }
   projected.fleets = projected.fleets.map(f => ({ ...f, id: alias(f.id), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined ? { target: alias(f.intercept.target) } : {}) } } : {}) }));
   if (projected.pulse?.tactical) for (const wave of projected.pulse.tactical.waves) wave.hitFleets = wave.hitFleets.map(alias);
   projected.scheduled = projected.scheduled.map(p => ({ ...p, ...(p.fleetId === undefined ? {} : { fleetId: alias(p.fleetId) }), ...(isActionPlan(p) ? { action: mapActionFleets(p.action, alias) } : {}) }));

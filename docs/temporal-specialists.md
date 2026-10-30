@@ -1,85 +1,70 @@
 # Temporal specialists
 
-Design proposal for [#96](https://github.com/mcclowes/machination/issues/96). These abilities aren't in the playable roster. Names are working names; outposts, subs, and drillers correspond to Machination's sites, haulers, and drones.
+Implementation reference for [#116](https://github.com/mcclowes/machination/issues/116), following the proposal in [#96](https://github.com/mcclowes/machination/issues/96). New operations use mechanics revision 18. Earlier operations keep their recruitment decks and recorded mechanics.
 
-Overclock now names the playable promoted combat specialist. The production concept below needs a different name if adopted.
-
-The shared theme is control over timing and information, with a cost the opponent can exploit. Dilation promotes to Anchor. The other specialists are separate proposals; their recruitment categories and promotion relationships remain open.
+Dilation promotes to Anchor. Hastener is an attack hire; Dilation and Foresight are defense hires; Overclock and Hindsight are other hires. Hire and promotion costs follow the existing recruitment rules. The former combat specialist named Overclock is now **Siege controller**; its King behavior and persisted event identity are unchanged.
 
 ## Dilation
 
-Haulers within range of its controlled site move at half speed, friend and foe alike. A hauler resumes its normal speed when it leaves the field or the field ends. Movement already completed isn't recalculated.
+A stationed Dilation halves friendly and hostile hauler speed within its controlled site's sensor range. Fields don't stack. Entering, leaving, capturing, or removing a field changes remaining travel without recalculating completed progress. Preparing haulers begin moving at their departure boundary.
 
-This stretches the defender's warning window and could counter the proposed Revenant's compressed warning. It also delays your reinforcements, retreats, and specialist deliveries. Overlapping Dilation fields should keep the same half-speed effect rather than repeatedly halving speed.
-
-Only travel slows. Production, private order timestamps, launch preparation, and the operation clock continue normally. Range and interactions with interception, drifting sites, engine outages, and pulse propagation need balance rules; a travel field doesn't automatically slow a pulse.
+This buys warning time but delays your own reinforcements, retreats, and specialist deliveries. It affects interception travel too; a slowed target or pursuer can miss a previously committed rendezvous. Field crossings account for drifting sites, toroidal charts, and opening acceleration. Pulse propagation, production, and queued order timestamps keep their ordinary clocks.
 
 ## Anchor
 
-Dilation promotes to Anchor, which temporarily freezes an outpost. Local drone production stops, and incoming friendly and hostile haulers hold at its boundary until stasis lifts. Existing garrisons and manifests remain intact.
+Activate a docked Anchor from the specialist panel or its site. Stasis lasts two game hours. Both the specialist and the site have a twelve-hour cooldown, preventing several Anchors from keeping one site frozen indefinitely. Activation can also be scheduled from the Time Machine.
 
-It buys time to stage reinforcements nearby, but they can't enter during stasis. Enemy arrivals are delayed too, so lifting the field can release an attack alongside your reinforcements. The held arrivals need a deterministic release rule that doesn't give either side a free first strike.
+During stasis:
 
-Private queued orders and traveling haulers are different things. The proposal preserves the danger waiting when stasis ends; it doesn't teleport queued launches to their destinations. Orders originating at the frozen site need an explicit hold-or-abort policy. They mustn't silently launch drones through stasis.
+- Local factory output, mining, generator depletion, shield recharge, timed specialist actions, and King and Disruptor charging pause.
+- Preparing departures return their manifests to the site. New departures, hiring, promotion, release, construction, shield changes, and charge/fire commands at the site are refused.
+- Friendly and hostile haulers reaching the site wait without docking or resolving site combat. On thaw, they resolve in the existing launch-ID order. Held haulers follow a drifting site's position, cannot reroute, and don't participate in transit combat or receive additional engine delays.
+- Already-emitted pulses continue to propagate and can damage the site. Stasis provides no pulse immunity; shield energy can still drain under exposure.
 
-Stasis also needs a decision on local mining, shield recharge, pulse charging, combat, and outgoing movement. Duration must be finite, with a reuse limit that prevents permanent stasis. Production resumes from its remaining progress without catch-up output.
+Local work resumes from its remaining progress, without catch-up output. Queued local actions use their usual execution-time validation and abort privately if they execute during stasis. Queued launches aren't teleported to their destination.
+
+Anchor buys time to stage reinforcements nearby. They can't enter during the freeze, and the delayed enemy attack still resolves when it lifts. The normal arrival ordering remains relevant when both sides are waiting.
 
 ## Overclock
 
-Double local factory production speed for a chosen interval, then produce nothing there for the same interval. The bonus creates extra production cycles, leaving drones per cycle unchanged. After repayment, resume ordinary production without catch-up output.
+Activate a docked Overclock at a controlled factory. For four game hours, local production cycles run twice as fast. The following four game hours produce nothing there. Drones per cycle and fleet capacity limits are unchanged. Opening acceleration and existing industrial speed bonuses still apply.
 
-The benefit is access to drones earlier. The catch is a visible repayment period that opponents can target. Both phases and their end times should be shown when the site is observed. Normal fleet capacity still limits output; an Overclock at capacity can waste its benefit while still creating debt.
+The loan belongs to the site. Moving, losing, capturing, or promoting the specialist doesn't remove repayment, and another Overclock can't open a second loan there until it ends. Converting the site into a mine retains the loan clock; it gives no mining bonus. Destruction removes the factory's ability to produce. Anchor pauses both the loan phases and local production progress.
 
-Treat the debt as belonging to the site: moving, losing, capturing, or promoting the specialist mustn't erase it. Proposed rule: no overlapping loans at the same site. Whether debt persists through a site changing industry or being destroyed needs a decision before implementation.
+The boost and repayment deadlines are visible at an observed site and in specialist management. After repayment, the remaining factory cycle resumes without catch-up output. An Overclock used at full capacity can waste its benefit while retaining its debt.
 
-This uses the proposed Revenant's loan pattern economically. Revenant currently has a character identity, but its temporal ability isn't defined in the specialist catalog; its warning compression remains a separate design dependency.
+This implements the power-for-time idea as borrowed production. Power remains fleet capacity; this release adds no consumable energy reserve or separate accelerator.
 
 ## Hindsight
 
-Reveal previously unseen enemy actions after they have happened, retaining their original timestamps. This can explain a vanished garrison, a specialist movement, or an attack launched outside ordinary coverage.
+A stationed Hindsight records successful enemy actions originating within twice its site's sensor range, including launches outside ordinary coverage. Reports arrive two game hours later. Scheduling a future action doesn't reveal that private plan; the executed action can be discovered later.
 
-Each disclosure has two times: when the action happened and when you learned about it. The Time Machine may annotate the past with newly learned information, but historical controls stay read-only. A replay of what the player knew at the time must preserve the later discovery time.
+Each report retains the original action hour and a separate discovery hour. Historical gameplay remains read-only, and replaying what the player knew before discovery doesn't reveal the later report. Public shared replays can retain the disclosed report without exposing the private pending ledger.
 
-Reveal an action record, not the enemy's entire historical state or current queue. The catch is that the information arrives too late to stop that action and may already be stale. Lookback, disclosure delay, eligible action types, and geographic scope remain balance choices. Hiring Hindsight shouldn't automatically expose the entire match history.
+Only an action description is revealed, not the enemy's complete historical state or current queue. Information can already be stale when it arrives. Coverage is checked when the action occurs, so hiring Hindsight doesn't expose earlier history. Each observer retains up to 80 pending discoveries, matching the existing recent-telemetry limit.
 
 ## Foresight
 
-Reveal queued enemy actions that, under the current committed plans, would cause one of your specialists to die. This is an explicit exception to queue privacy: the player receives a warning before the predicted lethal action resolves, even when ordinary sensors wouldn't reveal it.
+An active Foresight warns when the current committed simulation would kill one of your active specialists within 24 game hours. It considers enemy private orders and already-launched haulers. A warning identifies the threatened specialist, predicted death time, and relevant hostile transfer or encounter, while leaving unrelated orders private. Capture alone isn't death.
 
-The warning identifies the threatened specialist, predicted death time, and the relevant enemy action. It grants information, not immunity. Capture and defeat without specialist death need a separate scope decision.
+Predictions refresh after player commands and at simulation event boundaries, including hourly horizon checks. Canceling or changing a lethal plan withdraws its current prediction. Earlier warning events remain part of the historical record. The specialist panel shows the current warnings.
 
-The catch is that a warning describes the current plan. A changed route, canceled order, reinforcement, or new attack can invalidate it. Warnings must update or be marked superseded; the absence of a warning can't promise safety against actions the enemy hasn't ordered yet. Detection must run when a qualifying order is committed or changed, before it can execute.
-
-The phrase “you can't kill it without the player knowing” could instead mean protection only for the Foresight carrier. Proposed interpretation here is any friendly specialist; coverage, prediction horizon, and the minimum useful warning interval remain open. If late live attacks are meant to be impossible without advance notice, that requires an additional attack delay or commitment rule.
+Warnings are conditional on committed plans. They grant information without immunity, and say nothing about attacks the opponent hasn't ordered. Live actions that kill immediately have no guaranteed response interval. Foresight doesn't introduce a new attack delay or change command commitment rules.
 
 ## Hastener
 
-On hostile arrival, pull the enemy's queued orders originating at that outpost forward to the arrival time. Their drones can leave early and strip the defense, creating an opening for a follow-up strike.
+On hostile arrival, a Hastener pulls the defending site's pending outbound transfer orders forward after that arrival's combat, provided the defender still controls the site. It triggers even if the Hastener is captured. Requiring survival would make a sacrificial scouting delivery ineffective.
 
-The catch is that the orders must exist and be executable now. A passive defender gives it nothing to pull forward. It can also accelerate a useful enemy reinforcement or specialist escape. It needs a read on the opponent's plans, and its result can favor either player.
+The post-combat trigger preserves the existing ten-minute preparation window: launches preparing before combat otherwise return their drones to defend. A follow-up strike after the forced departure can exploit the stripped defense; arriving during preparation still allows those drones to defend normally.
 
-Recommended first scope: outbound transfer orders only. “Any queued orders” would also accelerate shield changes, recruitment, promotions, funding, and cancellation chains, making its result much harder to read. Preserve the broader version as an alternative for playtesting.
+Eligible orders are snapshotted once and executed in existing queue order against present resources. An early failure consumes that order and logs a private abort; no drones are borrowed from future production. There is no recursive queue pull. This arrival effect runs outside the ordered combat ability phase. Gifts, interceptions, recruitment, shield changes, and other action types keep their scheduled times.
 
-Snapshot the eligible queue once, preserve its existing order, and validate each order against current resources. An order depending on future production gets no free drones; define whether an early failure consumes it or leaves it scheduled. Don't recursively pull new orders created by resolving the snapshot, and don't expose unrelated private plans.
+An empty queue gives it nothing to pull forward. It can accelerate a useful enemy reinforcement or escape, so reading the opponent's plans matters. The ability reveals no unrelated queue contents.
 
-Launch preparation matters: today's launches reserve drones immediately but depart after ten minutes. If Hastener must make drones leave before combat, it needs an explicit exception to that window. Otherwise it should affect the follow-up attack, with ordinary reservation and combat rules preserved. Its trigger must also specify whether it happens before combat, after survival, or only after capture; requiring capture would remove much of its proposed purpose.
+## Commands, persistence, and verification
 
-## Power for time
+The existing specialist command accepts `activate` with a scoped specialist identity. The server validates control, ownership, captivity, cooldown, site type, operation revision, and retry receipts. The same action can be scheduled, and the canonical private replay command is `activate`. Clients cannot supply duration, speed, or production multipliers.
 
-Original seed: spend power to speed up your time so enemy actions happen too late. The useful effect needs a specific clock: faster production, faster travel, and delayed hostile orders produce different tactics.
+Temporal clocks, held arrivals, cooldowns, production loans, delayed discoveries, and death warnings are validated on save loading. Shared replay projection includes disclosed site effects and intelligence, with fresh export identities and no pending private ledger. Earlier operation decks exclude all six temporal kinds.
 
-Machination's power currently means fleet capacity, not stored energy. A capacity penalty can suppress future production, but it doesn't drain a resource or remove existing drones. A consumable-power version would introduce another economy.
-
-Recommendation: prototype this through Overclock's production loan first. If a distinct accelerator is still useful, define which friendly clock advances and how power is paid before adding it. Advancing the whole operation would advance enemy actions too, defeating the intended relative advantage.
-
-## Acceptance before playable release
-
-- Dilation halves travel only inside its field, slows both sides, and preserves completed progress across entry, exit, overlapping fields, save/load, and split simulation advances.
-- Anchor holds both sides, pauses production without catch-up, and releases simultaneous arrivals consistently. Queued launches cannot bypass the freeze, and repeated activations cannot hold a site forever.
-- Overclock gives equal-duration acceleration and repayment. Capacity limits, moving or losing the specialist, capture, and industry changes cannot erase debt or create output during repayment.
-- Hindsight discloses only eligible past actions, records discovery separately from occurrence, and preserves what each player knew in private and shared replays.
-- Foresight warns before a qualifying committed lethal action resolves, handles plan changes, and exposes only the information authorized by the ability. Forecasts clearly distinguish conditional warnings from guaranteed outcomes.
-- Hastener handles empty queues, insufficient present resources, dependent orders, simultaneous arrivals, preparation windows, and repeated arrivals without duplicate execution or unrelated queue disclosure.
-- New mechanics are versioned for new operations. Existing saves, recruitment decks, command retries, and replays retain their recorded behavior. Online observations, AI decisions, and local forecasts use the same ability rules and disclosure boundaries.
-
-Exact ranges, activation costs, durations, cooldowns, hire categories, and pulse interactions remain open. These are design acceptance scenarios, not claims of implemented or tested behavior. The [current specialist reference](specialists-cheatsheet.md), [future-action rules](future-actions.md), and [Disruptor rules](disruptor.md) describe the existing game.
+Behavioral coverage lives beside the engine, specialist panels, service, and replay code. See the implementation issue for the final checks and their limits. Numerical balance remains provisional pending multiplayer playtests.

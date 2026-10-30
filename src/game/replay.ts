@@ -5,6 +5,8 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
+import { recordTemporalCommand, refreshForesight } from './temporal-intelligence';
+import { activateTemporal } from './temporal-facilities';
 import { castCouncilVote, proposeCouncilPolicy, settleCouncil, type CouncilChoice } from './compact';
 import type { CompactPolicy } from './compact-policies';
 import { applyPulseSpecialistEffect, commandPulse, type PulseEffectCommand, type PulseCommand } from './pulse';
@@ -34,7 +36,7 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'cancel-schedule'; id: string }
   | { type: 'edit-schedule'; change: LaunchEdit }
   | { type: 'hire'; kind: SpecialistKind }
-  | { type: 'promote' | 'release'; id: string }
+  | { type: 'promote' | 'release' | 'activate'; id: string }
   | { type: 'drill-mine'; rock: string }
   | { type: 'shields'; rock: string; disabled: boolean }
   | { type: 'funding'; to: Faction; enabled: boolean }
@@ -74,6 +76,7 @@ function performCommand(input: Game, command: GameCommand): Game {
     case 'edit-schedule': return editScheduledLaunch(game, c.owner, c.change);
     case 'hire': return hireSpecialist(game, c.owner, c.kind);
     case 'promote': return promoteSpecialist(game, c.owner, c.id);
+    case 'activate': return activateTemporal(game, c.owner, c.id);
     case 'release': return releaseSpecialist(game, c.owner, c.id);
     case 'drill-mine': return drillMine(game, c.rock, c.owner);
     case 'shields': return setShields(game, c.rock, c.owner, c.disabled);
@@ -85,8 +88,10 @@ function performCommand(input: Game, command: GameCommand): Game {
 
 export function executeCommand(input: Game, command: GameCommand): Game {
   const game = performCommand(input, command);
+  recordTemporalCommand(input, game, command);
   settleCouncil(game);
   if (game.pulse) { settlePulseHazards(game); evaluatePulseVictory(game); }
+  refreshForesight(game);
   return game;
 }
 

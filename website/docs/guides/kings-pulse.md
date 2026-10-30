@@ -5,7 +5,7 @@ description: Charge and fire your King's Pulse, understand shields, and use a Di
 
 New operations default to **King's Pulse**. Your movable intelligence core is your King. The last surviving King wins; simultaneous final deaths produce a draw. A fallback core cannot succeed your King in this mode.
 
-The specialist named **Overclock** is a different unit. Its Subterfuge counterpart is called King, which can make the specialist reference confusing at first.
+The specialist named **Siege controller** is a different unit. Its Subterfuge counterpart is called King, which can make the specialist reference confusing at first.
 
 ## Build the material reserve
 

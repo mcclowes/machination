@@ -2,7 +2,7 @@ import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { FIELD_MANUAL_SECTIONS } from '../../src/content/field-manual.ts';
-import { SPECIALISTS, hireAmount, promotion } from '../../src/game/specialist-catalog.ts';
+import { SPECIALISTS, specialistReference, hireAmount, promotion } from '../../src/game/specialist-catalog.ts';
 
 const website = fileURLToPath(new URL('../', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -27,14 +27,14 @@ export async function generateReference(destination = website) {
   const specialists = [
     '---\ntitle: Specialist reference\nslug: /specialists\ndescription: Every Machination specialist, its abilities, hiring amount, and promotion.\n---',
     'Names, abilities, and promotions come from the game’s specialist catalog. Load specialists explicitly when planning a transfer. Captives have no active abilities.',
-    'In King’s Pulse, your **Intelligence core** is your King. The **Overclock** is a different specialist; its Subterfuge counterpart is called King. Fallback cores cannot replace your King in pulse mode.',
-    'Core hiring takes four normal-rate hours for the first credit, then 18 per credit. Opening acceleration changes that timing. Check the operation’s displayed cargo cost before hiring. Offers and eligibility depend on the operation; Disruptors are available in new pulse operations. See [the rules](rules.md#units-and-interception).',
+    'In King’s Pulse, your **Intelligence core** is your King. The **Siege controller** is a different specialist; its Subterfuge counterpart is called King. Fallback cores cannot replace your King in pulse mode.',
+    'Core hiring takes four normal-rate hours for the first credit, then 18 per credit. Opening acceleration changes that timing. Check the operation’s displayed cargo cost before hiring. Offers and eligibility depend on the operation; Disruptors are available in new pulse operations. Temporal specialists are available in revision-18 operations; Anchor and Overclock activate from their site or specialist management. See [the rules](rules.md#units-and-interception).',
     ...Object.entries(SPECIALISTS).map(([kind, definition]) => {
       const next = promotion(kind);
       return [
         `## ${definition.name} {#${kind}}`,
         definition.description,
-        `**Role:** ${definition.category === 'promotion' ? 'Promoted specialist' : definition.category === 'core' ? 'Intelligence core' : definition.category}. **Subterfuge counterpart:** ${definition.reference}.`,
+        `**Role:** ${definition.category === 'promotion' ? 'Promoted specialist' : definition.category === 'core' ? 'Intelligence core' : definition.category}. **Reference:** ${specialistReference(kind)}.`,
         definition.category !== 'core' && definition.category !== 'promotion' ? `**Per hiring credit:** ${hireAmount(kind)}.` : '',
         next ? `**Promotes to:** [${SPECIALISTS[next].name}](#${next}).` : '',
         'priority' in definition ? `**Local combat priority:** ${definition.priority}. Lower numbers act first; equal priorities act together.` : '',
