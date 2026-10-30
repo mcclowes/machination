@@ -112,7 +112,7 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   // Only the explicit valid account bearer authenticates; legacy seat bearers use the real service path.
   const authenticate = options.account && (async (bearer: string) => {
     if (bearer === 'valid-clerk-session') return { accountId: 'user_alice' };
-    throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Marginal Utility account.');
+    throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Machination account.');
   });
   const api = createApi(service, undefined, authenticate).listeners('request')[0] as (req: IncomingMessage, res: ServerResponse) => void;
   const server = createServer((req, res) => {
@@ -504,7 +504,7 @@ test('an account cold start rejected by the server is terminal for the tap', asy
   const s = await scenario(t, { account: 'expired', linked: true, stored: false });
   s.fake.setLast(s.tapFor(s.current));
   await s.mount();
-  assert.match(s.visible(), /Sign in to your Marginal Utility account/);
+  assert.match(s.visible(), /Sign in to your Machination account/);
   assert.match(s.visible(), /was not opened because it does not match/);
   assert.doesNotMatch(s.visible(), /waiting for this operation/);
   assert.equal(s.fake.calls.cleared, 1);

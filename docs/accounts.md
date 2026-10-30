@@ -1,16 +1,19 @@
-# Marginal Utility accounts
+# Machination accounts
 
-Machination uses the same Clerk user pool as Another, Broadsheet, Reached, and the [Marginal Utility account hub](https://account.marginalutility.dev). Use the existing instance rather than creating a separate Machination user pool. Solo and tactical practice work without an account or network.
+Machination now targets its [dedicated Clerk application](https://dashboard.clerk.com/apps/app_3LLM8dwZinMXaB6wYiCp8bJ4gFD/instances/ins_3LLM8hCmKUuaIwWTDdVu4VdM3m6), replacing the previously planned shared Marginal Utility user pool. The linked instance is for development: `ins_3LLM8hCmKUuaIwWTDdVu4VdM3m6`, with issuer `https://crisp-hagfish-1837.clerk.accounts.dev`. Solo and tactical practice work without an account or network.
 
 ## Configure the client and service
 
-Copy `.env.example` to `.env.local`. Get matching keys from the shared Clerk instance. Use a development instance for local tests and the shared production instance for release builds.
+Local `.env.local` is configured with this instance’s publishable key, JWT public key, issuer, and account portal URL. It is ignored by Git and restricted to the local user. These keys were retrieved from Clerk; they were not generated locally. Server verification uses the JWT public key, so an administrative secret key is not required.
+
+For another checkout, copy `.env.example` to `.env.local` and get matching keys from this application’s API keys page. Use development keys locally and matching production-instance keys for release builds. Never deploy this linked development instance to the live Railway service.
 
 | Variable | Where | Purpose |
 | --- | --- | --- |
-| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Client build | Shared instance publishable key; enables multiplayer sign-in |
+| `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Client build | Selected instance publishable key; enables multiplayer sign-in |
+| `EXPO_PUBLIC_CLERK_ACCOUNT_URL` | Client build | Selected instance’s hosted user profile URL; locally `https://crisp-hagfish-1837.accounts.dev/user` |
 | `EXPO_PUBLIC_GAME_SERVER` | Client build | HTTPS game service origin, or loopback during local development |
-| `CLERK_ISSUER` | Service | Exact Clerk Frontend API HTTPS origin for the shared instance, with no trailing slash |
+| `CLERK_ISSUER` | Service | Exact Clerk Frontend API HTTPS origin for the selected instance, with no trailing slash |
 | `CLERK_SECRET_KEY` | Service only | Verify Clerk tokens using Clerk's cached JWKS |
 | `CLERK_JWT_KEY` | Service only | Optional PEM public key instead of a secret key for networkless verification; literal `\n` separators are accepted |
 | `MACHINATION_ORIGINS` | Service | Comma-separated exact browser frontend origins, also used to check token authorized parties |
@@ -27,13 +30,15 @@ For a bundled service, set host environment variables or run `node --env-file=.e
 
 ## Register native and web clients
 
-In the shared Clerk dashboard, enable the Native API and register the iOS bundle identifier and Android namespace/package `com.mcclowes.machination`. Allowlist `com.mcclowes.machination://callback` for iOS and `clerk://com.mcclowes.machination.hosted-callback` for Android. These are the defaults in the pinned Clerk SDK. The Clerk Expo plugin and browser authentication dependencies are included. Native Apple sign-in entitlements are disabled because this integration uses browser authentication; rebuild native apps after changing plugins. See [Clerk's Expo deployment guide](https://clerk.com/docs/guides/development/deployment/expo) and [hosted authentication guide](https://clerk.com/docs/expo/guides/account-portal/hosted-auth).
+The linked development instance already has native authentication enabled. Dashboard inspection on October 30, 2026, showed no registered iOS apps or mobile redirect URLs; native login has not been verified.
 
-Native sign-in opens Clerk's Account Portal in a browser and activates the returned session. Web sign-in uses Clerk's modal. Both use the sign-in methods enabled on the shared instance. Native Clerk sessions are cached in Expo SecureStore. The root provider remains mounted through web OAuth callbacks and offline game screens.
+In this application’s Clerk dashboard, enable the Native API and register the iOS bundle identifier and Android namespace/package `com.mcclowes.machination`. Allowlist `com.mcclowes.machination://callback` for iOS and `clerk://com.mcclowes.machination.hosted-callback` for Android. These are the defaults in the pinned Clerk SDK. The Clerk Expo plugin and browser authentication dependencies are included. Native Apple sign-in entitlements are disabled because this integration uses browser authentication; rebuild native apps after changing plugins. See [Clerk's Expo deployment guide](https://clerk.com/docs/guides/development/deployment/expo) and [hosted authentication guide](https://clerk.com/docs/expo/guides/account-portal/hosted-auth).
+
+Native sign-in opens Clerk's Account Portal in a browser and activates the returned session. Web sign-in uses Clerk's modal. Both use the sign-in methods enabled on the selected instance. Native Clerk sessions are cached in Expo SecureStore. The root provider remains mounted through web OAuth callbacks and offline game screens.
 
 When a publishable key is configured, that root can attempt background authentication requests even on offline screens. A [bounded native-path JS probe](shared-replays.md#configured-account-boundary) retained the installed SDK while rejecting transport: entry, local replay import, and causal seeking stayed available during 25 seconds of retries, without mounting game networking or writing operation state. This doesn't establish browser OAuth, physical-device, cached-session, or eventual retry-exhaustion behavior. The provider's position alone wasn't evidence of an offline rendering bug, and no provider change was made.
 
-Host the web client under `marginalutility.dev` to share the production root domain, and add its exact origin to the service allowlist and Clerk's subdomain allowlist. Separate root domains require [Clerk satellite domain configuration](https://clerk.com/docs/guides/dashboard/dns-domains/satellite-domains), which is not configured here.
+For production, configure this application’s production domain and account portal URL, then add the web client’s exact origin to the service allowlist and Clerk’s allowed domains. Separate root domains require [Clerk satellite domain configuration](https://clerk.com/docs/guides/dashboard/dns-domains/satellite-domains), which is not configured here.
 
 ## Restore or link an operation
 
@@ -56,4 +61,4 @@ Account routes always require a verified Clerk session. The legacy bearer scheme
 
 Account IDs and credential hashes stay out of snapshots. Linking retains the original seat identity, command receipts, and sensor perspective. Persistence adds an optional `accountId` to seats; old databases load unchanged, while malformed identities and duplicate account assignments are rejected. Back up the database before activation; older server versions do not enforce the account binding, so do not roll back to one with linked-seat data.
 
-Session JWT verification is local or uses cached signing keys; it is not an online check of Clerk session revocation on every request. Already issued tokens can remain valid until their short expiry. A live shared-instance sign-in and native browser round trip still require configured keys and registered apps.
+Session JWT verification is local or uses cached signing keys; it is not an online check of Clerk session revocation on every request. Already issued tokens can remain valid until their short expiry. A live sign-in and native browser round trip still require registered apps. Changing Clerk applications creates a separate user pool; migrate existing account-linked seats explicitly before switching a populated service. This local setup does not alter hosted configuration or migrate users.

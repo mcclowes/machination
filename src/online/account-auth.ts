@@ -5,6 +5,6 @@ export type RequestSession = { url: string; token: string; accountId?: string; g
 export async function authorization(session: RequestSession): Promise<string> {
   if (!session.accountId) return `Bearer ${session.token}`;
   const token = await session.getToken?.();
-  if (!token) throw new Error('Sign in to your Marginal Utility account again.');
+  if (!token) throw new Error('Sign in to your Machination account again.');
   return `Bearer ${token}`;
 }

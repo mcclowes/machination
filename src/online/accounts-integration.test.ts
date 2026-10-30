@@ -14,8 +14,10 @@ test('account changes unmount the previous operation and keep saved seats and pe
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   const bytes = new Map<string, string>();
+  const opened: string[] = [];
+  const accountUrl = 'https://crisp-hagfish-1837.accounts.dev/user';
   const auth: Record<string, any> = { isLoaded: true, isSignedIn: false, userId: null, getToken: async () => 'jwt', signOut: async () => {} };
-  globals[key] = { auth, storage: {
+  globals[key] = { auth, opened, storage: {
     getItemAsync: async (key: string) => bytes.get(key) ?? null,
     setItemAsync: async (key: string, value: string) => { bytes.set(key, value); },
     deleteItemAsync: async (key: string) => { bytes.delete(key); },
@@ -25,11 +27,11 @@ test('account changes unmount the previous operation and keep saved seats and pe
   const output = await build({
     stdin: { contents: `export * from './src/online/client'; export * from './src/online/MultiplayerAccount';`, resolveDir: process.cwd(), loader: 'ts' },
     bundle: true, write: false, platform: 'node', format: 'esm',
-    define: { 'process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY': JSON.stringify('pk_test_host_stub') },
+    define: { 'process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY': JSON.stringify('pk_test_host_stub'), 'process.env.EXPO_PUBLIC_CLERK_ACCOUNT_URL': JSON.stringify(accountUrl) },
     plugins: [{ name: 'account-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       const stubs: Record<string, string> = {
-        'react-native': `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',ActivityIndicator='ActivityIndicator',Linking={openURL:async()=>{}},Platform={OS:'ios'},AppState={currentState:'active'};`,
+        'react-native': `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',ActivityIndicator='ActivityIndicator',Linking={openURL:async(url)=>globalThis[${JSON.stringify(key)}].opened.push(url)},Platform={OS:'ios'},AppState={currentState:'active'};`,
         'expo-secure-store': `const store=globalThis[${JSON.stringify(key)}].storage; export const {getItemAsync,setItemAsync,deleteItemAsync}=store;`,
         'expo-crypto': `export const randomUUID=()=> 'account-test-uuid',getRandomBytesAsync=async()=>new Uint8Array(32);`,
         '@clerk/expo': `export const ClerkProvider=({children})=>children,useAuth=()=>globalThis[${JSON.stringify(key)}].auth;`,
@@ -68,6 +70,9 @@ test('account changes unmount the previous operation and keep saved seats and pe
   assert.equal(renderer.root.findAllByType('operation').length, 0);
   Object.assign(auth, { isSignedIn: true, userId: 'user_alice' });
   await act(async () => { renderer.update(element()); });
+  const profile = renderer.root.findAll((node: any) => node.props.accessibilityRole === 'link')[0];
+  await act(async () => { await profile.props.onPress(); });
+  assert.deepEqual(opened, [accountUrl], 'account management opens the configured app portal');
   Object.assign(auth, { userId: 'user_bob' });
   await act(async () => { renderer.update(element()); });
   assert.deepEqual(mounted, ['user_alice', 'user_bob']);

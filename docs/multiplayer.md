@@ -2,7 +2,7 @@
 
 The app now supports invite-only operations with three human players. Solo operations stay local and continue using rival AI.
 
-For shared Marginal Utility login, account restoration, and legacy seat linking, see [account setup](accounts.md). The local review below uses device tokens when Clerk is not configured.
+For Machination account login, account restoration, and legacy seat linking, see [account setup](accounts.md). The local review below uses device tokens when Clerk is not configured.
 
 ## Local review
 
