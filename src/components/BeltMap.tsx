@@ -82,8 +82,8 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const padding = inspectedSite && !fleet ? siteCameraPadding(game, size, coveredBottom, SITE_CONTROL_WIDTH / 2) : lift;
   const camera = constrainCamera(game, viewport?.camera ?? localCamera, padding);
   const dragging = useRef<Drag | undefined>(undefined);
-  const commands = useRef({ game, player, onTransfer });
-  commands.current = { game, player, onTransfer };
+  const commands = useRef({ game, player, onTransfer, inspectSite });
+  commands.current = { game, player, onTransfer, inspectSite };
   function siteAt(pageX: number, pageY: number): T | undefined {
     const state = current.current;
     const local = { x: pageX - origin.current.x, y: pageY - origin.current.y };
@@ -127,6 +127,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     onStartShouldSetPanResponderCapture: event => {
       const touch = event.nativeEvent.touches[0];
       if (event.nativeEvent.touches.length === 1 && touch) touchStart.current = { x: touch.pageX, y: touch.pageY };
+      // Web responder negotiation can miss a mouse move that leaves the pressed base.
+      if (Platform.OS === 'web' && event.nativeEvent.type === 'mousedown' && touch) {
+        const target = event.nativeEvent.target as unknown as Element | null;
+        return !!target?.closest('[data-testid="map-site"]') && !!sourceAt(touch.pageX, touch.pageY);
+      }
       return false;
     },
     onMoveShouldSetPanResponderCapture: (event, gesture) => event.nativeEvent.touches.length === 1 && Math.hypot(gesture.dx, gesture.dy) > 8 && !!touchStart.current && !!sourceAt(touchStart.current.x, touchStart.current.y),
@@ -136,7 +141,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       const from = event.nativeEvent.touches.length === 1 ? sourceAt(first.x, first.y) : undefined;
       const x = first.x - origin.current.x, y = first.y - origin.current.y;
       dragging.current = from ? { from, startX: x, startY: y, x, y } : undefined;
-      setDrag(dragging.current);
+      if (event.nativeEvent.type !== 'mousedown') setDrag(dragging.current);
       const [a, b] = event.nativeEvent.touches;
       start.current = { ...current.current.camera, pinch: a && b ? Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY) : 0, dx: gesture.dx, dy: gesture.dy };
     },
@@ -155,6 +160,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         if (!start.current.pinch) start.current = { ...current.current.camera, pinch: distance, dx: gesture.dx, dy: gesture.dy };
         current.current.onChange(zoomCamera(current.current.world, start.current, start.current.scale * distance / start.current.pinch, current.current.padding));
       } else if (dragging.current) {
+        if (event.nativeEvent.type === 'mousemove' && Math.hypot(gesture.moveX - origin.current.x - dragging.current.startX, gesture.moveY - origin.current.y - dragging.current.startY) <= 8) return;
         const next = { ...dragging.current, x: gesture.moveX - origin.current.x, y: gesture.moveY - origin.current.y, target: siteAt(gesture.moveX, gesture.moveY) };
         dragging.current = next; setDrag(next);
       } else {
@@ -167,11 +173,14 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     onPanResponderEnd: (event, gesture) => {
       if (event.nativeEvent.touches.length === 1) start.current = { ...current.current.camera, pinch: 0, dx: gesture.dx, dy: gesture.dy };
     },
-    onPanResponderRelease: (_event, gesture) => {
+    onPanResponderRelease: (event, gesture) => {
       const from = dragging.current?.from;
-      const to = siteAt(gesture.moveX, gesture.moveY);
+      const last = event.nativeEvent.changedTouches?.[0] ?? { pageX: gesture.moveX, pageY: gesture.moveY };
+      const to = siteAt(last.pageX, last.pageY);
+      const clicked = event.nativeEvent.type === 'mouseup' && touchStart.current && Math.hypot(last.pageX - touchStart.current.x, last.pageY - touchStart.current.y) <= 8;
       dragging.current = undefined; setDrag(undefined);
-      if (from && to && from.id !== to.id && !to.destroyed) commands.current.onTransfer?.(from, to);
+      if (from && clicked) commands.current.inspectSite(from);
+      else if (from && to && from.id !== to.id && !to.destroyed) commands.current.onTransfer?.(from, to);
     },
     onPanResponderTerminate: () => { dragging.current = undefined; setDrag(undefined); },
     onPanResponderTerminationRequest: () => !dragging.current,
@@ -272,7 +281,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       const color = rock.owner ? identity(rock.owner).color : '#68777b';
       const icon = siteIcon(rock);
       const namePlacement = names.get(key);
-      return <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : siteKindLabel(rock.kind).toLowerCase()}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? identity(rock.owner).name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} accessibilityState={{ selected: active }} onPress={() => inspectSite(rock)} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      return <Pressable key={key} testID="map-site" accessibilityRole="button" accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : siteKindLabel(rock.kind).toLowerCase()}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? identity(rock.owner).name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}` : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} accessibilityState={{ selected: active }} onPress={() => inspectSite(rock)} style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}>
         <View style={[styles.ring, { borderColor: active ? '#dce7e5' : 'transparent', borderWidth: 1.5, backgroundColor: 'transparent' }]}>
           <View style={[styles.stone, rock.drift && styles.asteroid, { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' }, icon && styles.emblemStone, icon && rock.drift && styles.driftingEmblem]}>
             {icon ? <Image accessible={false} source={icon} resizeMode="contain" style={[styles.baseIcon, { tintColor: rock.owner ? color : '#829195' }]} /> : <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>{rock.destroyed ? '×' : '?'}</Text>}
