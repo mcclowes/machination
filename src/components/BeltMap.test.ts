@@ -30,7 +30,7 @@ for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifec
     const output = await build({ entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'chart-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /\/(?:SpaceBackground|CopyObjectReference|PlayerIdentity)$/ }, args => ({ path: args.path, namespace: 'chart-leaves' }));
-      builder.onLoad({ filter: /.*/, namespace: 'chart-leaves' }, () => ({ contents: 'export const SpaceBackground=()=>null,CopyObjectReference=()=>null,PlayerIdentity=()=>null,usePlayerRoster=()=>()=>({color:"white"});' }));
+      builder.onLoad({ filter: /.*/, namespace: 'chart-leaves' }, () => ({ contents: 'import React from "react"; export const SpaceBackground=props=>React.createElement("SpaceBackground",props),CopyObjectReference=()=>null,PlayerIdentity=()=>null,usePlayerRoster=()=>()=>({color:"white"});' }));
       builder.onResolve({ filter: /^react-native(?:-svg)?$/ }, args => ({ path: args.path, namespace: 'chart-hosts' }));
       builder.onLoad({ filter: /.*/, namespace: 'chart-hosts' }, args => ({ contents: args.path === 'react-native-svg'
         ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Text='SvgText';`
@@ -67,6 +67,17 @@ for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifec
       assert.equal(shownScale(), beforeTimeChange, 'time-dependent panel height must not change rendered chart zoom');
       assert.deepEqual(camera, { scale: 2, x: 0, y: 0 });
     }
+    const panChart = async (dx: number, dy: number) => {
+      const chart = renderer.root.findByProps({ testID: 'belt-map' });
+      const event = { nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] } };
+      await flush(() => chart.props.onPanResponderGrant(event, { dx: 0, dy: 0, x0: 0, y0: 0 }));
+      await flush(() => chart.props.onPanResponderMove(event, { dx, dy }));
+    };
+    await panChart(40, 20);
+    const skyPan = renderer.root.findByType('SpaceBackground').props.pan;
+    assert.ok(Math.abs(skyPan.x - 40) < 1e-9 && Math.abs(skyPan.y - 20) < 1e-9, 'The sky receives actual map pan in screen pixels');
+    await panChart(-40, -20);
+    assert.deepEqual(camera, { scale: 2, x: 0, y: 0 });
     assert.equal(!!button('Zoom in'), platform === 'web', 'web controls are discoverable; native controls stay compact');
     if (platform === 'ios') {
       assert.equal(listeners.size, 0);

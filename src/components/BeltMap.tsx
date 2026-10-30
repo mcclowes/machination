@@ -227,7 +227,13 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     // Timeline messages can resize the chart without requesting a zoom.
     setSize(size => ({ ...layout, fitScale: size.fitScale ?? chartFit(game, layout) })); measure();
   }} {...pan.panHandlers}>
-    <SpaceBackground />
+    <SpaceBackground pan={{
+      x: camera.x / 100 * (game.rules?.map.width ?? 100) * projection.scale / camera.scale,
+      y: camera.y / 100 * (game.rules?.map.height ?? 100) * projection.scale / camera.scale,
+    }} panPeriod={wrappedBounds(game) ? {
+      x: (game.rules?.map.width ?? 100) * projection.scale,
+      y: (game.rules?.map.height ?? 100) * projection.scale,
+    } : undefined} />
     <Svg width="100%" height="100%" viewBox={`0 0 ${Math.max(1, size.width)} ${Math.max(1, size.height)}`} pointerEvents="none">
       <G transform={`translate(${projection.x}, ${projection.y})`}>
       {offsets.map((offset, tile) => <G key={tile} transform={`translate(${offset.x * sx}, ${offset.y * sy})`}>
