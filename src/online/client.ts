@@ -34,6 +34,11 @@ export async function restoreSession(accountId?: string): Promise<Session | null
   if (s.variant !== undefined && s.variant !== 'faction') throw new Error('Saved operation variant is invalid.');
   return s;
 }
+/** Whether this device holds a seat in an operation, without contacting the server. */
+export async function hasStoredOperation(accountId?: string): Promise<boolean> {
+  const stored = (accountId ? await restoreSession(accountId).catch(() => null) : null) ?? await restoreSession().catch(() => null);
+  return !!stored?.id;
+}
 export async function newSession(url: string, invite?: string, options?: GameOptions, variant?: 'faction'): Promise<Session> {
   const normalized = new URL(url.trim());
   if (!['http:', 'https:'].includes(normalized.protocol) || normalized.username || normalized.password || normalized.search || normalized.hash || normalized.pathname !== '/') throw new Error('Use a server origin, such as https://belt.example.com.');

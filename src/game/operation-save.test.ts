@@ -2,7 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { advance, createGame } from './simulation';
 import { applyCommand, createArchive, replayTo } from './replay';
-import { decodeOperation, encodeOperation } from './operation-save';
+import { decodeOperation, encodeOperation, summarizeOperation } from './operation-save';
+import { createConfiguredGame } from './world';
+
+test('operation summaries report live hour and standing without advancing the simulation', () => {
+  const game = advance(createConfiguredGame({ playerCount: 4, mode: 'mining' }, 0, 1), 3);
+  const encoded = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, 3 * 3_600_000);
+  assert.deepEqual(summarizeOperation(encoded, 13 * 3_600_000), { hour: 13, rivals: 3, mode: 'mining', status: 'active' });
+  assert.equal(summarizeOperation(encoded, 0).hour, 3, 'a device clock rollback never rewinds the hour');
+  assert.equal(summarizeOperation(JSON.stringify({ savedAt: 0, game: { ...game, winner: 'you' } }), 0).status, 'victory');
+  assert.throws(() => summarizeOperation('{}', 0), /damaged/);
+});
 
 test('local operations preserve command history and advance deterministic rivals only after validating the saved frontier', () => {
   const initial = createGame(0);

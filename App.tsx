@@ -95,6 +95,7 @@ import { ReplayLibraryScreen } from './src/components/ReplayLibraryScreen';
 import { ReplayExport } from './src/components/ReplayExport';
 import { generateSharedReplay } from './src/replay/generate';
 import { StartScreen } from './src/components/StartScreen';
+import { describeSolo, useOngoingOperations } from './src/components/useOngoingOperations';
 import type { LocalOperation } from './src/game/operation-save';
 import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
 import { SignalLog } from './src/components/SignalLog';
@@ -233,15 +234,34 @@ export default function App() {
         ) : mode === 'practice' ? (
           <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice>
         ) : (
-          <StartScreen>
-            <Button label="Start tactical practice" onPress={() => setMode('practice')} />
-            <Button label="Open solo operation" quiet onPress={() => setMode('solo')} />
-            <Button label="Open multiplayer uplink" quiet onPress={() => setMode('online')} />
-            <Button label="Open shared replay" quiet onPress={() => setMode('replays')} />
-          </StartScreen>
+          <HomeMenu open={setMode} />
         )}
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+function HomeMenu({ open }: { open: (mode: 'solo' | 'online' | 'practice' | 'replays') => void }) {
+  const { solo, multiplayer } = useOngoingOperations();
+  const resuming = !!solo || multiplayer;
+  return (
+    <StartScreen>
+      {resuming && (
+        <View style={{ gap: 8 }}>
+          <Label>Continue</Label>
+          {solo && (
+            <View style={{ gap: 4 }}>
+              <Button label="Resume solo operation" onPress={() => open('solo')} />
+              <Text style={s.resumeDetail}>{describeSolo(solo)}</Text>
+            </View>
+          )}
+          {multiplayer && <Button label="Resume multiplayer operation" onPress={() => open('online')} />}
+        </View>
+      )}
+      <Button label="Start tactical practice" quiet={resuming} onPress={() => open('practice')} />
+      {!solo && <Button label="Open solo operation" quiet onPress={() => open('solo')} />}
+      {!multiplayer && <Button label="Open multiplayer uplink" quiet onPress={() => open('online')} />}
+      <Button label="Open shared replay" quiet onPress={() => open('replays')} />
+    </StartScreen>
   );
 }
 function Operation({
@@ -1359,6 +1379,7 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   mono: { fontSize: 9, letterSpacing: 1.5, color: '#a0af9e' },
   label: { color: '#80917c', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' },
+  resumeDetail: { color: '#b8c5b5', fontSize: 12, textAlign: 'center' },
   heading: { fontSize: 26, fontWeight: '400', color: ink, marginTop: 7, marginBottom: 4 },
   clock: { color: green, fontSize: 12, fontVariant: ['tabular-nums'] },
   mapHintText: { color: green, fontSize: 11 },

@@ -18,6 +18,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   if (!publishableKey) return children;
   return <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>{children}</ClerkProvider>;
 }
+/** Signed-in account id; `undefined` while loading, `null` when signed out or accounts are off. */
+export const useAccountId: () => string | null | undefined = publishableKey
+  ? () => { const { isLoaded, userId } = useAuth(); return isLoaded ? userId ?? null : undefined; }
+  : () => null;
 export function MultiplayerAccount({ children }: { children: (account?: AccountAccess) => React.ReactNode }) {
   return publishableKey ? <AccountGate>{children}</AccountGate> : children();
 }
