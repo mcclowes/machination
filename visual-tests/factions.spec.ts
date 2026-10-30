@@ -31,23 +31,42 @@ for (const completed of [false, true]) test(`faction progression ${completed ? '
     await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
     await page.getByRole('button', { name: completed ? 'Factions and next operation' : 'Faction leaderboard', exact: true }).click();
     await expect(page.getByText('Faction allegiance', { exact: true })).toBeVisible();
-    await expect(page.getByText('Faction leaderboard', { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Faction leaderboard', exact: true })).toBeVisible();
+    await expect(page.getByText('0 wins', { exact: true })).toHaveCount(3);
     if (!completed) {
       await expect(page.getByText('Complete your first online operation to choose a permanent faction. Wins and losses both qualify.', { exact: true })).toBeVisible();
       await expect(page.getByRole('radio', { name: 'Mnemosyne', exact: true })).toHaveCount(0);
+      await page.getByText('Faction allegiance', { exact: true }).scrollIntoViewIfNeeded();
     } else {
       await page.getByRole('radio', { name: 'Mnemosyne', exact: true }).click();
       await page.getByRole('button', { name: 'Join Mnemosyne permanently', exact: true }).click();
       await expect(page.getByText('Your permanent faction.', { exact: false })).toBeVisible();
       expect((await service.factions(token)).faction).toBe('mnemosyne');
+      await page.getByText('Faction allegiance', { exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `.fettle/shots/faction-membership-${info.project.name}.png` });
       await page.getByRole('button', { name: 'Faction mode', exact: true }).click();
-      await page.getByRole('button', { name: '2 players', exact: true }).click();
-      await page.getByRole('button', { name: 'Domination', exact: true }).click();
+      await page.getByRole('radio', { name: '2 players', exact: true }).click();
+      await page.getByRole('radio', { name: 'Domination', exact: true }).click();
       await page.getByRole('button', { name: 'Create next operation', exact: true }).click();
       await page.getByRole('button', { name: 'Open lobby and invitation', exact: true }).click();
       await expect(page.getByText(/Mnemosyne · Bulwark/)).toBeVisible();
+      await page.getByText(/Mnemosyne · Bulwark/).scrollIntoViewIfNeeded();
     }
     await page.screenshot({ path: `.fettle/shots/faction-${completed ? 'joined' : 'locked'}-${info.project.name}.png` });
+    if (completed) {
+      const nextId = await page.evaluate(() => JSON.parse(sessionStorage.getItem('machination.online.v1')!).id as string);
+      const next = await service.snapshot(nextId, token);
+      await service.chooseFaction(guest, 'null');
+      await service.join(next.invite, guest); await service.start(nextId, token);
+      const other = await service.snapshot(nextId, guest);
+      await service.resign(nextId, guest, { requestId: randomUUID(), revision: other.revision });
+      await page.getByRole('tab', { name: 'Setup', exact: true }).click();
+      await page.getByRole('button', { name: 'Reconnect / refresh', exact: true }).click();
+      await expect(page.getByText('1 win', { exact: true })).toBeVisible();
+      await expect(page.getByText('0 wins', { exact: true })).toHaveCount(2);
+      await page.getByText('3. Null collective', { exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `.fettle/shots/faction-standings-${info.project.name}.png` });
+    }
   } finally {
     server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));

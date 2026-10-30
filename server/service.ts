@@ -273,7 +273,7 @@ export class GameService {
     catch (e) { return Promise.reject(new Failure(400, 'game.validation.options', (e as Error).message)); }
     if (variant && requested && 'teamFormat' in requested) return Promise.reject(new Failure(400, 'game.validation.variant', 'Faction mode uses individual victories. Choose a free-for-all setup.'));
     return this.transaction(db => {
-      const credential = this.credential(token);
+      this.credential(token);
       for (const room of db.rooms) if (room.seats.some(s => this.matchesCredential(s, token))) this.settle(db, room);
       const existing = db.rooms.find(r => !finished(r) && r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
@@ -291,7 +291,7 @@ export class GameService {
   }
   join(invite: string, token: Credential): Promise<Snapshot> {
     return this.transaction(db => {
-      const credential = this.credential(token);
+      this.credential(token);
       const room = db.rooms.find(r => r.invite === invite);
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
       const existing = room.seats.find(s => this.matchesCredential(s, token));

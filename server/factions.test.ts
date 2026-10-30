@@ -180,3 +180,18 @@ test('a failed durable write cannot make a faction choice permanent', async t =>
   await rm(file, { recursive: true }); await rename(backup, file);
   assert.equal((await service.chooseFaction(host, 'vesper')).faction, 'vesper');
 });
+
+test('faction openings preserve the default King’s Pulse system and its replay across restart', async t => {
+  const { file, service } = await setup(t);
+  await complete(service);
+  await service.chooseFaction(host, 'mnemosyne'); await service.chooseFaction(guest, 'null');
+  const room = await service.create(host, { playerCount: 2, mode: 'pulse' }, 'faction');
+  await service.join(room.invite, guest);
+  const started = await service.start(room.id, host);
+  assert.equal(started.game.pulse!.kings.filter(k => k.factionId === 'you').length, 1);
+  assert.equal(started.game.pulse!.kings.find(k => k.factionId === 'you')!.state, 'idle');
+  assert.equal(started.game.rocks.flatMap(r => r.specialists ?? []).filter(u => u.owner === 'you' && u.kind === 'security').length, 1);
+  const restored = await GameService.open(file, () => 1000);
+  assert.deepEqual((await restored.snapshot(room.id, host)).game, started.game);
+  assert.deepEqual((await restored.history(room.id, host, 0)).game, started.game);
+});

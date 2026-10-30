@@ -24,7 +24,8 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: `npm run web -- --port ${port}`,
+    // Development HMR reloads .env files even when dotenv loading is disabled.
+    command: `npm run web -- --port ${port} --no-dev`,
     url: origin,
     timeout: 180_000,
     reuseExistingServer: false,

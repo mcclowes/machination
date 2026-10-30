@@ -33,7 +33,7 @@ export function FactionPanel({ session, refreshKey, disabled, onMembership }: {
   }, [session.url, session.token, session.accountId, refreshKey]);
   const blocked = disabled || busy;
   return <View style={s.panel}>
-    <Text style={s.title}>Faction allegiance</Text>
+    <Text accessibilityRole="header" style={s.title}>Faction allegiance</Text>
     {!standings && !error && <Text style={s.detail}>Loading factions…</Text>}
     {standings?.faction ? <><Text style={[s.title, { color: ALLEGIANCES[standings.faction].color }]}>{ALLEGIANCES[standings.faction].name}</Text><Text style={s.detail}>Your permanent faction. {ALLEGIANCES[standings.faction].description}</Text></>
       : standings && (standings.completedGames === 0 ? <Text style={s.detail}>Complete your first online operation to choose a permanent faction. Wins and losses both qualify.</Text>
@@ -42,7 +42,7 @@ export function FactionPanel({ session, refreshKey, disabled, onMembership }: {
             <Text style={[s.title, { color: ALLEGIANCES[id].color }]}>{ALLEGIANCES[id].name}</Text><Text style={s.detail}>{ALLEGIANCES[id].description}</Text><Text style={s.detail}>{SPECIALISTS[ALLEGIANCES[id].elite].description}</Text>
           </Pressable>)}</View>
           <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!blocked || !selected }} disabled={blocked || !selected} style={[s.button, (blocked || !selected) && s.disabled]} onPress={() => void load(selected)}><Text style={s.buttonText}>Join {selected ? ALLEGIANCES[selected].name : 'a faction'} permanently</Text></Pressable></>)}
-    <Text style={s.title}>Faction leaderboard</Text><Text style={s.detail}>Total wins from faction-mode operations on this server. Draws award no wins.</Text>
+    <Text accessibilityRole="header" style={s.title}>Faction leaderboard</Text><Text style={s.detail}>Total wins from faction-mode operations on this server. Draws award no wins.</Text>
     {standings?.leaderboard.map((row, index) => <View key={row.faction} style={s.row}><Text style={[s.detail, { flex: 1, color: ALLEGIANCES[row.faction].color }]}>{index + 1}. {ALLEGIANCES[row.faction].name}</Text><Text style={s.title}>{row.wins} {row.wins === 1 ? 'win' : 'wins'}</Text></View>)}
     {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
     <Pressable accessibilityRole="button" accessibilityState={{ disabled: !!blocked }} disabled={blocked} style={[s.button, blocked && s.disabled]} onPress={() => void load()}><Text style={s.buttonText}>Refresh faction standings</Text></Pressable>
