@@ -56,7 +56,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
           'expo-crypto': `export const randomUUID=()=> 'practice-host-uuid';`,
           'expo-clipboard': `export const setStringAsync=async()=>true;`,
           '@react-native-async-storage/async-storage': `export default globalThis[${JSON.stringify(key)}].storage;`,
-          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`,
+          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',Rect='Rect',Stop='Stop';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'practice-host' }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'practice-host' }));

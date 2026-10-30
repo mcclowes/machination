@@ -51,7 +51,7 @@ const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(acco
         export const Dimensions={get:()=>({width:1200,height:800})},PanResponder={create:x=>({panHandlers:x})},Linking={openURL:async()=>{}};
         export const AppState={currentState:'background',addEventListener:()=>({remove(){}})},Keyboard={dismiss(){},isVisible:()=>false,addListener:()=>({remove(){}})};`,
       'react-native-safe-area-context': `export const SafeAreaProvider='SafeAreaProvider',SafeAreaView='SafeAreaView';`,
-      'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText',Defs='Defs',RadialGradient='RadialGradient',Stop='Stop';`,
+      'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText',Defs='Defs',RadialGradient='RadialGradient',LinearGradient='LinearGradient',Stop='Stop';`,
       'expo-status-bar': `export const StatusBar='StatusBar';`,
       'expo-crypto': `import { randomUUID as uuid, randomBytes } from 'node:crypto'; export const randomUUID=()=>uuid(),getRandomBytesAsync=async n=>new Uint8Array(randomBytes(n));`,
       'expo-secure-store': `export const getItemAsync=async k=>${g}.secure.get(k)??null,setItemAsync=async(k,v)=>{${g}.secure.set(k,v)},deleteItemAsync=async k=>{${g}.secure.delete(k)};`,

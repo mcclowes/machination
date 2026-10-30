@@ -57,7 +57,7 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
           'expo-crypto': `export const randomUUID=()=> 'launch-host-uuid';`,
           'expo-clipboard': `export const setStringAsync=async()=>true;`,
           '@react-native-async-storage/async-storage': `export default globalThis[${JSON.stringify(key)}].storage;`,
-          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`,
+          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',Rect='Rect',Stop='Stop';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'launch-host' }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'launch-host' }));

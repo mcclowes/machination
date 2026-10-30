@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
 
-async function withTimeMachine(compact: boolean, check: (host: any) => Promise<void>) {
+async function withTimeMachine(compact: boolean, check: (host: any) => Promise<void>, expand = true) {
   const key = `__timeMachine_${randomUUID().replaceAll('-', '')}`;
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globals, 'IS_REACT_ACT_ENVIRONMENT');
@@ -21,6 +21,8 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
     const output = await build({ entryPoints: [new URL('./TimeMachine.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', plugins: [{ name: 'time-machine-host', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /^react-native$/ }, args => ({ path: args.path, namespace: 'native-host' }));
+      builder.onResolve({ filter: /^react-native-svg$/ }, args => ({ path: args.path, namespace: 'svg-host' }));
+      builder.onLoad({ filter: /.*/, namespace: 'svg-host' }, () => ({ contents: `export default 'Svg'; export const Defs='Defs',LinearGradient='LinearGradient',Stop='Stop',Rect='Rect',Line='Line',Path='Path',Circle='Circle';` }));
       builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Keyboard={dismiss:()=>globalThis.${key}.dismiss()};` }));
     } }] });
     const { TimeMachine } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
@@ -35,7 +37,7 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
       await flush(() => button.props.onPress());
     };
     const input = () => find('TextInput', 'Go to hours from now');
-    if (compact) await press('Time Machine');
+    if (compact && expand) await press('Time Machine');
     await check({ calls, find, press, input, flush, setEntry: (entry: string) => flush(() => input().props.onChangeText(entry)), update: (next: Partial<typeof props>) => flush(() => { Object.assign(props, next); renderer.update(React.createElement(TimeMachine, props)); }), text: () => renderer.root.findAllByType('Text').map((node: any) => node.children.filter((child: unknown) => typeof child === 'string').join('')).join('\n') });
   } finally {
     if (renderer) await act(async () => renderer.unmount());
@@ -111,8 +113,50 @@ test('time presets, steps, events, scrubbing, and closing release the editor key
     }
     const track = find('View', 'Operation timeline');
     await flush(() => track.props.onPanResponderGrant({ nativeEvent: { locationX: 0 } }));
-    assert.deepEqual(calls.splice(0), ['dismiss', 0]);
+    assert.deepEqual(calls.splice(0), [], 'touching the wheel does not jump through time');
+    await flush(() => track.props.onPanResponderMove({}, { dx: -28 }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 3]);
     await press('Close time controls');
     assert.deepEqual(calls, ['dismiss']);
   });
+});
+
+test('the collapsed time wheel scrubs relatively, preserves its origin across polling, and clamps both ends', async () => {
+  await withTimeMachine(true, async ({ calls, find, flush, update, input }) => {
+    assert.equal(input(), undefined, 'precise controls start collapsed');
+    const wheel = () => find('View', 'Operation timeline');
+    assert.ok(wheel(), 'primary navigation is always visible');
+    await flush(() => wheel().props.onPanResponderGrant({ nativeEvent: { locationX: 120 } }));
+    assert.deepEqual(calls, [], 'grabbing any rib preserves the selected time');
+    await flush(() => wheel().props.onPanResponderMove({}, { dx: -14 }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 2.5]);
+    await update({ hour: 2.1, inspectedHour: 2.5 });
+    await flush(() => wheel().props.onPanResponderMove({}, { dx: -28 }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 3], 'polling cannot move the drag origin');
+    await flush(() => wheel().props.onPanResponderMove({}, { dx: 10000 }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 0]);
+    await flush(() => wheel().props.onPanResponderMove({}, { dx: -10000 }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 170.1]);
+  }, false);
+});
+
+test('the wheel supports scrolling, keyboard navigation, accessibility actions, and returning to live', async () => {
+  await withTimeMachine(true, async ({ calls, find, flush, update, press }) => {
+    const wheel = () => find('View', 'Operation timeline');
+    assert.equal(wheel().props.focusable, true, 'keyboard users can focus the primary control');
+    await update({ inspectedHour: 8 });
+    let prevented = 0;
+    await flush(() => wheel().props.onKeyDown({ nativeEvent: { key: 'ArrowRight', shiftKey: false }, preventDefault: () => prevented++ }));
+    assert.equal(calls.shift(), 'dismiss');
+    assert.ok(Math.abs(calls.shift() - (8 + 1 / 60)) < 1e-9);
+    await update({ inspectedHour: 8 });
+    await flush(() => wheel().props.onWheel({ nativeEvent: { deltaX: 28, deltaY: 0, deltaMode: 0 } }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 9]);
+    await update({ inspectedHour: 8 });
+    await flush(() => wheel().props.onAccessibilityAction({ nativeEvent: { actionName: 'decrement' } }));
+    assert.deepEqual(calls.splice(0), ['dismiss', 7]);
+    await press('Now');
+    assert.deepEqual(calls.splice(0), ['dismiss', null]);
+    assert.equal(prevented, 1);
+  }, false);
 });
