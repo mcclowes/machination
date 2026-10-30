@@ -23,7 +23,7 @@ import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/g
 import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
 import type { SharedReplay } from '../src/replay/timeline';
 import { createHmac, randomBytes } from 'node:crypto';
-import { DatabaseStore, type Database, type Room } from './database';
+import { DatabaseStore, type Database, type Persistence, type Room } from './database';
 import { createConfiguredGame } from '../src/game/world';
 import {
   DEFAULT_GAME_OPTIONS,
@@ -137,13 +137,13 @@ export class GameService {
     private pulseDefaults?: PulseConfig,
   ) {}
   static async open(
-    file: string,
+    source: string | Persistence,
     now = Date.now,
     initialGame?: typeof createGame,
     options: ServiceOptions = {},
   ): Promise<GameService> {
     return new GameService(
-      await DatabaseStore.open(file),
+      await DatabaseStore.open(source),
       now,
       initialGame,
       !!options.notifications,

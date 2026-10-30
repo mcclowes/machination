@@ -55,6 +55,7 @@
     "expo-status-bar": "~55.0.0",
     "expo-system-ui": "~55.0.22",
     "expo-web-browser": "~55.0.20",
+    "postgres": "3.4.9",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.10",
@@ -63,6 +64,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.13",
     "@playwright/test": "1.62.1",
     "@types/react": "~19.2.0",
     "esbuild": "0.28.2",

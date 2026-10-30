@@ -4,7 +4,7 @@ The authoritative service builds into a standalone Node 24.14.1 program, matchin
 
 Railway is the selected invited-playtest host. See [Railway deployment](railway.md) for the volume-compatible image, verified local checks, and provisioning status.
 
-Run one service process per data file. This backend uses serialized transactions and an atomically replaced JSON snapshot, not shared database coordination. Configure one replica and a persistent POSIX directory. Keep the same data file across releases.
+Run one service process per data store. Set `DATABASE_URL` to store games in Postgres; see [Postgres storage](postgres.md). Without it, the service uses an atomically replaced JSON snapshot, which needs a persistent POSIX directory kept across releases. Either way, configure one replica.
 
 ## Build and check
 
