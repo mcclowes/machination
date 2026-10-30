@@ -71,9 +71,10 @@ function command(v: unknown): boolean {
     default: return false;
   }
 }
-function canonical(value: unknown): string {
+function canonical(value: Game): string {
   const normalize = (v: unknown): unknown => Array.isArray(v) ? v.map(normalize) : record(v) ? Object.fromEntries(Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => [k, normalize(v[k])])) : v;
-  return JSON.stringify(normalize(value));
+  // Map annotations added after a save don't change its recorded simulation.
+  return JSON.stringify(normalize({ ...value, events: value.events.map(({ battle: _battle, ...event }) => event) }));
 }
 export function decodeReplay(input: unknown, live: Game, rivals: boolean): ReplayArchive {
   try {

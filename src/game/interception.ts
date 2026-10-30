@@ -60,23 +60,23 @@ export function resolveInterceptions(game: Game, unknownInterceptions: readonly 
         const survivors = Math.max(0, attackers - defenders * BLAST_MULTIPLIER);
         game.fleets = game.fleets.filter(f => f.id !== target.id);
         if (survivors) game.fleets.push(returningFleet(game, rig, point, survivors + Math.floor((attackers - survivors) * SALVAGE_FRACTION)));
-        game.events.unshift({ hour: game.hour, audience, message: 'Scavenger encounter: defending charge detonated.' });
+        game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: 'Scavenger encounter: defending charge detonated.' });
         continue;
       }
       if (target.module === 'virus') {
         const converted = Math.min(CONVERSION_LIMIT, Math.floor(attackers * CONVERSION_FRACTION));
         attackers -= converted; defenders += converted;
-        game.events.unshift({ hour: game.hour, audience, message: `Scavenger encounter: defending virus assimilated ${converted} drones.` });
+        game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: `Scavenger encounter: defending virus assimilated ${converted} drones.` });
       }
       if (attackers > defenders) {
         const survivors = attackers - defenders;
         const recovered = Math.floor((rig.drones - survivors) * SALVAGE_FRACTION);
         game.fleets = game.fleets.filter(f => f.id !== target.id);
         game.fleets.push(returningFleet(game, rig, point, survivors + recovered));
-        game.events.unshift({ hour: game.hour, audience, message: `Scavenger rig: target neutralized; ${survivors + recovered} drones returning.` });
+        game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: `Scavenger rig: target neutralized; ${survivors + recovered} drones returning.` });
       } else if (attackers === defenders) {
         game.fleets = game.fleets.filter(f => f.id !== target.id);
-        game.events.unshift({ hour: game.hour, audience, message: 'Scavenger encounter: both haulers destroyed.' });
+        game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: 'Scavenger encounter: both haulers destroyed.' });
       } else {
         const survivors = defenders - attackers;
         if (target.module === 'scavenger') {
@@ -84,7 +84,7 @@ export function resolveInterceptions(game: Game, unknownInterceptions: readonly 
           game.fleets = game.fleets.filter(f => f.id !== target.id);
           game.fleets.push(returningFleet(game, target, point, survivors + recovered));
         } else target.drones = survivors;
-        game.events.unshift({ hour: game.hour, audience, message: 'Scavenger rig destroyed; defending hauler survived.' });
+        game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: 'Scavenger rig destroyed; defending hauler survived.' });
       }
     } finally { tracePoint(trace, 'interception', game); }
   }

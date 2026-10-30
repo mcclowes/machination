@@ -26,5 +26,5 @@ export function detonate(game: Game, point: Point): void {
     delete rock.coreOf; delete rock.module;
   }
   game.fleets = game.fleets.filter(f => !hit.includes(f));
-  game.events.unshift({ hour: game.hour, audience, message: `Self-destruct detonation ${compactAllows(game, 'infrastructure') ? 'destroyed' : 'cleared garrisons at'} ${affected.length} sites and ${hit.length} haulers within ${radius} chart units.` });
+  game.events.unshift({ hour: game.hour, audience, battle: { x: point.x, y: point.y }, message: `Self-destruct detonation ${compactAllows(game, 'infrastructure') ? 'destroyed' : 'cleared garrisons at'} ${affected.length} sites and ${hit.length} haulers within ${radius} chart units.` });
 }

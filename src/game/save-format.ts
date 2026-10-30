@@ -170,7 +170,7 @@ export function decodeSave(raw: string): Save {
       plans.add(`${p.owner}:${p.id}`);
     }
   }
-  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
+  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.battle === undefined || record(e.battle) && finite(e.battle.x) && finite(e.battle.y)) && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   if (!validPulseSave(g as Game)) return fail();
   const decoded = save as Save;
   return { ...decoded, game: upgradeSpecialists(decoded.game) };

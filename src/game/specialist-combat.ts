@@ -63,8 +63,8 @@ function excessGiftDrones(game: Game, owner: Faction, incoming: number): number 
   const accepted = Math.max(0, Math.min(incoming, powerCapacity(game, owner) - existing));
   return incoming - accepted;
 }
-function log(game: Game, point: { x: number; y: number }, owners: (Faction | null)[], message: string): void {
-  game.events.unshift({ hour: game.hour, audience: [...new Set([...owners.filter((o): o is Faction => !!o), ...observers(game, point)])], message });
+function log(game: Game, point: { x: number; y: number }, owners: (Faction | null)[], message: string, battle = false): void {
+  game.events.unshift({ hour: game.hour, audience: [...new Set([...owners.filter((o): o is Faction => !!o), ...observers(game, point)])], message, ...(battle ? { battle: { x: point.x, y: point.y } } : {}) });
 }
 export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, encounters?: EncounterSink): void {
   const leaders = coreLocations(game);
@@ -110,7 +110,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     if (rock.kind === 'mine') { if (rock.owner) loseMine(game, rock.owner); rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
     if (!rock.owner && rock.kind === 'factory') rock.productionAt = afterWork(game, game.hour, 8);
     rock.owner = fleet.owner; rock.shieldAt = afterWork(game, game.hour, 48 / (rock.shieldMax ?? 10));
-    log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`);
+    log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`, true);
   } else {
     const remaining = rock.drones - fleet.drones;
     const repaired = repairLosses(game, rock, Math.max(0, originalDefending - remaining), phase.suppressed);
@@ -118,7 +118,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     rock.drones = remaining + repaired + salvaged;
     if (draft) { draft.winner = 1; draft.repaired = repaired; if (salvaged) draft.salvaged = salvaged; draft.captured = rock.owner ? newlyCaptive(fleet.specialists ?? [], rock.owner) : []; }
     if (rock.owner) rock.specialists = [...(rock.specialists ?? []), ...capture(game, fleet.specialists ?? [], rock.owner)];
-    log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`);
+    log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`, true);
   }
   game.fleets = game.fleets.filter(f => f.id !== fleet.id);
   reconcileLeadership(game, leaders, rock);
@@ -160,7 +160,7 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet, encounters?:
     if (phase.redirected.includes(winner) || living(winner).some(u => u.kind === 'pirate') && (mechanicsVersion(game) < 3 || winner.intercept)) returnHauler(game, winner);
     if (winner.drones === 0 && !winner.specialists?.length) game.fleets = game.fleets.filter(f => f.id !== winner.id);
   }
-  log(game, point, [a.owner, b.owner], 'Haulers fought in transit; surviving modules returned or were captured.');
+  log(game, point, [a.owner, b.owner], 'Haulers fought in transit; surviving modules returned or were captured.', true);
   reconcileLeadership(game, leaders, point);
   finish(encounters, draft, game, result === 0 ? 'tie' : 'won', a, b);
 }

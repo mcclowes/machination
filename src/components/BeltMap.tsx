@@ -3,6 +3,7 @@
  * purpose: Touch-selectable belt chart with ownership, transfer trajectories, and accessible rock controls.
  * ---
  */
+import { MapBattles } from './MapBattles';
 import { MapPulses } from './MapPulses';
 import type { GameView } from '../game/visibility';
 import { HaulerCombat, type CombatObservation } from './HaulerCombat';
@@ -44,7 +45,7 @@ function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
   const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
   return baseIcons[kind];
 }
-type Props<T extends ChartRock> = { game: { pulse?: GameView['pulse']; epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; coveredBottom?: number; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; combatObservation?: CombatObservation; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
+type Props<T extends ChartRock> = { game: { events?: GameView['events']; pulse?: GameView['pulse']; epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; coveredBottom?: number; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; combatObservation?: CombatObservation; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
 export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, coveredBottom = 0, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, combatObservation, timeInspection }: Props<T>) {
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
@@ -255,6 +256,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         const { from: a, to: b } = transferRoute ?? (source.drift || target.drift ? stationCourse(game, source, target, 8, game.hour + 1 / 6).route : chartRoute(game, source, target));
         return <Line x1={a.x * sx} y1={a.y * sy} x2={b.x * sx} y2={b.y * sy} stroke={identity(player ?? 'you').color} strokeDasharray="5 4" />;
       })()}
+      <MapBattles events={game.events} hour={game.hour} scale={sx} />
       </G>)}
       </G>
       {sites.map(({ key, x, y, shields }) => shields.length > 0 && <G key={`shields-${key}`} transform={`translate(${x}, ${y})`}>

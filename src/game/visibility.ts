@@ -13,7 +13,7 @@ import { fundingCount, type Funding } from './funding';
 import { simulationFromObservation } from './observation-simulation';
 import { isActionPlan, mapActionUnits, mapActionFleets } from './future-actions';
 import type { ScheduledOrder } from './orders';
-import { EVENTS_PER_OBSERVER } from './events';
+import { EVENTS_PER_OBSERVER, type ObservedEvent } from './events';
 import { advance, type Faction, type Fleet, type Game, type Rock } from './simulation';
 import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
@@ -27,7 +27,7 @@ export type GameView = {
   version?: 1 | 2; minesDrilled?: Partial<Record<Faction, number>>;
   hour: number; epoch: number; rocks: ObservedRock[]; fleets: Fleet[];
   cargo: Partial<Record<Faction, number>>; eliminated: Faction[]; winner: Faction | null; draw?: true;
-  scheduled: ScheduledOrder[]; events: { hour: number; message: string }[]; coverage: Sensor[]; uncertain: string[]; interceptionUncertain: boolean;
+  scheduled: ScheduledOrder[]; events: ObservedEvent[]; coverage: Sensor[]; uncertain: string[]; interceptionUncertain: boolean;
 };
 export function observe(game: Game, faction: Faction, identify: (id: number) => number = id => id, identifyUnit: (id: string) => string = id => id): GameView {
   game = { ...game, rocks: game.rocks.map(r => r.drift ? { ...r, ...sitePosition(game, r, game.hour) } : r) };
@@ -66,7 +66,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
       ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, ...(r.drift ? { drift: r.drift } : {}), kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false, ...(game.version === 2 ? { owner: r.owner } : {}) }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: { [faction]: game.cargo[faction] }, eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
-    events: game.events.filter(e => e.audience?.includes(faction)).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message })),
+    events: game.events.filter(e => e.audience?.includes(faction)).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message, ...(e.battle ? { battle: { ...e.battle } } : {}) })),
     scheduled: (game.scheduled ?? []).filter(p => p.owner === faction).map(p => isActionPlan(p) ? { ...p, ...(p.fleetId === undefined ? {} : { fleetId: identify(p.fleetId) }), action: mapActionFleets(mapActionUnits(p.action, identifyUnit), identify), ...(p.hireUnits ? { hireUnits: p.hireUnits.map(identifyUnit) } : {}) } : { ...p, ...(p.fleetId === undefined ? {} : { fleetId: identify(p.fleetId) }), ...(p.specialists ? { specialists: p.specialists.map(identifyUnit) } : {}) }),
     coverage, uncertain: [], interceptionUncertain: false,
   };
