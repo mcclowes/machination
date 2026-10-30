@@ -6,9 +6,17 @@ The immediate target is a polished, invite-only multiplayer TestFlight release. 
 
 ## Current baseline
 
-The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build 0.1.0 (1) was distributed; a new build is tracked separately in [#122](https://github.com/mcclowes/machination/issues/122). See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
+The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build 0.1.0 (2) is distributed, recorded in [#122](https://github.com/mcclowes/machination/issues/122). It predates the HTTP and client-recovery fixes below. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
 
 Code, a passing host test, a simulator session, a signed IPA, and a successful physical-device playtest prove different things. Record the source commit, runtime/device, command or scenario, result, and evidence for each gate. Earlier passing suites don't certify the current source.
+
+## Client recovery
+
+The root React boundary contains descendant render and lifecycle errors, including account-provider rendering, and offers a safe-area-aware retry screen. Retry remounts the application without clearing saves, seat credentials, or notification settings. It makes no persistence or network writes itself. Unsaved input can be lost when the failed screen unmounts. A persistent failure leaves retry available rather than automatically looping or resetting progress.
+
+Four host tests exercise the actual entry-point wiring with synthetic descendants: healthy rendering, a failed operation, account initialization, repeated failure, effect cleanup, and successful retry. Browser fixture checks cover 320-, 390-, and 1024-pixel viewports with a 48-pixel retry target and no horizontal overflow. These checks don't prove native layout, VoiceOver behavior, or physical-device recovery. The boundary logs a component stack locally and doesn't provide remote crash reporting.
+
+[React error boundaries](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary) don't catch native process crashes, module-load failures, ordinary event-handler errors, or arbitrary asynchronous callbacks. Existing expected command, storage, and network failures retain their own handling. Track this containment and its verification in [#126](https://github.com/mcclowes/machination/issues/126).
 
 ## Delivery order and gates
 
