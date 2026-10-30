@@ -41,7 +41,7 @@ import {
 } from '../src/game/rules';
 import { ALL_PLAYERS, playersIn } from '../src/game/players';
 import { DEFAULT_PORTRAITS } from '../src/game/characters';
-import { advance, createGame, type Faction } from '../src/game/simulation';
+import { advance, createGame, operationStatus, type Faction } from '../src/game/simulation';
 import { type Specialist } from '../src/game/specialists';
 import { isSpecialistKind } from '../src/game/specialist-catalog';
 import type { HaulerChange } from '../src/game/transport';
@@ -63,7 +63,7 @@ import {
 } from '../src/game/replay';
 import { INACTIVITY_HOURS, HOUR_MS } from '../src/game/retirement';
 import { replayFits } from '../src/game/replay-save';
-import type { HistorySnapshot } from '../src/contracts/protocol';
+import type { HistorySnapshot, OperationListing } from '../src/contracts/protocol';
 import type { FundingOrder } from '../src/contracts/protocol';
 import type { MessageNotificationSettings } from '../src/contracts/notifications';
 import {
@@ -115,6 +115,10 @@ import {
 export { Failure } from './failure';
 export type { NotificationVersion } from './notification-preferences';
 const FACTIONS = ALL_PLAYERS;
+/** Unfinished operations one credential may hold at once. */
+export const MAX_OPEN_OPERATIONS = 10;
+const FINISHED_LISTING_LIMIT = 20;
+const CREATION_REQUEST = /^[A-Za-z0-9_-]{16,64}$/;
 export type { AccountCredential } from './seat-credentials';
 import {
   credentialHash,
@@ -517,6 +521,42 @@ export class GameService {
       serverTime: this.now(),
     };
   }
+  private assertCapacity(db: Database, token: Credential): void {
+    const open = db.rooms.filter(
+      (r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token)),
+    ).length;
+    requireThat(
+      open < MAX_OPEN_OPERATIONS,
+      409,
+      'account.capacity.operations',
+      `Finish or resign an operation first. You can run ${MAX_OPEN_OPERATIONS} at once.`,
+    );
+  }
+  /** Newest first; finished operations are included so players can see results. */
+  accountOperations(account: AccountCredential): Promise<OperationListing[]> {
+    return this.transaction((db) => {
+      credentialHash(account);
+      const seated = db.rooms.filter((r) => r.seats.some((s) => matchesCredential(s, account)));
+      for (const room of seated) this.settle(db, room);
+      const recentResults = new Set(seated.filter(finished).slice(-FINISHED_LISTING_LIMIT));
+      return seated
+        .filter((r) => !finished(r) || recentResults.has(r))
+        .reverse()
+        .map((room) => {
+          const faction = this.seat(room, account);
+          return {
+            id: room.id,
+            faction,
+            mode: room.game.rules?.mode ?? 'mining',
+            players: playersIn(room.game).length,
+            seated: room.seats.length,
+            started: room.startedAt !== null,
+            hour: room.game.hour,
+            status: operationStatus(room.game, faction),
+          };
+        });
+    });
+  }
   accountSession(account: AccountCredential): Promise<Snapshot | null> {
     return this.transaction((db) => {
       credentialHash(account);
@@ -546,13 +586,16 @@ export class GameService {
         'account.conflict.owner',
         'This seat belongs to another account.',
       );
-      requireThat(
-        !db.rooms.some((r) => r.seats.some((s) => s !== seat && s.accountId === account.accountId)),
-        409,
-        'account.conflict.assigned',
-        'Your account already controls another operation.',
-      );
       assertOperationAvailable(db, { credential: account });
+      if (seat.accountId !== account.accountId) {
+        requireThat(
+          !room.seats.some((s) => s.accountId === account.accountId),
+          409,
+          'account.conflict.assigned',
+          'Your account already controls another seat in this operation.',
+        );
+        this.assertCapacity(db, account);
+      }
       seat.accountId = account.accountId;
       delete seat.recoveryHash;
       delete seat.recoveryReceipt;
@@ -566,7 +609,19 @@ export class GameService {
     options?: unknown,
     variant?: unknown,
     preferredColor?: unknown,
+    requestId?: unknown,
   ): Promise<Snapshot> {
+    if (
+      requestId !== undefined &&
+      (typeof requestId !== 'string' || !CREATION_REQUEST.test(requestId))
+    )
+      return Promise.reject(
+        new Failure(
+          400,
+          'game.validation.request',
+          'Provide a request id of 16–64 letters, digits, dashes, or underscores.',
+        ),
+      );
     if (preferredColor !== undefined && !isPlayerColor(preferredColor))
       return Promise.reject(
         new Failure(400, 'player.validation.color', 'Choose a known player color.'),
@@ -590,12 +645,14 @@ export class GameService {
         ),
       );
     return this.transaction((db) => {
-      credentialHash(token);
+      const credential = credentialHash(token);
+      const creationKey = requestId === undefined ? undefined : hash(`${credential}:${requestId}`);
       for (const room of db.rooms)
         if (room.seats.some((s) => matchesCredential(s, token))) this.settle(db, room);
-      const existing = db.rooms.find(
-        (r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token)),
-      );
+      // Without a request id, older clients treat any unfinished seat as their retried creation.
+      const existing = creationKey
+        ? db.rooms.find((r) => r.creationKey === creationKey)
+        : db.rooms.find((r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token)));
       if (existing) {
         requireThat(
           existing.variant === variant,
@@ -627,6 +684,7 @@ export class GameService {
         return this.view(existing, this.seat(existing, token));
       }
       assertOperationAvailable(db, { credential: token });
+      this.assertCapacity(db, token);
       requireThat(
         db.rooms.length < 1000,
         503,
@@ -635,6 +693,7 @@ export class GameService {
       );
       const room: Room = {
         ...(variant ? { variant } : {}),
+        ...(creationKey ? { creationKey } : {}),
         id: randomBytes(12).toString('hex'),
         invite: randomBytes(12).toString('hex'),
         startedAt: null,
@@ -684,12 +743,15 @@ export class GameService {
       assertOperationAvailable(db, { credential: token });
       for (const prior of db.rooms)
         if (prior.seats.some((s) => matchesCredential(s, token))) this.settle(db, prior);
+      // A device token names exactly one seat; accounts may hold several operations.
       requireThat(
-        !db.rooms.some((r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token))),
+        typeof token !== 'string' ||
+          !db.rooms.some((r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token))),
         409,
         'seat.conflict.assigned',
         'This token already belongs to another operation.',
       );
+      this.assertCapacity(db, token);
       requireThat(
         room.startedAt === null && room.seats.length < playersIn(room.game).length,
         409,

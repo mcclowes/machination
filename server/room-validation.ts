@@ -53,6 +53,10 @@ export function validateStoredRoom(r: Room, ids: ReadonlySet<string>): void {
     throw new Error('Damaged server database.');
   if (r.referenceKey !== undefined && !isHash(r.referenceKey))
     throw new Error('Damaged object reference key.');
+  if (r.creationKey !== undefined && !isHash(r.creationKey))
+    throw new Error('Damaged creation key.');
+  const accounts = r.seats.flatMap((s) => (s.accountId ? [s.accountId] : []));
+  if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
   for (const seat of r.seats) {
     if (
       seat.accountId !== undefined &&

@@ -75,4 +75,10 @@ test('HTTP login restores an account seat with a new session and migrates a lega
   assert.equal(created.status, 200);
   assert.equal((await request('games', token({ sub: 'user_charlie', sid: 'sess_other' }), {})).data.id, created.data.id);
   assert.equal(JSON.stringify(created.data).includes('user_charlie'), false, 'account IDs stay out of game snapshots');
+  const another = await request('games', charlie, { requestId: 'charlie-second-game' });
+  assert.notEqual(another.data.id, created.data.id);
+  const listed = await request('account/operations', charlie);
+  assert.deepEqual(listed.data.operations.map((o: { id: string }) => o.id), [another.data.id, created.data.id]);
+  assert.equal(JSON.stringify(listed.data).includes('user_charlie'), false, 'account IDs stay out of listings');
+  assert.equal((await request('account/operations', legacyToken)).status, 401);
 });

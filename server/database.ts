@@ -35,6 +35,8 @@ export type Room = {
   invite: string;
   startedAt: number | null;
   revision: number;
+  /** Hash of the creator's credential and client request id, so creation retries return this room. */
+  creationKey?: string;
   game: Game;
   seats: {
     profileId?: string;

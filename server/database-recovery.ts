@@ -117,9 +117,5 @@ export function recoverStoredDatabase(
   validateQuarantine(database);
   validateNotifications(database);
   validateFactions(database);
-  const accounts = database.rooms
-    .filter((r) => !finished(r))
-    .flatMap((r) => r.seats.flatMap((s) => (s.accountId ? [s.accountId] : [])));
-  if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
   return { database, rejected };
 }

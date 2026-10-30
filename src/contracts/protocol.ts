@@ -42,6 +42,17 @@ export type ObjectReferences = {
   outposts: { id: string; ref: string }[];
   haulers: { id: number; ref: string }[];
 };
+/** One row of `GET /v1/account/operations`, newest first. */
+export type OperationListing = {
+  id: string;
+  faction: Faction;
+  mode: 'pulse' | 'mining' | 'domination';
+  players: number;
+  seated: number;
+  started: boolean;
+  hour: number;
+  status: 'active' | 'victory' | 'defeat' | 'eliminated' | 'draw';
+};
 export type Snapshot = {
   variant?: 'faction';
   allegiances?: { player: Faction; faction: Allegiance }[];

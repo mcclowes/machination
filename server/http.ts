@@ -39,8 +39,8 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
   }
   if (req.method === 'POST' && url.pathname === '/v1/games') {
     const input = await body(req);
-    if (Object.keys(input).some(key => !['options', 'variant', 'preferredColor'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
-    return service.create(token, input.options, input.variant, input.preferredColor);
+    if (Object.keys(input).some(key => !['options', 'variant', 'preferredColor', 'requestId'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
+    return service.create(token, input.options, input.variant, input.preferredColor, input.requestId);
   }
   if (req.method === 'POST' && url.pathname === '/v1/join') {
     const input = await body(req);
@@ -150,11 +150,14 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
       const legacy = /^[a-f0-9]{64}$/.test(bearer);
       const account = authenticate && !legacy ? await authenticate(bearer, origin) : undefined;
       const token = account ?? (legacy ? bearer : '');
-      if (path === '/v1/account/session' || path === '/v1/account/link') {
+      if (path === '/v1/account/session' || path === '/v1/account/link' || path === '/v1/account/operations') {
         if (!authenticate) throw new Failure(503, 'account.unavailable.configuration', 'Account login is not configured on this server.');
         if (!account) throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Marginal Utility account.');
         if (path === '/v1/account/session' && req.method === 'GET') {
           res.end(JSON.stringify({ snapshot: await service.accountSession(account) })); return;
+        }
+        if (path === '/v1/account/operations' && req.method === 'GET') {
+          res.end(JSON.stringify({ operations: await service.accountOperations(account) })); return;
         }
         if (path === '/v1/account/link' && req.method === 'POST') {
           const input = await body(req);
