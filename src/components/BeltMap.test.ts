@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
 
-for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifecycle on ${platform}`, async () => {
+for (const platform of ['web', 'ios', 'android']) test(`chart zoom controls and wheel lifecycle on ${platform}`, async () => {
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globals, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
@@ -81,10 +81,11 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
     await panChart(-40, -20);
     assert.deepEqual(camera, { scale: 2, x: 0, y: 0 });
     assert.equal(!!button('Zoom in'), platform === 'web', 'web controls are discoverable; native controls stay compact');
-    if (platform === 'ios') {
+    if (platform !== 'web') {
       assert.equal(listeners.size, 0);
       await flush(() => button('Map controls').props.onPress());
-      assert.ok(button('Zoom in'));
+      assert.equal(!!button('Zoom in'), platform !== 'ios', 'iOS uses pinch zoom without zoom buttons');
+      assert.equal(!!button('Zoom out'), platform !== 'ios');
       const chart = renderer.root.findAll((node: any) => node.type === 'View' && node.props.testID === 'belt-map')[0];
       const gesture = { dx: 0, dy: 0 };
       await flush(() => chart.props.onPanResponderGrant({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }, { pageX: 100, pageY: 0 }] } }, gesture));
