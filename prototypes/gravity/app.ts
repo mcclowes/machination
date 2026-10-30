@@ -5,6 +5,7 @@
  */
 import { generateWorld } from '../../src/game/generated-world';
 import type { Faction } from '../../src/game/players';
+import { contour, pull, ringStep } from './layers';
 import { coastable, DEFAULT_TUNING, placeGiants, plotCourse, positionAt, speedFactor, wrapPoint, type Course, type Point, type Tuning, type Well } from './model';
 
 const PLAYERS: Faction[] = ['you', 'vesper', 'null'];
@@ -24,8 +25,9 @@ const state = {
   sites: [] as Site[], width: 100, height: 100,
   antigravity: [] as Well[], waypoints: [] as Point[],
   from: null as Site | null, to: null as Site | null,
-  allRoutes: false, field: false, chord: true, shadows: true,
+  allRoutes: false, field: false, chord: true, shadows: true, rings: false, pull: false,
   shadowCells: [] as Point[], shadowKey: '',
+  travelTimes: [] as number[][], travelKey: '',
   course: null as Course | null, launchedAt: null as number | null, hour: 0, playRate: 2,
 };
 
@@ -94,6 +96,70 @@ function drawShadows(all: Well[]): void {
   }
 }
 
+const RING_CELLS = 30;
+// Coarser integration is ~3× faster and within 0.01h of the full solve, which is plenty for contours.
+const RING_SAMPLES = 16;
+
+/** Hours from the selected site to each cell centre, NaN inside a body's clearance. Cached; each cell is a full course solve. */
+function travelTimes(all: Well[]): number[][] {
+  const from = state.from!;
+  const key = JSON.stringify([from.id, all, state.tuning, state.sites.length, state.seed]);
+  if (key === state.travelKey) return state.travelTimes;
+  const blocking = all.filter(w => w.id !== from.id);
+  const size = state.width / RING_CELLS, tuning = { ...state.tuning, samples: RING_SAMPLES };
+  state.travelTimes = Array.from({ length: RING_CELLS }, (_, i) => Array.from({ length: RING_CELLS }, (_, j) => {
+    const p = { x: (i + 0.5) * size, y: (j + 0.5) * size };
+    if (blocking.some(w => Math.hypot(w.x - p.x, w.y - p.y) < w.radius * 1.3)) return NaN;
+    return plotCourse(state, from, p, blocking, tuning, from.owner).duration;
+  }));
+  state.travelKey = key;
+  return state.travelTimes;
+}
+
+/** Repeat the first row and column so contours close across the torus seam. */
+const wrapGrid = (values: number[][]) => [...values, values[0]!].map(col => [...col, col[0]!]);
+
+function drawRings(all: Well[]): void {
+  const times = travelTimes(all);
+  const max = Math.max(...times.flat().filter(t => !Number.isNaN(t)));
+  const step = ringStep(max), size = canvas.width / RING_CELLS, origin = toCanvas(state.from!);
+  ctx.strokeStyle = '#7fd8ffaa'; ctx.lineWidth = 1.25;
+  for (let level = step; level < max; level += step) {
+    const segments = contour(wrapGrid(times), level, size);
+    ctx.beginPath();
+    for (const [a, b] of segments) { ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); }
+    ctx.stroke();
+    // Label where the ring crosses the ray toward the chart centre, so labels stack into a readable scale with room around them.
+    const ray = { x: canvas.width / 2 - origin.x, y: canvas.height / 2 - origin.y }, rayLength = Math.hypot(ray.x, ray.y) || 1;
+    const offRay = (a: Point) => Math.abs(((a.x - origin.x) * ray.y - (a.y - origin.y) * ray.x) / rayLength);
+    const along = (a: Point) => ((a.x - origin.x) * ray.x + (a.y - origin.y) * ray.y) / rayLength;
+    // Prefer the nearest crossing so wrapped copies of a ring on the far side of the torus lose.
+    const score = (a: Point) => offRay(a) + along(a) * 0.5;
+    const anchor = segments.map(([a]) => a).filter(a => along(a) > 0).reduce<Point | null>((best, a) => !best || score(a) < score(best) ? a : best, null);
+    if (anchor) label(toWorld(anchor.x, anchor.y), `${level}h`, '#7fd8ff', 4);
+  }
+}
+
+const PULL_CELLS = 28;
+
+function drawPull(all: Well[]): void {
+  const size = canvas.width / PULL_CELLS;
+  const images = all.flatMap(w => [-1, 0, 1].flatMap(ox => [-1, 0, 1].map(oy => ({ ...w, x: w.x + ox * state.width, y: w.y + oy * state.height }))));
+  ctx.lineWidth = 1.25;
+  for (let i = 0; i < PULL_CELLS; i++) for (let j = 0; j < PULL_CELLS; j++) {
+    const cx = (i + 0.5) * size, cy = (j + 0.5) * size;
+    const g = pull(toWorld(cx, cy), images, state.tuning), m = Math.hypot(g.x, g.y);
+    if (m < 0.02) continue;
+    const len = Math.min(size * 0.85, size * 1.6 * m), ux = g.x / m, uy = g.y / m;
+    const x0 = cx - ux * len / 2, y0 = cy - uy * len / 2, x1 = cx + ux * len / 2, y1 = cy + uy * len / 2;
+    ctx.strokeStyle = `rgba(201,162,255,${Math.min(0.9, 0.25 + m)})`;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+    ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * 4 + uy * 3, y1 - uy * 4 - ux * 3);
+    ctx.moveTo(x1, y1); ctx.lineTo(x1 - ux * 4 - uy * 3, y1 - uy * 4 + ux * 3);
+    ctx.stroke();
+  }
+}
+
 function drawPath(points: readonly Point[], color: string, width: number, dash: number[] = []): void {
   ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash);
   eachImage((ox, oy) => {
@@ -140,6 +206,8 @@ function render(): void {
   const all = wells();
   if (state.field) drawField(all);
   if (state.shadows && state.from) drawShadows(wells([state.from.id]));
+  if (state.pull) drawPull(all);
+  if (state.rings && state.from) drawRings(wells([state.from.id]));
 
   for (const w of all) {
     if (w.id.startsWith('giant')) {
@@ -257,6 +325,8 @@ bindNumber('playRate', v => { state.playRate = v; });
 bindCheck('ownerAware', v => { state.tuning.ownerAware = v; });
 bindCheck('allRoutes', v => { state.allRoutes = v; });
 bindCheck('field', v => { state.field = v; });
+bindCheck('rings', v => { state.rings = v; });
+bindCheck('pull', v => { state.pull = v; });
 bindCheck('chord', v => { state.chord = v; });
 bindCheck('shadows', v => { state.shadows = v; });
 $<HTMLSelectElement>('mode').addEventListener('change', e => { state.mode = (e.target as HTMLSelectElement).value as Mode; });

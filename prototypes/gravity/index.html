@@ -60,10 +60,15 @@
     <legend>Chart</legend>
     <label>Seed <input id="seed" type="range" min="1" max="60" step="1" value="7"><output for="seed"></output></label>
     <label>Players <input id="players" type="range" min="2" max="6" step="1" value="3"><output for="players"></output></label>
-    <label class="check"><input id="allRoutes" type="checkbox"> Show every course from the selected site</label>
-    <label class="check"><input id="field" type="checkbox"> Show the speed field</label>
-    <label class="check"><input id="chord" type="checkbox" checked> Show the straight chord</label>
-    <label class="check"><input id="shadows" type="checkbox" checked> Shade shadows: places the selected site can't reach without a burn</label>
+  </fieldset>
+  <fieldset>
+    <legend>Layers</legend>
+    <label class="check"><input id="allRoutes" type="checkbox"> Travel time: every course and ETA from the selected site</label>
+    <label class="check"><input id="rings" type="checkbox"> Travel time: rings from the selected site</label>
+    <label class="check"><input id="field" type="checkbox"> Gravity: speed field</label>
+    <label class="check"><input id="pull" type="checkbox"> Gravity: pull direction</label>
+    <label class="check"><input id="chord" type="checkbox" checked> Straight chord</label>
+    <label class="check"><input id="shadows" type="checkbox" checked> Shadows: places the selected site can't reach without a burn</label>
   </fieldset>
 </aside>
 <script src="dist/app.js"></script>
