@@ -35,7 +35,7 @@ async function motionHost(platform: string, check: (host: any) => Promise<void>)
         builder.onLoad({ filter: /.*/, namespace: 'motion-host' }, args => ({ contents: args.path.endsWith('PlayerIdentity')
           ? `export const PlayerRoster=({children})=>children;`
           : args.path === 'react-native-svg'
-            ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path';`
+            ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Rect='Rect';`
             : `const host=globalThis.__operationAnimationHost;
               export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',KeyboardAvoidingView='KeyboardAvoidingView';
               export const StyleSheet={create:x=>x},Platform={OS:${JSON.stringify(platform)}},useWindowDimensions=()=>({width:1200});
