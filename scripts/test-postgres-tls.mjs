@@ -223,7 +223,11 @@ try {
     );
     await run(
       process.execPath,
-      ['--test', '--test-name-pattern=Postgres.*TLS', 'scripts/build-server.test.mjs'],
+      [
+        '--test',
+        '--test-name-pattern=Postgres.*TLS|Postgres recovery',
+        'scripts/build-server.test.mjs',
+      ],
       env,
     );
   }

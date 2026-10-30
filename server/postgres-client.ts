@@ -17,6 +17,7 @@ import {
   type PostgresPersistence,
   type SqlClient,
 } from './postgres-store';
+import type { DatabaseRecoveryMode } from './database';
 
 export type PostgresConnectionConfig = { tls?: string; ca?: string };
 
@@ -120,11 +121,12 @@ export async function openPostgres(
   url: string,
   legacyFile: string,
   config: PostgresConnectionConfig = {},
+  recovery: DatabaseRecoveryMode = 'strict',
 ): Promise<ManagedPostgresPersistence> {
   const client = connectPostgres(url, config);
   const persistence = postgresPersistence(client);
   try {
-    if (await importDatabaseFile(legacyFile, persistence))
+    if (await importDatabaseFile(legacyFile, persistence, recovery))
       console.log('Imported the JSON game snapshot into Postgres.');
     return { ...persistence, close: (graceMs) => client.close(graceMs) };
   } catch (error) {

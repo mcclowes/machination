@@ -11,6 +11,7 @@ import { GameService } from './service';
 import { openPostgres } from './postgres-client';
 import { createApi } from './http';
 import { clientIpMode } from './client-address';
+import { databaseRecoveryMode } from './database-recovery';
 import { clerkAuthentication } from './auth';
 import { expoPushProvider, pushConfiguration } from './expo-push';
 import { NotificationWorker } from './push-worker';
@@ -23,6 +24,7 @@ async function main() {
     throw new Error('PORT must be an integer from 0 to 65535.');
   const push = pushConfiguration(process.env);
   const clientIp = clientIpMode(process.env.MACHINATION_CLIENT_IP);
+  const recovery = databaseRecoveryMode(process.env.MACHINATION_DATABASE_RECOVERY);
   const dataFile = resolve(process.env.MACHINATION_DATA ?? '.data/games.json');
   const databaseUrl = process.env.DATABASE_URL?.trim();
   const origins = process.env.MACHINATION_ORIGINS?.split(',')
@@ -37,13 +39,19 @@ async function main() {
     origins,
   );
   const storage = databaseUrl
-    ? await openPostgres(databaseUrl, dataFile, {
-        tls: process.env.MACHINATION_DATABASE_TLS,
-        ca: process.env.MACHINATION_DATABASE_CA,
-      })
+    ? await openPostgres(
+        databaseUrl,
+        dataFile,
+        {
+          tls: process.env.MACHINATION_DATABASE_TLS,
+          ca: process.env.MACHINATION_DATABASE_CA,
+        },
+        recovery,
+      )
     : undefined;
   try {
     const service = await GameService.open(storage ?? dataFile, Date.now, undefined, {
+      databaseRecovery: recovery,
       notifications: push.enabled,
       ...(process.env.MACHINATION_PULSE_CONFIG
         ? {

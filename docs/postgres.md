@@ -5,7 +5,8 @@ Set `DATABASE_URL` to store game state in Postgres instead of the JSON file. Sup
 ## Layout
 
 - `machination_rooms` holds one row per room. Each row is the full room, including its immutable command history (`replay`), so there's no separate command table.
-- `machination_state` holds the database version, faction profiles, notification state, and the current writer.
+- `machination_state` holds the database version, faction profiles, notification state, quarantined operation identifiers, and the current writer.
+- `machination_quarantine` holds private recovery archives and the original source of a first import. The active loader does not publish those records.
 
 Columns use `json`, not `jsonb`, so object key order survives exactly. Each save writes only the rooms that changed, inside one transaction. Validation is unchanged: rows are loaded and checked by the same code as the JSON file.
 
@@ -19,7 +20,7 @@ On SIGTERM or SIGINT, the service stops accepting new connections, drains active
 
 ## Moving from the JSON file
 
-On startup, if Postgres has no game state and `MACHINATION_DATA` points to an existing file, the service validates that file and copies it in, logging `Imported the JSON game snapshot into Postgres.` Later starts ignore the file. Take a restricted backup before importing: legacy validation can add missing metadata to the source file. The file remains in place, but subsequent Postgres writes don't update it. It isn't an ongoing backup.
+On startup, if Postgres has no game state and `MACHINATION_DATA` points to an existing file, the service validates its UTF-8 and JSON and imports it, logging `Imported the JSON game snapshot into Postgres.` The original source text is archived in SQL in the same transaction as active state. The legacy file stays unchanged. With the executable's default quarantine policy, isolated damaged rooms remain unavailable while healthy rooms import. Strict mode refuses them. An incomplete database is refused, and a target initialized before the import commits is preserved. Later starts ignore the file. Take a restricted backup before migrating; subsequent Postgres writes do not update the legacy file. See [quarantine and recovery](storage-recovery.md).
 
 ## Supabase setup
 
@@ -54,4 +55,4 @@ MACHINATION_TEST_DATABASE_URL=postgres://postgres:test@localhost:55432/postgres 
 
 That test drops and recreates the Machination tables, so point it only at a disposable database.
 
-With Docker and OpenSSL available, `npm run test:postgres-tls` owns two disposable Postgres 17.11 containers and a two-day fixture CA. One server rejects plaintext; the other doesn't support TLS. It checks trusted encryption, unknown CA and hostname refusal, plaintext refusal, rollback, writer fencing, state/retry restoration, and the packaged server's CA configuration. It removes only its own containers, volumes, and certificates. `npm run test:postgres-tls -- --full` runs the entire `npm run check` gate with both databases configured, including all SQL/TLS cases.
+With Docker and OpenSSL available, `npm run test:postgres-tls` owns two disposable Postgres 17.11 containers and a two-day fixture CA. One server rejects plaintext; the other doesn't support TLS. It checks trusted encryption, unknown CA and hostname refusal, plaintext refusal, rollback, writer fencing, state/retry restoration, packaged TLS quarantine, and recovery imports. It removes only its own containers, volumes, and certificates. `npm run test:postgres-tls -- --full` runs the entire `npm run check` gate with both databases configured, including all SQL/TLS cases.

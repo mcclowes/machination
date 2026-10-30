@@ -53,13 +53,19 @@ Gifts cannot be scheduled. The service rechecks current observation, recipient o
 
 ## Persistence and operation
 
-The service uses a serialized transaction queue and a versioned JSON database. Mutations apply to a copy, write and flush a replacement file, and rename it before publishing the new in-memory state. A failed write doesn't publish a partial mutation. Startup refuses damaged or unsupported data. Snapshots, seat hashes, messages, and retry receipts survive a restart.
+The service uses a serialized transaction queue. Mutations apply to a copy and become durable before the new in-memory state is published. The default JSON backend flushes a replacement file, renames it, and syncs its directory. Optional [Postgres storage](postgres.md) commits changed rows in one transaction. Snapshots, seat hashes, messages, and retry receipts survive a restart.
 
-Run **one process per data file**. This is a small hosted-playtest backend, not a horizontally scalable service. The data file defaults to `.data/games.json`; back it up and preserve its filesystem permissions. No scheduled game worker is required: simulation catches up from the server clock on access.
+The executable preserves isolated damaged operations in a private archive and keeps them unavailable while healthy operations load. Clients receive a retryable 503 without losing their connection or pending request. Strict mode refuses new damage. Invalid shared structures and unsupported database formats still stop startup. See [quarantine and operator recovery](storage-recovery.md).
+
+Run **one authoritative process** per database. Postgres fences older writers; the file backend requires one process per data file. The file defaults to `.data/games.json`; back it up and preserve its filesystem permissions. Simulation catches up from the server clock on access.
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
-| `MACHINATION_DATA` | `.data/games.json` | Persistent database file |
+| `MACHINATION_DATA` | `.data/games.json` | Persistent JSON file or first Postgres import source |
+| `DATABASE_URL` | Unset | Optional server-only Postgres connection URL |
+| `MACHINATION_DATABASE_TLS` | `verify-full` | Certificate and hostname verification; explicit `local` permits only loopback plaintext |
+| `MACHINATION_DATABASE_CA` | Default trust roots | Optional provider CA as server-only PEM text |
+| `MACHINATION_DATABASE_RECOVERY` | `quarantine` | Preserve isolated damaged operations, or use `strict` to refuse new damage |
 | `MACHINATION_HOST` | `127.0.0.1` | Bind address |
 | `PORT` | `8787` | Listening port |
 | `MACHINATION_ORIGINS` | `http://localhost:8081,http://localhost:8082` | Exact allowed browser origins, comma separated |

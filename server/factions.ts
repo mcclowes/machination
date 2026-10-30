@@ -23,11 +23,14 @@ export function validateFactions(db: Database): void {
   const identity = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
   if (db.factions !== undefined && (!Array.isArray(db.factions) || !db.factions.every(p => p && identity(p.id) && isAllegiance(p.faction))
     || new Set(db.factions.map(p => p.id)).size !== db.factions.length)) throw new Error('Damaged faction profiles.');
-  for (const room of db.rooms) {
+  for (const room of db.rooms) validateFactionMembership(room, db.factions);
+}
+
+export function validateFactionMembership(room: Room, profiles: readonly FactionProfile[] | undefined): void {
+  const identity = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
     if (room.variant !== undefined && room.variant !== 'faction'
       || room.seats.some(seat => seat.profileId !== undefined && !identity(seat.profileId)
         || seat.allegiance !== undefined && !isAllegiance(seat.allegiance)
-        || seat.allegiance !== undefined && !db.factions?.some(p => p.id === profileId(seat) && p.faction === seat.allegiance)
+        || seat.allegiance !== undefined && !profiles?.some(p => p.id === profileId(seat) && p.faction === seat.allegiance)
         || (room.variant === 'faction') !== (seat.allegiance !== undefined))) throw new Error('Damaged faction membership.');
-  }
 }

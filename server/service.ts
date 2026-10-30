@@ -23,7 +23,14 @@ import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/g
 import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
 import type { SharedReplay } from '../src/replay/timeline';
 import { createHmac, randomBytes } from 'node:crypto';
-import { DatabaseStore, type Database, type Persistence, type Room } from './database';
+import {
+  DatabaseStore,
+  type Database,
+  type DatabaseRecoveryMode,
+  type Persistence,
+  type Room,
+} from './database';
+import { assertOperationAvailable } from './operation-quarantine';
 import { createConfiguredGame } from '../src/game/world';
 import {
   DEFAULT_GAME_OPTIONS,
@@ -118,7 +125,11 @@ import {
 } from './seat-credentials';
 import { receipt } from './command-receipts';
 import { addGroup, addChannelMessage, addPrivateMessage } from './diplomacy';
-export type ServiceOptions = { notifications?: boolean; pulse?: PulseConfig };
+export type ServiceOptions = {
+  notifications?: boolean;
+  pulse?: PulseConfig;
+  databaseRecovery?: DatabaseRecoveryMode;
+};
 export type NotificationQueue = {
   claimSends(owner: string): Promise<SendClaim>;
   /** Advances rooms whose seats accept incoming alerts, with no client request. Returns the rooms settled. */
@@ -143,7 +154,7 @@ export class GameService {
     options: ServiceOptions = {},
   ): Promise<GameService> {
     return new GameService(
-      await DatabaseStore.open(source),
+      await DatabaseStore.open(source, { recovery: options.databaseRecovery }),
       now,
       initialGame,
       !!options.notifications,
@@ -155,6 +166,7 @@ export class GameService {
   }
   private room(db: Database, id: string): Room {
     const room = db.rooms.find((r) => r.id === id);
+    if (!room) assertOperationAvailable(db, { id });
     requireThat(room, 404, 'game.not_found', 'Operation not found.');
     return room;
   }
@@ -171,6 +183,10 @@ export class GameService {
   private profile(db: Database, token: Credential, requireSeat = false): string {
     const credential = credentialHash(token);
     const seat = db.rooms.flatMap((r) => r.seats).find((s) => matchesCredential(s, token));
+    assertOperationAvailable(db, {
+      credential: token,
+      ...(seat ? { profileId: profileId(seat) } : {}),
+    });
     requireThat(
       !requireSeat || typeof token !== 'string' || seat,
       401,
@@ -506,6 +522,7 @@ export class GameService {
       const room = [...db.rooms]
         .reverse()
         .find((r) => r.seats.some((s) => matchesCredential(s, account)));
+      if (!room || finished(room)) assertOperationAvailable(db, { credential: account });
       if (!room) return null;
       this.settle(db, room);
       return this.view(room, this.seat(room, account));
@@ -534,6 +551,7 @@ export class GameService {
         'account.conflict.assigned',
         'Your account already controls another operation.',
       );
+      assertOperationAvailable(db, { credential: account });
       seat.accountId = account.accountId;
       delete seat.recoveryHash;
       delete seat.recoveryReceipt;
@@ -605,6 +623,7 @@ export class GameService {
         this.settle(db, existing);
         return this.view(existing, this.seat(existing, token));
       }
+      assertOperationAvailable(db, { credential: token });
       requireThat(
         db.rooms.length < 1000,
         503,
@@ -652,12 +671,14 @@ export class GameService {
     return this.transaction((db) => {
       credentialHash(token);
       const room = db.rooms.find((r) => r.invite === invite);
+      if (!room) assertOperationAvailable(db, { invite, credential: token });
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
       const existing = room.seats.find((s) => matchesCredential(s, token));
       if (existing) {
         this.settle(db, room);
         return this.view(room, existing.faction);
       }
+      assertOperationAvailable(db, { credential: token });
       for (const prior of db.rooms)
         if (prior.seats.some((s) => matchesCredential(s, token))) this.settle(db, prior);
       requireThat(
@@ -752,6 +773,7 @@ export class GameService {
       );
       const secretHash = hash(command.secret);
       const room = db.rooms.find((r) => r.id === id);
+      if (!room) assertOperationAvailable(db, { id });
       const seat = room?.seats.find(
         (s) =>
           !s.accountId &&

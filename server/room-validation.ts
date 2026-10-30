@@ -1,6 +1,6 @@
 /**
  * ---
- * purpose: Validate stored room rules, seats, diplomacy, recovery metadata, and replay history.
+ * purpose: Validate stored room rules, seats, diplomacy, retry receipts, recovery metadata, and replay history.
  * related:
  *   - ./database.ts - durable room shape and startup validation
  * ---
@@ -38,6 +38,9 @@ export function validateStoredRoom(r: Room, ids: ReadonlySet<string>): void {
     !r.receipts ||
     typeof r.receipts !== 'object' ||
     Array.isArray(r.receipts) ||
+    !Object.values(r.receipts).every(
+      (payload) => typeof payload === 'string' && payload.length > 0,
+    ) ||
     !r.messages.every(
       (m) =>
         Number.isSafeInteger(m.id) &&

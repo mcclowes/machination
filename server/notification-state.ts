@@ -38,6 +38,17 @@ export type RevisionFloor = { roomId: string; faction: Faction; revision: number
 export type IncomingLedger = { roomId: string; faction: Faction; keys: string[] };
 export type NotificationState = { bindings: Binding[]; jobs: Job[]; floors?: RevisionFloor[]; incoming?: IncomingLedger[] };
 
+export function filterRoomNotifications(state: NotificationState | undefined, retain: (roomId: string) => boolean): NotificationState | undefined {
+  if (state === undefined) return undefined;
+  if (!state || !Array.isArray(state.bindings) || !Array.isArray(state.jobs)
+    || state.bindings.length > NOTIFICATION_LIMITS.bindings || state.jobs.length > NOTIFICATION_LIMITS.jobs
+    || state.floors !== undefined && !Array.isArray(state.floors)
+    || state.incoming !== undefined && (!Array.isArray(state.incoming) || state.incoming.length > NOTIFICATION_LIMITS.bindings)) throw new Error('Damaged notification metadata.');
+  return { ...state, bindings: state.bindings.filter(binding => retain(binding?.roomId)), jobs: state.jobs.filter(job => retain(job?.roomId)),
+    ...(state.floors === undefined ? {} : { floors: state.floors.filter(floor => retain(floor?.roomId)) }),
+    ...(state.incoming === undefined ? {} : { incoming: state.incoming.filter(ledger => retain(ledger?.roomId)) }) };
+}
+
 export function validateNotifications(database: Database): void {
   const state = database.notifications;
   if (state === undefined) return;

@@ -4,7 +4,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createServer, request as httpRequest } from 'node:http';
-import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto';
@@ -30,7 +30,7 @@ async function isolatedPostgres(t, databaseUrl = testDatabase, ssl = false) {
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', MACHINATION_DATABASE_RECOVERY: undefined, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -63,6 +63,24 @@ async function start(entry, dataFile, configuration = {}) {
       assert.deepEqual(result, { code: expectedCode, signal: null }, output);
     } finally { clearTimeout(stopTimer); }
   } };
+}
+
+async function damagedFileFixture(entry, file) {
+  const tokens = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];
+  const runtime = await start(entry, file);
+  const rooms = [];
+  try {
+    for (const token of tokens) {
+      const response = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' });
+      assert.equal(response.status, 200); rooms.push(await response.json());
+    }
+  } finally { await runtime.stop(); }
+  const database = JSON.parse(await readFile(file, 'utf8'));
+  database.rooms[0].game.version = 999;
+  database.rooms[0].messages.push({ id: 1, from: 'you', to: 'vesper', sentAt: 1000, text: 'Quarantined transmission must remain private.' });
+  const source = JSON.stringify(database, null, 2);
+  await writeFile(file, source);
+  return { tokens, damaged: rooms[0], healthy: rooms[1], source };
 }
 
 test('standalone bundle serves and restores an offline operation without project dependencies', { timeout: 20_000 }, async () => {
@@ -193,10 +211,80 @@ test('standalone bundle verifies Clerk sessions and restores an account without 
   } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
+test('standalone default recovery preserves raw files and serves healthy operations while strict boot refuses damage', { timeout: 30_000 }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-recovery-bundle-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = join(dir, 'main.mjs'), file = join(dir, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const { tokens, damaged, healthy, source } = await damagedFileFixture(entry, file);
+  await assert.rejects(start(entry, file, { MACHINATION_DATABASE_RECOVERY: 'strict' }), /This save is damaged/);
+  assert.equal(await readFile(file, 'utf8'), source);
+  await assert.rejects(readdir(`${file}.quarantine`), { code: 'ENOENT' });
+  let runtime;
+  try {
+    runtime = await start(entry, file);
+    const headers = token => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' });
+    assert.equal((await fetch(`${runtime.origin}/health`)).status, 200);
+    const resumed = await fetch(`${runtime.origin}/v1/games/${healthy.id}`, { headers: headers(tokens[1]) });
+    assert.equal(resumed.status, 200); assert.equal((await resumed.json()).id, healthy.id);
+    const unavailable = await fetch(`${runtime.origin}/v1/games/${damaged.id}`, { headers: headers(tokens[0]) });
+    const text = await unavailable.text(); assert.equal(unavailable.status, 503);
+    assert.equal(JSON.parse(text).issues[0].issue, 'game.unavailable.recovery');
+    assert.ok(!text.includes('Quarantined transmission') && !text.includes('Reset the operation'));
+    const retried = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: headers(tokens[0]), body: '{}' });
+    assert.equal(retried.status, 503); await retried.arrayBuffer();
+    const created = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: headers(randomBytes(32).toString('hex')), body: '{}' });
+    assert.equal(created.status, 200); await created.arrayBuffer();
+    await runtime.stop(); runtime = undefined;
+    const [archive] = await readdir(`${file}.quarantine`);
+    assert.equal(await readFile(join(`${file}.quarantine`, archive, 'database.json'), 'utf8'), source);
+    runtime = await start(entry, file);
+    const after = await fetch(`${runtime.origin}/v1/games/${damaged.id}`, { headers: headers(tokens[0]) });
+    assert.equal(after.status, 503); await after.arrayBuffer();
+    assert.equal((await readdir(`${file}.quarantine`)).length, 1);
+  } finally { if (runtime) await runtime.stop(); }
+});
+
+test('invalid database recovery policy fails before storage opens', async () => {
+  for (const mode of ['', 'reset', 'true']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: '', MACHINATION_DATABASE_RECOVERY: mode, MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0', MACHINATION_DATA: '/not-a-real-directory/games.json' },
+    }), error => error.code === 1 && !error.killed && /MACHINATION_DATABASE_RECOVERY must be strict or quarantine/.test(error.stderr));
+  }
+});
+
+test('standalone Postgres recovery imports an archived legacy source once without rewriting it', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-recovery-import-bundle-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const entry = join(dir, 'main.mjs'), file = join(dir, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const { tokens, damaged, healthy, source } = await damagedFileFixture(entry, file);
+  const { url, sql, schema } = await isolatedPostgres(t);
+  const configuration = { DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local' };
+  let runtime;
+  try {
+    runtime = await start(entry, file, configuration);
+    const good = await fetch(`${runtime.origin}/v1/games/${healthy.id}`, { headers: { Authorization: `Bearer ${tokens[1]}` } });
+    assert.equal(good.status, 200); assert.equal((await good.json()).id, healthy.id);
+    const bad = await fetch(`${runtime.origin}/v1/games/${damaged.id}`, { headers: { Authorization: `Bearer ${tokens[0]}` } });
+    assert.equal(bad.status, 503); await bad.arrayBuffer();
+    await runtime.stop(); runtime = undefined;
+    assert.equal(await readFile(file, 'utf8'), source);
+    const archives = await sql.unsafe(`select data::text as data from "${schema}".machination_quarantine`);
+    assert.equal(archives.length, 1);
+    assert.equal(JSON.parse(archives[0].data).source, source);
+    assert.equal(JSON.parse(archives[0].data).format, 'json-import.v1');
+    runtime = await start(entry, file, { ...configuration, MACHINATION_DATABASE_RECOVERY: 'strict' });
+    const resumed = await fetch(`${runtime.origin}/v1/games/${healthy.id}`, { headers: { Authorization: `Bearer ${tokens[1]}` } });
+    assert.equal(resumed.status, 200); await resumed.arrayBuffer();
+    assert.equal((await sql.unsafe(`select 1 from "${schema}".machination_quarantine`)).length, 1);
+  } finally { if (runtime) await runtime.stop(); }
+});
+
 test('standalone Postgres TLS verifies its CA and hostname and restores stored state', { timeout: 30_000, skip: !tlsDatabase && 'Run npm run test:postgres-tls for the disposable TLS server.' }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'machination-postgres-tls-bundle-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const { url } = await isolatedPostgres(t, tlsDatabase, { ca: databaseCa, rejectUnauthorized: true });
+  const { url, sql, schema } = await isolatedPostgres(t, tlsDatabase, { ca: databaseCa, rejectUnauthorized: true });
   const entry = join(dir, 'main.mjs'), file = join(dir, 'games.json');
   await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
   const configuration = { DATABASE_URL: url, MACHINATION_DATABASE_CA: databaseCa };
@@ -211,11 +299,24 @@ test('standalone Postgres TLS verifies its CA and hostname and restores stored s
     const created = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers, body: '{}' });
     assert.equal(created.status, 200);
     const snapshot = await created.json();
+    const damagedToken = randomBytes(32).toString('hex');
+    const extra = await fetch(`${runtime.origin}/v1/games`, { method: 'POST', headers: { Authorization: `Bearer ${damagedToken}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(extra.status, 200);
+    const damaged = await extra.json();
     await runtime.stop(); runtime = undefined;
+    const [row] = await sql.unsafe(`select data::text as data from "${schema}".machination_rooms where id = $1`, [damaged.id]);
+    const data = JSON.parse(row.data); data.game.version = 999;
+    const original = JSON.stringify(data, null, 2);
+    await sql.unsafe(`update "${schema}".machination_rooms set data = $1::text::json where id = $2`, [original, damaged.id]);
     runtime = await start(entry, file, configuration);
     const restored = await fetch(`${runtime.origin}/v1/games/${snapshot.id}`, { headers });
     assert.equal(restored.status, 200);
     assert.equal((await restored.json()).id, snapshot.id);
+    const unavailable = await fetch(`${runtime.origin}/v1/games/${damaged.id}`, { headers: { Authorization: `Bearer ${damagedToken}` } });
+    assert.equal(unavailable.status, 503);
+    assert.equal((await unavailable.json()).issues[0].issue, 'game.unavailable.recovery');
+    const [archive] = await sql.unsafe(`select data::text as data from "${schema}".machination_quarantine`);
+    assert.equal(JSON.parse(archive.data).rooms[0].data, original);
   } finally { if (runtime) await runtime.stop(); }
 });
 
