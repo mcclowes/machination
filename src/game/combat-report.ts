@@ -12,7 +12,7 @@ export type EncounterAssetId = Readonly<{ type: 'site'; id: string } | { type: '
 export type EncounterSpecialist = Readonly<{ id: string; kind: SpecialistKind; owner: Faction; captive: boolean }>;
 export type EncounterAsset = Readonly<{
   asset: EncounterAssetId; owner: Faction | null; drones: number;
-  shield?: number; destroyed?: true; returning?: true;
+  shield?: number; shieldsDisabled?: true; destroyed?: true; returning?: true;
   specialists: readonly EncounterSpecialist[];
 }>;
 export type EncounterPair = readonly [EncounterAsset, EncounterAsset];
@@ -47,7 +47,7 @@ export function snapshotAsset(asset: Rock | Fleet): EncounterAsset {
   const specialists = (asset.specialists ?? []).map(u => ({ id: u.id, kind: u.kind, owner: u.owner, captive: !!u.captive }));
   if (typeof asset.id === 'string') {
     const rock = asset as Rock;
-    return freeze({ asset: { type: 'site', id: rock.id }, owner: rock.owner, drones: rock.drones, shield: rock.shield ?? 0, ...(rock.destroyed ? { destroyed: true as const } : {}), specialists });
+    return freeze({ asset: { type: 'site', id: rock.id }, owner: rock.owner, drones: rock.drones, shield: rock.shield ?? 0, ...(rock.shieldsDisabled ? { shieldsDisabled: true as const } : {}), ...(rock.destroyed ? { destroyed: true as const } : {}), specialists });
   }
   const fleet = asset as Fleet;
   return freeze({ asset: { type: 'hauler', id: fleet.id }, owner: fleet.owner, drones: fleet.drones, ...(fleet.returning ? { returning: true as const } : {}), specialists });

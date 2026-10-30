@@ -40,6 +40,15 @@ test('the combat action opens an observation-based prediction and follows change
     await act(async () => renderer.update(React.createElement(HaulerCombat, { ...props, observation: { ...props.observation, view: changed } })));
     assert.match(JSON.stringify(renderer.toJSON()), /47 drones survive/);
     assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /43 drones survive/);
+    const disabled = structuredClone(changed);
+    const disabledTarget = disabled.rocks.find(r => r.id === 'b')!;
+    if (!disabledTarget.known) throw new Error('Fixture target must be observed');
+    disabledTarget.shieldsDisabled = true;
+    await act(async () => renderer.update(React.createElement(HaulerCombat, { ...props, observation: { ...props.observation, view: disabled } })));
+    assert.match(JSON.stringify(renderer.toJSON()), /44 drones survive/);
+    assert.match(JSON.stringify(renderer.toJSON()), /50 drones · shields disabled/);
+    assert.match(JSON.stringify(renderer.toJSON()), /Shields disabled · no drones absorbed/);
+    assert.doesNotMatch(JSON.stringify(renderer.toJSON()), /\+ 3 shields|Shields absorb/);
     await press('Close combat prediction');
     assert.equal(renderer.root.findAllByProps({ testID: 'combat-prediction' }).length, 0);
   } finally {
