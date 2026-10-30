@@ -59,10 +59,10 @@ export function absorbShields(game: Game, rock: Rock, attackers: number): number
   return attackers - absorbed;
 }
 export function nextEconomyEvent(game: Game): number {
-  return Math.min(...game.rocks.filter(r => r.owner && !r.destroyed).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
+  return Math.min(...game.rocks.filter(r => r.owner && !r.destroyed).flatMap(r => [r.kind === 'factory' ? r.productionAt ?? Infinity : Infinity, r.kind === 'mine' && !r.pulseDisabled ? r.miningAt ?? Infinity : Infinity, (r.shield ?? 0) < maximumShield(r) ? r.shieldAt ?? Infinity : Infinity]));
 }
 export function settleEconomy(game: Game): void {
-  for (const rock of game.rocks) if (rock.owner && !rock.destroyed && rock.kind === 'mine' && isDue(game, rock.miningAt!)) {
+  for (const rock of game.rocks) if (rock.owner && !rock.destroyed && rock.kind === 'mine' && !rock.pulseDisabled && isDue(game, rock.miningAt!)) {
     if (!game.eliminated.includes(rock.owner)) game.cargo[rock.owner] = (game.cargo[rock.owner] ?? 0) + 1;
     rock.miningAt = game.hour + (rock.miningInterval ?? MINING_DAY);
   }

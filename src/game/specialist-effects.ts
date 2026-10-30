@@ -3,6 +3,7 @@
  * purpose: Reconcile movable leadership and local/global shield effects after specialist changes.
  * ---
  */
+import { withPulseMovement } from './pulse';
 import { afterWork, workBetween } from './opening-clock';
 import { stationCourse } from './drift';
 import { mechanicsVersion, type GameRules } from './rules';
@@ -54,7 +55,7 @@ export function withUnitEffects(game: Game): Game {
   refreshUnitEffects(result);
   applyStationPassives(result);
   refreshUnitEffects(result);
-  return result;
+  return withPulseMovement(result);
 }
 export function specialistSpeed(game: UnitWorld & { rules?: Pick<GameRules, 'mechanicsVersion'> }, owner: Faction, units: readonly Specialist[], friendly: boolean, mission?: 'intercept' | 'return' | 'interception-return'): number {
   const kinds = new Set(units.filter(u => u.owner === owner && !u.captive).map(u => u.kind));

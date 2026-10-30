@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { reconcilePulseKings } from './pulse';
 import { afterWork } from './opening-clock';
 import { mechanicsVersion } from './rules';
 import { worldDistance } from './geometry';
@@ -24,6 +25,7 @@ type Asset = Rock | Fleet;
 const isRock = (asset: Asset): asset is Rock => typeof asset.id === 'string';
 const living = (asset: Asset) => (asset.specialists ?? []).filter(u => !u.captive && u.owner === asset.owner);
 export function reconcileLeadership(game: Game, previous: readonly (Faction | { owner: Faction; point: { x: number; y: number } })[], point: { x: number; y: number }): void {
+  if (game.pulse) { reconcilePulseKings(game); refreshUnitEffects(game); return; }
   for (const entry of previous) {
     const owner = typeof entry === 'string' ? entry : entry.owner;
     const lostAt = typeof entry === 'string' ? point : entry.point;

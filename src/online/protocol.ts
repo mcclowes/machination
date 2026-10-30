@@ -1,3 +1,4 @@
+import type { PulseAction } from '../game/pulse';
 import type { LaunchEdit } from '../game/orders';
 import type { FutureAction } from '../game/future-actions';
 import type { SpecialistKind } from '../game/specialist-catalog';
@@ -43,3 +44,5 @@ export type RecoverySetup = { requestId: string; secret: string };
 export type RecoverSeat = { secret: string };
 
 export type EditSchedule = { requestId: string; revision: number } & LaunchEdit;
+
+export type PulseOrder = { requestId: string; revision: number; action: PulseAction };

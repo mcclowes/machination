@@ -3,6 +3,7 @@
  * purpose: Bounded JSON HTTP adapter for the multiplayer service, with seat authentication and consistent failures.
  * ---
  */
+import type { PulseOrder } from '../src/online/protocol';
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { GameService, type AccountCredential } from './service';
@@ -36,7 +37,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
     return service.join(input.invite, token);
   }
-  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
   const id = match[1]!, action = match[2];
   switch (req.method) {
@@ -73,6 +74,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'start': return service.start(id, token);
         case 'specialists': return service.specialist(id, token, input as SpecialistOrder);
         case 'haulers': return service.hauler(id, token, input as HaulerOrder);
+        case 'pulse': return service.pulse(id, token, input as PulseOrder);
         case 'sites': return service.site(id, token, input as SiteOrder);
         case 'orders': return service.order(id, token, input as Order);
         case 'gifts': return service.gift(id, token, input as GiftOrder);

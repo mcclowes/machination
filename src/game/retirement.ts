@@ -3,6 +3,7 @@
  * purpose: Voluntary and simultaneous inactive retirement without deleting surviving assets.
  * ---
  */
+import { reconcilePulseKings } from './pulse';
 import { playersIn } from './players';
 import { advance, FACTIONS, type Faction, type Game } from './simulation';
 import { defendWithPreparations } from './transport';
@@ -20,6 +21,7 @@ function retire(input: Game, owners: readonly Faction[], reason: 'resigned' | 'i
     for (const rock of game.rocks.filter(r => r.owner === owner)) defendWithPreparations(game, rock.id);
     game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: `${FACTIONS[owner].name}: ${reason === 'inactive' ? 'automatically resigned after 48 hours of inactivity' : 'resigned'}. Orders and extraction terminated; remaining assets persist.` });
   }
+  reconcilePulseKings(game);
   reconcileFunding(game);
   const remaining = playersIn(game).filter(owner => !game.eliminated.includes(owner));
   if (remaining.length === 1) {

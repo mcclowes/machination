@@ -23,9 +23,11 @@ Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emul
 
 Open **Manual → Specialists cheatsheet** for module effects, promotions, recruitment, and combat order. A [Markdown reference](docs/specialists-cheatsheet.md) is also available.
 
-Select a controlled rock, choose **Plan transfer**, tap a destination, and launch drones. Factories produce six drones every eight hours; generators raise the fleet-wide drone capacity. Drill mines on controlled sites to produce cargo based on territory size. Shields recharge and absorb attacks before drones. Reach 200 cargo or eliminate both rival cores. Existing version-one saves retain their original economy and 300-cargo target. Losing your core ends your operation.
+Select a controlled rock, choose **Plan transfer**, tap a destination, and launch drones. Factories produce six drones every eight hours; generators raise the fleet-wide drone capacity. Drill mines on controlled sites to produce cargo based on territory size. Shields recharge and absorb attacks before drones. New operations default to **King’s Pulse**: the movable core is your King. Spend 100 mined Pulse Material, charge for six real hours while stationed, then fire manually from the asset inspector or Intel. The circular pulse destroys unprotected opposing sites, ships, specialists, and Kings. Your own assets are immune. Movement orders immediately cancel charging or emission without a refund; a dead King’s pulse disappears everywhere. The last surviving King wins, and simultaneous final kills draw. Mining and domination remain selectable legacy modes; existing saves keep their rules.
 
-Build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs intercept moving haulers and recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
+In version-one operations, build modules with drones on a controlled rock, then explicitly load one onto a hauler. Routing daemons shorten transit, viruses convert defenders, scavenger rigs intercept moving haulers and recover combat losses, and self-destruct charges sacrifice a hauler to damage a garrison.
+
+Pulse shields have separate 100-energy reserves. Each hostile pulse drains 20 energy/hour; reserves recharge 5/hour only outside exposure. Shields protect stationed units and preparing haulers, never passing ships, and do not stop propagation. Inspect a site for your shield reserve, depletion, and estimated arrival times. Enemy charge information requires sensor visibility.
 
 Choose a launch time from now to seven days ahead and manage private plans in **Scheduled transfers**. Plans use resources available at execution, and can be canceled before launch.
 
@@ -66,3 +68,9 @@ See [game design](docs/game-design.md) and [implementation tracking](https://git
 The current dependency audit flags Zod 3 in Expo CLI ([advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)). No major-version override is applied because the CLI declares a Zod 3 dependency. Recheck upstream before distribution.
 
 A first-launch briefing introduces the objective and first transfer. Open **Manual** from either operation mode for the full rules, sensor limits, schedules, forecasts, and diplomacy. Dismissing the briefing stores a local preference separately from game saves.
+
+## Pulse balancing and abilities
+
+Set `MACHINATION_PULSE_CONFIG` on the server to a JSON object overriding defaults, for example `'{"chargeDuration":3,"activationResourceCost":75,"propagationSpeed":6}'`. All simulation times are game hours and speeds are chart units/hour. The server validates and snapshots the settings into new games; changing the environment does not rebalance existing operations. Other settings are `shieldMaxEnergy`, `shieldDrainPerHour`, `shieldRechargePerHour`, and `miningDamage` (`destroy` or `disable`).
+
+`applyPulseSpecialistEffect` is the trusted ability hook for charge rate, uniform pulse speed, shield drain, charge interruption, and emission termination. The hook requires a unique command ID and is replayable through the trusted `pulse-specialist-effect` command. Timed effects expire at simulation boundaries and never recalculate past progress. Ability handlers must validate ownership, range, costs, and cooldowns before applying an effect; clients cannot submit arbitrary multipliers. The current specialist roster does not define temporal or gravity abilities. Regional wave distortion, alliance immunity, and finite pulse fuel remain future rules.

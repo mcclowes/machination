@@ -5,6 +5,8 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
+import { applyPulseSpecialistEffect, commandPulse, type PulseEffectCommand, type PulseCommand } from './pulse';
+import { settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { scheduleAction, type ActionPlan } from './future-actions';
 import { advance, dispatch, installModule, type Faction, type Game } from './simulation';
@@ -35,6 +37,8 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'shields'; rock: string; disabled: boolean }
   | { type: 'funding'; to: Faction; enabled: boolean }
   | { type: 'install-module'; rock: string; kind: ModuleKind }
+  | { type: 'pulse-specialist-effect'; command: PulseEffectCommand }
+  | { type: 'pulse'; command: PulseCommand }
   | { type: 'resign' }
 ) | { type: 'inactivity'; owners: Faction[] };
 
@@ -46,10 +50,12 @@ function clone<T>(value: T): T {
 }
 
 /** Trusted, canonical internal IDs only. Authentication and request decoding belong to the caller. */
-export function executeCommand(input: Game, command: GameCommand): Game {
+function performCommand(input: Game, command: GameCommand): Game {
   const game = clone(input);
   const c = clone(command);
   switch (c.type) {
+    case 'pulse-specialist-effect': return applyPulseSpecialistEffect(game, c.command.target, c.command.effect, c.command.id);
+    case 'pulse': { const result = commandPulse(game, c.owner, c.command); settlePulseHazards(result); evaluatePulseVictory(result); return result; }
     case 'resign': return resign(game, c.owner);
     case 'inactivity': return resignInactive(game, c.owners);
     case 'dispatch': return dispatch(game, c.from, c.to, c.drones, c.owner, c.carryModule, c.specialists);
@@ -69,6 +75,12 @@ export function executeCommand(input: Game, command: GameCommand): Game {
     case 'install-module': return installModule(game, c.rock, c.kind, c.owner);
     default: throw new Error('Unknown game command.');
   }
+}
+
+export function executeCommand(input: Game, command: GameCommand): Game {
+  const game = performCommand(input, command);
+  if (game.pulse) { settlePulseHazards(game); evaluatePulseVictory(game); }
+  return game;
 }
 
 declare const archiveBrand: unique symbol;

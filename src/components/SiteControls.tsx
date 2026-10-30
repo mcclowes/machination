@@ -23,7 +23,8 @@ export function SiteControls({ rock, cost, enabled, minesAllowed = true, schedul
     {scheduledAt !== undefined && <Text style={s.detail}>Schedule site actions for {gameClock(scheduledAt)}. Forecast eligibility is provisional; requirements are checked at execution.</Text>}
     <Text style={s.detail}>Shields: {rock.shield ?? 0} / {maximumShield(rock)} · {rock.shieldsDisabled ? 'disabled' : 'enabled'}</Text>
     <Control label={label(rock.shieldsDisabled ? 'Enable shields' : 'Disable shields')} disabled={!enabled} onPress={onShields} />
-    {rock.kind === 'mine' && rock.miningInterval !== undefined && <Text style={s.detail}>One cargo every {rock.miningInterval.toFixed(2)}h · next payout {gameClock(rock.miningAt!)}. Expansion increases the rate.</Text>}
+    {rock.pulseDisabled && <Text style={s.detail}>Extraction disabled by King’s Pulse.</Text>}
+    {rock.kind === 'mine' && !rock.pulseDisabled && rock.miningInterval !== undefined && <Text style={s.detail}>One cargo every {rock.miningInterval.toFixed(2)}h · next payout {gameClock(rock.miningAt!)}. Expansion increases the rate.</Text>}
     {!minesAllowed && <Text style={s.detail}>No mines in domination operations.</Text>}
     {minesAllowed && rock.kind !== 'mine' && <><Text style={s.detail}>Drilling replaces this {rock.kind}. {rock.kind === 'generator' ? 'Power capacity falls by 50.' : 'Drone production stops.'} A mine yields one cargo per controlled rock per day, paid throughout the day.</Text><Control label={label(`Drill mine · ${cost} drones`)} disabled={!enabled || rock.drones < cost} onPress={onMine} /></>}
   </View>;

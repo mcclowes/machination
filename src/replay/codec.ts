@@ -1,3 +1,4 @@
+import { validatePulseConfig } from '../game/pulse';
 import { driftingBasesEnabled } from '../game/rules';
 import { sitePosition, validDrift } from '../game/drift';
 import { CHARACTER_IDS } from '../game/characters';
@@ -72,17 +73,19 @@ function inspect(value: unknown) {
 }
 
 function rules(v: unknown) {
-  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['portraits', 'mechanicsVersion', 'driftingBases']);
+  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'portraits', 'mechanicsVersion', 'driftingBases']);
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
-  one(v.mode, ['mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]));
+  one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
+  optional(v, 'pulse', validatePulseConfig);
+  need(v.mode !== 'pulse' || v.pulse && v.mechanicsVersion === 15);
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));
 }
 function scene(v: unknown) : asserts v is ReplayScene {
-  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['version', 'standings', 'draw', 'rules']);
+  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules']);
   num(v.hour); optional(v, 'version', n => one(n, [1, 2])); optional(v, 'draw', n => one(n, [true])); optional(v, 'rules', rules);
   const roster: string[] = v.rules?.players ?? factions;
   const member = (f: unknown) => { faction(f); need(roster.includes(f as string)); };
@@ -121,6 +124,25 @@ function scene(v: unknown) : asserts v is ReplayScene {
   array(v.coverage, L.sites + L.fleets); for (const c of v.coverage) { object(c, ['x', 'y', 'radius'], ['drift']); if (c.drift !== undefined) { need(driftingBasesEnabled(v) && validDrift(c.drift, v)); const expected = sitePosition(v, { x: c.x, y: c.y, drift: c.drift }, v.hour); need(Math.hypot(c.x - expected.x, c.y - expected.y) < 1e-8); } coord(c.x); coord(c.y); num(c.radius, 0, L.coordinate); }
   object(v.cargo, [], roster); Object.values(v.cargo).forEach(n => num(n));
   optional(v, 'standings', s => { object(s, [], roster); for (const n of Object.values(s)) { object(n, ['cargo', 'funders']); num(n.cargo); integer(n.funders); } });
+  optional(v, 'pulse', s => {
+    need(v.rules?.mode === 'pulse');
+    object(s, ['kings', 'pulses', 'shields', 'modifiers']);
+    array(s.kings, roster.length); array(s.pulses, roster.length); array(s.modifiers, 10000);
+    for (const k of s.kings) {
+      object(k, ['kingId', 'factionId', 'state', 'position', 'chargeProgress', 'resourceCommitted']);
+      text(k.kingId); member(k.factionId); point(k.position); one(k.state, ['idle', 'charging', 'ready', 'firing', 'moving', 'destroyed']);
+      num(k.chargeProgress, 0, v.rules.pulse.chargeDuration); num(k.resourceCommitted);
+    }
+    for (const p of s.pulses) {
+      object(p, ['id', 'kingId', 'factionId', 'origin', 'firedAt', 'radius']);
+      text(p.id); text(p.kingId); member(p.factionId); point(p.origin); num(p.firedAt, 0, v.hour); num(p.radius);
+    }
+    object(s.shields, [], [...sites]);
+    for (const shield of Object.values(s.shields)) { object(shield, ['energy', 'exposed']); num(shield.energy, 0, v.rules.pulse.shieldMaxEnergy); integer(shield.exposed); }
+    for (const m of s.modifiers) {
+      object(m, ['factionId', 'type', 'multiplier', 'expiresAt']); member(m.factionId); one(m.type, ['charge_rate', 'pulse_speed', 'shield_drain']); num(m.multiplier, 0, 100); num(m.expiresAt, v.hour);
+    }
+  });
   array(v.eliminated, factions.length); v.eliminated.forEach(member); unique(v.eliminated); if (v.winner !== null) member(v.winner);
 }
 function validate(value: unknown): asserts value is SharedReplay {

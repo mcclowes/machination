@@ -1,3 +1,4 @@
+import type { PulseOrder } from './protocol';
 import type { RequestSession } from './account-auth';
 import { validateOptions, type GameOptions } from '../game/rules';
 import type { ResignOrder, CreateGroup, ChannelTransmission } from './protocol';
@@ -7,7 +8,7 @@ import { AppState, Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import type { EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from './protocol';
-export type Pending = { kind: 'edit-schedule'; body: EditSchedule } | { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
+export type Pending = { kind: 'pulse'; body: PulseOrder } | { kind: 'edit-schedule'; body: EditSchedule } | { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = RequestSession & { id?: string; invite?: string; options?: GameOptions; pending?: Pending };
 const KEY = 'machination.online.v1';
 function sessionKey(accountId?: string) {

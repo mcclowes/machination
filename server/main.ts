@@ -3,6 +3,7 @@
  * purpose: Start the authoritative service and drain active requests on host shutdown.
  * ---
  */
+import { validatePulseConfig, DEFAULT_PULSE_CONFIG } from '../src/game/pulse';
 import { resolve } from 'node:path';
 import { GameService } from './service';
 import { createApi } from './http';
@@ -16,7 +17,7 @@ async function main() {
   const port = Number(portValue);
   if (!/^\d+$/.test(portValue) || !Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be an integer from 0 to 65535.');
   const push = pushConfiguration(process.env);
-  const service = await GameService.open(resolve(process.env.MACHINATION_DATA ?? '.data/games.json'), Date.now, undefined, { notifications: push.enabled });
+  const service = await GameService.open(resolve(process.env.MACHINATION_DATA ?? '.data/games.json'), Date.now, undefined, { notifications: push.enabled, ...(process.env.MACHINATION_PULSE_CONFIG ? { pulse: validatePulseConfig({ ...DEFAULT_PULSE_CONFIG, ...JSON.parse(process.env.MACHINATION_PULSE_CONFIG) }) } : {}) });
   const worker = push.enabled ? new NotificationWorker(service.notificationQueue(), expoPushProvider({ accessToken: push.accessToken })) : undefined;
   const origins = process.env.MACHINATION_ORIGINS?.split(',').map((s: string) => s.trim()).filter(Boolean) ?? ['http://localhost:8081', 'http://localhost:8082'];
   const server = createApi(service, origins, clerkAuthentication({ CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY, CLERK_JWT_KEY: process.env.CLERK_JWT_KEY, CLERK_ISSUER: process.env.CLERK_ISSUER }, origins));

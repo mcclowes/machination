@@ -3,6 +3,7 @@
  * purpose: Redact authoritative state to a player's sensor observations and forecast only those observations.
  * ---
  */
+import { clonePulse, type PulseSystem } from './pulse';
 import { sitePosition } from './drift';
 import { publicRules, type PublicRules } from './rules';
 import { playersIn } from './players';
@@ -17,7 +18,7 @@ import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'drift'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: Faction | null; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
-  rules?: PublicRules; funding?: Funding[]; standings?: Partial<Record<Faction, { cargo: number; funders: number }>>; fundingUncertain?: boolean;
+  pulse?: Omit<PulseSystem, 'receipts'>; rules?: PublicRules; funding?: Funding[]; standings?: Partial<Record<Faction, { cargo: number; funders: number }>>; fundingUncertain?: boolean;
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>; recruitmentUncertain?: boolean;
   // Hidden territory leaves economy, routing, succession, and victory conditional.
   forecastUncertain?: boolean;
@@ -34,7 +35,16 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   const visibleIds = new Set(contacts.map(f => f.id));
   const publicFleet = (f: Fleet) => { const visible = { ...f }; delete visible.lastContacts; if (f.owner !== faction) delete visible.pendingCourse; else if (f.pendingCourse) visible.pendingCourse = { ...f.pendingCourse }; return visible; };
   const units = (asset: { specialists?: Game['rocks'][number]['specialists'] }) => asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u, id: identifyUnit(u.id) })) } : {};
+  const pulse = game.pulse && clonePulse(game.pulse);
+  if (pulse) {
+    pulse.kings = pulse.kings.filter(k => k.factionId === faction || game.rocks.some(r => r.specialists?.some(u => u.id === k.kingId) && (r.owner === faction || inRange(coverage, r, game))) || contacts.some(f => f.specialists?.some(u => u.id === k.kingId))).map(k => ({ ...k, kingId: identifyUnit(k.kingId) }));
+    pulse.pulses = pulse.pulses.map(p => ({ ...p, id: `pulse-${p.factionId}-${p.firedAt}`, kingId: identifyUnit(p.kingId) }));
+    pulse.shields = Object.fromEntries(Object.entries(pulse.shields).filter(([id]) => game.rocks.some(r => r.id === id && r.owner === faction)));
+    pulse.modifiers = pulse.modifiers.filter(m => m.factionId === faction || m.type === 'pulse_speed' && pulse.pulses.some(p => p.factionId === m.factionId));
+  }
+  const { receipts: _receipts, ...disclosedPulse } = pulse ?? { receipts: {} };
   return {
+    ...(pulse ? { pulse: disclosedPulse as Omit<PulseSystem, 'receipts'> } : {}),
     ...(game.rules ? { rules: publicRules(game.rules) } : {}),
     ...(game.version === 2 ? { funding: (game.funding ?? []).filter(f => f.from === faction || f.to === faction).map(f => ({ ...f })), standings: Object.fromEntries((playersIn(game)).map(f => [f, { cargo: game.cargo[f] ?? 0, funders: fundingCount(game, f) }])) as NonNullable<GameView['standings']> } : {}),
     ...(game.recruitment?.[faction] ? { recruitment: { [faction]: { used: game.recruitment[faction].used, offers: [...game.recruitment[faction].offers] } } } : {}),
@@ -52,7 +62,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
 export function forecastObservation(view: GameView, faction: Faction, targetHour: number): GameView {
   if (!Number.isFinite(targetHour) || targetHour < view.hour) throw new Error('Time can only move forward.');
   const { simulation, unknown, alias, unknownInterceptions, territoryOwners } = simulationFromObservation(view, faction);
-  const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain);
+  const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain || !!view.pulse);
   const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);

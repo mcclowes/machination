@@ -1,3 +1,4 @@
+import type { PublicRules } from '../game/rules';
 import type { Drift } from '../game/drift';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/players';
@@ -25,8 +26,7 @@ export type ReplayScene = {
   cargo: Partial<Record<Faction, number>>;
   standings?: Partial<Record<Faction, { cargo: number; funders: number }>>;
   eliminated: Faction[]; winner: Faction | null; draw?: true;
-  rules?: { players: Faction[]; portraits?: CharacterId[]; mode: 'mining' | 'domination'; victoryTarget: number; mechanicsVersion?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14; driftingBases?: boolean;
-    map: { generator: 'balanced.v1' | 'balanced.v2'; width: number; height: number; topology?: 'torus' } };
+  pulse?: GameView['pulse']; rules?: PublicRules;
 };
 
 /** Keep one alias set per export, including gaps where a contact disappears. */
@@ -107,5 +107,10 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.driftingBases !== undefined) scene.rules.driftingBases = r.driftingBases;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;
   }
+  if (view.rules?.pulse && scene.rules) scene.rules.pulse = { ...view.rules.pulse };
+  if (view.pulse) scene.pulse = { ...view.pulse,
+    kings: view.pulse.kings.map(k => ({ ...k, kingId: aliases.unit(k.kingId), position: { ...k.position } })),
+    pulses: view.pulse.pulses.map(p => ({ ...p, kingId: aliases.unit(p.kingId), origin: { ...p.origin } })),
+    shields: Object.fromEntries(Object.entries(view.pulse.shields).map(([id, s]) => [id, { ...s }])), modifiers: view.pulse.modifiers.map(m => ({ ...m })) };
   return scene;
 }

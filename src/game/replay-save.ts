@@ -37,6 +37,13 @@ function command(v: unknown): boolean {
   if (!owner(v.owner)) return false;
   const keys = ['type', 'owner'];
   switch (v.type) {
+    case 'pulse-specialist-effect': {
+      if (!shape(v, [...keys, 'command']) || !record(v.command) || !shape(v.command, ['id', 'target', 'effect']) || typeof v.command.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(v.command.id) || !owner(v.command.target) || !record(v.command.effect)) return false;
+      const e = v.command.effect;
+      return ['interrupt_charge', 'terminate_pulse'].includes(e.type as string) ? shape(e, ['type'])
+        : ['charge_rate', 'pulse_speed', 'shield_drain'].includes(e.type as string) && shape(e, ['type', 'multiplier', 'expiresAt']) && finite(e.multiplier) && e.multiplier >= 0 && e.multiplier <= 100 && finite(e.expiresAt);
+    }
+    case 'pulse': return shape(v, [...keys, 'command']) && record(v.command) && shape(v.command, ['id', 'action']) && typeof v.command.id === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(v.command.id) && ['START_CHARGE', 'FIRE_PULSE', 'CANCEL_CHARGE', 'TERMINATE_PULSE'].includes(v.command.action as string);
     case 'resign': return shape(v, keys);
     case 'dispatch': case 'gift': return shape(v, [...keys, 'from', 'to', 'drones', ...(v.type === 'gift' ? ['recipient'] : [])], ['specialists', 'carryModule']) && payload(v) && (v.type !== 'gift' || owner(v.recipient));
     case 'intercept': return shape(v, [...keys, 'from', 'target', 'drones'], ['specialists']) && payload({ ...v, to: v.from }) && count(v.target) && v.target !== 0;

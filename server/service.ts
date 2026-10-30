@@ -6,6 +6,8 @@
  *   - ./notification-preferences.ts - notification binding and consent updates
  * ---
  */
+import { createPulseSystem, validatePulseConfig, type PulseConfig } from '../src/game/pulse';
+import type { PulseOrder } from '../src/online/protocol';
 import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
 import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
 import type { SharedReplay } from '../src/replay/timeline';
@@ -79,7 +81,7 @@ function canonicalSchedule(input: unknown): ScheduleOrder {
     ...(value.carryModule !== undefined ? { carryModule: value.carryModule as boolean } : {}),
     ...(value.specialists !== undefined ? { specialists: [...value.specialists as string[]] } : {}) };
 }
-export type ServiceOptions = { notifications?: boolean };
+export type ServiceOptions = { notifications?: boolean; pulse?: PulseConfig };
 export type NotificationQueue = {
   claimSends(owner: string): Promise<SendClaim>;
   /** Advances rooms whose seats accept incoming alerts, with no client request. Returns the rooms settled. */
@@ -90,9 +92,9 @@ export type NotificationQueue = {
   release(lease: string): Promise<void>;
 };
 export class GameService {
-  private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame, private pushAvailable = false) {}
+  private constructor(private store: DatabaseStore, private now: () => number, private initialGame?: typeof createGame, private pushAvailable = false, private pulseDefaults?: PulseConfig) {}
   static async open(file: string, now = Date.now, initialGame?: typeof createGame, options: ServiceOptions = {}): Promise<GameService> {
-    return new GameService(await DatabaseStore.open(file), now, initialGame, !!options.notifications);
+    return new GameService(await DatabaseStore.open(file), now, initialGame, !!options.notifications, options.pulse ? validatePulseConfig(options.pulse) : undefined);
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
     return this.store.transaction(run);
@@ -276,6 +278,7 @@ export class GameService {
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
         referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential, ...(typeof token !== 'string' ? token : {}) }], messages: [], receipts: {} };
+      if (room.game.pulse && this.pulseDefaults) { room.game.rules!.pulse = { ...this.pulseDefaults }; room.game.pulse = createPulseSystem(room.game); }
       db.rooms.push(room);
       return this.view(room, 'you');
     });
@@ -497,6 +500,19 @@ export class GameService {
         this.act(r, { type: 'hauler', owner: f, change });
       }
       catch (e) { throw new Failure(409, 'hauler.conflict.invalid', (e as Error).message); }
+      this.reviseOrders(r, [f]);
+      return this.view(r, f);
+    });
+  }
+  pulse(id: string, token: Credential, command: PulseOrder): Promise<Snapshot> {
+    return this.transaction(db => {
+      const r = this.room(db, id), f = this.seat(r, token); this.settle(db, r);
+      requireThat(command && Object.keys(command).every(k => ['requestId', 'revision', 'action'].includes(k)) && ['START_CHARGE', 'CANCEL_CHARGE', 'FIRE_PULSE', 'TERMINATE_PULSE'].includes(command.action), 400, 'pulse.validation.command', 'Choose a pulse command.');
+      if (this.receipt(r, f, command.requestId, JSON.stringify(['pulse', command.action, command.revision]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'pulse.conflict.stale', 'Your orders changed. Refresh before commanding your King.');
+      try { this.act(r, { type: 'pulse', owner: f, command: { id: command.requestId, action: command.action } }); }
+      catch (e) { throw new Failure(409, 'pulse.conflict.invalid', (e as Error).message); }
       this.reviseOrders(r, [f]);
       return this.view(r, f);
     });

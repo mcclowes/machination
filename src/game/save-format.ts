@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validPulseSave } from './pulse-save';
 import { validDrift, sitePosition } from './drift';
 import { validateScheduledAction } from './future-actions';
 import { driftingBasesEnabled, mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
@@ -83,7 +84,8 @@ export function decodeSave(raw: string): Save {
       || (r.shield as number) > maximumShield(r as Rock) || typeof r.shieldsDisabled !== 'boolean' || !nonnegative(r.shieldAt)
       || r.owner && (r.shield as number) < maximumShield(r as Rock) && (r.shieldAt as number) <= (g.hour as number)
       || r.kind === 'factory' && (!nonnegative(r.productionAt) || r.owner && !r.destroyed && r.productionAt <= (g.hour as number))
-      || r.kind === 'mine' && (!nonnegative(r.miningAt) || r.owner && !r.destroyed && r.miningAt <= (g.hour as number)))) return fail();
+      || r.kind === 'mine' && !r.pulseDisabled && (!nonnegative(r.miningAt) || r.owner && !r.destroyed && r.miningAt <= (g.hour as number)))) return fail();
+    if (r.pulseDisabled !== undefined && (rules?.mode !== 'pulse' || r.kind !== 'mine' || r.pulseDisabled !== true)) return fail();
     if (!(r.productionInterval === undefined || finite(r.productionInterval) && r.productionInterval > 0) || !(r.miningInterval === undefined || g.version === 2 && finite(r.miningInterval) && r.miningInterval >= MINING_DAY / g.rocks.length && r.miningInterval <= MINING_DAY) || !validUnits(r.specialists) || !(r.shieldBonus === undefined || finite(r.shieldBonus)) || !(r.destroyed === undefined || r.destroyed === true)) return fail();
     ids.add(r.id);
   }
@@ -165,6 +167,7 @@ export function decodeSave(raw: string): Save {
     }
   }
   if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
+  if (!validPulseSave(g as Game)) return fail();
   const decoded = save as Save;
   return { ...decoded, game: upgradeSpecialists(decoded.game) };
 }

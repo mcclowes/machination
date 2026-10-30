@@ -1,3 +1,5 @@
+import { clonePulse } from '../game/pulse';
+import { advancePulseTime } from '../game/pulse-simulation';
 /** Build public presentation records from one validated, frozen private event trace. */
 import { moveReplayScene } from './motion';
 import type { LocalOperation } from '../game/operation-save';
@@ -72,7 +74,11 @@ export function generateSharedReplay(operation: LocalOperation, perspective: Fac
     }
     result.groups.push({ hour: end.hour, states: [end] }); charge(end, 1, 3);
   }
-  const project = (game: Game, hour = game.hour) => presentObservation(observe({ ...game, hour }, perspective), aliases);
+  const project = (game: Game, hour = game.hour) => {
+    const projected = { ...game, ...(game.pulse ? { pulse: clonePulse(game.pulse) } : {}) };
+    advancePulseTime(projected, hour); projected.hour = hour;
+    return presentObservation(observe(projected, perspective), aliases);
+  };
   traceReplayTo(archive, operation.game.hour, { rivals: data.rivals, knownThrough: operation.game.hour }, record => {
     if (record.type === 'point') {
       if (record.game.hour >= from && record.game.hour <= through) point(project(record.game));
