@@ -67,7 +67,7 @@ export EXPO_PUBLIC_GAME_SERVER=https://machination-api-production.up.railway.app
 bash scripts/ios-testflight.sh archive
 ```
 
-The archive command regenerates iOS, installs pods, and creates `ios/build/testflight/Machination.xcarchive`. It requires HTTPS for the bundled service origin and refuses to overwrite an existing archive. Set `IOS_RELEASE_DIR` to retain another build separately. Supply the shared production Clerk publishable key as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only after native authentication is configured; an absent key leaves account sign-in disabled while solo, practice, and device-token multiplayer remain available.
+The archive command regenerates iOS, installs pods, and creates `ios/build/testflight/Machination.xcarchive`. It requires HTTPS for the bundled service origin and refuses to overwrite an existing archive. Public client settings are passed explicitly into Xcode's build environment, and the bundle phase enables Metro's cache reset even on CI so changed settings are transformed again. Before export or upload, the archive's signature, version, build number, encryption declaration, and actual bundled server URL are checked. Set `IOS_RELEASE_DIR` to retain another build separately and `IOS_DERIVED_DATA_DIR` to reuse a previous build's native compilation. Supply the shared production Clerk publishable key as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only after native authentication is configured; an absent key leaves account sign-in disabled while solo, practice, and device-token multiplayer remain available.
 
 Use `bash scripts/ios-testflight.sh export` to export a signed IPA without uploading it.
 
@@ -78,6 +78,8 @@ bash scripts/ios-testflight.sh upload
 ```
 
 This exports a signed IPA and uploads it through Apple's altool. It doesn't publish to the App Store or invite testers. Confirm Apple's build processing succeeds, add testing notes, and attach the build to the intended internal TestFlight group. External testing requires Beta App Review. See [Apple's TestFlight distribution guide](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases) and [Expo's TestFlight guide](https://docs.expo.dev/submit/testflight/).
+
+On October 30, version 0.1.0 (1) was prepared from game source `5a96bfc`. Its 1,066 behavior tests, TypeScript, and three production packaging checks pass. The final package combines a clean Metro/Hermes bundle with a compiled distribution archive whose native inputs and all 49 bundled assets match that source. The exported IPA passes deep/strict signature verification, production provisioning and entitlement checks, version/build checks, exempt-encryption declaration, and inspection of the actual hosted HTTPS URL. Its native executable and dSYM UUID match. The artifact is `/private/tmp/machination-testflight-20261030/release-ready/export/Machination.ipa`; hashes and packaging details are in the adjacent release workspace's `release.json`. Earlier cached bundles were rejected before upload. App Store Connect app-record creation and the first upload still require Apple browser sign-in; [#85](https://github.com/mcclowes/machination/issues/85) tracks completion. Physical-device behavior, shared-account login, and push delivery remain unverified.
 
 ## Verification boundaries
 

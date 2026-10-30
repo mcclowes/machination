@@ -19,18 +19,25 @@ if [[ "$1" == archive ]]; then
   [[ ! -e "$out/Machination.xcarchive" ]] || { echo "Archive already exists: $out/Machination.xcarchive" >&2; exit 1; }
   node_modules/.bin/expo prebuild --platform ios --no-install
   (cd ios && pod install)
+  # Expo skips Metro's requested cache reset on CI.
+  printf '\nexport CI=0\n' >> ios/.xcode.env.local
   mkdir -p "$out"
   xcodebuild archive -workspace ios/Machination.xcworkspace -scheme Machination \
     -configuration Release -destination 'generic/platform=iOS' -jobs 2 \
-    -derivedDataPath "$out/DerivedData" -archivePath "$out/Machination.xcarchive" \
+    -derivedDataPath "${IOS_DERIVED_DATA_DIR:-$out/DerivedData}" -archivePath "$out/Machination.xcarchive" \
     DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Manual \
-    CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE"
+    CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER="$IOS_PROVISIONING_PROFILE" \
+    EXPO_PUBLIC_GAME_SERVER="$EXPO_PUBLIC_GAME_SERVER" \
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY="${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:-}" \
+    EXPO_PUBLIC_EAS_PROJECT_ID="${EXPO_PUBLIC_EAS_PROJECT_ID:-}"
+  node scripts/verify-ios-release.mjs "$out/Machination.xcarchive"
 else
   if [[ "$1" == upload ]]; then
     : "${ASC_KEY_ID:?Set the App Store Connect API key ID}"
     : "${ASC_ISSUER_ID:?Set the App Store Connect API issuer ID}"
   fi
   [[ -d "$out/Machination.xcarchive" ]] || { echo 'Build the archive first.' >&2; exit 1; }
+  node scripts/verify-ios-release.mjs "$out/Machination.xcarchive"
   cat > "$out/ExportOptions.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
