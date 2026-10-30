@@ -79,6 +79,8 @@ Without the fixture variables, local checks explicitly skip the SQL/TLS cases; t
 
 Recovery tests exercise exact file archives and permissions, failed archives and source replacement, duplicate identities, shared-metadata refusals, notification isolation, SQL rollback/fencing, missing version metadata, and import races. The connection-hook integration uses the actual HTTP API and GameService with stubbed native storage. It retains pending transmissions and recovery attempts through a 503, then retries the same identity after a controlled fixture restoration. It does not establish native keychain behavior or a production restore/merge. See [storage recovery](storage-recovery.md).
 
+The standalone storage-requirement scenario imports a real legacy file, accepts a later SQL-only private message, and refuses missing/blank URLs and contradictory file selection without changing either store or writer ownership. An absent legacy path stays absent. Restoring the required Postgres configuration retains private access and deduplicates the original command. This checks the current bundle; it does not certify older rollback images or Railway's live variables.
+
 ## Device acceptance
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.

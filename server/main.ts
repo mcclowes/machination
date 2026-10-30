@@ -26,7 +26,14 @@ async function main() {
   const clientIp = clientIpMode(process.env.MACHINATION_CLIENT_IP);
   const recovery = databaseRecoveryMode(process.env.MACHINATION_DATABASE_RECOVERY);
   const dataFile = resolve(process.env.MACHINATION_DATA ?? '.data/games.json');
+  const storageMode = process.env.MACHINATION_STORAGE;
+  if (storageMode !== undefined && storageMode !== 'file' && storageMode !== 'postgres')
+    throw new Error('MACHINATION_STORAGE must be file or postgres.');
   const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (storageMode === 'postgres' && !databaseUrl)
+    throw new Error('DATABASE_URL is required when MACHINATION_STORAGE=postgres.');
+  if (storageMode === 'file' && databaseUrl)
+    throw new Error('DATABASE_URL must be unset when MACHINATION_STORAGE=file.');
   const origins = process.env.MACHINATION_ORIGINS?.split(',')
     .map((s: string) => s.trim())
     .filter(Boolean) ?? ['http://localhost:8081', 'http://localhost:8082'];

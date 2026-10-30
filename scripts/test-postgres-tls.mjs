@@ -225,7 +225,7 @@ try {
       process.execPath,
       [
         '--test',
-        '--test-name-pattern=Postgres.*TLS|Postgres recovery',
+        '--test-name-pattern=Postgres.*TLS|Postgres recovery|storage',
         'scripts/build-server.test.mjs',
       ],
       env,

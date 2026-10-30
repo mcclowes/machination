@@ -62,6 +62,7 @@ Run **one authoritative process** per database. Postgres fences older writers; t
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
 | `MACHINATION_DATA` | `.data/games.json` | Persistent JSON file or first Postgres import source |
+| `MACHINATION_STORAGE` | Unset | Explicit `postgres` requires its URL; explicit `file` rejects a URL. Unset retains URL-based selection for compatibility. |
 | `DATABASE_URL` | Unset | Optional server-only Postgres connection URL |
 | `MACHINATION_DATABASE_TLS` | `verify-full` | Certificate and hostname verification; explicit `local` permits only loopback plaintext |
 | `MACHINATION_DATABASE_CA` | Default trust roots | Optional provider CA as server-only PEM text |

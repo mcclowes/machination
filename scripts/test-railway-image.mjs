@@ -49,14 +49,23 @@ try {
   assert.equal(response.status, 200);
   const snapshot = await response.json();
   assert.equal(await docker('exec', name, 'stat', '-c', '%u:%g:%a', '/var/lib/machination/state/games.json'), '1000:1000:600');
+  const stateHash = await docker('exec', name, 'sha256sum', '/var/lib/machination/state/games.json');
   await docker('stop', '-t', '20', name);
   assert.equal(await docker('inspect', '--format', '{{.State.ExitCode}}', name), '0');
   await docker('rm', name); created = false;
+  await docker('create', '--name', name, '--read-only', '--tmpfs', '/tmp', '--network', 'none',
+    '--mount', `type=volume,src=${volume},dst=/var/lib/machination,volume-nocopy`,
+    '--env', 'RAILWAY_VOLUME_MOUNT_PATH=/var/lib/machination', '--env', 'MACHINATION_STORAGE=postgres', image);
+  created = true;
+  await assert.rejects(docker('start', '--attach', name), error => error.code === 1 && /DATABASE_URL is required when MACHINATION_STORAGE=postgres/.test(error.stderr));
+  assert.equal(await docker('inspect', '--format', '{{.State.ExitCode}}', name), '1');
+  await docker('rm', name); created = false;
   origin = await start();
+  assert.equal(await docker('exec', name, 'sha256sum', '/var/lib/machination/state/games.json'), stateHash);
   const restored = await fetch(`${origin}/v1/games/${snapshot.id}`, { headers: { authorization: `Bearer ${token}` } });
   assert.equal(restored.status, 200);
   assert.equal((await restored.json()).id, snapshot.id);
-  console.log('Railway image passes: missing-volume rejection, root-owned mount, non-root PID 1, private state permissions, authenticated persistence, graceful stop, and replacement.');
+  console.log('Railway image passes: missing-volume rejection, required-Postgres refusal with unchanged file state, root-owned mount, non-root PID 1, private state permissions, authenticated persistence, graceful stop, and replacement.');
 } finally {
   if (created) await docker('rm', '--force', name);
   if (mounted) await docker('volume', 'rm', volume);

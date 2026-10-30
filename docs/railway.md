@@ -37,11 +37,14 @@ railway volume add --mount-path /var/lib/machination --json
 railway variable set --skip-deploys \
   NODE_ENV=production MACHINATION_HOST=0.0.0.0 PORT=8787 \
   MACHINATION_DATA=/var/lib/machination/state/games.json \
+  MACHINATION_STORAGE=file \
   MACHINATION_ORIGINS=https://machination.invalid \
   RAILWAY_DOCKERFILE_PATH=Dockerfile.railway
 ```
 
 The `.invalid` origin deliberately permits no real browser frontend. Native clients send no browser Origin. Replace it with the exact deployed web origin only if a browser frontend is deployed. Do not use a wildcard.
+
+This provisioning example selects file storage explicitly. For the [Postgres migration](postgres.md), stage `MACHINATION_STORAGE=postgres` and the server-only `DATABASE_URL` together with deployment triggers suppressed. Keep the requirement in service variables for every later release and rollback. A missing URL then refuses startup instead of reopening the stale import file. Unset mode retains compatibility behavior and does not enforce Postgres. Verify the deployed build implements the guard; older images can ignore the variable. These instructions do not change the currently deployed service or establish a completed migration.
 
 Apply the input in `deploy/railway-service-settings.json` with `deploy/railway-service-update.graphql`, supplying the new service and environment IDs in a separate JSON variables file. The mutation signature and input fields were inspected through the live Railway schema. Example:
 

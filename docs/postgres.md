@@ -1,6 +1,8 @@
 # Postgres storage
 
-Set `DATABASE_URL` to store game state in Postgres instead of the JSON file. Supabase is the intended host. Without `DATABASE_URL`, the service keeps using `MACHINATION_DATA` as before, which is what tests and local development use.
+Set `MACHINATION_STORAGE=postgres` and `DATABASE_URL` together to store game state in Postgres. Supabase is the intended host. Explicit Postgres mode refuses missing, empty, or whitespace-only URLs before opening game state, so a deployment cannot silently return to a stale JSON import file.
+
+Use `MACHINATION_STORAGE=file` for local file storage; that mode refuses a nonempty `DATABASE_URL`. Invalid mode names, including an empty setting, fail startup. Leaving the mode entirely unset preserves the earlier URL-based selection for compatibility: a URL chooses Postgres, and an absent URL chooses the file. That compatibility behavior does not enforce a required backend. Hosted Postgres releases must keep the explicit setting.
 
 ## Layout
 
@@ -26,7 +28,7 @@ On startup, if Postgres has no game state and `MACHINATION_DATA` points to an ex
 
 1. Create a Pro project in the same region as the Railway service. Free projects pause when idle.
 2. Enable point-in-time recovery.
-3. Copy a direct or session-pooler **database connection string** into the server's `DATABASE_URL` secret. Use the exact hostname and username from the project's Connect dialog. Don't use the HTTP API URL or an API key, and never expose it through `EXPO_PUBLIC_` settings. Keep the direct/session connection choice from #111; don't substitute transaction mode for this release path.
+3. Stage `MACHINATION_STORAGE=postgres` together with a direct or session-pooler **database connection string** in the server's `DATABASE_URL` secret. Replace any prior `file` selection. Use the exact hostname and username from the project's Connect dialog. Don't use the HTTP API URL or an API key, and never expose it through `EXPO_PUBLIC_` settings. Keep the direct/session connection choice from #111; don't substitute transaction mode for this release path.
 4. Keep `MACHINATION_DATABASE_TLS=verify-full`, or leave it unset. Every connection encrypts traffic and verifies the certificate chain and the exact URL hostname. If the endpoint's CA isn't in Node's default trust roots, download the provider root certificate from the project's Database settings and supply its PEM text as the server-only `MACHINATION_DATABASE_CA` secret. This replaces the default trust roots; never put it in `EXPO_PUBLIC_` settings. Follow [Supabase's connection and SSL guidance](https://supabase.com/docs/guides/database/connecting-to-postgres) for the chosen direct or session endpoint, and enable the provider's enforcement of encrypted connections separately.
 5. Stop the old writer, deploy one instance, and check `Game state stored in Postgres.` and the first-boot import line. Verify an authenticated synthetic operation, a retry, private delivery, and preserved access after restart. `/health` is listener liveness, so it can't establish storage readiness.
 
@@ -43,6 +45,8 @@ Confirm the project's actual backup schedule and recovery point in the provider 
 Before migration or real-player use, restore a chosen backup into an isolated database and run the same source against it. Keep `MACHINATION_PUSH_ENABLED=0` and the restored endpoint private so restored notification jobs and credentials can't affect players. Check seats, scheduled commands, private messages, retry receipts, and recorded mechanics, then verify a second restart. Retain access-restricted backup copies outside the application checkout.
 
 A database restore rolls state, credentials, and notification queues back to the selected recovery point. Switching back to the old JSON file after accepting Postgres writes also loses those later writes. Don't treat the initial import file or an older application image as a current database backup. Keep every writer stopped while replacing/restoring authoritative data.
+
+Keep `MACHINATION_STORAGE=postgres` in Railway's persistent service variables across application releases and rollbacks. Stage the backend requirement and URL without triggering intermediate deployments, then start only the validated migration release. Verify the actual variable names and selected backend after deployment without printing credentials. An application rollback must retain these settings, use a build that enforces the requirement, and remain compatible with the stored rules and schema. Images predating the guard in [#131](https://github.com/mcclowes/machination/issues/131) ignore the setting and are unsafe rollback targets after migration. Removing both settings or deliberately selecting file storage disables the protection; that is not a database recovery procedure.
 
 ## Testing
 

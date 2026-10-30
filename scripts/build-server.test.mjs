@@ -30,7 +30,7 @@ async function isolatedPostgres(t, databaseUrl = testDatabase, ssl = false) {
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', MACHINATION_DATABASE_RECOVERY: undefined, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_STORAGE: undefined, DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', MACHINATION_DATABASE_RECOVERY: undefined, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -144,18 +144,46 @@ test('standalone bundle serves and restores an offline operation without project
   } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
+test('required Postgres storage refuses a missing URL before reading the legacy file', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-required-postgres-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'games.json');
+  const source = 'Legacy source must not be read or replaced.';
+  await writeFile(file, source);
+  for (const url of [undefined, '', ' \t\n ']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: url, MACHINATION_STORAGE: 'postgres', MACHINATION_DATABASE_RECOVERY: 'strict', MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0', MACHINATION_DATA: file },
+    }), error => error.code === 1 && !error.killed && /DATABASE_URL is required when MACHINATION_STORAGE=postgres/.test(error.stderr));
+    assert.equal(await readFile(file, 'utf8'), source);
+  }
+});
+
 test('invalid host port configuration fails explicitly before listening', async () => {
   for (const port of ['not-a-port', '', '-1', '65536']) {
     await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: port, MACHINATION_HOST: '127.0.0.1' },
+      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: port, MACHINATION_HOST: '127.0.0.1' },
     }), error => error.code === 1 && /PORT must be an integer/.test(error.stderr));
   }
+});
+
+test('invalid storage backend selection fails before opening either store', async () => {
+  for (const mode of ['', 'auto', 'Postgres', 'sqlite']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_STORAGE: mode, DATABASE_URL: 'credential-bearing-invalid-url', MACHINATION_DATA: '/not-a-real-directory/games.json', MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0' },
+    }), error => error.code === 1 && !error.killed && /MACHINATION_STORAGE must be file or postgres/.test(error.stderr) && !error.stderr.includes('credential-bearing-invalid-url'));
+  }
+});
+
+test('explicit file storage refuses a configured Postgres URL instead of ignoring either setting', async () => {
+  await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_STORAGE: 'file', DATABASE_URL: 'credential-bearing-invalid-url', MACHINATION_DATA: '/not-a-real-directory/games.json', MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0' },
+  }), error => error.code === 1 && !error.killed && /DATABASE_URL must be unset when MACHINATION_STORAGE=file/.test(error.stderr) && !error.stderr.includes('credential-bearing-invalid-url'));
 });
 
 test('invalid client IP trust configuration fails explicitly before opening storage', async () => {
   for (const mode of ['', 'true', 'forwarded', 'Railway']) {
     await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_CLIENT_IP: mode, MACHINATION_DATA: '/not-a-real-directory/games.json' },
+      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: '0', MACHINATION_CLIENT_IP: mode, MACHINATION_DATA: '/not-a-real-directory/games.json' },
     }), error => error.code === 1 && /MACHINATION_CLIENT_IP must be direct or railway/.test(error.stderr));
   }
 });
@@ -248,9 +276,67 @@ test('standalone default recovery preserves raw files and serves healthy operati
 test('invalid database recovery policy fails before storage opens', async () => {
   for (const mode of ['', 'reset', 'true']) {
     await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: '', MACHINATION_DATABASE_RECOVERY: mode, MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0', MACHINATION_DATA: '/not-a-real-directory/games.json' },
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: '0', DATABASE_URL: '', MACHINATION_DATABASE_RECOVERY: mode, MACHINATION_CLIENT_IP: 'direct', MACHINATION_PUSH_ENABLED: '0', MACHINATION_DATA: '/not-a-real-directory/games.json' },
     }), error => error.code === 1 && !error.killed && /MACHINATION_DATABASE_RECOVERY must be strict or quarantine/.test(error.stderr));
   }
+});
+
+test('standalone Postgres storage requirement prevents stale and empty file fallback after later SQL writes', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-postgres-requirement-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const entry = join(directory, 'main.mjs'), file = join(directory, 'games.json');
+  await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+  const { url, sql, schema } = await isolatedPostgres(t);
+  const token = randomBytes(32).toString('hex'), guest = randomBytes(32).toString('hex');
+  const configuration = { MACHINATION_STORAGE: 'postgres', DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local' };
+  let runtime;
+  const request = async (path, body, credential = token) => {
+    const response = await fetch(`${runtime.origin}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const view = await response.json(); assert.equal(response.status, 200, JSON.stringify(view)); return view;
+  };
+  const stored = async () => ({
+    rooms: await sql.unsafe(`select id, data::text as data from "${schema}".machination_rooms order by ordinal`),
+    state: await sql.unsafe(`select key, data::text as data from "${schema}".machination_state order by key`),
+    archives: await sql.unsafe(`select id, data::text as data from "${schema}".machination_quarantine order by id`),
+  });
+  const refuse = (settings, expected) => assert.rejects(() => promisify(execFile)(process.execPath, [entry], {
+    cwd: tmpdir(), timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_DATABASE_RECOVERY: 'strict', MACHINATION_PUSH_ENABLED: '0', MACHINATION_DATA: file, ...settings },
+  }), error => error.code === 1 && !error.killed && expected.test(error.stderr));
+  try {
+    runtime = await start(entry, file, { MACHINATION_STORAGE: 'file' });
+    const room = await request('games', {});
+    await request('join', { invite: room.invite }, guest);
+    await runtime.stop(); runtime = undefined;
+    const legacy = await readFile(file, 'utf8');
+    runtime = await start(entry, file, configuration);
+    assert.equal((await request(`games/${room.id}`)).id, room.id);
+    const command = { requestId: randomUUID(), to: 'vesper', text: 'Accepted only in authoritative Postgres.' };
+    const accepted = await request(`games/${room.id}/messages`, command);
+    assert.equal(accepted.messages.filter(message => message.text === command.text).length, 1);
+    await runtime.stop(); runtime = undefined;
+    const before = await stored();
+    assert.equal(await readFile(file, 'utf8'), legacy);
+    assert.equal(JSON.parse(legacy).rooms[0].messages.length, 0);
+    for (const missing of [undefined, '', ' \t ']) {
+      await refuse({ ...configuration, DATABASE_URL: missing }, /DATABASE_URL is required when MACHINATION_STORAGE=postgres/);
+      assert.deepEqual(await stored(), before);
+      assert.equal(await readFile(file, 'utf8'), legacy);
+    }
+    await refuse({ ...configuration, MACHINATION_STORAGE: 'file' }, /DATABASE_URL must be unset when MACHINATION_STORAGE=file/);
+    assert.deepEqual(await stored(), before);
+    assert.equal(await readFile(file, 'utf8'), legacy);
+    const absent = join(directory, 'absent', 'games.json');
+    await refuse({ ...configuration, DATABASE_URL: undefined, MACHINATION_DATA: absent }, /DATABASE_URL is required when MACHINATION_STORAGE=postgres/);
+    await assert.rejects(readFile(absent), { code: 'ENOENT' });
+    await assert.rejects(readdir(join(directory, 'absent')), { code: 'ENOENT' });
+    assert.deepEqual(await stored(), before);
+    runtime = await start(entry, file, configuration);
+    const retried = await request(`games/${room.id}/messages`, command);
+    assert.equal(retried.messages.filter(message => message.text === command.text).length, 1);
+    assert.equal((await request(`games/${room.id}`, undefined, guest)).messages[0].text, command.text);
+    assert.equal(await readFile(file, 'utf8'), legacy);
+    await runtime.stop(); runtime = undefined;
+  } finally { if (runtime) await runtime.stop(); }
 });
 
 test('standalone Postgres recovery imports an archived legacy source once without rewriting it', { timeout: 30_000, skip: !testDatabase && 'Set MACHINATION_TEST_DATABASE_URL to run.' }, async t => {
@@ -323,7 +409,7 @@ test('standalone Postgres TLS verifies its CA and hostname and restores stored s
 test('invalid database TLS configuration fails without exposing credentials', async () => {
   for (const configuration of [{ MACHINATION_DATABASE_TLS: 'require' }, { MACHINATION_DATABASE_TLS: 'local' }, { MACHINATION_DATABASE_CA: '/private/secret-ca.pem' }]) {
     await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', DATABASE_URL: 'postgres://private-user:private-password@db.example.test/game', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', ...configuration },
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: '0', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', DATABASE_URL: 'postgres://private-user:private-password@db.example.test/game', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', ...configuration },
     }), error => error.code === 1 && !error.killed && /MACHINATION_DATABASE_(TLS|CA)/.test(error.stderr) && !/private-user|private-password|secret-ca/.test(error.stderr));
   }
 });
@@ -394,7 +480,7 @@ test('standalone Postgres closes its client when startup import fails', { timeou
   const file = join(dir, 'damaged.json');
   await writeFile(file, '{damaged');
   await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: file, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: '0', DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: file, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
   }), error => error.code === 1 && !error.killed && /Cannot start game service:/.test(error.stderr));
 });
 
@@ -407,7 +493,7 @@ test('standalone Postgres closes its client after a listener startup failure', {
   t.after(() => new Promise(resolve => busy.close(resolve)));
   const port = busy.address().port;
   await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
-    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: String(port), DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: join(dir, 'games.json'), MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
+    timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: String(port), DATABASE_URL: url, MACHINATION_DATABASE_TLS: 'local', MACHINATION_DATABASE_CA: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_HOST: '127.0.0.1', MACHINATION_DATA: join(dir, 'games.json'), MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct' },
   }), error => error.code === 1 && !error.killed && /EADDRINUSE/.test(error.stderr));
 });
 
