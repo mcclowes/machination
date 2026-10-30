@@ -9,7 +9,7 @@ The exercises teach orders and combat in a mining-mode scenario. They don't teac
 
 ## Mission sequence
 
-The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfuge.fandom.com/wiki/Puzzles), using Machination's names, maps, and controls. Four additional exercises follow it. Each mission includes optional hints and checks your actual orders and results.
+The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfuge.fandom.com/wiki/Puzzles), using Machination's names, maps, and controls. Four additional exercises and twelve specialist drills follow it. Each mission includes optional hints and checks your actual orders and results.
 
 | Source mission | Practice exercise | Goal |
 | --- | --- | --- |

@@ -67,4 +67,4 @@ Verify HTTPS `/health`, three synthetic seats, host start, an authorized transfe
 
 Set `EXPO_PUBLIC_GAME_SERVER` to the verified HTTPS origin before building native clients, or enter the origin manually in Multiplayer uplink. A phone's localhost is not this service. Test real device networking before claiming remote mobile playability.
 
-The existing direct-peer rate limiter groups traffic behind Railway's proxy. This remains suitable only for small invited playtests; proxy-aware rate limiting is separate work. The server still settles time on requests; hosting it does not implement push notifications or a background notification worker.
+The existing direct-peer rate limiter groups traffic behind Railway's proxy. This remains suitable only for small invited playtests; proxy-aware rate limiting is separate work. The server still settles time on requests. Its optional notification worker stays off unless `MACHINATION_PUSH_ENABLED=1` is set; see [device notifications](notifications.md).

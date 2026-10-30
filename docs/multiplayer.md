@@ -1,6 +1,6 @@
 # Multiplayer service
 
-The app now supports invite-only operations with three human players. Solo operations stay local and continue using rival AI.
+The app now supports invite-only operations with two to ten human players. Solo operations stay local and continue using rival AI.
 
 For Machination account login, account restoration, and legacy seat linking, see [account setup](accounts.md). The local review below uses device tokens when Clerk is not configured.
 
@@ -11,15 +11,15 @@ npm run server
 npm run web
 ```
 
-In **Multiplayer uplink**, use `http://localhost:8787`. Create an operation, share its invitation code with two players, and start once all seats are occupied. Browser seats are stored per tab in session storage; use separately opened tabs for independent seats. Native credentials are stored through [Expo SecureStore](https://docs.expo.dev/versions/v55.0.0/sdk/securestore/).
+In **Multiplayer uplink**, use `http://localhost:8787`. Create an operation, share its invitation code with the other players, and start once all configured seats are occupied. Browser seats are stored per tab in session storage; use separately opened tabs for independent seats. Native credentials are stored through [Expo SecureStore](https://docs.expo.dev/versions/v55.0.0/sdk/securestore/).
 
 For the Android emulator, use `http://10.0.2.2:8787`. Remote devices require an HTTPS endpoint; the current local server is bound to loopback. Set `EXPO_PUBLIC_GAME_SERVER` before starting/exporting the app to change its initial server address. Native runtime and device networking still need verification.
 
-The host controls Mnemosyne; the next players control Vesper and Null collective. All three seats are human controlled. The lobby clock is frozen. The host's start command anchors server time. Afterward, one wall-clock hour is one game hour. Each request settles elapsed time, including arrivals and victory, so the result doesn't depend on someone keeping the app open. Online forecasts simulate known orders without inventing rival decisions.
+The host controls Mnemosyne; later players control Vesper, Null collective, and the remaining intelligences in seat order. Every seat is human controlled. The lobby clock is frozen. The host's start command anchors server time. Afterward, one wall-clock hour is one game hour. Each request settles elapsed time, including arrivals and victory, so the result doesn't depend on someone keeping the app open. Online forecasts simulate known orders without inventing rival decisions.
 
 Launches and private messages carry unique command IDs. The app saves a pending command before sending it and retains it through uncertain network failures. Retrying that command cannot apply it twice. A definitive HTTP rejection clears the pending command and refreshes the operation. Order revisions reject stale plans after another accepted order or module build by the same seat. Rival actions are validated through current state without exposing their command counts. Friendly reinforcement is supported through destination selection.
 
-Private messages are returned only to their sender and recipient. They are stored on the server and are not end-to-end encrypted. Client messages are limited to 300 characters; the API accepts up to 1,000. Only the latest 30 messages in the selected bilateral channel are rendered; the server retains the full history up to its documented limit.
+Private messages are returned only to their sender and recipient. They are stored on the server and are not end-to-end encrypted. Client and API messages are limited to 1,000 characters. The selected channel renders its latest 100 messages, with **Show earlier messages** loading more; the server retains the full history up to its documented limit.
 
 ## HTTP contract
 
@@ -30,7 +30,7 @@ Base path: `/v1`. When Clerk is not configured, all game endpoints except `/game
 | POST | `/games` | `{}` | Create a host seat; repeat token resumes its existing operation |
 | POST | `/join` | `{invite}` | Claim the next seat; repeat token resumes that seat |
 | GET | `/games/:id` | none | Authorized game view and participant-filtered messages |
-| POST | `/games/:id/start` | `{}` | Host starts with three occupied seats; retry is harmless |
+| POST | `/games/:id/start` | `{}` | Host starts once every configured seat is occupied; retry is harmless |
 | POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
 | POST | `/games/:id/gifts` | `{requestId, revision, from, to, drones, recipient, carryModule?}` | Launch immediate support owned by another active intelligence; destination must be its currently observed rock |
 | POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned interceptor against a visible enemy hauler |
@@ -39,7 +39,7 @@ Base path: `/v1`. When Clerk is not configured, all game endpoints except `/game
 | POST | `/games/:id/recover` | `{secret}` | Recovery-code scheme: consume the secret and bind the seat to a fresh token |
 | POST | `/games/:id/messages` | `{requestId, to, text}` | Private bilateral transmission |
 
-A successful response is a `Snapshot` defined in `src/online/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
+A successful response is a `Snapshot` defined in `src/contracts/protocol.ts`. Failures use an `issues` array with a namespaced issue code, severity, correlation ID, timestamp, and user-readable message. Module keys are `routing`, `virus`, `scavenger`, and `charge`. Orders carry a module only when `carryModule` is true; otherwise it stays parked. A command ID reused with different content returns 409. The client must retain the same payload when retrying an uncertain command.
 
 For a standalone runtime, container, health checks, and backup verification, see [hosted playtests](hosting.md).
 
@@ -64,7 +64,7 @@ Run **one process per data file**. This is a small hosted-playtest backend, not 
 
 Public hosting needs HTTPS termination, a persistent volume, backups, and an explicit allowed browser origin. The adapter limits JSON requests to 8 KB and 120 requests per minute per direct peer address. When proxied, the current limiter groups requests by the proxy's address. Operation capacity is 1,000 rooms, 10,000 accepted command IDs per room, and 5,000 private messages per room; reaching a limit returns an explicit failure rather than evicting retry history.
 
-Remaining release work includes hosting, email/account identity, general session management, push notifications, moderation, native device QA, and scaling beyond one process.
+Remaining release work includes production account sign-in, general session management, push notification delivery, moderation, native device QA, and scaling beyond one process.
 
 ## Sensors and incomplete information
 

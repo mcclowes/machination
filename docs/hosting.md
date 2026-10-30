@@ -79,4 +79,4 @@ For a release, build and test the new image, stop the old container, and replace
 
 ## Current evidence and remaining work
 
-The standalone bundle and container checks pass locally, including graceful shutdown, container replacement, and backup restoration. No registry push, DNS change, TLS endpoint, or public deployment has been made. Selecting and validating a hosting target, operating backups, mobile push delivery, Android runtime checks, and store distribution remain release work.
+The standalone bundle and container checks pass locally, including graceful shutdown, container replacement, and backup restoration. The invited playtest now runs on Railway; see [Railway deployment](railway.md). No registry push or custom DNS change has been made. Operating backups, mobile push delivery, Android runtime checks, and store distribution remain release work.
