@@ -77,3 +77,21 @@ test('mine construction enables playback without a hauler or queued launch', asy
   await expect(resolve).toBeEnabled();
   await page.screenshot({ path: `.fettle/shots/tutorial-mine-playback-${info.project.name}.png` });
 });
+
+test('mission instructions can be hidden and restored without losing controls or hints', async ({ page }) => {
+  await page.getByRole('button', { name: 'Start: A test of character', exact: true }).click();
+  await dismissDialogue(page);
+  const instruction = page.getByText('Keep Foundry throughout and deliver the sensor courier without combat.', { exact: true });
+  await expect(instruction).toBeVisible();
+  const hint = page.getByText(TRAINING_SCENARIOS.find(scenario => scenario.id === 'test-of-character')!.hints[0]!, { exact: true });
+  await page.getByRole('button', { name: 'Show hint', exact: true }).click();
+  await expect(hint).toBeVisible();
+  await page.getByRole('button', { name: 'Hide instructions', exact: true }).click();
+  await expect(instruction).toHaveCount(0);
+  await expect(hint).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Advance +1h', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry exercise', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show instructions', exact: true }).click();
+  await expect(instruction).toBeVisible();
+  await expect(hint).toBeVisible();
+});
