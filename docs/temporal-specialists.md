@@ -2,6 +2,8 @@
 
 Design proposal for [#96](https://github.com/mcclowes/machination/issues/96). These abilities aren't in the playable roster. Names are working names; outposts, subs, and drillers correspond to Machination's sites, haulers, and drones.
 
+Overclock now names the playable promoted combat specialist. The production concept below needs a different name if adopted.
+
 The shared theme is control over timing and information, with a cost the opponent can exploit. Dilation promotes to Anchor. The other specialists are separate proposals; their recruitment categories and promotion relationships remain open.
 
 ## Dilation

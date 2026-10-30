@@ -12,14 +12,14 @@ type SignalView = Pick<GameView, 'hour' | 'winner' | 'eliminated' | 'rules' | 'e
 
 export function signalArtwork(message: string): ArtworkId {
   if (/\b(unknown|unobserved)\b/i.test(message)) return 'cloaked-ship';
-  if (/\b(detonation|self-destruct|core destroyed|cores lost)\b/i.test(message)) return 'exploding-planet';
-  if (/\b(bombardment|sentry)\b/i.test(message)) return 'bombardment';
+  if (/\b(detonation|self-destruct|meltdown|core destroyed|cores lost)\b/i.test(message)) return 'exploding-planet';
+  if (/\b(bombardment|sentry|watchdog)\b/i.test(message)) return 'bombardment';
   if (/\b(fought|captured|acquired|neutralized|defending force|combat|assimilated)\b/i.test(message)) return 'techno-gothic-duel';
   if (/\b(planned|scheduled|course change)\b/i.test(message)) return 'time-ship';
   if (/\b(recruited|promoted|captive|released)\b/i.test(message)) return 'ritual-tech-clash';
   if (/\b(mine|mining|extraction|cargo|quota)\b/i.test(message)) return 'mining-world';
   if (/\b(constructed|shields|production)\b/i.test(message)) return 'industrial-cockpit';
-  if (/\b(drones|hauler|haulers|transfer|interception|gift|scavenger)\b/i.test(message)) return 'mining-drones';
+  if (/\b(drones|hauler|haulers|transfer|interception|gift|scavenger|interceptor)\b/i.test(message)) return 'mining-drones';
   return 'command-bridge';
 }
 

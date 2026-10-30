@@ -28,7 +28,7 @@ export function SpecialistsCheatsheet() {
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Recruitment and promotions</Text>
       <Text style={s.body}>Earn a credit after four normal-rate hours, then every 18. Credits accumulate. The opening runs recruitment at 1.5× for 12 game hours, bringing the first credit at 2h 40m.</Text>
-      <Text style={s.body}>Each hire offers one attack, one defense, and one other module. Hire at your core's controlled site for one credit. A traveling core can't hire. Diversion worm and Kill protocol give two units per hire; other hires give one.</Text>
+      <Text style={s.body}>Each hire offers one attack, one defense, and one other module. Hire at your core's controlled site for one credit. A traveling core can't hire. Diversion worm and Purger give two units per hire; other hires give one.</Text>
       <Text style={s.body}>Spend one credit to promote an eligible module docked at a controlled site, even while your core travels. Promotion replaces the old ability and refreshes the offers. Hires and promotions take effect immediately when executed.</Text>
     </View>
     {groups.map(([category, title]) => <View key={category} style={s.section}>
@@ -54,14 +54,14 @@ export function SpecialistsCheatsheet() {
       <Text accessibilityRole="header" style={s.heading}>Combat order</Text>
       <Text style={s.body}>Earlier abilities can end combat or remove modules before later ones act. Equal-priority effects resolve simultaneously.</Text>
       {combatOrder.map(unit => <Text key={unit.name} style={s.body}>{unit.priority}. {unit.name}</Text>)}
-      <Text style={s.body}>Self-destruct charge detonates before suppression. Precedence kernel suppresses local combat abilities if only one side carries it; kernels on both sides allow those abilities again.</Text>
-      <Text style={s.body}>If combat continues, War controller and Siege controller apply global damage, then shields absorb site attacks, then drones fight. More active local modules break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Repair mesh recovery still apply under local suppression.</Text>
+      <Text style={s.body}>Meltdown charge detonates before suppression. Arbiter suppresses local combat abilities if only one side carries it; arbiters on both sides allow those abilities again.</Text>
+      <Text style={s.body}>If combat continues, Warmind and Overclock apply global damage, then shields absorb site attacks, then drones fight. More active local modules break drone ties. Victory recovery and shield refill follow. Global combat bonuses and global Reclaimer recovery still apply under local suppression.</Text>
       <Text style={s.body}>Gift contacts transfer modules without combat abilities. Captured modules keep their original owner but become inactive captives.</Text>
     </View>
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Travel reminders</Text>
-      <Text style={s.body}>Load modules explicitly onto haulers; they can travel without drones. Scavenger rig's 2× outbound and 4× return speed apply to targeted interceptions, not ordinary site-bound travel or captive release.</Text>
-      <Text style={s.body}>Routing controller turns take effect after a cancelable ten-minute delay. The eight-hour cooldown starts at the turn. Sentry, Capacitor, and Navigator timers keep their ordinary timing during opening acceleration.</Text>
+      <Text style={s.body}>Load modules explicitly onto haulers; they can travel without drones. Interceptor's 2× outbound and 4× return speed apply to targeted interceptions, not ordinary site-bound travel or captive release.</Text>
+      <Text style={s.body}>Navigator turns take effect after a cancelable ten-minute delay. The eight-hour cooldown starts at the turn. Watchdog, Capacitor, and Navigator timers keep their ordinary timing during opening acceleration.</Text>
       <Text style={s.body}>These are current operation rules. Older saves retain their recorded mechanics.</Text>
     </View>
   </ScrollView>;

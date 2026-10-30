@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { launchCargoLabel, selectableLaunchUnits } from './launch-manifest';
 
 test('launch confirmation names all selected cargo, including legacy modules and specialist-only launches', () => {
-  assert.equal(launchCargoLabel(12, [{ kind: 'pirate' }], 'routing'), '12 drones · Scavenger rig · Routing daemon');
+  assert.equal(launchCargoLabel(12, [{ kind: 'pirate' }], 'routing'), '12 drones · Interceptor · Thruster');
   assert.equal(launchCargoLabel(0, [{ kind: 'queen' }]), '0 drones · Intelligence core');
   assert.equal(launchCargoLabel(8, []), '8 drones · no specialists');
 });

@@ -29,7 +29,7 @@ import { LAUNCH_PREPARATION, completePreparations } from './transport';
 import { nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
 import { transferDuration, type Point } from './flight';
-import { isActionPlan, actionLabel, executeScheduledAction } from './future-actions';
+import { isActionPlan, actionEventLabel, executeScheduledAction } from './future-actions';
 import type { ScheduledOrder } from './orders';
 import { recentEvents, type GameEvent } from './events';
 import { observers } from './sensors';
@@ -83,7 +83,7 @@ export function installModule(game: Game, rockId: string, kind: ModuleKind, owne
   if (rock.module) throw new Error('This rock already has a module. Load it onto a hauler to free the bay.');
   if (rock.drones < MODULES[kind].cost) throw new Error('Not enough drones to build this module.');
   return { ...game, rocks: game.rocks.map(r => r.id === rockId ? { ...r, module: kind, drones: r.drones - MODULES[kind].cost } : r),
-    events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: ${MODULES[kind].name} constructed for ${MODULES[kind].cost} drones.` }, ...game.events]) };
+    events: recentEvents([{ hour: game.hour, audience: observers(game, rock), message: `${rock.name}: ${MODULES[kind].eventName} constructed for ${MODULES[kind].cost} drones.` }, ...game.events]) };
 }
 export function dispatch(game: Game, fromId: string, toId: string, drones: number, owner: Faction, carryModule = false, specialists: string[] = [], fleetId?: number): Game {
   const from = game.rocks.find(r => r.id === fromId);
@@ -185,7 +185,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
         if (rock.owner === fleet.owner) {
           rock.drones += fleet.drones;
           if (fleet.module && !rock.module) rock.module = fleet.module;
-          else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].name} recycled.` });
+          else if (fleet.module) game.events.unshift({ hour: next, audience, message: `${rock.name}: occupied module bay; incoming ${MODULES[fleet.module].eventName} recycled.` });
           continue;
         }
         if (fleet.module === 'charge') {
@@ -279,7 +279,7 @@ function executeScheduled(input: Game, trace?: SimulationTraceSink): Game {
       if (plan.module && game.rocks.find(r => r.id === plan.from)?.module !== plan.module) throw new Error('The planned module is no longer in the departure bay.');
       game = dispatch(game, plan.from, plan.to, plan.drones, plan.owner, !!plan.module, plan.specialists, plan.fleetId);
     } catch (error) {
-      game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: isActionPlan(plan) ? `${actionLabel(plan.action, game.rocks)} aborted: ${(error as Error).message}` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
+      game.events = recentEvents([{ hour: game.hour, audience: [plan.owner], message: isActionPlan(plan) ? `${actionEventLabel(plan.action, game.rocks)} aborted: ${(error as Error).message}` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} to ${game.rocks.find(r => r.id === plan.to)!.name} aborted: ${(error as Error).message}` }, ...game.events]);
     } finally { tracePoint(trace, 'queue', game); }
   }
   return game;

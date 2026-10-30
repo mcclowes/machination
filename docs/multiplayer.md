@@ -33,7 +33,7 @@ Base path: `/v1`. When Clerk is not configured, all game endpoints except `/game
 | POST | `/games/:id/start` | `{}` | Host starts with three occupied seats; retry is harmless |
 | POST | `/games/:id/orders` | `{requestId, revision, from, to, drones, carryModule?}` | Validate against the current server state and dispatch |
 | POST | `/games/:id/gifts` | `{requestId, revision, from, to, drones, recipient, carryModule?}` | Launch immediate support owned by another active intelligence; destination must be its currently observed rock |
-| POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned scavenger rig against a visible enemy hauler |
+| POST | `/games/:id/intercepts` | `{requestId, revision, from, target, drones}` | Launch an owned interceptor against a visible enemy hauler |
 | POST | `/games/:id/modules` | `{requestId, revision, rock, module}` | Spend drones on an owned rock and occupy its module bay |
 | POST | `/games/:id/recovery` | `{requestId, secret}` | Register or replace a private recovery secret using the current seat token |
 | POST | `/games/:id/recover` | `{secret}` | Recovery-code scheme: consume the secret and bind the seat to a fresh token |

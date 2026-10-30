@@ -33,9 +33,9 @@ An inspected garrison can produce more drones or recharge its shields before you
 
 ## When specialists are involved
 
-The simple subtraction stops being enough. A [Shield breaker](specialists.md#infiltrator) drains defending shields; a [Conversion virus](specialists.md#thief) changes the drone counts; a [Self-destruct charge](specialists.md#martyr) can destroy the whole encounter area.
+The simple subtraction stops being enough. A [Breacher](specialists.md#infiltrator) drains defending shields; a [Hijacker](specialists.md#thief) changes the drone counts; a [Meltdown charge](specialists.md#martyr) can destroy the whole encounter area.
 
-Local specialist abilities use combat priority, lower first and equal priorities together. The self-destruct effect precedes suppression. A Precedence kernel on only one side suppresses other local combat abilities; kernels on both sides allow them again. Global effects can still apply.
+Local specialist abilities use combat priority, lower first and equal priorities together. The self-destruct effect precedes suppression. A Arbiter on only one side suppresses other local combat abilities; arbiters on both sides allow them again. Global effects can still apply.
 
 If combat continues, global combat damage applies before shields and drone combat. Surviving active local specialists break drone ties. With equal specialists, a defending site keeps control. Captured specialists become inactive captives. Gift contacts transfer without combat abilities.
 
@@ -43,6 +43,6 @@ Use the [specialist reference](specialists.md) and the in-game combat prediction
 
 ## Hauler encounters
 
-Opposing ordinary haulers can meet while traveling opposite legs of the same route. There is no site shield phase in that encounter. Surviving ordinary haulers continue their journey; targeted Scavenger interceptions follow their own return mission.
+Opposing ordinary haulers can meet while traveling opposite legs of the same route. There is no site shield phase in that encounter. Surviving ordinary haulers continue their journey; targeted interceptions follow their own return mission.
 
 Pulse shields are a separate defense against [King's Pulse](../guides/kings-pulse.md). Drone combat shield points don't tell you how long a site can withstand a strategic pulse.

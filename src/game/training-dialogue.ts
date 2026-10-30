@@ -31,13 +31,13 @@ export const TRAINING_DIALOGUE: Record<TrainingId, MissionDialogue> = {
   },
   'unit-transport': {
     briefing: [
-      commander('Our routing daemon is needed at Foundry. Move it from Core berth alone. No drones, no other modules, and absolutely no intelligence core aboard.'),
+      commander('Our thruster is needed at Foundry. Move it from Core berth alone. No drones, no other modules, and absolutely no intelligence core aboard.'),
       enemy('Your channels have gone quiet, Admiral. Moving something precious? I do enjoy guessing which ship to break.'),
-      commander('Let Vesper guess. Select only the routing daemon in the manifest and set drones to zero. Keep the core at home. Six hours, Captain.'),
+      commander('Let Vesper guess. Select only the thruster in the manifest and set drones to zero. Keep the core at home. Six hours, Captain.'),
     ],
     underway: [enemy('All this empty space, and nowhere to hide forever. Keep your little secrets.')],
-    passed: [enemy('A courier slipped through. Hardly a fleet to be proud of.'), commander('Daemon delivered. Core secure. Sometimes the right manifest matters more than the largest one.')],
-    failed: [enemy('Something missing from your manifest, Captain? Or something you should have left at home?'), commander('The daemon must arrive alone, and the core must stay at Core berth. Reset and inspect every selected passenger.')],
+    passed: [enemy('A courier slipped through. Hardly a fleet to be proud of.'), commander('Thruster delivered. Core secure. Sometimes the right manifest matters more than the largest one.')],
+    failed: [enemy('Something missing from your manifest, Captain? Or something you should have left at home?'), commander('The thruster must arrive alone, and the core must stay at Core berth. Reset and inspect every selected passenger.')],
   },
   'future-production': {
     briefing: [
@@ -51,9 +51,9 @@ export const TRAINING_DIALOGUE: Record<TrainingId, MissionDialogue> = {
   },
   interception: {
     briefing: [
-      commander('Incoming raid. Forty hostile drones are already heading for Core berth. Foundry has a scavenger rig and sixty drones. Stop that hauler before it reaches us.'),
+      commander('Incoming raid. Forty hostile drones are already heading for Core berth. Foundry has a interceptor and sixty drones. Stop that hauler before it reaches us.'),
       enemy('No need to come looking for me, Captain. My drones already have your core’s address.'),
-      commander('Use Foundry’s Scavenger interception list to target the inbound hauler. The rig doubles your outbound speed. Bring enough drones to finish the job.'),
+      commander('Use Foundry’s Interceptor targets list to target the inbound hauler. The interceptor doubles your outbound speed. Bring enough drones to finish the job.'),
     ],
     underway: [enemy('Every minute you spend thinking is another minute my fleet spends closing on your core.')],
     passed: [enemy('You caught one raid. Do not expect the next one to be so polite.'), commander('Raid stopped. Core secure. You took the fight off our doorstep. That concludes this set of exercises, Captain.')],

@@ -29,8 +29,8 @@ test('different owners and captives stay in separate groups', () => {
     { kind: 'diplomat', owner: 'vesper', captive: false, count: 1 },
     { kind: 'diplomat', owner: 'vesper', captive: true, count: 2 },
   ]);
-  assert.equal(specialistManifestDescription(summary), 'Envoy protocol (Mnemosyne), Envoy protocol (Vesper), 2 × Envoy protocol (Vesper, captive)');
-  assert.equal(specialistManifestDescription(summary, owner => owner === 'vesper' ? 'Kade' : 'You'), 'Envoy protocol (You), Envoy protocol (Kade), 2 × Envoy protocol (Kade, captive)');
+  assert.equal(specialistManifestDescription(summary), 'Envoy (Mnemosyne), Envoy (Vesper), 2 × Envoy (Vesper, captive)');
+  assert.equal(specialistManifestDescription(summary, owner => owner === 'vesper' ? 'Kade' : 'You'), 'Envoy (You), Envoy (Kade), 2 × Envoy (Kade, captive)');
 });
 
 test('at most three groups display and overflow counts remaining units, not groups', () => {
@@ -39,7 +39,7 @@ test('at most three groups display and overflow counts remaining units, not grou
   assert.equal(summary.groups.length, 5);
   assert.equal(summary.overflow, 3);
   assert.equal(summary.total, 6);
-  assert.match(specialistManifestDescription(summary), /2 × Assembler daemon.*Scavenger rig/);
+  assert.match(specialistManifestDescription(summary), /2 × Fabricator.*Interceptor/);
 });
 
 test('summary is independent of manifest order', () => {

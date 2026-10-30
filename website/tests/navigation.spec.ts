@@ -20,7 +20,7 @@ test('specialist deep links and glossary work after a direct load', async ({ pag
   await page.goto('/specialists/#pirate');
   await expect(page.locator('h2#pirate')).toBeInViewport();
   await page.goto('/specialists/#foreman');
-  await page.locator('article').getByRole('link', { name: 'Repair mesh', exact: true }).click();
+  await page.locator('article').getByRole('link', { name: 'Reclaimer', exact: true }).click();
   await expect(page).toHaveURL(/#engineer$/);
   await expect(page.locator('h2#engineer')).toBeInViewport();
   await page.goto('/glossary/');
@@ -34,8 +34,8 @@ test('local search can find a specialist without a hosted search service', async
   const search = page.getByLabel('Search', { exact: true });
   await search.focus();
   await expect(search).toHaveAttribute('role', 'combobox');
-  await search.fill('Scavenger');
-  await page.getByRole('option').filter({ hasText: 'Specialist reference' }).filter({ hasText: 'Scavenger rig' }).first().click();
+  await search.fill('Interceptor');
+  await page.getByRole('option').filter({ hasText: 'Specialist reference' }).filter({ hasText: 'Interceptor' }).first().click();
   await expect(page).toHaveURL(/specialists/);
 });
 

@@ -40,7 +40,7 @@ A scheduled launch still prepares for ten minutes when it executes. Choose its l
 
 The future context also supports recruitment, promotions, captive releases, mine drilling, shield changes, funding, and eligible hauler orders. Buttons say **Schedule** at the selected time.
 
-Requirements still apply at execution: a specialist must be available, an interception must remain reachable, and a routing controller must be off cooldown. New recruitment offers beyond the known offer remain unknown until they become available.
+Requirements still apply at execution: a specialist must be available, an interception must remain reachable, and a navigator must be off cooldown. New recruitment offers beyond the known offer remain unknown until they become available.
 
 ## Look backward without changing orders
 

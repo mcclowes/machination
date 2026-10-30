@@ -1,6 +1,6 @@
 /**
  * ---
- * purpose: Show reachable observed haulers and immediate scavenger launch controls.
+ * purpose: Show reachable observed haulers and immediate interceptor launch controls.
  * ---
  */
 import { gameClock } from '../game/time-machine';
@@ -17,7 +17,7 @@ export function InterceptionTargets({ game, source, owner, drones, specialists, 
   const includesRig = !modern || !!source.specialists?.some(u => u.kind === 'pirate' && u.owner === owner && !u.captive && selected.includes(u.id));
   const targets = game.fleets.filter(f => f.owner !== owner && !f.preparing && (targetIds === undefined || targetIds.includes(f.id)));
   const validManifest = Number.isSafeInteger(drones) && drones >= (modern ? 0 : 1) && includesRig && drones <= Math.floor(source.drones);
-  return <View style={s.panel}><Text style={s.title}>Scavenger interception</Text><Text style={s.detail}>{modern ? 'Prepares for ten minutes with a scavenger rig and the manifest above. Surviving rigs return to the nearest friendly site at quadruple speed.' : "Uses this rock's rig and the drone manifest above. Launches immediately; surviving rigs return here after combat."}</Text>
+  return <View style={s.panel}><Text style={s.title}>Interceptor targets</Text><Text style={s.detail}>{modern ? 'Prepares for ten minutes with an interceptor and the manifest above. Surviving interceptors return to the nearest friendly site at quadruple speed.' : "Uses this rock's interceptor and the drone manifest above. Launches immediately; surviving interceptors return here after combat."}</Text>
     {scheduledAt !== undefined && <Text style={s.detail}>Only currently observed targets can be scheduled. The target must still exist and be reachable at execution.</Text>}
     {targets.length ? targets.map(target => {
       const course = interceptionCourse(game, source, target, modern ? 16 : 8, game.hour + (modern ? 1 / 6 : 0));

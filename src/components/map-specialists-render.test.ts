@@ -134,7 +134,7 @@ test('zero-drone specialist haulers and docked specialists remain visible and in
     const icons = renderer.root.findAll((n: any) => n.type === 'SpecialistIcon');
     assert.deepEqual(icons.map((n: any) => n.props.kind).sort(), ['helmsman', 'queen']);
     const fleet = renderer.root.findAll((n: any) => n.type === 'Pressable' && /hauler,/.test(n.props.accessibilityLabel ?? ''))[0];
-    assert.match(fleet.props.accessibilityLabel, /Routing daemon/);
+    assert.match(fleet.props.accessibilityLabel, /Thruster/);
     await act(async () => fleet.props.onPress());
     assert.equal(inspections, 1);
     assert.ok(renderer.root.findAllByProps({ testID: 'hauler-inspector' }).length);
@@ -161,8 +161,8 @@ test('crowded manifests display bounded badges and counts while the asset descri
   await withChart({ game }, async renderer => {
     const fleet = renderer.root.findAll((n: any) => n.type === 'Pressable' && /hauler,/.test(n.props.accessibilityLabel ?? ''))[0];
     const crew = renderer.root.findAll((n: any) => n.type === 'Pressable' && n.props.accessibilityLabel?.startsWith('Inspect specialists aboard'))[0];
-    assert.match(fleet.props.accessibilityLabel, /2 × Envoy protocol \(vesper, captive\)/);
-    assert.match(fleet.props.accessibilityLabel, /2 × Assembler daemon/);
+    assert.match(fleet.props.accessibilityLabel, /2 × Envoy \(vesper, captive\)/);
+    assert.match(fleet.props.accessibilityLabel, /2 × Fabricator/);
     assert.equal(crew.findAll((n: any) => n.type === 'SpecialistIcon').length, 3);
     assert.equal(crew.findAll((n: any) => n.type === 'View' && n.props.testID === 'map-specialist-overflow').length, 1);
     const text = crew.findAll((n: any) => n.type === 'Text').map((n: any) => n.children.join(''));
@@ -192,7 +192,7 @@ test('large overflow stays compact across platforms without losing the actual ma
   ];
   await withChart({ game }, async renderer => {
     const crew = renderer.root.findAll((n: any) => n.type === 'Pressable' && n.props.accessibilityLabel?.startsWith('Inspect specialists aboard'))[0];
-    assert.match(crew.props.accessibilityLabel, /123 × Assembler daemon/);
+    assert.match(crew.props.accessibilityLabel, /123 × Fabricator/);
     const overflow = crew.findAll((n: any) => n.type === 'View' && n.props.testID === 'map-specialist-overflow')[0];
     assert.equal(overflow.findAll((n: any) => n.type === 'Text')[0].children.join(''), '99+');
   });

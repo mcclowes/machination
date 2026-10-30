@@ -8,7 +8,7 @@ import { hireSpecialist, promoteSpecialist } from './specialists';
 import { releaseSpecialist } from './specialist-travel';
 import { drillMine, setShields } from './economy';
 import { setFunding } from './funding';
-import { hireAmount, isSpecialistKind, SPECIALISTS, type SpecialistKind } from './specialist-catalog';
+import { hireAmount, isSpecialistKind, SPECIALISTS, specialistEventName, type SpecialistKind } from './specialist-catalog';
 import type { Faction, Game } from './simulation';
 import { MAX_PLAN_DELAY, type ScheduledOrder } from './orders';
 import { mechanicsVersion } from './rules';
@@ -93,6 +93,9 @@ export function actionLabel(action: FutureAction, rocks: readonly { id: string; 
     case 'funding': return `${action.enabled ? 'Fund' : 'Stop funding'} ${action.to}`;
   }
 }
+export function actionEventLabel(action: FutureAction, rocks: readonly { id: string; name: string }[] = []): string {
+  return action.type === 'hire' ? `Recruit ${specialistEventName(action.kind)}` : actionLabel(action, rocks);
+}
 export function scheduleAction(game: Game, plan: ActionPlan): Game {
   if (game.version !== 2 || !playersIn(game).includes(plan.owner) || game.winner || game.draw || game.eliminated.includes(plan.owner)) throw new Error('This intelligence is no longer operational.');
   if (typeof plan.id !== 'string' || !/^[a-zA-Z0-9-]{16,60}$/.test(plan.id)) throw new Error('Provide a unique future action ID.');
@@ -117,7 +120,7 @@ export function scheduleAction(game: Game, plan: ActionPlan): Game {
   if (action.type === 'hire' && (!state || !state.offers.includes(action.kind))) throw new Error('Choose one of the current recruitment offers.');
   const scheduled: ScheduledAction = { id: plan.id, owner: plan.owner, executeAt: plan.executeAt, action, ...(reserves ? { fleetId: game.nextId } : {}),
     ...(action.type === 'hire' ? { hireCycle: state!.used, hireUnits: Array.from({ length: hireAmount(action.kind) }, (_, index) => `hire:${plan.owner}:${plan.id}:${index}`) } : {}) };
-  return { ...game, nextId: game.nextId + (reserves ? 1 : 0), scheduled: [...existing, scheduled], events: recentEvents([{ hour: game.hour, audience: [plan.owner], message: `${actionLabel(action, game.rocks)} planned for hour ${plan.executeAt.toFixed(2)}. Requirements are checked at execution.` }, ...game.events]) };
+  return { ...game, nextId: game.nextId + (reserves ? 1 : 0), scheduled: [...existing, scheduled], events: recentEvents([{ hour: game.hour, audience: [plan.owner], message: `${actionEventLabel(action, game.rocks)} planned for hour ${plan.executeAt.toFixed(2)}. Requirements are checked at execution.` }, ...game.events]) };
 }
 export function executeScheduledAction(game: Game, plan: ScheduledAction): Game {
   const { owner, action } = plan;

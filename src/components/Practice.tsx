@@ -1,5 +1,6 @@
 /** Exercise selection and completion metadata; attempt gameplay stays in the shared operation UI. */
 import React, { useEffect, useState } from 'react';
+import { displaySpecialistNames } from '../game/specialist-catalog';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TRAINING_SCENARIOS, type TrainingId, type TrainingScenario } from '../game/training';
@@ -24,7 +25,7 @@ export function Practice({ children }: { children: (attempt: PracticeAttempt, ke
   const notice = !!error && <View style={s.notice}><Text accessibilityRole="alert" style={s.detail}>{error}</Text><Action label={unsaved ? 'Retry saving progress' : 'Retry loading progress'} onPress={() => unsaved ? complete(unsaved) : load()} /></View>;
   if (scenario) return <View style={s.fill}>{notice}{children({ scenario, onPassed: () => complete(scenario.id), onRetry: () => setAttempt(value => value + 1), onBack: () => setSelected(undefined), ...(next ? { onNext: () => choose(next.id) } : {}) }, `${scenario.id}:${attempt}`)}</View>;
   return <ScrollView contentContainerStyle={s.page} keyboardShouldPersistTaps="handled"><Text accessibilityRole="header" style={s.title}>Tactical practice</Text><Text style={s.detail}>Use the real chart and orders to solve each exercise. Time advances when you choose. Retry to try another plan.</Text>{notice}
-    {TRAINING_SCENARIOS.map((item, index) => <View key={item.id} style={s.card}><Text style={s.heading}>{index + 1}. {item.title}{completed.includes(item.id) ? ' · completed' : ''}</Text><Text style={s.detail}>{item.objective}</Text><Action label={`Start: ${item.title}`} onPress={() => choose(item.id)} /></View>)}
+    {TRAINING_SCENARIOS.map((item, index) => <View key={item.id} style={s.card}><Text style={s.heading}>{index + 1}. {item.title}{completed.includes(item.id) ? ' · completed' : ''}</Text><Text style={s.detail}>{displaySpecialistNames(item.objective)}</Text><Action label={`Start: ${item.title}`} onPress={() => choose(item.id)} /></View>)}
   </ScrollView>;
 }
 function Action({ label, onPress }: { label: string; onPress: () => void }) { return <Pressable accessibilityRole="button" onPress={onPress} style={s.button}><Text style={s.action}>{label}</Text></Pressable>; }

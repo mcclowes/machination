@@ -59,7 +59,7 @@ test('hidden sites never supply roster identities or a hiring core, including ma
   }
   (view.rocks[0] as any) = {...view.rocks[0], known:false, specialists:[{id:'secret',kind:'queen',owner:'you'},{id:'secret-promote',kind:'foreman',owner:'you'}]};
   const panel = await render(props(view));
-  assert.ok(!panel.text().includes('Assembler daemon'));
+  assert.ok(!panel.text().includes('Fabricator'));
   assert.ok(!panel.text().includes('Inspect site'));
   assert.ok(panel.buttons().filter((n:any)=>n.props.accessibilityLabel?.startsWith('Hire ')).every((n:any)=>n.props.disabled));
   await panel.close();
@@ -89,7 +89,7 @@ test('scheduled promotion invokes engine authority and zero credits or read-only
   const site = game.rocks.find(r=>r.owner==='you')!;
   site.specialists!.push({id:'promote-me',kind:'foreman',owner:'you'});
   const panel = await render({...props(observe(game,'you')),scheduledAt:7,onPromote:id=>{game=promoteSpecialist(game,'you',id);}});
-  const button = panel.buttons().find((n:any)=>n.props.accessibilityLabel?.includes('Promote Assembler'));
+  const button = panel.buttons().find((n:any)=>n.props.accessibilityLabel?.includes('Promote Fabricator'));
   assert.match(button.props.accessibilityLabel,/^Schedule at /);
   assert.equal(button.props.disabled,false);
   await act(async()=>button.props.onPress());
@@ -124,7 +124,7 @@ test('captives can return to public territory outside sonar; rescued own captive
   assert.equal(buttons.length,2);
   assert.equal(buttons[0].props.disabled,false);
   assert.equal(buttons[1].props.disabled,false, 'public return ownership is sufficient without private sonar detail');
-  assert.ok(!panel.buttons().some((n:any)=>n.props.accessibilityLabel?.startsWith('Promote Assembler')));
+  assert.ok(!panel.buttons().some((n:any)=>n.props.accessibilityLabel?.startsWith('Promote Fabricator')));
   await act(async()=>buttons[0].props.onPress());
   await act(async()=>buttons[1].props.onPress());
   assert.deepEqual(released,['rescued','foreign']);

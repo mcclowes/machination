@@ -3,7 +3,7 @@
  * purpose: Validate future transfers, share mixed queue types, and cancel private orders without reserving resources.
  * ---
  */
-import { isActionPlan, actionLabel, plannedUnitIds, type ScheduledAction, type FutureAction } from './future-actions';
+import { isActionPlan, actionEventLabel, plannedUnitIds, type ScheduledAction, type FutureAction } from './future-actions';
 import { inRange, sensors } from './sensors';
 import { mechanicsVersion } from './rules';
 import { playersIn } from './players';
@@ -66,5 +66,5 @@ export function scheduleTransfer(game: Game, plan: TransferPlan): Game {
 export function cancelTransfer(game: Game, id: string, owner: Faction): Game {
   const plan = game.scheduled?.find(p => p.id === id && p.owner === owner);
   if (!plan) throw new Error('Scheduled transfer not found. It may already have launched or been canceled.');
-  return { ...game, scheduled: game.scheduled!.filter(p => p !== plan), events: recentEvents([{ hour: game.hour, audience: [owner], message: isActionPlan(plan) ? `${actionLabel(plan.action, game.rocks)} canceled.` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} canceled.` }, ...game.events]) };
+  return { ...game, scheduled: game.scheduled!.filter(p => p !== plan), events: recentEvents([{ hour: game.hour, audience: [owner], message: isActionPlan(plan) ? `${actionEventLabel(plan.action, game.rocks)} canceled.` : `Scheduled transfer from ${game.rocks.find(r => r.id === plan.from)!.name} canceled.` }, ...game.events]) };
 }

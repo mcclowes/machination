@@ -1,5 +1,6 @@
 /** JRPG radio overlay and attempt-local playback. The exercise clock stays under player control. */
 import React, { useState } from 'react';
+import { displaySpecialistNames } from '../game/specialist-catalog';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { TrainingScenario } from '../game/training';
@@ -37,7 +38,7 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
     <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.replay, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close}>
       <SafeAreaView style={s.overlay} accessibilityViewIsModal>
-        <View style={[s.mission, (compact || landscape) && s.missionCompact]}><Text style={s.eyebrow}>{phaseLabels[phase]}</Text><Text accessibilityRole="header" style={s.missionTitle}>{scenario.title}</Text>{!landscape && <Text style={s.missionDetail}>{scenario.objective}</Text>}</View>
+        <View style={[s.mission, (compact || landscape) && s.missionCompact]}><Text style={s.eyebrow}>{phaseLabels[phase]}</Text><Text accessibilityRole="header" style={s.missionTitle}>{scenario.title}</Text>{!landscape && <Text style={s.missionDetail}>{displaySpecialistNames(scenario.objective)}</Text>}</View>
         <View style={[s.scene, { maxWidth: 1180, paddingHorizontal: compact ? 12 : 40 }]}>
           <View pointerEvents="none" accessible={false} style={[s.portraits, { height: artHeight }]}>
             {(['commander', 'enemy'] as const).map((id: DialogueSpeaker) => <Image key={id} accessible={false} source={speakers[id].art} resizeMode="contain" style={[s.portrait, { height: artHeight, opacity: line.speaker === id ? 1 : 0.38 }, id === 'enemy' && s.enemyPortrait]} />)}
@@ -46,7 +47,7 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
           <View style={[s.frame, { borderColor: speaker.color }]}>
             <View style={s.innerFrame}>
               <ScrollView key={`${phase}:${index}`} style={{ maxHeight: height * (landscape ? 0.25 : 0.28) }} contentContainerStyle={s.dialogueContent}>
-                <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{line.text}</Text>
+                <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{displaySpecialistNames(line.text)}</Text>
               </ScrollView>
               <View style={s.footer}>
                 <Text style={s.counter}>{index + 1} / {lines.length}</Text>

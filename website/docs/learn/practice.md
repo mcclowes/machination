@@ -35,14 +35,14 @@ Ten shield points plus eight defending drones require more than 18 attacking dro
 
 ## A quiet passenger
 
-**Objective:** move the routing daemon alone from Core berth to Foundry, keeping the core at home.
+**Objective:** move the thruster alone from Core berth to Foundry, keeping the core at home.
 
 Load the designated specialist explicitly. A specialist can travel with zero drones; it doesn't need an escort just to make a legal transfer.
 
 <details>
 <summary>Hint: check the manifest</summary>
 
-Select only the routing daemon, set drones to zero, and confirm the intelligence core is not selected. Advance the actual exercise until the daemon arrives at Foundry.
+Select only the thruster, set drones to zero, and confirm the intelligence core is not selected. Advance the actual exercise until the thruster arrives at Foundry.
 
 </details>
 
@@ -63,12 +63,12 @@ Inspect hour 8 in the Time Machine and plan a six-drone transfer from Foundry to
 
 **Objective:** intercept the raid before it reaches Core berth, keeping the core safe.
 
-Foundry has a [Scavenger rig](../reference/specialists.md#pirate). Use the **Scavenger interception** target list to intercept the observed incoming hauler. An ordinary transfer toward a site won't satisfy this objective.
+Foundry has an [Interceptor](../reference/specialists.md#pirate). Use the **Interceptor targets** target list to intercept the observed incoming hauler. An ordinary transfer toward a site won't satisfy this objective.
 
 <details>
 <summary>Hint: compare contact times</summary>
 
-Include the scavenger rig and enough drones to defeat the raid. Check that the interception happens before the raid's original arrival, then let the actual interception resolve. The rig's speed bonus applies to targeted interception, not every journey it takes.
+Include the interceptor and enough drones to defeat the raid. Check that the interception happens before the raid's original arrival, then let the actual interception resolve. The interceptor's speed bonus applies to targeted interception, not every journey it takes.
 
 </details>
 

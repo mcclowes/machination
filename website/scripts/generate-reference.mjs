@@ -27,7 +27,7 @@ export async function generateReference(destination = website) {
   const specialists = [
     '---\ntitle: Specialist reference\nslug: /specialists\ndescription: Every Machination specialist, its abilities, hiring amount, and promotion.\n---',
     'Names, abilities, and promotions come from the game’s specialist catalog. Load specialists explicitly when planning a transfer. Captives have no active abilities.',
-    'In King’s Pulse, your **Intelligence core** is your King. The **Siege controller** is a different specialist; its Subterfuge counterpart is called King. Fallback cores cannot replace your King in pulse mode.',
+    'In King’s Pulse, your **Intelligence core** is your King. The **Overclock** is a different specialist; its Subterfuge counterpart is called King. Fallback cores cannot replace your King in pulse mode.',
     'Core hiring takes four normal-rate hours for the first credit, then 18 per credit. Opening acceleration changes that timing. Check the operation’s displayed cargo cost before hiring. Offers and eligibility depend on the operation; Disruptors are available in new pulse operations. See [the rules](rules.md#units-and-interception).',
     ...Object.entries(SPECIALISTS).map(([kind, definition]) => {
       const next = promotion(kind);

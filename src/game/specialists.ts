@@ -8,7 +8,7 @@ import { workClock, workHour, type OpeningWorld } from './opening-clock';
 import { isActionPlan } from './future-actions';
 import { withUnitEffects } from './specialist-effects';
 import type { Faction, Fleet, Game, Rock } from './simulation';
-import { HIRE_CATEGORIES, HIRE_KINDS, SPECIALISTS, hireAmount, promotion, type SpecialistKind } from './specialist-catalog';
+import { HIRE_CATEGORIES, HIRE_KINDS, SPECIALISTS, hireAmount, promotion, specialistEventName, type SpecialistKind } from './specialist-catalog';
 import { recentEvents } from './events';
 import { observers } from './sensors';
 import { mechanicsVersion } from './rules';
@@ -74,7 +74,7 @@ export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind,
   return withUnitEffects({ ...game, nextId: game.nextId + amount,
     recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === status.at ? { ...r, specialists: [...(r.specialists ?? []), ...units] } : r),
-    events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${SPECIALISTS[kind].name}${amount > 1 ? ' units' : ''} recruited at the core.` }, ...game.events]),
+    events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${specialistEventName(kind)}${amount > 1 ? ' units' : ''} recruited at the core.` }, ...game.events]),
   });
 }
 export function promoteSpecialist(game: Game, owner: Faction, id: string): Game {
@@ -86,7 +86,7 @@ export function promoteSpecialist(game: Game, owner: Faction, id: string): Game 
   if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
   return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === site.id ? { ...r, specialists: r.specialists!.map(u => u.id === id ? { ...u, kind, ...(kind === 'sentry' ? { nextActionAt: game.hour + 2 } : {}) } : u) } : r),
-    events: recentEvents([{ hour: game.hour, audience: observers(game, site), message: `${site.name}: ${SPECIALISTS[unit.kind].name} promoted to ${SPECIALISTS[kind].name}.` }, ...game.events]),
+    events: recentEvents([{ hour: game.hour, audience: observers(game, site), message: `${site.name}: ${specialistEventName(unit.kind)} promoted to ${specialistEventName(kind)}.` }, ...game.events]),
   });
 }
 export function cloneUnits<T extends Rock | Fleet>(asset: T): T { return { ...asset, ...(asset.specialists ? { specialists: asset.specialists.map(u => ({ ...u })) } : {}) }; }
