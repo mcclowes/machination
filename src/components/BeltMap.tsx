@@ -5,10 +5,6 @@
  *
  * @format
  */
-import { MapFlightRoute } from './MapFlightRoute';
-import { MapGravity } from './MapGravity';
-import type { GravityConfig } from '../game/gravity';
-import type { FlightRoute } from '../game/flight-route';
 
 import { siteKindLabel } from '../content/terminology';
 
@@ -43,7 +39,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import type { GestureResponderEvent } from 'react-native';
-import { flightDestination, flightEndpoints, fleetPosition, fleetVelocity } from '../game/flight';
+import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { MODULES } from '../game/modules';
 import { arrivalAtRisk, arrivalInspection } from '../game/time-machine';
 import { remoteSiteDescription } from './site-observation';
@@ -108,14 +104,14 @@ type Props<T extends ChartRock> = {
     hour: number;
     rocks: T[];
     fleets: Fleet[];
-    rules?: { map: MapGeometry; mechanicsVersion?: number; gravity?: GravityConfig };
+    rules?: { map: MapGeometry };
     coverage?: { x: number; y: number; radius: number }[];
   };
   selected: string;
   inspecting?: boolean;
   coveredBottom?: number;
   destination?: string;
-  transferRoute?: FlightRoute;
+  transferRoute?: { from: Point; to: Point };
   onSelect: (rock: T) => void;
   onTransfer?: (from: T, to: T) => void;
   fill?: boolean;
@@ -492,8 +488,8 @@ export function BeltMap<T extends ChartRock>({
     .flatMap((offset, tile) =>
       game.fleets.map((f) => {
         const worldPoint = fleetPosition(game, f);
-        const v = fleetVelocity(game, f);
-        const heading = (Math.atan2(v.y, v.x) * 180) / Math.PI;
+        const { from, to } = flightEndpoints(game, f);
+        const heading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
         const location = position({ x: worldPoint.x + offset.x, y: worldPoint.y + offset.y });
         const point = { x: (location.x / 100) * size.width, y: (location.y / 100) * size.height };
         const specialists = mapSpecialistSummary(f);
@@ -679,15 +675,15 @@ export function BeltMap<T extends ChartRock>({
                 .map((site) => (
                   <DriftCourse key={`drift-${site.id}`} site={site} sx={sx} sy={sy} selected />
                 ))}
-              <MapGravity gravity={game.rules?.gravity} sx={sx} sy={sy} />
               {game.fleets.map((f) => {
-                const route = flightEndpoints(game, f);
+                const { from: a, to: b } = flightEndpoints(game, f);
                 return (
-                  <MapFlightRoute
+                  <Line
                     key={f.id}
-                    route={route}
-                    sx={sx}
-                    sy={sy}
+                    x1={a.x * sx}
+                    y1={a.y * sy}
+                    x2={b.x * sx}
+                    y2={b.y * sy}
                     stroke={identity(f.owner).color}
                     opacity={contact === f.id ? 0.8 : 0.3}
                     strokeWidth={contact === f.id ? 1.3 : 0.7}
@@ -699,16 +695,17 @@ export function BeltMap<T extends ChartRock>({
                   const source = game.rocks.find((r) => r.id === selected);
                   const target = game.rocks.find((r) => r.id === destination);
                   if (!source || !target) return null;
-                  const route =
+                  const { from: a, to: b } =
                     transferRoute ??
-                    (source.drift || target.drift || game.rules?.gravity
+                    (source.drift || target.drift
                       ? stationCourse(game, source, target, 8, game.hour + 1 / 6).route
                       : chartRoute(game, source, target));
                   return (
-                    <MapFlightRoute
-                      route={route}
-                      sx={sx}
-                      sy={sy}
+                    <Line
+                      x1={a.x * sx}
+                      y1={a.y * sy}
+                      x2={b.x * sx}
+                      y2={b.y * sy}
                       stroke={identity(player ?? 'you').color}
                       strokeDasharray="5 4"
                     />
