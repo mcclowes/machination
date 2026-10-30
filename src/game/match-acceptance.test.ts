@@ -75,7 +75,7 @@ function inspect(game: Game) {
       if (fleet.preparing) assert.equal(fleet.owner, owner);
     }
     assert.ok(view.scheduled.every(p => p.owner === owner));
-    assert.deepEqual(view.events, game.events.filter(e => e.audience?.includes(owner)).slice(0, view.events.length).map(e => ({ hour: e.hour, message: e.message })));
+    assert.deepEqual(view.events, game.events.filter(e => e.audience?.includes(owner)).slice(0, view.events.length).map(e => ({ hour: e.hour, message: e.message, ...(e.battle ? { battle: { ...e.battle } } : {}) })));
   }
 }
 
