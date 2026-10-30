@@ -122,6 +122,11 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Continue dialogue');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[1]!.text));
     await press('Continue dialogue');
+    let remainingBriefing = TRAINING_DIALOGUE['first-launch'].briefing.length;
+    while (hosts('Pressable').some(node => node.props.accessibilityLabel === 'Continue dialogue')) {
+      assert.ok(remainingBriefing-- > 0, 'Briefing must advance to its command action');
+      await press('Continue dialogue');
+    }
     await press('Take command');
     assert.equal(hosts('Modal').length, 0);
     await press('Replay briefing');
