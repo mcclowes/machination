@@ -188,7 +188,7 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar style="light" />
-        <View style={[s.row, { paddingHorizontal: 12, paddingTop: 8 }]}>
+        <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
           {mode ? (
             <>
               <Pressable
@@ -199,7 +199,7 @@ export default function App() {
               >
                 <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
               </Pressable>
-              <Text style={[s.small, { flex: 1, fontSize: 14 }]}>
+              <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
                 {mode === 'solo'
                   ? 'Solo operation'
                   : mode === 'online'
@@ -798,7 +798,9 @@ function Operation({
             inspectedHour={inspectedHour}
             onChange={inspectTime}
             events={[
-              ...shown.events.flatMap((e) => e.discoveredAt === undefined ? [e.hour] : [e.hour, e.discoveredAt]),
+              ...shown.events.flatMap((e) =>
+                e.discoveredAt === undefined ? [e.hour] : [e.hour, e.discoveredAt],
+              ),
               ...shown.fleets.flatMap((f) => [
                 f.arrives,
                 ...(f.preparing ? [f.departed] : []),
@@ -1362,6 +1364,7 @@ const s = StyleSheet.create({
   mapHintText: { color: green, fontSize: 11 },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   small: { color: '#7f9180', fontSize: 11, lineHeight: 18 },
+  screenTitle: { flex: 1, color: '#e5eadc', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   identity: { padding: 20, borderWidth: 1, borderColor: '#34432e', backgroundColor: '#121c12' },
   online: { color: green, fontSize: 8, letterSpacing: 1 },
   identityName: { fontSize: 24, color: ink, marginTop: 14, marginBottom: 6 },

@@ -57,6 +57,32 @@ export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point
   return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 }, overlayLift(world, viewport, coveredBottom));
 }
 
+/** Pans a route's points into the chart band above a bottom overlay at the current zoom; a route too long to fit keeps its first point in view. */
+export function revealRouteCamera(world: GeometryWorld, camera: MapCamera, points: readonly Point[], viewport: ChartViewport, coveredBottom: number): MapCamera {
+  const [first] = points;
+  if (!first) return camera;
+  const clear = Math.max(0, viewport.height - coveredBottom);
+  const transform = chartTransform(world, camera, viewport);
+  const screen = (p: Point) => ({ x: transform.x + p.x * transform.scale, y: transform.y + p.y * transform.scale });
+  const fromCentre = (p: Point) => { const s = screen(p); return Math.hypot(s.x - viewport.width / 2, s.y - clear / 2); };
+  const anchor = chartOffsets(world, camera, viewport)
+    .map(offset => ({ x: first.x + offset.x, y: first.y + offset.y }))
+    .reduce((best, p) => fromCentre(p) < fromCentre(best) ? p : best);
+  const route = points.map(p => screen(nearestImage(world, anchor, p)));
+  const xs = route.map(p => p.x), ys = route.map(p => p.y);
+  const box = { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+  if (box.left >= REVEAL_MARGIN && box.right <= viewport.width - REVEAL_MARGIN && box.top >= REVEAL_MARGIN && box.bottom <= clear - REVEAL_MARGIN) return camera;
+  const fits = box.right - box.left <= viewport.width - 2 * REVEAL_MARGIN && box.bottom - box.top <= clear - 2 * REVEAL_MARGIN;
+  const focus = fits ? { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 } : screen(anchor);
+  const fit = transform.scale / camera.scale;
+  const width = world.rules?.map.width ?? 100, height = world.rules?.map.height ?? 100;
+  return constrainCamera(world, {
+    ...camera,
+    x: camera.x - (focus.x - viewport.width / 2) / (width * fit) * 100,
+    y: camera.y - (focus.y - clear / 2) / (height * fit) * 100,
+  }, overlayLift(world, viewport, coveredBottom));
+}
+
 export function siteCameraPadding(world: GeometryWorld, viewport: ChartViewport, coveredBottom: number, margin: number): CameraPadding {
   if (wrappedBounds(world)) return 0;
   const fit = chartTransform(world, { scale: 1, x: 0, y: 0 }, viewport).scale;

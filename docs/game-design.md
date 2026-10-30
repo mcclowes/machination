@@ -56,8 +56,8 @@ New revision-18 operations add [temporal specialists](temporal-specialists.md): 
 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
 2. Multiplayer: invite-only authoritative service, seat identity, invitations, order authorization, and reconnect synchronization are implemented for local playtests. Offline seat recovery codes are implemented. Public hosting and email-based account recovery remain.
-3. Diplomacy: private bilateral messages and voluntary drone/module gifts are implemented. Alliances, group channels, and push notifications remain.
-4. Strategic depth: modules and server-filtered sensor visibility are implemented. Scheduled transfers are implemented. Moving-hauler interception is implemented. Map generation and balance sessions remain.
+3. Diplomacy: private bilateral messages and voluntary drone/module gifts, private groups, public channels, and opt-in push notifications are implemented. Alliances and on-device notification acceptance remain.
+4. Strategic depth: modules and server-filtered sensor visibility are implemented. Scheduled transfers are implemented. Moving-hauler interception and map generation are implemented. Balance sessions remain.
 5. Mobile release: onboarding and original native icon/launch resources are implemented. Physical-device testing, accessible controls, signing, privacy disclosures, and store submissions remain.
 
 Use original assets, writing, and implementation. The design takes inspiration from slow multiplayer strategy; it doesn't use Subterfuge assets or code.
@@ -92,7 +92,7 @@ Combat participants and observers retain event telemetry; discovering a rock doe
 
 ## Scheduled transfers
 
-Players can queue up to 20 private transfers, each up to seven days ahead. Plans don't reserve drones and may use production or friendly reinforcements that will arrive before the launch. A carried module is pinned to the selected module type; if it leaves the departure bay, the plan fails unless a matching module is there at execution.
+Players can queue any number of private transfers, each up to seven days ahead. Plans don't reserve drones and may use production or friendly reinforcements that will arrive before the launch. A carried module is pinned to the selected module type; if it leaves the departure bay, the plan fails unless a matching module is there at execution.
 
 At each event timestamp, production settles first, interceptions resolve by launch sequence, then station arrivals resolve by launch sequence, and quota/core victory is checked. If the game is still active, due plans execute in submission order, followed by solo rival AI decisions. A plan either launches its full manifest or aborts once with private telemetry. It never sends a partial fleet or automatically retries later. Ownership is checked before inspecting a lost rock's module bay. Core elimination removes that intelligence's future plans; game completion removes every remaining plan.
 

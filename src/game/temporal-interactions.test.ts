@@ -104,3 +104,17 @@ test('a held hauler returns from a destroyed drifting site without jumping back 
   assert.equal(thawed.fleets[0]!.returning, true);
   assert.ok(Math.abs(fleetPosition(thawed, thawed.fleets[0]!).x - 21) < 1e-8);
 });
+
+test('a remote Envoy waits for Anchor stasis to lift before extracting a captive', () => {
+  let game = temporalWorld();
+  Object.assign(game.rocks[1]!, { x: 8, y: 0 });
+  Object.assign(game.rocks[10]!, { x: 8, y: 8 });
+  game.rocks[1]!.specialists!.push({ id: 'prison-anchor', kind: 'anchor', owner: 'you' }, { id: 'frozen-captive', kind: 'foreman', owner: 'vesper', captive: true });
+  game.rocks[10]!.specialists!.push({ id: 'remote-envoy', kind: 'diplomat', owner: 'vesper' });
+  game = activateTemporal(game, 'you', 'prison-anchor');
+  const frozen = advance(game, 25.5, { rivals: false });
+  assert.ok(frozen.rocks[1]!.specialists!.some(u => u.id === 'frozen-captive' && u.captive));
+  const thawed = advance(frozen, 26, { rivals: false });
+  assert.equal(thawed.rocks[1]!.specialists!.some(u => u.id === 'frozen-captive'), false);
+  assert.ok(thawed.fleets.some(f => f.specialists?.some(u => u.id === 'frozen-captive' && !u.captive)));
+});

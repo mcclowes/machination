@@ -4,7 +4,7 @@ Implementation and gameplay testing reference for [#87](https://github.com/mcclo
 
 ## Rules in this implementation
 
-- New configured operations default to `pulse`, mechanics revision 16. Revision 15 keeps its original rules. Existing operations keep their saved rules; mining and domination remain selectable.
+- New configured operations default to `pulse`, mechanics revision 17. Revision 15 keeps its original rules. Existing operations keep their saved rules; mining and domination remain selectable.
 - The movable intelligence core is the King. Mined cargo serves as Pulse Material. Losing the King eliminates its faction without fallback succession.
 - Charging commits 100 material without a refund and takes six effective hours. Opening acceleration does not shorten this timer. Firing is manual.
 - Executing a King movement order cancels charging, stored readiness, or emission immediately, including launch preparation. Canceling a launch does not restore a lost charge.

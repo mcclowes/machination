@@ -1,15 +1,17 @@
 /** Supplied commander artwork, palettes, and insignia. Coordinates exclude the sheet gutters. */
 const palettes = {
+  teal: { color: '#58d6c7', background: '#236b65' },
   slate: { color: '#9bafb3', background: '#56666a' }, rust: { color: '#e28b68', background: '#b95636' },
   gold: { color: '#e3ba5e', background: '#bf912e' }, olive: { color: '#aeb67d', background: '#727b4e' },
   plum: { color: '#bba6b7', background: '#756670' }, blue: { color: '#89b8cb', background: '#456c7c' },
 };
 export type Emblem = 'compass' | 'spear' | 'gear' | 'bars' | 'meridian' | 'cluster' | 'star' | 'triangles' | 'crescent' | 'chevron';
 function character(label: string, sheet: 'original' | 'retro' | 'cyborg' | 'cybernetic' | 'nomad', column: number, row: number, palette: keyof typeof palettes, emblem: Emblem) {
-  return { label, ...palettes[palette], emblem, portrait: { sheet, x: [15, 525, 1035][column]!, y: row === 0 ? 12 : 521 } };
+  const colors: { color: string; background: string } = palettes[palette];
+  return { label, ...colors, emblem, portrait: { sheet, x: [15, 525, 1035][column]!, y: row === 0 ? 12 : 521 } };
 }
 export const CHARACTERS = {
-  admiral: character('Admiral', 'original', 0, 0, 'slate', 'compass'),
+  admiral: character('Admiral', 'original', 0, 0, 'teal', 'compass'),
   pilot: character('Pilot', 'original', 1, 0, 'rust', 'spear'),
   engineer: character('Engineer', 'original', 2, 0, 'gold', 'gear'),
   ranger: character('Ranger', 'original', 0, 1, 'olive', 'bars'),

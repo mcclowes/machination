@@ -1,3 +1,5 @@
+/** @format */
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodeOperation, encodeOperation, type LocalOperation } from '../game/operation-save';
 const KEY = 'machination.game.v1';

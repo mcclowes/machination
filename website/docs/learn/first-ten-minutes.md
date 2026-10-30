@@ -17,7 +17,7 @@ Find three places on the chart:
 - **Foundry** holds the drones you'll send.
 - **Quiet landing** is the foothold you'll capture.
 
-Drag to pan. Pinch, scroll, or use the zoom buttons to change scale. **Home** frames your territory; **Fit** shows the full chart. New charts wrap across every edge.
+Drag to pan. Pinch or scroll to change scale, or open **Map controls** for zoom, **Focus your territory**, and **Fit chart**. New charts wrap across every edge.
 
 ## 2. Plan a transfer
 
@@ -47,7 +47,7 @@ You must let your actual order arrive. Looking at a successful forecast alone do
 
 Use the practice clock or **Resolve orders** to advance the actual exercise until your hauler arrives. The exercise stops when you complete its objective.
 
-Quiet landing is now yours. Your completion mark is stored separately from solo and multiplayer progress. **Retry** recreates the same exercise if you'd like to try a smaller manifest.
+Quiet landing is now yours. Your completion mark is stored separately from solo and multiplayer progress. **Retry exercise** recreates the same exercise if you'd like to try a smaller manifest.
 
 ## Before a live operation
 

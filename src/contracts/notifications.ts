@@ -1,4 +1,9 @@
-/** Seat-authenticated device preferences and opaque message/attack notification routing. */
+/**
+ * Seat-authenticated device preferences and opaque message/attack notification routing.
+ *
+ * @format
+ */
+
 export type MessageNotificationSettings = {
   gameId: string;
   deviceId: string;
@@ -30,4 +35,6 @@ export type MessageNotificationData = {
   bindingId: string;
   notificationId: string;
 };
-export type IncomingNotificationData = Omit<MessageNotificationData, 'kind'> & { kind: typeof INCOMING_NOTIFICATION_KIND };
+export type IncomingNotificationData = Omit<MessageNotificationData, 'kind'> & {
+  kind: typeof INCOMING_NOTIFICATION_KIND;
+};

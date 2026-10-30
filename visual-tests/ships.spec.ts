@@ -52,7 +52,7 @@ test('directional ships keep counts and inspection readable', async ({ page }, i
   await expect(page.getByTestId('hauler-inspector')).toBeVisible();
   await expect(ship).toHaveAttribute('aria-selected', 'true');
   await expect(ship.getByTestId('ship-selection')).toBeAttached();
-  await expect(page.getByTestId('hauler-inspector').getByText('1234 drones', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('hauler-inspector').getByText(/1234 drones/)).toBeVisible();
   await page.screenshot({ path: `.fettle/shots/ships-inspection-${info.project.name}.png` });
   await page.getByRole('button', { name: 'Close hauler details', exact: true }).click();
   await expect(ship.getByTestId('ship-selection')).toHaveCount(0);

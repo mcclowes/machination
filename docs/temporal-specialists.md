@@ -18,6 +18,7 @@ During stasis:
 
 - Local factory output, mining, reactor depletion, shield recharge, timed specialist actions, and King and Disruptor charging pause.
 - Preparing departures return their manifests to the site. New departures, hiring, promotion, release, construction, shield changes, and charge/fire commands at the site are refused.
+- Remote Envoy rescues wait until the prison site's stasis lifts.
 - Friendly and hostile haulers reaching the site wait without docking or resolving site combat. On thaw, they resolve in the existing launch-ID order. Held haulers follow a drifting site's position, cannot reroute, and don't participate in transit combat or receive additional engine delays.
 - Already-emitted pulses continue to propagate and can damage the site. Stasis provides no pulse immunity; shield energy can still drain under exposure.
 

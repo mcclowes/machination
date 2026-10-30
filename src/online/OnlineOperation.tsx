@@ -969,7 +969,9 @@ function ConnectedOperation({
       inspectedHour={inspectedHour}
       onChange={inspectTime}
       events={[
-        ...(game?.events.flatMap((event) => event.discoveredAt === undefined ? [event.hour] : [event.hour, event.discoveredAt]) ?? []),
+        ...(game?.events.flatMap((event) =>
+          event.discoveredAt === undefined ? [event.hour] : [event.hour, event.discoveredAt],
+        ) ?? []),
         ...(game?.fleets.flatMap((f) => [
           f.arrives,
           ...(f.preparing ? [f.departed] : []),

@@ -2,7 +2,7 @@
 
 Implementation and gameplay reference for [#90](https://github.com/mcclowes/machination/issues/90), alongside [King’s Pulse](kings-pulse.md).
 
-New pulse operations use mechanics revision 16. The Disruptor joins the attack recruitment deck. Revision-15 pulse saves, older recruitment decks, mining operations, and domination operations retain their recorded rules.
+Pulse operations from mechanics revision 16 onward, including new operations at revision 17, add the Disruptor to the attack recruitment deck. Revision-15 pulse saves, older recruitment decks, mining operations, and domination operations retain their recorded rules.
 
 ## Material and charging
 

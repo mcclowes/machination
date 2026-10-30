@@ -8,35 +8,119 @@ permissions:
   contents: read
 concurrency:
   group: check-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  check:
+  quality:
+    name: Source quality
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
+    env:
+      CI: '1'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            website/package-lock.json
-      - name: Show acceptance runtime
-        run: |
-          node -p 'JSON.stringify({node: process.versions.node, v8: process.versions.v8})'
+      - run: npm ci
+      - run: npm run check:quality
+  behavior:
+    name: Behavior
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm test
+  server:
+    name: Server packaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test:server-build
+      - run: npm run build:server-image
+      - run: npm run test:server-image
+      - run: docker build -f Dockerfile.railway -t machination-server:railway .
+      - run: node scripts/test-railway-image.mjs
+  platforms:
+    name: Platform exports
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:brand
+      - run: npx expo install --check
+      - run: npx expo export --platform all
+  docs:
+    name: Player guide
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
       - run: npm ci
       - run: npm ci --prefix website
       - run: npm run check:docs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:docs
-      - run: npm run build:brand
-      - run: npm run check
-      - run: npm run build:server-image
-      - run: npm run test:server-image
-      - run: docker build -f Dockerfile.railway -t machination-server:railway .
-      - run: node scripts/test-railway-image.mjs
-      - run: npx expo install --check
-      - run: npx expo export --platform all
+  browser:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:smoke
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: browser-smoke-failure
+          path: |
+            playwright-report/
+            test-results/
+            .fettle/shots/
+          retention-days: 7
+  check:
+    name: check
+    if: always()
+    needs: [quality, behavior, server, platforms, docs, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every independent check to pass
         env:
-          CI: '1'
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        run: node -e 'const jobs=JSON.parse(process.env.JOB_RESULTS); if(Object.values(jobs).some(job=>job.result!=="success")) process.exit(1)'

@@ -16,7 +16,7 @@ This is a review of the current design, not a permanent guarantee. Game-rule and
 | Branching | HTTP routing repeatedly checked the request method and compared each POST action in a 19-case chain. | `gameRequest` selects the method once and the action once within each method. Middleware retains CORS, authentication, rate limits, and response formatting. | All routes, query validation, body parsing before POST dispatch, status codes, and issue envelopes. |
 | Branching | Future-action decoding had 12 action-type comparisons plus a second dispatch, with action-selection ternaries nested four levels deep. | One action switch validates and constructs each payload. Nested hauler changes have their own local switch. | Accepted shapes, rejected missing or injected fields, optional-field semantics, error messages, and copied manifests. |
 | Duplication | Thirteen command handlers separately incremented operation and seat revisions. | `reviseOrders` owns revision updates; callers name the affected owners. | Opponent revisions remain private. Legacy gifts also invalidate the recipient's revision. Retries and failed writes don't advance revisions. |
-| Branching | Chart-marker symbols were selected through six nested ternaries inside JSX. | Local `siteSymbol` uses ordered guards and a kind switch. The chart remains one component. | All symbols, including destroyed-site priority and unknown-site redaction before core display. |
+| Branching | Chart-marker symbols were selected through six nested ternaries inside JSX. | Local `siteSymbol` uses ordered guards and a kind switch. The chart remains one component. Later superseded by `siteIcon` in `src/components/BeltMap.tsx`, which selects base emblem images. | All symbols, including destroyed-site priority and unknown-site redaction before core display. |
 
 ## Boundaries deliberately retained
 
@@ -56,7 +56,7 @@ The same goal was revisited against `e0707cb`, after account, notification, comb
 
 ### Boundaries retained
 
-Notification delivery and durable-state validation remain in `server/notifications.ts`: their lease, expiry, token, and retry invariants share one state model. The client notification hook retains its async lifecycle because cancellation, seat changes, queued token rotations, and confirmed revisions must coordinate. Local and online screens retain their different authority models. Combat and simulation retain their ordered transitions. None warrants splitting solely to reduce file size.
+Notification delivery and durable-state validation remain in `server/notifications.ts`: their lease, expiry, token, and retry invariants share one state model. Durable-state validation later moved to `server/notification-state.ts` in `3f2a4ef`. The client notification hook retains its async lifecycle because cancellation, seat changes, queued token rotations, and confirmed revisions must coordinate. Local and online screens retain their different authority models. Combat and simulation retain their ordered transitions. None warrants splitting solely to reduce file size.
 
 Pre-existing `BeltMap`, map-layering test, and `PracticeDialogue` changes remain outside this refactor. Game rules, rendered output, API payloads, errors, persisted formats, and public service signatures are preserved.
 
@@ -86,7 +86,7 @@ The numerical operations, tolerances, wrapped-image selection, preparation behav
 - Tactical site and hauler effects stay local. Their short shared loop preserves contact recording, sensor jamming, site/engine damage, King effects, and event order. A descriptor with callbacks would replace the local asset checks with an additional protocol; separate loops would duplicate the shared sequence. Neither earns an extraction here.
 - Strategic shield exposure and destruction remain with strategic effects. The shared geometry module doesn't own damage or balancing policy.
 - Solo/practice lifecycle policy and queued-order request decoding were already being refactored by another active session. This follow-up leaves those files and the other concurrent changes untouched.
-- The earlier container-packaging and incomplete network-response validation findings remain recorded in #51. They aren't resolved by this behavior-preserving pulse refactor.
+- The earlier container-packaging and incomplete network-response validation findings remain recorded in #51. They aren't resolved by this behavior-preserving pulse refactor; both are addressed in the follow-ups below.
 
 ### Verification
 
@@ -119,11 +119,11 @@ The client previously accepted an incomplete successful response with only an op
 
 `src/game/observation-format.ts` now validates the observed game contract, independently of HTTP. It checks assets, manifests, routes, schedules, public rules, economy/recruitment fields, sensor coverage, compact state, and strategic/tactical pulses. It reuses the existing catalogs and rule, drift, future-action, and compact validators. It does not apply authoritative-save requirements to redacted observations or require hidden Kings to be disclosed.
 
-`src/online/snapshot-response.ts` owns live/historical envelopes, operation and roster binding, diplomacy, optional recovery/inactivity/history metadata, and reference sidecars. Transport receives JSON as `unknown` and selects the appropriate decoder once. Reference ID validation is selected once per collection. Known and hidden site details have separate local branches. Message validation shares its common fields without threading a bilateral-mode flag through every item.
+`src/contracts/snapshot.ts` (moved from `src/online/snapshot-response.ts` in `9bb9473`) owns live/historical envelopes, operation and roster binding, diplomacy, optional recovery/inactivity/history metadata, and reference sidecars. Transport receives JSON as `unknown` and selects the appropriate decoder once. Reference ID validation is selected once per collection. Known and hidden site details have separate local branches. Message validation shares its common fields without threading a bilateral-mode flag through every item.
 
 Valid wire data is returned unchanged, including additive fields and supported legacy omissions. Historical requested time remains independent of a terminal game's hour. Account restoration retains an existing operation binding and also supports a new connection with no operation ID. Authentication, cancellation, request timing, notification negotiation, and valid server errors retain their behavior. Malformed errors now produce a safe fallback message while preserving definitive 4xx versus uncertain 429/5xx semantics.
 
-No schema dependency, generalized registry, or broad file move was introduced. Observation validation lives with the observed-game contract, envelope validation lives with the shared online protocol, and request effects remain in transport. Moving every wire type into a new directory would add churn without improving these interfaces.
+No schema dependency, generalized registry, or broad file move was introduced. Observation validation lives with the observed-game contract, envelope validation lives with the shared contracts, and request effects remain in transport. Moving every wire type into a new directory would add churn without improving these interfaces.
 
 Verification: 50 focused client, native-cancellation, notification, and real server/client tests pass on explicit Node 24.14.1. Three real HTTP scenarios exercise mining, domination, and pulse lobbies, drift, the compact, private diplomacy, launch manifests, queued transfers/hires/shield actions, history, and notification settings; decoded results match the exact response bytes. Regression tests first reproduced malformed envelope, asset, metadata, pulse, and error acceptance. Valid legacy views, redacted Kings, charges, tactical waves, and strategic pulses remain accepted. The strict decoder dependency graph and game/online frontmatter checks pass. Broader acceptance remains separate from this focused evidence.
 
@@ -148,3 +148,13 @@ The cadence comparison and historical mine-replay restoration pass. Buffered out
 At the release owner's request, a one-second stack sample and two process snapshots inspected only this job. The remaining configuration test consumed CPU while its RSS fell from about 255 MB to 240 MB; the first full process-tree reading was about 443 MB. These observations don't establish a growing leak or explain the scheduler's earlier 5 GB estimate. The already-failing run was stopped to release the Ambient window. All observed child processes exited, and the requested notification was delivered to Saggar session `0C10F5B2`. New heavy work remains held.
 
 Evidence: `/private/tmp/machination-quality-resumed-final.log`, `/private/tmp/machination-quality-resumed-acceptance/QUALITY_SOURCE_MANIFEST.json`, `/private/tmp/machination-quality-3234-processes.json`, and `/private/tmp/machination-quality-3234-stack.txt`. The next acceptance attempt must inspect the recorded failures before scheduling a retry.
+
+### Targeted acceptance repairs
+
+All 23 assertion failures recorded in #3234 now pass in focused checks. Match assertions include battle coordinates while retaining exact event order, audiences, and simulation state. Historical restoration still matches the entire stored record; traced and ordinary reconstruction agree, and historical simulation comparison excludes only later map annotations. Replay UI tests cover badge inspection at an unobstructed endpoint and site inspection while a departing hauler overlaps its site. Complete accessible labels use the terminology catalog.
+
+- `fe549f6`: all 20 generated and contested match scenarios pass.
+- `40aa3a8`: all 22 simulation-trace and battle-marker tests pass.
+- `5bf334a`: all 16 shared-replay UI and specialist-placement tests pass on the web/iOS hosts.
+
+These checks have no failures or skips. They do not establish full acceptance: the configuration matrix and current quality guards remain in the final gate. A fixed candidate captures 640 current files and their SHA-256 hashes, with installed dependencies shared by symlink. The working tree matched every captured file when the gate was submitted. The single pending command is `npm run check` on explicit Node 24.14.1 through Turnstile, with existing deadlines and floors. Evidence is in `/private/tmp/machination-quality-completion-check.log`; no full-suite pass is claimed while it is pending.

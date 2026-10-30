@@ -1,0 +1,10 @@
+node_modules/
+ios/
+android/
+dist/
+dist-server/
+website/
+playwright-report/
+test-results/
+assets/
+src/game/fixtures/

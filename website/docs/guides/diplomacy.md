@@ -7,7 +7,7 @@ Haulers can take hours to reach a border. Talk before you commit the forces that
 
 ## Join an invited operation
 
-Open **Multiplayer uplink** with the service address and invitation supplied by your host. The host chooses 2–10 players and a victory mode, then starts after every configured seat has joined.
+Choose **Open multiplayer uplink** and enter the service address and invitation supplied by your host. The host chooses 2–10 players and a victory mode, then starts after every configured seat has joined.
 
 Public signup and a public browser frontend aren't prerequisites for an invited native playtest. Use the supplied client; this guide doesn't create multiplayer accounts or seats. Follow the login or recovery flow shown by that build.
 
@@ -29,7 +29,7 @@ For a negotiated site handover, coordinate its timing and [shield settings](../r
 
 ## Fund another intelligence
 
-In **Intel**, funding becomes available when you lead another intelligence by at least 20 cargo. It costs you nothing and gives the recipient 50 capacity plus two additional drones per factory cycle. It ends if the cargo lead drops below 20.
+In **Intel**, outside domination mode, funding becomes available when you lead another intelligence by at least 20 cargo. It costs you nothing and gives the recipient 50 capacity plus two additional drones per factory cycle. It ends if the cargo lead drops below 20.
 
 Sponsor counts are public. Sponsor identities are visible only when you're involved. Spending material on a King's Pulse charge can change whether the funding threshold still holds.
 

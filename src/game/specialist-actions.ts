@@ -62,6 +62,7 @@ export function applyStationPassives(game: Game, trace?: SimulationTraceSink): v
   for (const rock of game.rocks) {
     if (!rock.owner || inStasis(game, rock) || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
+      if (inStasis(game, holding)) continue;
       const inRange = rock.drift || holding.drift
         ? siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).some(w => game.hour >= w.from && game.hour <= w.through)
         : worldDistance(game, holding, rock) <= rockSensorRange(game, rock);

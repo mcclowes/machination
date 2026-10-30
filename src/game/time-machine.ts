@@ -22,6 +22,12 @@ export function arrivalInspection(liveHour: number, historyStart: number | undef
   if (!Number.isFinite(liveHour) || !Number.isFinite(first) || !Number.isFinite(arrival) || arrival < first || arrival > liveHour + MAX_PLAN_DELAY) return undefined;
   return arrival === liveHour ? null : arrival;
 }
+type ArrivalContact = { id: number; owner: string; to: string; arrives: number; intercept?: { target?: number } };
+/** Rival combat that resolves before this hauler docks: an earlier arrival at its destination, or an interception aimed at it. */
+export function arrivalAtRisk(fleets: readonly ArrivalContact[], hauler: ArrivalContact): boolean {
+  return fleets.some(f => f.id !== hauler.id && f.owner !== hauler.owner
+    && (f.intercept ? f.intercept.target === hauler.id : f.to === hauler.to && f.arrives <= hauler.arrives));
+}
 export function orderHour(liveHour: number, inspectedHour: number | null, delay: number): number {
   if (inspectionMode(liveHour, inspectedHour) === 'past') throw new Error('Historical views are read-only. Return to live time or inspect the future to issue an order.');
   const hour = Math.max(liveHour, inspectedHour ?? liveHour) + delay;

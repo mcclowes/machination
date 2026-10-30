@@ -3,7 +3,7 @@
  * purpose: Validate client-visible observations before rendering or reconstructing a forecast.
  * related:
  *   - ./visibility.ts - observed view contract and producer
- *   - ../online/snapshot-response.ts - live and historical envelope decoding
+ *   - ../contracts/snapshot.ts - live and historical envelope decoding
  * ---
  */
 import { temporalEnabled, isTemporalKind } from './temporal';

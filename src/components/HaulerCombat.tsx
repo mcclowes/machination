@@ -31,7 +31,7 @@ export function HaulerCombat({ observation, fleetId }: { observation: CombatObse
   };
   return <View style={s.container}>
     <Pressable accessibilityRole="button" accessibilityLabel={open ? 'Close combat prediction' : 'Combat prediction'} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)} style={s.button}>
-      <Text style={s.text}>{open ? 'Close combat' : 'Combat'}</Text>
+      <Text style={s.disclosure}>Combat forecast</Text><Text style={s.disclosure}>{open ? '▴' : '▾'}</Text>
     </Pressable>
     {forecast && <View testID="combat-prediction" style={s.report}>
       <Text style={s.heading}>Combat prediction</Text>
@@ -55,7 +55,7 @@ export function HaulerCombat({ observation, fleetId }: { observation: CombatObse
   </View>;
 }
 const s = StyleSheet.create({
-  container: { gap: 6 }, button: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 22, backgroundColor: '#24352c' },
+  container: { gap: 6 }, button: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#2c3d31' }, disclosure: { color: '#b8e986', fontSize: 12 },
   report: { gap: 8 }, encounter: { gap: 4, borderTopWidth: 1, borderTopColor: '#526644', paddingTop: 8 },
   text: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 }, muted: { color: '#a6b1a0', fontSize: 11, lineHeight: 17 }, heading: { color: '#e5eadc', fontSize: 12, fontWeight: '600', lineHeight: 18 },
 });

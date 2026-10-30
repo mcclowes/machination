@@ -35,7 +35,7 @@ An inspected garrison can produce more drones or recharge its shields before you
 
 The simple subtraction stops being enough. A [Breacher](specialists.md#infiltrator) drains defending shields; a [Hijacker](specialists.md#thief) changes the drone counts; a [Meltdown charge](specialists.md#martyr) can destroy the whole encounter area.
 
-Local specialist abilities use combat priority, lower first and equal priorities together. The self-destruct effect precedes suppression. A Arbiter on only one side suppresses other local combat abilities; arbiters on both sides allow them again. Global effects can still apply.
+Local specialist abilities use combat priority, lower first and equal priorities together. The self-destruct effect precedes suppression. An Arbiter on only one side suppresses other local combat abilities; arbiters on both sides allow them again. Global effects can still apply.
 
 If combat continues, global combat damage applies before shields and drone combat. Surviving active local specialists break drone ties. With equal specialists, a defending site keeps control. Captured specialists become inactive captives. Gift contacts transfer without combat abilities.
 

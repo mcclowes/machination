@@ -26,10 +26,10 @@ test('recent battles appear on the chart and expire in forecast', async ({ page 
   await expect(marker).toBeVisible();
   await expect(marker).toHaveAttribute('aria-label', 'Battle, just now');
   await expect.poll(async () => page.evaluate(name => {
-    const boxes = [...document.querySelectorAll('[aria-label]')].filter(element => element.getAttribute('aria-label')?.startsWith(name + ','))
+    const boxes = Array.from(document.querySelectorAll('[aria-label]')).filter(element => element.getAttribute('aria-label')?.startsWith(name + ','))
       .map(element => { const rect = element.getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; });
     const map = document.querySelector('[data-testid="belt-map"]')!.getBoundingClientRect();
-    const markers = [...document.querySelectorAll('[id^="battle-marker-"] circle')].map(element => {
+    const markers = Array.from(document.querySelectorAll('[id^="battle-marker-"] circle')).map(element => {
       const rect = element.getBoundingClientRect();
       const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
       return { x, y, distance: Math.min(...boxes.map(box => Math.hypot(box.x - x, box.y - y))) };
