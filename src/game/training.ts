@@ -4,16 +4,20 @@ import { createArchive, exportArchive, replayTo, restoreArchive } from './replay
 import type { LocalOperation } from './operation-save';
 import { dispatch, type Game, type Rock } from './simulation';
 import { activeUnits } from './specialists';
+import { TUTORIAL_MISSIONS, configureTutorialMission, tutorialMissionPassed, type TutorialMissionId } from './training-missions';
 
-export type TrainingId = 'first-launch' | 'shield-combat' | 'unit-transport' | 'future-production' | 'interception';
-export type TrainingScenario = { id: TrainingId; title: string; instruction: string; objective: string; hints: readonly string[]; deadline: number; focus: string };
-export const TRAINING_SCENARIOS: readonly TrainingScenario[] = [
-  { id: 'first-launch', title: 'Open a foothold', instruction: 'Launch drones from Foundry to Quiet landing.', objective: 'Capture Quiet landing with surviving drones.', hints: ['A tied battle leaves the defender in control.', 'Allow ten minutes for launch preparation.'], deadline: 6, focus: 'works' },
+export type TrainingId = 'first-launch' | 'shield-combat' | 'unit-transport' | 'future-production' | 'interception' | TutorialMissionId;
+export type TrainingScenario = { id: TrainingId; reference?: string; title: string; instruction: string; objective: string; hints: readonly string[]; deadline: number; focus: string };
+const originalScenarios: readonly TrainingScenario[] = [
+  { id: 'first-launch', reference: 'Combat 1', title: 'Open a foothold', instruction: 'Launch drones from Foundry to Quiet landing.', objective: 'Capture Quiet landing with surviving drones.', hints: ['A tied battle leaves the defender in control.', 'Allow ten minutes for launch preparation.'], deadline: 6, focus: 'works' },
   { id: 'shield-combat', title: 'Break the perimeter', instruction: 'Take Quiet landing from its shielded garrison.', objective: 'Overcome both shields and defenders with drones left over.', hints: ['The ten shield points absorb drones before the eight defenders fight.', 'Send more than eighteen drones.'], deadline: 6, focus: 'works' },
   { id: 'unit-transport', title: 'A quiet passenger', instruction: 'Move the designated thruster from Core berth to Foundry, carrying no drones or other modules.', objective: 'Deliver the thruster alone while keeping your core at home.', hints: ['Select the thruster in the manifest and set drones to zero.', 'Leave the intelligence core at Core berth.'], deadline: 6, focus: 'home' },
   { id: 'future-production', title: 'Borrow tomorrow', instruction: 'Before hour 8, queue Foundry’s first six drones for Quiet landing at hour 8.', objective: 'Use a transfer queued before first production to capture Quiet landing by hour 10.', hints: ['Queued transfers do not reserve drones.', 'Production at hour 8 happens before the queued launch.'], deadline: 10, focus: 'works' },
   { id: 'interception', title: 'Cut the approach', instruction: 'Use Foundry’s interceptor to intercept the inbound raid before it reaches Core berth.', objective: 'Stop the raid with an interception order and keep your core safe.', hints: ['Select Foundry, set the drone manifest, and use its Interceptor targets list.', 'The interceptor travels twice as fast on its interception leg.'], deadline: 6, focus: 'works' },
 ];
+export const TRAINING_SCENARIOS: readonly TrainingScenario[] = [originalScenarios[0]!, ...TUTORIAL_MISSIONS, ...originalScenarios.slice(1)];
+
+function isTutorialMission(id: TrainingId): id is TutorialMissionId { return TUTORIAL_MISSIONS.some(s => s.id === id); }
 
 export function createTrainingAttempt(id: TrainingId): LocalOperation {
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 18);
@@ -26,6 +30,10 @@ export function createTrainingAttempt(id: TrainingId): LocalOperation {
     site('relay', 'Quiet landing', 18, 18, id === 'shield-combat' ? 'vesper' : null, id === 'shield-combat' ? 8 : 4),
     site('rival-home', 'Distant anchor', 50, 10, 'vesper', 0, true),
     ...Array.from({ length: 16 }, (_, i) => site(`remote-${i}`, `Silent buoy ${i + 1}`, 40 + i % 4 * 8, 40 + Math.floor(i / 4) * 8, null, 0))];
+  if (isTutorialMission(id)) {
+    const configured = configureTutorialMission(game, id);
+    return { game: configured, archive: createArchive(configured, { rivals: false }) };
+  }
   if (id === 'unit-transport') game.rocks[0]!.specialists!.push({ id: 'training-helmsman', owner: 'you', kind: 'helmsman' });
   if (id === 'interception') {
     game.rocks[1]!.specialists!.push({ id: 'training-pirate', owner: 'you', kind: 'pirate' });
@@ -50,6 +58,15 @@ export function assessTrainingAttempt(id: TrainingId, operation: LocalOperation)
   const safe = (state: Game) => !state.eliminated.includes('you') && activeUnits(state, 'you').some(u => u.kind === 'queen')
     && (id !== 'unit-transport' || state.rocks.some(r => r.id === 'home' && r.owner === 'you' && r.specialists?.some(u => u.id === 'core-you' && !u.captive)));
   if (!safe(game)) return { status: 'failed', message: id === 'unit-transport' ? 'Your intelligence core must remain at Core berth. Retry the exercise.' : 'Keep your intelligence core safe. Retry the exercise.' };
+  if (isTutorialMission(id)) {
+    const actual = game.hour > scenario.deadline ? {
+      game: at(scenario.deadline),
+      archive: restoreArchive({ ...history, entries: history.entries.filter(e => e.hour <= scenario.deadline) }),
+    } : operation;
+    if (tutorialMissionPassed(id, actual)) return { status: 'passed', message: 'Objective complete. Your orders succeeded in the actual operation.' };
+    if (game.hour >= scenario.deadline || game.winner || game.draw) return { status: 'failed', message: 'The objective was not completed before the exercise ended. Retry with a new plan.' };
+    return { status: 'active', message: scenario.objective };
+  }
   const horizon = Math.min(game.hour, scenario.deadline);
   let passed = false;
   for (const [index, entry] of history.entries.entries()) {

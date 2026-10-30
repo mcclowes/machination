@@ -1,5 +1,5 @@
 /** Mission radio scripts. Dialogue follows assessed live progress, never an inspected forecast. */
-import type { TrainingId } from './training';
+import { TRAINING_SCENARIOS, type TrainingId } from './training';
 
 export type DialogueSpeaker = 'commander' | 'enemy';
 export type DialoguePhase = 'briefing' | 'underway' | 'passed' | 'failed';
@@ -8,7 +8,7 @@ type MissionDialogue = Record<DialoguePhase, readonly DialogueLine[]>;
 const commander = (text: string): DialogueLine => ({ speaker: 'commander', text });
 const enemy = (text: string): DialogueLine => ({ speaker: 'enemy', text });
 
-export const TRAINING_DIALOGUE: Record<TrainingId, MissionDialogue> = {
+const originalDialogue: Partial<Record<TrainingId, MissionDialogue>> = {
   'first-launch': {
     briefing: [
       commander('Welcome to the quiet belt, Captain. Vesper holds the far approach. Before we can push farther, we need a foothold at Quiet landing.'),
@@ -60,6 +60,13 @@ export const TRAINING_DIALOGUE: Record<TrainingId, MissionDialogue> = {
     failed: [enemy('I told you where I was going. You still let me knock.'), commander('We needed an interception before the raid arrived. Reset, select the hostile hauler as the target, and check your drone strength.')],
   },
 };
+
+export const TRAINING_DIALOGUE = Object.fromEntries(TRAINING_SCENARIOS.map(scenario => [scenario.id, originalDialogue[scenario.id] ?? {
+  briefing: [commander(scenario.instruction), enemy('You have your orders, Captain. Let us see whether they survive contact.'), commander(`${scenario.objective} You have ${scenario.deadline} hours. Time stays paused until you advance it.`)],
+  underway: [enemy('The clock is running. Your plan still has to reach its destination.')],
+  passed: [enemy('This position is settled. The next one will be harder.'), commander(`Exercise complete: ${scenario.title.toLowerCase()}. ${scenario.objective}`)],
+  failed: [enemy('A plan is only as good as its outcome, Captain.'), commander(`Reset the exercise and try again. ${scenario.hints[0] ?? scenario.objective}`)],
+}])) as Record<TrainingId, MissionDialogue>;
 
 export function trainingDialoguePhase(status: 'active' | 'passed' | 'failed', hour: number): DialoguePhase {
   return status === 'active' ? hour > 0 ? 'underway' : 'briefing' : status;

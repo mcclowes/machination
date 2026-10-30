@@ -1,5 +1,7 @@
 # Tactical training
 
+The catalog has expanded to 28 exercises under [#101](https://github.com/mcclowes/machination/issues/101). See [Subterfuge tutorial coverage](tutorial-coverage.md) for all 24 source entries, playable counterparts, verification, and the remaining fidelity gaps. The five original exercises and their completion IDs remain available; the implementation history below describes that initial set.
+
 Issue #18 adds original assessed exercises using the same chart, manifest, hauler, specialist, and Time Machine controls as ordinary operations. The [official tutorial page](https://subterfuge-game.com/rulebook/Videos.html) teaches basic controls, specialists, and the Time Machine; the [official website](https://subterfuge-game.com/) also describes in-game single-player tactical puzzles. Exact original puzzle layouts, gating, and retry gestures haven't been verified. These scenarios teach Machination's corresponding rules without copying original level assets.
 
 ## Player contract

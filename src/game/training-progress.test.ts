@@ -36,3 +36,13 @@ test('bad or failed progress writes cannot mark an exercise complete or erase ot
     assert.equal(value, raw);
   }
 });
+
+test('the expanded catalog keeps existing completion marks and stores new missions alongside them', async () => {
+  const completed = ['first-launch', 'shield-combat', 'unit-transport', 'future-production', 'interception'];
+  let value = JSON.stringify({ version: 1, contentVersion: 1, completed });
+  const store = trainingProgressStore({ getItem: async () => value, setItem: async (_key, raw) => { value = raw; } });
+  assert.deepEqual(await store.load(), completed);
+  await store.complete('joint-attack');
+  await store.complete('test-of-character');
+  assert.deepEqual(await store.load(), [...completed, 'joint-attack', 'test-of-character']);
+});
