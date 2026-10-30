@@ -12,7 +12,6 @@ export type Tuning = {
   ownerAware: boolean;
   baseSpeed: number;
   samples: number;
-  iterations: number;
 };
 export type Course = {
   points: Point[];
@@ -23,14 +22,14 @@ export type Course = {
   straightLength: number;
   straightDuration: number;
   maxDeflection: number;
+  burns: number;
   minSpeed: number;
   maxSpeed: number;
 };
 export type MapSize = { width: number; height: number };
 
-export const DEFAULT_TUNING: Tuning = { bend: 1, speedGain: 0.6, reach: 10, ownerAware: true, baseSpeed: 8, samples: 48, iterations: 500 };
+export const DEFAULT_TUNING: Tuning = { bend: 1, speedGain: 0.6, reach: 10, ownerAware: true, baseSpeed: 8, samples: 48 };
 const CLEARANCE = 1.3;
-const RELAXATION = 1.8;
 /** Compact falloff: full strength at the centre, zero at the reach circle, so influence is legible. */
 export function influence(r2: number, reach: number, radius: number): number {
   const edge = (reach + radius) ** 2;
@@ -57,46 +56,99 @@ function relevantWells(map: MapSize, wells: readonly Well[], a: Point, b: Point,
   const result: Well[] = [];
   for (const ox of [-1, 0, 1]) for (const oy of [-1, 0, 1]) for (const w of wells) {
     const image = { ...w, x: w.x + ox * map.width, y: w.y + oy * map.height };
-    if (segmentDistance(image, a, b) <= reach + w.radius * CLEARANCE) result.push(image);
+    if (segmentDistance(image, a, b) <= reach * 3 + w.radius) result.push(image);
   }
   return result;
 }
 
-/** Canonical direction makes A→B and B→A the same physical course. */
-function relaxLeg(a: Point, b: Point, wells: readonly Well[], tuning: Tuning): Point[] {
+type Flight = { points: Point[]; miss: number; valid: boolean };
+
+/**
+ * Fly from a with an initial heading offset (tangent `aim` off the chord) until crossing b's perpendicular.
+ * Gravity turns the heading toward each well, so the course curves with the mass on the inside.
+ * Shape ignores owner speed so every intelligence flies the same course between two sites.
+ */
+export function fly(a: Point, b: Point, aim: number, wells: readonly Well[], tuning: Tuning): Flight {
+  const cx = b.x - a.x, cy = b.y - a.y, length = Math.hypot(cx, cy) || 1;
+  const ux = cx / length, uy = cy / length, nx = -uy, ny = ux;
+  const steps = tuning.samples * 3, ds = length / steps;
+  let dx = ux + aim * nx, dy = uy + aim * ny;
+  let dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+  let p = { x: a.x, y: a.y };
+  const points = [p];
+  for (let i = 0; i < steps * 4; i++) {
+    let gx = 0, gy = 0;
+    for (const w of wells) {
+      const wx = w.x - p.x, wy = w.y - p.y, r2 = wx * wx + wy * wy, r = Math.sqrt(r2);
+      if (r < w.radius * CLEARANCE) return { points, miss: 0, valid: false };
+      const k = w.mass * influence(r2, tuning.reach, w.radius) / r;
+      gx += wx * k; gy += wy * k;
+    }
+    const curvature = tuning.bend * (gx * -dy + gy * dx) / tuning.reach;
+    const turn = curvature * ds; [dx, dy] = [dx - dy * turn, dy + dx * turn];
+    dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
+    const next = { x: p.x + dx * ds, y: p.y + dy * ds };
+    const before = (p.x - a.x) * ux + (p.y - a.y) * uy, after = (next.x - a.x) * ux + (next.y - a.y) * uy;
+    if (after >= length) {
+      const t = (length - before) / (after - before);
+      const hit = { x: p.x + (next.x - p.x) * t, y: p.y + (next.y - p.y) * t };
+      points.push(hit);
+      return { points, miss: (hit.x - a.x) * nx + (hit.y - a.y) * ny, valid: true };
+    }
+    if (after < -length) break;
+    p = next; points.push(p);
+  }
+  return { points, miss: 0, valid: false };
+}
+
+const AIMS = 41, MAX_AIM = 1.5, BISECTIONS = 48;
+
+const pathLength = (points: readonly Point[]) => points.reduce((sum, q, i) => i ? sum + Math.hypot(q.x - points[i - 1]!.x, q.y - points[i - 1]!.y) : 0, 0);
+
+/** Shooting method: scan headings, bisect each sign change of the miss, keep the shortest coasting course. */
+function coast(start: Point, end: Point, wells: readonly Well[], tuning: Tuning): Point[] | null {
+  let best: Point[] | null = null, bestLength = Infinity;
+  let prevAim = -MAX_AIM, prev = fly(start, end, prevAim, wells, tuning);
+  for (let i = 1; i < AIMS; i++) {
+    const aim = -MAX_AIM + 2 * MAX_AIM * i / (AIMS - 1), next = fly(start, end, aim, wells, tuning);
+    if (prev.valid && next.valid && Math.sign(prev.miss) !== Math.sign(next.miss)) {
+      let lo = prevAim, hi = aim, loMiss = prev.miss, flight = next;
+      for (let k = 0; k < BISECTIONS; k++) {
+        const mid = (lo + hi) / 2;
+        flight = fly(start, end, mid, wells, tuning);
+        if (!flight.valid) break;
+        if (Math.sign(flight.miss) === Math.sign(loMiss)) { lo = mid; loMiss = flight.miss; } else hi = mid;
+      }
+      const length = flight.valid ? pathLength(flight.points) : Infinity;
+      if (length < bestLength) { best = flight.points.slice(0, -1).concat([{ x: end.x, y: end.y }]); bestLength = length; }
+    }
+    prevAim = aim; prev = next;
+  }
+  return best;
+}
+
+/**
+ * Coast if any heading reaches the target. Otherwise (a giant would capture the course, or an antigravity shadow hides the target)
+ * burn once at a waypoint beside a blocking well. Canonical direction makes A→B and B→A the same course.
+ */
+function shootLeg(a: Point, b: Point, wells: readonly Well[], tuning: Tuning): { points: Point[]; burns: number } {
   const swap = a.x > b.x || a.x === b.x && a.y > b.y;
   const [start, end] = swap ? [b, a] : [a, b];
-  const n = tuning.samples;
-  const chord = { x: end.x - start.x, y: end.y - start.y };
-  const length = Math.hypot(chord.x, chord.y) || 1;
-  const side = { x: -chord.y / length, y: chord.x / length };
-  const h2 = (length / n) ** 2;
-  const points = Array.from({ length: n + 1 }, (_, i) => ({ x: start.x + chord.x * i / n, y: start.y + chord.y * i / n }));
-  for (let k = 0; k < tuning.iterations; k++) {
-    for (let i = 1; i < n; i++) {
-      const p = points[i]!, prev = points[i - 1]!, next = points[i + 1]!;
-      const tx = next.x - prev.x, ty = next.y - prev.y, tl = Math.hypot(tx, ty) || 1;
-      const nx = -ty / tl, ny = tx / tl;
-      let force = 0;
-      for (const w of wells) {
-        const dx = w.x - p.x, dy = w.y - p.y, r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
-        const pull = tuning.bend * w.mass / tuning.reach * influence(r2, tuning.reach, w.radius);
-        // A well dead on the chord pulls straight along the normal; break the tie to the canonical left.
-        force += r < 1e-9 ? pull : pull * (dx * nx + dy * ny) / r;
-      }
-      const targetX = (prev.x + next.x) / 2 + nx * force * h2 / 2;
-      const targetY = (prev.y + next.y) / 2 + ny * force * h2 / 2;
-      p.x += RELAXATION * (targetX - p.x);
-      p.y += RELAXATION * (targetY - p.y);
-      for (const w of wells) {
-        const min = w.radius * CLEARANCE, dx = p.x - w.x, dy = p.y - w.y, r = Math.hypot(dx, dy);
-        if (r >= min) continue;
-        const ux = r < 1e-9 ? side.x : dx / r, uy = r < 1e-9 ? side.y : dy / r;
-        p.x = w.x + ux * min; p.y = w.y + uy * min;
-      }
-    }
+  const orient = (points: Point[], burns: number) => ({ points: swap ? points.reverse() : points, burns });
+  const direct = coast(start, end, wells, tuning);
+  if (direct) return orient(direct, 0);
+  const cx = end.x - start.x, cy = end.y - start.y, length = Math.hypot(cx, cy) || 1;
+  const nx = -cy / length, ny = cx / length;
+  let best: Point[] | null = null;
+  for (const w of wells) for (const side of [1, -1]) {
+    const offset = (tuning.reach * 0.75 + w.radius) * side;
+    const waypoint = { x: w.x + nx * offset, y: w.y + ny * offset };
+    const first = coast(start, waypoint, wells, tuning), second = first && coast(waypoint, end, wells, tuning);
+    if (!first || !second) continue;
+    const points = first.concat(second.slice(1));
+    if (!best || pathLength(points) < pathLength(best)) best = points;
   }
-  return swap ? points.reverse() : points;
+  return best ? orient(best, 1) : orient([{ ...start }, { ...end }], 0);
 }
 
 export function speedFactor(p: Point, wells: readonly Well[], tuning: Tuning, owner: string | null): number {
@@ -115,12 +167,14 @@ export function plotCourse(map: MapSize, from: Point, to: Point, wells: readonly
   for (const w of [...waypoints, to]) stops.push(nearestImage(map, stops[stops.length - 1]!, w));
   const points: Point[] = [];
   let near: Well[] = [];
+  let burns = 0;
   for (let i = 0; i < stops.length - 1; i++) {
     const a = stops[i]!, b = stops[i + 1]!;
     const legWells = relevantWells(map, wells, a, b, tuning.reach);
     near = near.concat(legWells);
-    const leg = relaxLeg(a, b, legWells, tuning);
-    points.push(...(i ? leg.slice(1) : leg));
+    const leg = shootLeg(a, b, legWells, tuning);
+    burns += leg.burns;
+    points.push(...(i ? leg.points.slice(1) : leg.points));
   }
   const speeds = points.map(p => tuning.baseSpeed * speedFactor(p, near, tuning, owner));
   const times = [0];
@@ -137,7 +191,7 @@ export function plotCourse(map: MapSize, from: Point, to: Point, wells: readonly
   return {
     points, times, speeds, length, duration: times[times.length - 1]!,
     straightLength, straightDuration: straightLength / tuning.baseSpeed,
-    maxDeflection, minSpeed: Math.min(...speeds), maxSpeed: Math.max(...speeds),
+    maxDeflection, burns, minSpeed: Math.min(...speeds), maxSpeed: Math.max(...speeds),
   };
 }
 

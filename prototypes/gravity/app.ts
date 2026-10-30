@@ -164,7 +164,7 @@ function readout(): void {
       `${state.from.name} → ${state.to.name}${state.waypoints.length ? ` via ${state.waypoints.length} waypoint(s)` : ''}`,
       `straight  ${c.straightLength.toFixed(1)}u  ${c.straightDuration.toFixed(2)}h`,
       `gravity   ${c.length.toFixed(1)}u  ${c.duration.toFixed(2)}h  (${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%)`,
-      `bend      max ${c.maxDeflection.toFixed(1)}u off the chord`,
+      `bend      ${c.maxDeflection.toFixed(1)}u off chord, ${c.burns ? `${c.burns} burn(s)` : 'coasting'}`,
       `speed     ${c.minSpeed.toFixed(1)}–${c.maxSpeed.toFixed(1)} u/h (base ${state.tuning.baseSpeed})`,
     );
     if (state.launchedAt !== null) lines.push(`flight    ${Math.min(state.hour, c.duration).toFixed(2)}h / ${c.duration.toFixed(2)}h`);
