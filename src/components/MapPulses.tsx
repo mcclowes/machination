@@ -11,6 +11,6 @@ export function MapPulses({ pulse, sx, sy }: { pulse: NonNullable<GameView['puls
       <Circle cx={p.origin.x * sx} cy={p.origin.y * sy} r={p.radius * sx} fill={identity(p.factionId).color} fillOpacity={0.07} stroke={identity(p.factionId).color} strokeWidth={2} />
       <Circle cx={p.origin.x * sx} cy={p.origin.y * sy} r={4} fill={identity(p.factionId).color} />
     </G>)}
-    {pulse.kings.filter(k => k.state !== 'destroyed').map(k => <Text key={k.kingId} x={k.position.x * sx} y={k.position.y * sy - 48} fill={identity(k.factionId).color} fontSize={10} fontFamily="sans-serif" textAnchor="middle">King · {k.state}</Text>)}
+    {pulse.kings.filter(k => k.state !== 'destroyed' && k.state !== 'idle').map(k => <Text key={k.kingId} x={k.position.x * sx} y={k.position.y * sy - 30} fill={identity(k.factionId).color} fontSize={10} fontFamily="sans-serif" textAnchor="middle">King · {k.state}</Text>)}
   </G>;
 }

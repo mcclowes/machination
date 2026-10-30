@@ -39,7 +39,7 @@ export function FieldManual({ compact = false }: { compact?: boolean } = {}) {
     void AsyncStorage.setItem(ACKNOWLEDGED, '1').catch(() => undefined);
   }
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={[s.trigger, compact && { minWidth: 44, backgroundColor: 'transparent', borderWidth: 0 }]}><Text style={s.triggerText}>{compact ? '?' : 'Manual'}</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Open field manual" onPress={() => { interacted.current = true; setBriefing(false); setVisible(true); }} style={[s.trigger, compact && { minWidth: 44, backgroundColor: 'transparent', borderWidth: 0 }]}><Text style={[s.triggerText, compact && s.icon]}>{compact ? '?' : 'Manual'}</Text></Pressable>
     <Modal visible={visible} animationType={Platform.OS === 'web' ? 'none' : 'slide'} onRequestClose={close}>
       <SafeAreaProvider><SafeAreaView style={s.safe}>
         <View style={s.header}><Text accessibilityRole="header" style={s.title}>{archive ? 'Art archive' : briefing ? 'Welcome, intelligence.' : 'Field manual'}</Text><Pressable accessibilityRole="button" accessibilityLabel={archive ? 'Return to field manual' : 'Open art archive'} onPress={() => setArchive(!archive)} style={s.trigger}><Text style={s.triggerText}>{archive ? 'Manual' : 'Art archive'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Close field manual" onPress={close} style={s.trigger}><Text style={s.triggerText}>Close</Text></Pressable></View>
@@ -61,6 +61,6 @@ export function FieldManual({ compact = false }: { compact?: boolean } = {}) {
 const s = StyleSheet.create({
   navigation: { width: '100%', maxWidth: 720, alignSelf: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 24, paddingVertical: 12 }, selected: { borderColor: '#b8e986' },
   safe: { flex: 1, backgroundColor: '#080f0d' }, header: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: 1, borderColor: '#30402e' },
-  title: { color: '#e5eadc', fontSize: 23, flex: 1 }, trigger: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: '#162217', borderWidth: 1, borderColor: '#30442b' }, triggerText: { color: '#b8e986', fontSize: 12 },
+  title: { color: '#e5eadc', fontSize: 23, flex: 1 }, trigger: { minWidth: 64, minHeight: 44, alignItems: 'center', justifyContent: 'center', padding: 10, backgroundColor: '#162217', borderWidth: 1, borderColor: '#30442b' }, triggerText: { color: '#b8e986', fontSize: 12 }, icon: { fontSize: 20, fontWeight: '600' },
   content: { width: '100%', maxWidth: 720, alignSelf: 'center', padding: 24, gap: 24 }, intro: { color: '#b8e986', fontSize: 16, lineHeight: 25 }, section: { gap: 8 }, heading: { color: '#e5eadc', fontSize: 18 }, body: { color: '#a8b8a2', fontSize: 15, lineHeight: 24 }, begin: { minHeight: 48, padding: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#b8e986', marginBottom: 12 }, beginText: { color: '#182312', fontWeight: '600', fontSize: 14 },
 });

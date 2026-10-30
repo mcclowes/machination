@@ -47,7 +47,7 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
             <Text style={s.relative}>{mode === 'live' ? 'Now' : relativeInspectionTime(hour, inspectedHour!)}</Text>
             <Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text>
           </View>
-          {compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}
+          {compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control toggle label={expanded ? 'Close time controls' : 'Time Machine'} text={expanded ? 'Close ▾' : 'Time Machine ▴'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}
         </View>
         <TimeWheel hour={hour} inspectedHour={inspectedHour} historyStart={historyStart} events={markers} onChange={changeTime} />
         <View style={s.wheelCaption}><Text style={s.detail}>Past</Text><Text style={s.detail}>‹ Drag through time ›</Text><Text style={s.detail}>Future</Text></View>
@@ -63,13 +63,13 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
     <Text style={s.detail}>{mode === 'past' ? 'History is read-only. Only information observed at this time is available.' : mode === 'future' ? `Orders use this forecast time. Hidden forces and new ${online ? 'human' : 'rival'} orders can change the outcome.` : 'Drag through time to inspect known movement, production, and combat.'}</Text></>}
   </View>;
 }
-function Control({ label, text, selected, disabled, quiet, onPress }: { label: string; text?: string; selected?: boolean; disabled?: boolean; quiet?: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[s.control, quiet && { flexGrow: 0, borderWidth: 0 }, selected && s.selected, disabled && { opacity: 0.35 }]}><Text style={s.text}>{text ?? label}</Text></Pressable>;
+function Control({ label, text, selected, disabled, quiet, toggle, onPress }: { label: string; text?: string; selected?: boolean; disabled?: boolean; quiet?: boolean; toggle?: boolean; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[s.control, quiet && { flexGrow: 0, borderWidth: 0 }, toggle && s.toggle, selected && s.selected, disabled && { opacity: 0.35 }]}><Text style={s.text}>{text ?? label}</Text></Pressable>;
 }
 const s = StyleSheet.create({
   tray: { maxWidth: 960 }, trayBody: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 }, orderColumn: { flexBasis: 260, flexGrow: 1, flexShrink: 1, minWidth: 0 }, timeColumn: { flexBasis: 340, flexGrow: 2, flexShrink: 1, minWidth: 0 }, timeHeading: { flex: 1, minWidth: 130, paddingVertical: 6 }, relative: { color: '#e5eadc', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
   panel: { gap: 10, padding: 16, backgroundColor: '#101b21', borderTopWidth: 1, borderColor: '#23363e' }, row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }, title: { color: '#e5eadc', fontSize: 15, flexGrow: 1 }, state: { color: '#bccacc', fontSize: 12, fontVariant: ['tabular-nums'] },
   compact: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 12, paddingTop: 0, paddingBottom: 6, gap: 0, borderWidth: 0 },
   wheelCaption: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },
-  control: { flexGrow: 1, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, text: { color: '#d6e2cd', fontSize: 12 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, input: { minHeight: 44, width: 66, color: '#e5eadc', padding: 10, borderWidth: 1, borderColor: '#40563a' },
+  control: { flexGrow: 1, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, toggle: { flexGrow: 0, borderRadius: 22, paddingHorizontal: 14, backgroundColor: '#162217' }, text: { color: '#d6e2cd', fontSize: 12 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, input: { minHeight: 44, width: 66, color: '#e5eadc', padding: 10, borderWidth: 1, borderColor: '#40563a' },
 });

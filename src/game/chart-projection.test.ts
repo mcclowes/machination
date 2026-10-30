@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartFit, chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera } from './chart-projection';
+import { chartFit, chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealRouteCamera, revealSiteCamera } from './chart-projection';
 import { constrainCamera, focusCamera, zoomCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
@@ -146,4 +146,28 @@ test('an untiled chart lifts its lower edge above a tall card so bottom-edge hau
   }
   const lifted = revealAboveCamera(bounded, focusCamera(bounded, { scale: 2, x: 0, y: 0 }, { x: 50, y: 95 }), { x: 50, y: 95 }, phone, covered);
   assert.deepEqual(constrainCamera(bounded, lifted), { scale: 2, x: 0, y: -50 }, 'closing the card returns to the ordinary bound');
+});
+
+test('a hauler route reveal pans both ends above the card without changing zoom', () => {
+  const phone = { width: 393, height: 616 }; const card = 330;
+  const visible = (camera: Parameters<typeof chartTransform>[1], chart: typeof world | object, point: { x: number; y: number }) => {
+    const t = chartTransform(chart, camera, phone);
+    return chartOffsets(chart, camera, phone).some(o => {
+      const x = t.x + (point.x + o.x) * t.scale, y = t.y + (point.y + o.y) * t.scale;
+      return x >= 0 && x <= phone.width && y >= 0 && y <= phone.height - card;
+    });
+  };
+  for (const chart of [world, {}]) {
+    const from = { x: 40, y: 20 }, to = { x: 60, y: 45 };
+    const camera = focusCamera(chart, { scale: 2, x: 0, y: 0 }, to);
+    assert.ok(!visible(camera, chart, to), 'destination starts under the card');
+    const revealed = revealRouteCamera(chart, camera, [from, to], phone, card);
+    assert.equal(revealed.scale, camera.scale);
+    assert.ok(visible(revealed, chart, from) && visible(revealed, chart, to), 'both ends visible above the card');
+    const far = revealRouteCamera(chart, focusCamera(chart, { scale: 4, x: 0, y: 0 }, to), [from, { x: 95, y: 75 }], phone, card);
+    assert.equal(far.scale, 4, 'a route too long to fit keeps the zoom');
+    assert.ok(visible(far, chart, from), 'and keeps the hauler in view');
+  }
+  const settled = constrainCamera(world, { scale: 1, x: 0, y: 0 });
+  assert.deepEqual(revealRouteCamera(world, settled, [{ x: 100, y: 10 }, { x: 110, y: 12 }], phone, card), settled);
 });

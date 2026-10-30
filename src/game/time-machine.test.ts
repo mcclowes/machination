@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { advance, dispatch } from './simulation';
 import { observe, forecastObservation } from './visibility';
 import { scheduleTransfer } from './orders';
-import { orderHour, inspectionOffset, inspectionMode, timelineHour, arrivalInspection } from './time-machine';
+import { orderHour, inspectionOffset, inspectionMode, timelineHour, arrivalInspection, arrivalAtRisk } from './time-machine';
 
 test('an order issued in the Time Machine launches at the inspected minute using future inventory', () => {
   const live = createGame(0);
@@ -75,4 +75,13 @@ test('arrival inspection resolves observed destinations without exposing an unob
       assert.ok(frame.uncertain.includes(to));
     }
   }
+});
+
+test('an arrival is at risk only when a rival reaches its destination first or intercepts it', () => {
+  const hauler = { id: 1, owner: 'you', to: 'b', arrives: 5 } as const;
+  assert.equal(arrivalAtRisk([hauler, { id: 2, owner: 'you', to: 'b', arrives: 3 }], hauler), false);
+  assert.equal(arrivalAtRisk([hauler, { id: 2, owner: 'vesper', to: 'b', arrives: 6 }], hauler), false);
+  assert.equal(arrivalAtRisk([hauler, { id: 2, owner: 'vesper', to: 'c', arrives: 3 }], hauler), false);
+  assert.equal(arrivalAtRisk([hauler, { id: 2, owner: 'vesper', to: 'b', arrives: 3 }], hauler), true);
+  assert.equal(arrivalAtRisk([hauler, { id: 2, owner: 'vesper', to: 'c', arrives: 9, intercept: { target: 1 } }], hauler), true);
 });

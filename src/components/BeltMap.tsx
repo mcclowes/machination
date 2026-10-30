@@ -41,7 +41,7 @@ import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import type { GestureResponderEvent } from 'react-native';
 import { flightDestination, flightEndpoints, fleetPosition } from '../game/flight';
 import { MODULES } from '../game/modules';
-import { arrivalInspection } from '../game/time-machine';
+import { arrivalAtRisk, arrivalInspection } from '../game/time-machine';
 import { remoteSiteDescription } from './site-observation';
 import { CopyObjectReference } from './CopyObjectReference';
 import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
@@ -57,7 +57,7 @@ import {
   chartRoute,
   chartTransform,
   overlayLift,
-  revealAboveCamera,
+  revealRouteCamera,
   revealSiteCamera,
   siteCameraPadding,
   type ChartViewport,
@@ -79,6 +79,8 @@ const baseIcons = {
 };
 const INSPECTOR_CHART_SPACE = 44 + 20;
 const SITE_CONTROL_WIDTH = 64;
+const NEUTRAL_NAME_ZOOM = 2;
+const NEUTRAL_SITE = '#a7b6b9';
 function isWebMouseEvent(event: GestureResponderEvent, type: string) {
   const native = event.nativeEvent as GestureResponderEvent['nativeEvent'] & { type?: string };
   return Platform.OS === 'web' && native.type === type;
@@ -513,7 +515,11 @@ export function BeltMap<T extends ChartRock>({
     width: marker.width,
     height: marker.height,
   }));
-  const names = layoutSiteNames(sites, size, markerObstacles);
+  const names = layoutSiteNames(
+    sites.filter((site) => site.active || site.rock.owner || camera.scale >= NEUTRAL_NAME_ZOOM),
+    size,
+    markerObstacles,
+  );
   const reference = fleet && fleetReference?.(fleet);
   const revealed = useRef<string | undefined>(undefined);
   const revealFleetCard = useEffectEvent(() => {
@@ -525,10 +531,10 @@ export function BeltMap<T extends ChartRock>({
     if (card?.id !== fleet.id || revealed.current === key) return;
     revealed.current = key;
     const state = current.current;
-    const next = revealAboveCamera(
+    const next = revealRouteCamera(
       state.world,
       state.camera,
-      fleetPosition(state.world, fleet),
+      [fleetPosition(state.world, fleet), flightEndpoints(state.world, fleet).to],
       state.size,
       card.height + styles.inspector.bottom,
     );
@@ -723,7 +729,7 @@ export function BeltMap<T extends ChartRock>({
         )}
       </Svg>
       {sites.map(({ key, rock, location, active, radius, specialists }) => {
-        const color = rock.owner ? identity(rock.owner).color : '#68777b';
+        const color = rock.owner ? identity(rock.owner).color : NEUTRAL_SITE;
         const icon = siteIcon(rock);
         const namePlacement = names.get(key);
         return (
@@ -742,7 +748,7 @@ export function BeltMap<T extends ChartRock>({
                 {
                   borderColor: active ? '#dce7e5' : 'transparent',
                   borderWidth: 1.5,
-                  backgroundColor: 'transparent',
+                  backgroundColor: rock.owner ? `${color}2e` : 'transparent',
                 },
               ]}
             >
@@ -760,10 +766,10 @@ export function BeltMap<T extends ChartRock>({
                     accessible={false}
                     source={icon}
                     resizeMode="contain"
-                    style={[styles.baseIcon, { tintColor: rock.owner ? color : '#829195' }]}
+                    style={[styles.baseIcon, { tintColor: color }]}
                   />
                 ) : (
-                  <Text style={{ color: rock.owner ? '#101d24' : '#829195', fontSize: 15 }}>
+                  <Text style={{ color: rock.owner ? '#101d24' : NEUTRAL_SITE, fontSize: 15 }}>
                     {rock.destroyed ? '×' : '?'}
                   </Text>
                 )}
@@ -888,27 +894,43 @@ export function BeltMap<T extends ChartRock>({
         >
           <View style={styles.contactHeading}>
             <PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} />
-            <MapControl
-              label="Close hauler details"
-              text="×"
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close hauler details"
+              hitSlop={6}
               onPress={() => setContact(undefined)}
-            />
+              style={styles.close}
+            >
+              <Text style={styles.closeText}>×</Text>
+            </Pressable>
           </View>
-          {combatObservation && (
-            <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />
+          <View style={styles.summary}>
+            <Text style={styles.eta}>{arrivalCountdown(fleet.arrives - game.hour)}</Text>
+            <Text style={styles.contactText}>
+              {fleet.intercept ? 'to interception' : 'to arrival'} ·{' '}
+              {game.rocks.find((r) => r.id === fleet.from)?.name} →{' '}
+              {flightDestination(game.rocks, fleet)} · {fleet.drones} drones
+              {fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}
+            </Text>
+          </View>
+          {timeInspection && arrival === undefined && (
+            <Text style={styles.caveat}>Arrival is outside the available time range.</Text>
           )}
-          <Text style={styles.contactText}>
-            {fleet.drones} drones{fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}
-          </Text>
-          <Text style={styles.contactText}>
-            {game.rocks.find((r) => r.id === fleet.from)?.name} →{' '}
-            {flightDestination(game.rocks, fleet)}
-          </Text>
-          <Text style={styles.contactText}>
-            {fleet.intercept ? 'Interception' : 'Arrival'} in{' '}
-            {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes
-          </Text>
+          {timeInspection && arrival !== undefined && arrivalAtRisk(game.fleets, fleet) && (
+            <Text style={styles.caveat}>Rival haulers act first. This arrival can change.</Text>
+          )}
           <View style={styles.actions}>
+            {fleet.owner === player && onManageFleet && (
+              <MapControl
+                primary
+                label="Manage this hauler"
+                text="Manage orders"
+                onPress={() => {
+                  onManageFleet(fleet.id);
+                  setContact(undefined);
+                }}
+              />
+            )}
             {timeInspection &&
               (timeInspection.historyEnd === undefined || arrival !== undefined) && (
                 <MapControl
@@ -923,19 +945,9 @@ export function BeltMap<T extends ChartRock>({
                   }}
                 />
               )}
-            {fleet.owner === player && onManageFleet && (
-              <MapControl
-                label="Manage this hauler"
-                text="Manage orders"
-                onPress={() => {
-                  onManageFleet(fleet.id);
-                  setContact(undefined);
-                }}
-              />
-            )}
             <MapControl
               label="Inspect hauler destination"
-              text="Inspect destination"
+              text="Destination"
               onPress={() => {
                 const target = game.rocks.find((r) => r.id === fleet.to);
                 if (target) onSelect(target);
@@ -943,12 +955,8 @@ export function BeltMap<T extends ChartRock>({
               }}
             />
           </View>
-          {timeInspection && (
-            <Text style={styles.contactText}>
-              {arrival === undefined
-                ? 'Arrival is outside the available time range.'
-                : 'Earlier combat and new orders can change this arrival.'}
-            </Text>
+          {combatObservation && (
+            <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />
           )}
           {reference && <CopyObjectReference value={reference} label="Copy hauler reference" />}
           <SpecialistManifest summary={inspectedSpecialists} />
@@ -962,15 +970,21 @@ export function BeltMap<T extends ChartRock>({
     </View>
   );
 }
+function arrivalCountdown(hours: number) {
+  const minutes = Math.max(0, Math.round(hours * 60));
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
 function MapControl({
   label,
   text,
   disabled,
+  primary,
   onPress,
 }: {
   label: string;
   text: string;
   disabled?: boolean;
+  primary?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -980,9 +994,9 @@ function MapControl({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.mapControl, disabled && { opacity: 0.35 }]}
+      style={[styles.mapControl, primary && styles.primary, disabled && { opacity: 0.35 }]}
     >
-      <Text style={styles.contactText}>{text}</Text>
+      <Text style={[styles.contactText, primary && styles.primaryText]}>{text}</Text>
     </Pressable>
   );
 }
@@ -1021,12 +1035,26 @@ const styles = StyleSheet.create({
     bottom: 10,
     left: 10,
     right: 10,
-    backgroundColor: '#101e15',
+    backgroundColor: '#101e15f2',
     borderWidth: 1,
-    borderColor: '#526644',
+    borderColor: '#2c3d31',
+    borderRadius: 16,
   },
+  primary: { backgroundColor: '#b8e986' },
+  primaryText: { color: '#101e15', fontWeight: '600' },
   contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  contactTitle: { fontSize: 14, flex: 1 },
+  close: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1d2e24',
+  },
+  closeText: { color: '#a6b1a0', fontSize: 18, lineHeight: 20 },
+  summary: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
+  eta: { color: '#e5eadc', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  caveat: { color: '#efbe79', fontSize: 11, lineHeight: 16 },
   contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#101d24' },
   rock: {
