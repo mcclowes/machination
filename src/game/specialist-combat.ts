@@ -3,6 +3,7 @@
  * purpose: Specialist-aware site arrivals, combat outcomes, capture, and core succession.
  * ---
  */
+import { waiverActive } from './compact';
 import { reconcilePulseKings } from './pulse';
 import { afterWork } from './opening-clock';
 import { mechanicsVersion } from './rules';
@@ -102,8 +103,9 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
   if (attackerWins) {
     const remaining = fleet.drones - rock.drones;
     const repaired = repairLosses(game, fleet, Math.max(0, originalAttacking - remaining), phase.suppressed);
-    rock.drones = remaining + repaired;
-    if (draft) { draft.winner = 0; draft.repaired = repaired; draft.captured = newlyCaptive(rock.specialists ?? [], fleet.owner); }
+    const salvaged = waiverActive(game, 'salvage') ? Math.floor(rock.drones * 0.25) : 0;
+    rock.drones = remaining + repaired + salvaged;
+    if (draft) { draft.winner = 0; draft.repaired = repaired; if (salvaged) draft.salvaged = salvaged; draft.captured = newlyCaptive(rock.specialists ?? [], fleet.owner); }
     rock.specialists = [...capture(game, rock.specialists ?? [], fleet.owner), ...(fleet.specialists ?? [])];
     if (rock.kind === 'mine') { if (rock.owner) loseMine(game, rock.owner); rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
     if (!rock.owner && rock.kind === 'factory') rock.productionAt = afterWork(game, game.hour, 8);
@@ -112,8 +114,9 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
   } else {
     const remaining = rock.drones - fleet.drones;
     const repaired = repairLosses(game, rock, Math.max(0, originalDefending - remaining), phase.suppressed);
-    rock.drones = remaining + repaired;
-    if (draft) { draft.winner = 1; draft.repaired = repaired; draft.captured = rock.owner ? newlyCaptive(fleet.specialists ?? [], rock.owner) : []; }
+    const salvaged = waiverActive(game, 'salvage') && rock.owner && (remaining > 0 || living(rock).length > 0) ? Math.floor(fleet.drones * 0.25) : 0;
+    rock.drones = remaining + repaired + salvaged;
+    if (draft) { draft.winner = 1; draft.repaired = repaired; if (salvaged) draft.salvaged = salvaged; draft.captured = rock.owner ? newlyCaptive(fleet.specialists ?? [], rock.owner) : []; }
     if (rock.owner) rock.specialists = [...(rock.specialists ?? []), ...capture(game, fleet.specialists ?? [], rock.owner)];
     log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`);
   }
@@ -148,8 +151,9 @@ export function resolveHaulerBattle(game: Game, a: Fleet, b: Fleet, encounters?:
     const winner = result > 0 ? a : b; const loser = result > 0 ? b : a;
     const remaining = Math.max(0, winner.drones - loser.drones);
     const repaired = repairLosses(game, winner, Math.max(0, (result > 0 ? originalA : originalB) - remaining), phase.suppressed);
-    winner.drones = remaining + repaired;
-    if (draft) { draft.winner = result > 0 ? 0 : 1; draft.repaired = repaired; draft.captured = newlyCaptive(loser.specialists ?? [], winner.owner); }
+    const salvaged = waiverActive(game, 'salvage') ? Math.floor(loser.drones * 0.25) : 0;
+    winner.drones = remaining + repaired + salvaged;
+    if (draft) { draft.winner = result > 0 ? 0 : 1; draft.repaired = repaired; if (salvaged) draft.salvaged = salvaged; draft.captured = newlyCaptive(loser.specialists ?? [], winner.owner); }
     game.fleets = game.fleets.filter(f => f.id !== loser.id);
     const captives = capture(game, loser.specialists ?? [], winner.owner);
     if (captives.length && !sendUnitsHome(game, point, winner.owner, captives)) winner.specialists = [...(winner.specialists ?? []), ...captives];

@@ -3,6 +3,7 @@
  * purpose: Shared geometric sensor policy for authoritative observations and event audiences.
  * ---
  */
+import { waiverActive } from './compact';
 import { sitePosition, type Drift } from './drift';
 import { worldDistance, type GeometryWorld } from './geometry';
 import { playersIn } from './players';
@@ -14,7 +15,7 @@ export const HAULER_SENSOR_RANGE = 16;
 export type Sensor = { x: number; y: number; radius: number; drift?: Drift };
 export function rockSensorRange(game: Game, rock: Game['rocks'][number]): number {
   if (game.version !== 2 || !rock.owner) return ROCK_SENSOR_RANGE;
-  return ((rock.sensorJammedUntil ?? 0) > game.hour ? .5 : 1) * ROCK_SENSOR_RANGE * (1 + 0.25 * unitCount(game, rock.owner, 'intelligence') + 0.5 * unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'princess').length);
+  return (waiverActive(game, 'sensors') ? 1.5 : 1) * ((rock.sensorJammedUntil ?? 0) > game.hour ? .5 : 1) * ROCK_SENSOR_RANGE * (1 + 0.25 * unitCount(game, rock.owner, 'intelligence') + 0.5 * unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'princess').length);
 }
 export function sensors(game: Game, faction: Faction): Sensor[] {
   return [

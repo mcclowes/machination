@@ -3,6 +3,7 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { createCompact } from './compact';
 import { DEFAULT_TACTICAL_PULSE_CONFIG } from './tactical-pulse';
 import { createPulseSystem, DEFAULT_PULSE_CONFIG } from './pulse';
 import { afterWork } from './opening-clock';
@@ -60,7 +61,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
     rivalPolicy: 1,
-    rules: { mechanicsVersion: settings.mode === 'pulse' ? 16 : 14, ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    rules: { mechanicsVersion: settings.mode === 'pulse' ? 16 : 14, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
     recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0, settings.mode === 'pulse')])),
@@ -70,6 +71,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
     if (rock.productionAt !== undefined) rock.productionAt = afterWork(game, 0, rock.productionAt);
     if (rock.shieldAt !== undefined) rock.shieldAt = afterWork(game, 0, rock.shieldAt);
   }
+  if (settings.beltCompact) game.compact = createCompact(players);
   if (settings.mode === 'pulse') game.pulse = createPulseSystem(game);
   return game;
 }

@@ -3,6 +3,8 @@
  * purpose: Validate private persisted command history and prove it reconstructs the saved live operation.
  * ---
  */
+import { isCouncilChoice } from './compact';
+import { isCompactPolicy } from './compact-policies';
 import { isTacticalPulseCommand } from './tactical-pulse';
 import { validateFutureAction } from './future-actions';
 import { validateLaunchEdit } from './orders';
@@ -45,6 +47,8 @@ function command(v: unknown): boolean {
         : ['charge_rate', 'pulse_speed', 'shield_drain'].includes(e.type as string) && shape(e, ['type', 'multiplier', 'expiresAt']) && finite(e.multiplier) && e.multiplier >= 0 && e.multiplier <= 100 && finite(e.expiresAt);
     }
     case 'pulse': return shape(v, [...keys, 'command']) && record(v.command) && (isTacticalPulseCommand(v.command) || shape(v.command, ['id', 'action']) && typeof v.command.id === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(v.command.id) && ['START_CHARGE', 'FIRE_PULSE', 'CANCEL_CHARGE', 'TERMINATE_PULSE'].includes(v.command.action as string));
+    case 'council-vote': return shape(v, [...keys, 'motionId', 'choice']) && count(v.motionId) && v.motionId !== 0 && isCouncilChoice(v.choice);
+    case 'council-nominate': return shape(v, [...keys, 'motionId', 'policy']) && count(v.motionId) && v.motionId !== 0 && (v.policy === null || isCompactPolicy(v.policy));
     case 'resign': return shape(v, keys);
     case 'dispatch': case 'gift': return shape(v, [...keys, 'from', 'to', 'drones', ...(v.type === 'gift' ? ['recipient'] : [])], ['specialists', 'carryModule']) && payload(v) && (v.type !== 'gift' || owner(v.recipient));
     case 'intercept': return shape(v, [...keys, 'from', 'target', 'drones'], ['specialists']) && payload({ ...v, to: v.from }) && count(v.target) && v.target !== 0;

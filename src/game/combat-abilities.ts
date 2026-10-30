@@ -3,6 +3,7 @@
  * purpose: Ordered specialist combat phase with simultaneous equal-priority effects and global combat bonuses.
  * ---
  */
+import { compactAllows } from './compact';
 import { returnHauler } from './specialist-travel';
 import { detonate } from './destruction';
 import { fleetPosition } from './flight';
@@ -23,7 +24,7 @@ type Resolution = 'continue' | 'end';
 const RESOLVERS: Record<number, (phase: Phase) => Resolution> = {
   1: phase => {
     const { game, a, b } = phase;
-    if (!count(a, 'martyr') && !count(b, 'martyr')) return 'continue';
+    if (!compactAllows(game, 'weapons') || !count(a, 'martyr') && !count(b, 'martyr')) return 'continue';
     detonate(game, 'kind' in b ? b : fleetPosition(game, a as Fleet));
     phase.detonated = true;
     return 'end';

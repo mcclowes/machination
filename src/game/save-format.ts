@@ -3,6 +3,7 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validCompact } from './compact-save';
 import { validPulseSave } from './pulse-save';
 import { validDrift, sitePosition } from './drift';
 import { validateScheduledAction } from './future-actions';
@@ -34,6 +35,7 @@ export function decodeSave(raw: string): Save {
   try { rules = g.rules === undefined ? undefined : validateRules(g.rules); } catch { return fail(); }
   if (rules && (g.version !== 2 || g.specialistVersion !== 1)) return fail();
   const factions = playersIn({ rules });
+  if (!!rules?.beltCompact !== (g.compact !== undefined) || g.compact !== undefined && !validCompact(g.compact, factions, g.hour as number, !!g.winner || !!g.draw)) return fail();
   const isFaction = (v: unknown): v is Faction => factions.includes(v as Faction);
   const base = g.version === 2 ? createGame(0) : createLegacyGame(0);
   if (![1, 2].includes(g.version as number) || !nonnegative(g.hour) || !nonnegative(g.epoch) || !Number.isInteger(g.nextId) || (g.nextId as number) < 1
@@ -121,6 +123,7 @@ export function decodeSave(raw: string): Save {
     }
     if (f.returning !== undefined && (f.returning !== true || !f.route || g.version === 1 && f.module !== 'scavenger')) return fail();
     if (f.lastContacts !== undefined && (g.version !== 2 || !Array.isArray(f.lastContacts) || !f.lastContacts.every(c => record(c) && Number.isSafeInteger(c.id) && (c.id as number) > 0 && (c.id as number) < (g.nextId as number) && nonnegative(c.hour) && c.hour <= (g.hour as number)))) return fail();
+    if (f.thrust !== undefined && (g.compact === undefined || f.thrust !== 1.5)) return fail();
     if (!(f.speed === undefined || finite(f.speed) && f.speed > 0) || !validUnits(f.specialists)) return fail();
     if (f.pendingCourse !== undefined) {
       const pending = f.pendingCourse;

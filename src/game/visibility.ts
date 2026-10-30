@@ -3,6 +3,7 @@
  * purpose: Redact authoritative state to a player's sensor observations and forecast only those observations.
  * ---
  */
+import { cloneCompact, type BeltCompact } from './compact';
 import { clonePulse, type PulseSystem } from './pulse';
 import { sitePosition } from './drift';
 import { publicRules, type PublicRules } from './rules';
@@ -18,6 +19,7 @@ import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'drift'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: Faction | null; drones?: never; module?: never; specialists?: never; coreOf?: never });
 export type GameView = {
+  compact?: BeltCompact;
   pulse?: Omit<PulseSystem, 'receipts'>; rules?: PublicRules; funding?: Funding[]; standings?: Partial<Record<Faction, { cargo: number; funders: number }>>; fundingUncertain?: boolean;
   recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>>; recruitmentUncertain?: boolean;
   // Hidden territory leaves economy, routing, succession, and victory conditional.
@@ -53,6 +55,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   }
   const { receipts: _receipts, ...disclosedPulse } = pulse ?? { receipts: {} };
   return {
+    ...(game.compact ? { compact: cloneCompact(game.compact) } : {}),
     ...(pulse ? { pulse: disclosedPulse as Omit<PulseSystem, 'receipts'> } : {}),
     ...(game.rules ? { rules: publicRules(game.rules) } : {}),
     ...(game.version === 2 ? { funding: (game.funding ?? []).filter(f => f.from === faction || f.to === faction).map(f => ({ ...f })), standings: Object.fromEntries((playersIn(game)).map(f => [f, { cargo: game.cargo[f] ?? 0, funders: fundingCount(game, f) }])) as NonNullable<GameView['standings']> } : {}),
@@ -87,7 +90,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
     return unknown.has(r.id) ? { ...original, ...sitePosition(view, original, predicted.hour) } : r;
   });
   projected.uncertain = [...new Set([...view.uncertain, ...predicted.events.filter(e => e.unresolvedDestination).map(e => e.unresolvedDestination!)])];
-  if (incompleteObservation) projected.forecastUncertain = true;
+  if (incompleteObservation || view.compact?.motion && targetHour >= view.compact.motion.closesAt) projected.forecastUncertain = true;
   projected.interceptionUncertain = view.interceptionUncertain || predicted.events.some(e => e.unresolvedInterception);
   projected.fundingUncertain = view.fundingUncertain || !!view.funding?.length && unknown.size > 0;
   for (const f of playersIn(view)) {

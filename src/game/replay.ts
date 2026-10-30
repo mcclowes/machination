@@ -5,6 +5,8 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
+import { castCouncilVote, proposeCouncilPolicy, settleCouncil, type CouncilChoice } from './compact';
+import type { CompactPolicy } from './compact-policies';
 import { applyPulseSpecialistEffect, commandPulse, type PulseEffectCommand, type PulseCommand } from './pulse';
 import { settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
@@ -39,6 +41,8 @@ export type GameCommand = { owner: Faction } & (
   | { type: 'install-module'; rock: string; kind: ModuleKind }
   | { type: 'pulse-specialist-effect'; command: PulseEffectCommand }
   | { type: 'pulse'; command: PulseCommand }
+  | { type: 'council-vote'; motionId: number; choice: CouncilChoice }
+  | { type: 'council-nominate'; motionId: number; policy: CompactPolicy | null }
   | { type: 'resign' }
 ) | { type: 'inactivity'; owners: Faction[] };
 
@@ -56,6 +60,8 @@ function performCommand(input: Game, command: GameCommand): Game {
   switch (c.type) {
     case 'pulse-specialist-effect': return applyPulseSpecialistEffect(game, c.command.target, c.command.effect, c.command.id);
     case 'pulse': { const result = commandPulse(game, c.owner, c.command); settlePulseHazards(result); evaluatePulseVictory(result); return result; }
+    case 'council-vote': return castCouncilVote(game, c.owner, c.motionId, c.choice);
+    case 'council-nominate': return proposeCouncilPolicy(game, c.owner, c.policy, c.motionId);
     case 'resign': return resign(game, c.owner);
     case 'inactivity': return resignInactive(game, c.owners);
     case 'dispatch': return dispatch(game, c.from, c.to, c.drones, c.owner, c.carryModule, c.specialists);
@@ -79,6 +85,7 @@ function performCommand(input: Game, command: GameCommand): Game {
 
 export function executeCommand(input: Game, command: GameCommand): Game {
   const game = performCommand(input, command);
+  settleCouncil(game);
   if (game.pulse) { settlePulseHazards(game); evaluatePulseVictory(game); }
   return game;
 }

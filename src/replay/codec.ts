@@ -1,3 +1,5 @@
+import { validCompact } from '../game/compact-save';
+import type { Faction } from '../game/players';
 import { validateTacticalPulseConfig } from '../game/tactical-pulse';
 import { validatePulseConfig } from '../game/pulse';
 import { driftingBasesEnabled } from '../game/rules';
@@ -74,7 +76,8 @@ function inspect(value: unknown) {
 }
 
 function rules(v: unknown) {
-  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases']);
+  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases', 'beltCompact']);
+  optional(v, 'beltCompact', n => one(n, [1]));
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
   optional(v, 'pulse', validatePulseConfig);
@@ -88,9 +91,11 @@ function rules(v: unknown) {
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));
 }
 function scene(v: unknown) : asserts v is ReplayScene {
-  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules']);
+  object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules', 'compact']);
   num(v.hour); optional(v, 'version', n => one(n, [1, 2])); optional(v, 'draw', n => one(n, [true])); optional(v, 'rules', rules);
   const roster: string[] = v.rules?.players ?? factions;
+  need(!!v.rules?.beltCompact === !!v.compact);
+  optional(v, 'compact', c => need(validCompact(c, roster as Faction[], v.hour, !!v.winner || !!v.draw, true)));
   const member = (f: unknown) => { faction(f); need(roster.includes(f as string)); };
   const units = new Set<string>(); let unitCount = 0;
   function manifest(items: unknown) {

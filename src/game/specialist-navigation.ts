@@ -35,7 +35,7 @@ function redirectCourse(game: Game, fleetId: number, owner: Faction, destination
   const { fleet, navigators, destination } = courseInputs(game, fleetId, owner, destinationId);
   const point = fleetPosition(game, fleet);
   const specialists = fleet.specialists!.map(u => navigators.includes(u) ? { ...u, lastCourseAt: game.hour } : { ...u });
-  const speed = specialistSpeed(game, owner, specialists, destination.owner === owner);
+  const speed = specialistSpeed(game, owner, specialists, destination.owner === owner, undefined, fleet.thrust ?? 1);
   const changed = { ...fleet, specialists, to: destinationId, speed,
     ...(mechanicsVersion(game) >= 12 ? { courseChanged: true as const } : {}),
     route: { from: point, to: nearestImage(game, point, destination) },

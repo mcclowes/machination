@@ -3,6 +3,7 @@
  * purpose: Specialist identity, time-based recruitment, promotion, and shared active-unit queries.
  * ---
  */
+import { compactAllows } from './compact';
 import { workClock, workHour, type OpeningWorld } from './opening-clock';
 import { isActionPlan } from './future-actions';
 import { withUnitEffects } from './specialist-effects';
@@ -61,6 +62,7 @@ function requireRecruitment(game: Game, owner: Faction): { status: ReturnType<ty
 }
 export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind, ids?: readonly string[]): Game {
   const { status, state } = requireRecruitment(game, owner);
+  if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
   if (!status.at) throw new Error('Hiring needs your active core at a controlled site.');
   if (!state.offers.includes(kind)) throw new Error('Choose one of the three current recruitment offers.');
   const amount = hireAmount(kind);
@@ -81,6 +83,7 @@ export function promoteSpecialist(game: Game, owner: Faction, id: string): Game 
   const unit = site?.specialists?.find(u => u.id === id);
   const kind = unit && promotion(unit.kind);
   if (!site || !unit || !kind) throw new Error('Choose a promotable module at one of your sites.');
+  if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
   return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === site.id ? { ...r, specialists: r.specialists!.map(u => u.id === id ? { ...u, kind, ...(kind === 'sentry' ? { nextActionAt: game.hour + 2 } : {}) } : u) } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, site), message: `${site.name}: ${SPECIALISTS[unit.kind].name} promoted to ${SPECIALISTS[kind].name}.` }, ...game.events]),

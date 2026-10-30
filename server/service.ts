@@ -7,6 +7,7 @@
  *   - ./schedule-payload.ts - queued-order decoding and canonicalization
  * ---
  */
+import { councilCommand } from './council-command';
 import { isTacticalPulseCommand } from '../src/game/tactical-pulse';
 import type { PulseCommand } from '../src/game/pulse';
 import { createPulseSystem, validatePulseConfig, type PulseConfig } from '../src/game/pulse';
@@ -238,12 +239,12 @@ export class GameService {
       const credential = this.credential(token);
       const existing = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
-        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
+        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && !!requested.beltCompact === !!existing.game.compact && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
         this.settle(db, existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
       const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? DEFAULT_GAME_OPTIONS, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential, ...(typeof token !== 'string' ? token : {}) }], messages: [], receipts: {} };
+        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? { ...DEFAULT_GAME_OPTIONS, beltCompact: true }, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential, ...(typeof token !== 'string' ? token : {}) }], messages: [], receipts: {} };
       if (room.game.pulse && this.pulseDefaults) { room.game.rules!.pulse = { ...this.pulseDefaults }; room.game.pulse = createPulseSystem(room.game); }
       db.rooms.push(room);
       return this.view(room, 'you');
@@ -589,6 +590,18 @@ export class GameService {
       try { this.act(r, { type: 'funding', owner: f, to: command.recipient, enabled: command.enabled }); }
       catch (e) { throw new Failure(409, 'funding.conflict.invalid', (e as Error).message); }
       this.reviseOrders(r, [f]);
+      return this.view(r, f);
+    });
+  }
+  council(id: string, token: Credential, input: unknown): Promise<Snapshot> {
+    let c: ReturnType<typeof councilCommand>;
+    try { c = councilCommand(input); } catch (error) { return Promise.reject(error); }
+    return this.transaction(db => {
+      const r = this.room(db, id); const f = this.seat(r, token); this.settle(db, r);
+      if (this.receipt(r, f, c.requestId, JSON.stringify(['council', c.action, c.motionId, c.action === 'vote' ? c.choice : c.policy]))) return this.view(r, f);
+      requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
+      try { this.act(r, c.action === 'vote' ? { type: 'council-vote', owner: f, motionId: c.motionId, choice: c.choice } : { type: 'council-nominate', owner: f, motionId: c.motionId, policy: c.policy }); }
+      catch (e) { throw new Failure(409, 'council.conflict.invalid', (e as Error).message); }
       return this.view(r, f);
     });
   }

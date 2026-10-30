@@ -1,3 +1,4 @@
+import type { CouncilAction } from '../game/compact';
 import type { TacticalPulseRequest } from '../game/tactical-pulse';
 import type { PulseAction } from '../game/pulse';
 import type { LaunchEdit } from '../game/orders';
@@ -12,6 +13,7 @@ export const DIPLOMACY_LIMITS = { name: 60, text: 1000, groupsPerParticipant: 16
 export type Group = { id: string; name: string; members: Faction[]; createdBy: Faction; createdAt: number };
 export type ChannelMessage = { id: string; from: Faction; text: string; sentAt: number };
 export type Channel = { id: string; kind: 'public' | 'private'; messages: ChannelMessage[] };
+export type CouncilOrder = CouncilAction & { requestId: string };
 export type CreateGroup = { requestId: string; name: string; members: Faction[] };
 export type ChannelTransmission = { requestId: string; channelId: string; text: string };
 export type ObjectReference = { version: 1; gameId: string; kind: 'outpost' | 'hauler'; ref: string; hour: number };

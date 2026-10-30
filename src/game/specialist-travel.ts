@@ -3,6 +3,7 @@
  * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
  * ---
  */
+import { compactTransitMultiplier } from './compact';
 import { afterWork } from './opening-clock';
 import { stationCourse } from './drift';
 import { mechanicsVersion } from './rules';
@@ -17,7 +18,7 @@ export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: S
   const home = game.rocks.filter(r => r.owner === owner && !r.destroyed).sort((a, b) => worldDistance(game, a, point) - worldDistance(game, b, point) || a.id.localeCompare(b.id))[0];
   if (!home) return;
   const speed = specialistSpeed(game, owner, units, true, mission === 'interception' ? 'interception-return' : 'return');
-  const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed,
+  const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed, ...(compactTransitMultiplier(game) === 1.5 ? { thrust: 1.5 as const } : {}),
     route: { from: wrappedBounds(game) ? wrapPoint(game, point) : { ...point }, to: nearestImage(game, wrapPoint(game, point), home) }, departed: game.hour, arrives: afterWork(game, game.hour, Math.max(1e-6, worldDistance(game, point, home) / speed)), returning: true, ...(mission === 'interception' && mechanicsVersion(game) >= 3 ? { interceptionReturn: true } : {}) };
   if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, game.hour));
   game.fleets.push(fleet);
@@ -46,6 +47,7 @@ export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   fleet.departed = game.hour; fleet.arrives = afterWork(game, flightDeparture(fleet), Math.max(1e-6, worldDistance(game, point, home) / speed));
   if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, flightDeparture(fleet)));
   fleet.returning = true; fleet.speed = speed;
+  if (compactTransitMultiplier(game) === 1.5) fleet.thrust = 1.5; else delete fleet.thrust;
   if (interception && mechanicsVersion(game) >= 3) fleet.interceptionReturn = true; else delete fleet.interceptionReturn;
   if (locked) fleet.courseLocked = true;
   delete fleet.intercept; delete fleet.preparing;

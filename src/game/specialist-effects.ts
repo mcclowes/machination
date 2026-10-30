@@ -3,6 +3,7 @@
  * purpose: Reconcile movable leadership and local/global shield effects after specialist changes.
  * ---
  */
+import { compactTransitMultiplier, type CompactWorld } from './compact';
 import { withPulseMovement } from './pulse';
 import { afterWork, workBetween } from './opening-clock';
 import { stationCourse } from './drift';
@@ -45,7 +46,7 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     if (fleet.pendingCourse && (fleet.pendingCourse.owner !== fleet.owner || game.eliminated.includes(fleet.owner) || fleet.courseLocked || !(fleet.specialists ?? []).some(u => u.kind === 'navigator' && u.owner === fleet.owner && !u.captive))) delete fleet.pendingCourse;
     if (fleet.intercept) continue;
     const target = game.rocks.find(r => r.id === fleet.to);
-    const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], target?.owner === fleet.owner, fleet.interceptionReturn ? 'interception-return' : fleet.returning ? 'return' : undefined);
+    const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], target?.owner === fleet.owner, fleet.interceptionReturn ? 'interception-return' : fleet.returning ? 'return' : undefined, fleet.thrust ?? 1);
     if (fleet.speed === speed) continue;
     const point = fleet.preparing ? flightEndpoints(game, fleet).from : fleetPosition(game, fleet);
     const endpoint = wrappedBounds(game) ? nearestImage(game, point, flightEndpoints(game, fleet).to) : flightEndpoints(game, fleet).to;
@@ -65,9 +66,9 @@ export function withUnitEffects(game: Game): Game {
   refreshUnitEffects(result);
   return withPulseMovement(result);
 }
-export function specialistSpeed(game: UnitWorld & { rules?: Pick<GameRules, 'mechanicsVersion'> }, owner: Faction, units: readonly Specialist[], friendly: boolean, mission?: 'intercept' | 'return' | 'interception-return'): number {
+export function specialistSpeed(game: UnitWorld & { rules?: Pick<GameRules, 'mechanicsVersion'> } & CompactWorld, owner: Faction, units: readonly Specialist[], friendly: boolean, mission?: 'intercept' | 'return' | 'interception-return', thrust = compactTransitMultiplier(game)): number {
   const kinds = new Set(units.filter(u => u.owner === owner && !u.captive).map(u => u.kind));
-  return 8 * Math.max(1, (mission === 'interception-return' || mission === 'return' && mechanicsVersion(game) < 3) && kinds.has('pirate') ? 4 : 1, mission === 'intercept' && kinds.has('pirate') ? 2 : 1,
+  return 8 * thrust * Math.max(1, (mission === 'interception-return' || mission === 'return' && mechanicsVersion(game) < 3) && kinds.has('pirate') ? 4 : 1, mission === 'intercept' && kinds.has('pirate') ? 2 : 1,
     kinds.has('helmsman') ? 2 : 1, friendly && kinds.has('smuggler') ? 3 : 1,
     kinds.has('lieutenant') || kinds.has('general') || kinds.has('admiral') || units.length === 0 && unitCount(game, owner, 'admiral') > 0 ? 1.5 : 1);
 }

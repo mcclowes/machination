@@ -1,3 +1,4 @@
+import { validCompact } from '../game/compact-save';
 import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
@@ -36,15 +37,19 @@ export async function accountSessionApi(session: RequestSession): Promise<Snapsh
   return data?.snapshot === null ? null : snapshotResponse(session, data?.snapshot);
 }
 function snapshotResponse(session: RequestSession & { id?: string }, data: any): Snapshot {
-  if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || session.id !== undefined && data.id !== session.id || !data.game || !Array.isArray(data.game.scheduled) || !Array.isArray(data.messages) || !validSeat(data) || !validReferences(data)) throw new Error('Unsupported server response.');
+  if (!data || data.visibility !== 'sensors.v1' || typeof data.id !== 'string' || session.id !== undefined && data.id !== session.id || !data.game || !Array.isArray(data.game.scheduled) || !Array.isArray(data.messages) || !validSeat(data) || !validReferences(data) || !validCouncil(data)) throw new Error('Unsupported server response.');
   return data as Snapshot;
 }
 export async function historicalApi(session: RequestSession & { id: string }, hour: number, signal?: AbortSignal): Promise<HistorySnapshot> {
   if (!Number.isFinite(hour)) throw new Error('Choose a finite historical hour.');
   const data = await request(session, `games/${session.id}/history?hour=${encodeURIComponent(hour)}`, undefined, signal);
   const bounds = data?.history;
-  if (!data || data.visibility !== 'sensors.v1' || data.id !== session.id || !validSeat(data) || !data.game || !Array.isArray(data.game.scheduled) || !bounds || ![bounds.from, bounds.through, bounds.at].every(Number.isFinite) || bounds.from > bounds.at || bounds.at > bounds.through || bounds.at !== hour || !validReferences(data)) throw new Error('Unsupported historical server response.');
+  if (!data || data.visibility !== 'sensors.v1' || data.id !== session.id || !validSeat(data) || !data.game || !Array.isArray(data.game.scheduled) || !bounds || ![bounds.from, bounds.through, bounds.at].every(Number.isFinite) || bounds.from > bounds.at || bounds.at > bounds.through || bounds.at !== hour || !validReferences(data) || !validCouncil(data)) throw new Error('Unsupported historical server response.');
   return data as HistorySnapshot;
+}
+
+function validCouncil(data: any): boolean {
+  return data.game.compact === undefined ? data.game.rules?.beltCompact === undefined : data.game.rules?.beltCompact === 1 && validCompact(data.game.compact, playersIn(data.game), data.game.hour, !!data.game.winner || !!data.game.draw);
 }
 
 function validSeat(data: any): boolean {

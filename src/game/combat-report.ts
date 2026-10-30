@@ -30,6 +30,7 @@ export type EncounterReport = Readonly<{
   shield?: Readonly<{ before: number; absorbed: number; after: number }>;
   winner?: 0 | 1;
   repaired: number;
+  salvaged?: number;
   captured: readonly string[];
   outcome: EncounterOutcome;
   after: readonly [EncounterAsset | null, EncounterAsset | null];

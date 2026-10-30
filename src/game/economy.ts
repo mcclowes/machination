@@ -3,6 +3,7 @@
  * purpose: Industry cycles, power capacity, mining construction, and shield recharge for version-two operations.
  * ---
  */
+import { waiverActive } from './compact';
 import { afterWork } from './opening-clock';
 import { isDue } from './event-timing';
 import { worldDistance } from './geometry';
@@ -78,7 +79,7 @@ export function settleEconomy(game: Game): void {
       const foremen = game.rocks.filter(r => r.owner === rock.owner && worldDistance(game, r, rock) <= rockSensorRange(game, r) / 2).reduce((n, r) => n + unitsAtRock(game, r.id).filter(u => u.owner === rock.owner && u.kind === 'foreman').length, 0);
       const localTycoons = unitsAtRock(game, rock.id).filter(u => u.owner === rock.owner && u.kind === 'tycoon').length;
       const output = Math.max(0, FACTORY_OUTPUT + FUNDING_OUTPUT * fundingCount(game, rock.owner) + 4 * foremen + 3 * localTycoons - unitCount(game, rock.owner, 'energy'));
-      rock.drones += Math.max(0, Math.min(output, powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
+      rock.drones += Math.max(0, Math.min(Math.floor(output * (waiverActive(game, 'replication') ? 1.5 : 1)), powerCapacity(game, rock.owner) - droneInventory(game, rock.owner)));
       rock.productionAt = afterWork(game, game.hour, rock.productionInterval ?? FACTORY_CYCLE);
     }
   }

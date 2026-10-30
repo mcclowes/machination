@@ -1,3 +1,4 @@
+import { cloneCompact, type BeltCompact } from '../game/compact';
 import type { PublicRules } from '../game/rules';
 import type { Drift } from '../game/drift';
 import type { GameView } from '../game/visibility';
@@ -21,6 +22,7 @@ export type ReplayFleet = {
   route?: { from: ReplayPoint; to: ReplayPoint }; intercept?: { home: string; target?: number };
 };
 export type ReplayScene = {
+  compact?: BeltCompact;
   version?: 1 | 2; hour: number; rocks: ReplayRock[]; fleets: ReplayFleet[];
   coverage: { x: number; y: number; radius: number; drift?: Drift }[];
   cargo: Partial<Record<Faction, number>>;
@@ -44,6 +46,7 @@ const factions: readonly Faction[] = ['you', 'vesper', 'null', 'aether', 'umbra'
 /** Projects an already filtered observation. Observed preparations belong to the chart; private queued intents never do. */
 export function presentObservation(view: GameView, aliases = createReplayAliases()): ReplayScene {
   const scene: ReplayScene = {
+    ...(view.compact ? { compact: cloneCompact(view.compact) } : {}),
     hour: view.hour, rocks: [], fleets: [], coverage: view.coverage.map(s => ({ x: s.x, y: s.y, radius: s.radius, ...(s.drift ? { drift: { origin: { x: s.drift.origin.x, y: s.drift.origin.y }, velocity: { x: s.drift.velocity.x, y: s.drift.velocity.y } } } : {}) })),
     cargo: {}, eliminated: view.eliminated.map(f => f), winner: view.winner,
   };
@@ -107,6 +110,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     scene.rules = { players: r.players.map(f => f), mode: r.mode, victoryTarget: r.victoryTarget,
       map: { generator: r.map.generator, width: r.map.width, height: r.map.height } };
     if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
+    if (r.beltCompact !== undefined) scene.rules.beltCompact = r.beltCompact;
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;
     if (r.driftingBases !== undefined) scene.rules.driftingBases = r.driftingBases;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;

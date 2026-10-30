@@ -44,6 +44,7 @@ export function HaulerCombat({ observation, fleetId }: { observation: CombatObse
         {report.steps.map((step, i) => <Text key={i} style={s.text}>{step.type === 'ability' ? `${step.kinds.map(k => SPECIALISTS[k].name).join(', ')} (priority ${step.priority})` : [step.generals.some(Boolean) && SPECIALISTS.general.name, step.king.some(Boolean) && SPECIALISTS.king.name].filter(Boolean).join(', ')}: {step.before[0].drones} → {step.after[0].drones} / {step.before[1].drones} → {step.after[1].drones}{step.type === 'ability' && step.ended ? ' · combat ends' : ''}</Text>)}
         {report.suppressed && <Text style={s.text}>Elder suppresses later local abilities and local repair.</Text>}
         {report.shield && <Text style={s.text}>{report.before[1].shieldsDisabled ? 'Shields disabled · no drones absorbed.' : `Shields absorb ${report.shield.absorbed} drones · ${Math.floor(report.shield.after)} charge remains.`}</Text>}
+        {!!report.salvaged && <Text style={s.text}>Council-authorized salvage: {report.salvaged} drones.</Text>}
         {!!report.repaired && <Text style={s.text}>Engineer recovery: {report.repaired} drones.</Text>}
         {report.outcome === 'ended' && report.after.map((side, i) => side && <Text key={i} style={s.text}>{owner(side)} · {name(side)}: {side.destroyed ? 'destroyed' : inventory(side)}{side.returning ? ' · returning' : ''}</Text>)}
         {!!report.captured.length && <Text style={s.text}>{report.captured.length} specialist{report.captured.length === 1 ? '' : 's'} captured.</Text>}

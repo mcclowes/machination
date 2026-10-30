@@ -3,6 +3,7 @@
  * purpose: Build a simulation strictly from a player's observation, preserving opaque contact identities.
  * ---
  */
+import { cloneCompact } from './compact';
 import { clonePulse } from './pulse';
 import { playersIn } from './players';
 import { HIRE_KINDS } from './specialist-catalog';
@@ -21,6 +22,7 @@ export function simulationFromObservation(view: GameView, faction: Faction) {
   // Keep public owners in the view ledger, never on producing simulation placeholders.
   // Hidden destinations never participate in combat or production in a forecast.
   const simulation: Game = {
+    ...(view.compact ? { compact: cloneCompact(view.compact) } : {}),
     ...(view.pulse ? { pulse: clonePulse({ ...view.pulse, receipts: {} }) } : {}),
     ...(view.rules ? { rules: { ...view.rules, players: [...view.rules.players], map: { ...view.rules.map, seed: 0 } } } : {}),
     version: view.version ?? 1, ...(view.version === 2 ? { specialistVersion: 1 as const } : {}), hour: view.hour, epoch: view.epoch,
