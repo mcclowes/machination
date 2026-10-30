@@ -1,3 +1,4 @@
+import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -15,12 +16,13 @@ test('measured hauler inspection reveals, allows manual pan, resizes, and releas
   let renderer: any;
   try {
     const bundle = await build({ entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false,
-      format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'inspection-hosts', setup(builder) {
+      format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [operationMotionPreferencePlugin, { name: 'inspection-hosts', setup(builder) {
         builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
         builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'inspection-hosts' }));
         builder.onResolve({ filter: /^(react-native|react-native-svg|expo-clipboard)$/ }, args => ({ path: args.path, namespace: 'inspection-hosts' }));
         builder.onLoad({ filter: /.*/, namespace: 'inspection-hosts' }, args => ({ contents: args.path === 'sky' ? 'export const SpaceBackground=()=>null;'
-          : args.path === 'react-native' ? `export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};`
+          : args.path === 'react-native' ? `${OPERATION_MOTION_NATIVE}
+export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};`
           : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';`
           : 'export const setStringAsync=async()=>{};' }));
       } }] });

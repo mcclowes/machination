@@ -3,11 +3,12 @@
  * purpose: Persistent chart, contextual drawers, and operation navigation on phone and desktop.
  * ---
  */
-import React from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { Faction } from '../game/players';
 import { PlayerPortraits } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
+import { nativeDriver, useAmbientMotion } from './use-ambient-motion';
 
 export type OperationSection = 'asset' | 'orders' | 'units' | 'signals' | 'intel' | 'settings';
 type Panel = { title: string; content: React.ReactNode; footer?: React.ReactNode };
@@ -28,20 +29,37 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   const { width } = useWindowDimensions();
   const wide = width >= 1000;
   const panel = section && panels[section];
+  const { animate } = useAmbientMotion();
+  const [entrance] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    entrance.setValue(1);
+    if (!animate || !section) return;
+    entrance.setValue(0);
+    const reveal = Animated.timing(entrance, {
+      toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: nativeDriver, isInteraction: false,
+    });
+    reveal.start();
+    return () => reveal.stop();
+  }, [animate, section, wide, entrance]);
   return <PlayerPortraits.Provider value={portraits}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
       <View style={s.chart}>{chart}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
-      {panel && <View style={[s.drawer, wide ? s.sidebar : s.sheet]}>
-        <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={s.close}><Text style={s.text}>×</Text></Pressable></View>
+      {panel && <Animated.View testID="operation-drawer" style={[s.drawer, wide ? s.sidebar : s.sheet, {
+        opacity: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }),
+        transform: [wide
+          ? { translateX: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }
+          : { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+      }]}>
+        <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={({ pressed }) => [s.close, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={s.text}>×</Text></Pressable></View>
         <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>{panel.content}</ScrollView>
         {panel.footer && <View style={s.footer}>{panel.footer}</View>}
-      </View>}
+      </Animated.View>}
     </View>
     <ScrollView style={s.timeline} contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">{timeline}</ScrollView>
     <View accessibilityRole="tablist" style={s.navigation}>{navigation.map(([key, label, glyph]) => {
       const selected = key === null ? section === null || section === 'asset' : section === key;
-      return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={[s.tab, selected && s.selected]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
+      return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={({ pressed }) => [s.tab, selected && s.selected, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
     })}</View>
   </KeyboardAvoidingView></PlayerPortraits.Provider>;
 }
@@ -54,4 +72,5 @@ const s = StyleSheet.create({
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
   navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#23363e', backgroundColor: '#101b21' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: 'transparent' }, glyph: { color: '#8c9f85', fontSize: 17 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
   hint: { position: 'absolute', top: 8, left: 10, right: 112, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36', borderRadius: 10 },
+  pressed: { backgroundColor: '#24383c' }, pressScale: { transform: [{ scale: 0.96 }] },
 });

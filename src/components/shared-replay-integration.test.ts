@@ -1,3 +1,4 @@
+import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -38,7 +39,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
   const originals = { interval: globalThis.setInterval, clear: globalThis.clearInterval, fetch: globalThis.fetch, now: Date.now };
   let renderer: any;
   try {
-    const output = await build({ entryPoints: [new URL('./ReplayLibraryScreen.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'replay-hosts', setup(builder) {
+    const output = await build({ entryPoints: [new URL('./ReplayLibraryScreen.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [operationMotionPreferencePlugin, { name: 'replay-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'replay-sky' }));
       builder.onLoad({ filter: /.*/, namespace: 'replay-sky' }, () => ({ contents: 'export const SpaceBackground=()=>null;' }));
@@ -51,7 +52,8 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
           React.useLayoutEffect(()=>{if(props.testID==='replay-site-inspector') props.onLayout({nativeEvent:{layout:{width:300,height:220}}});},[]);
           return React.createElement('View',{...props,ref});
         });
-        export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+        ${OPERATION_MOTION_NATIVE}
+export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
