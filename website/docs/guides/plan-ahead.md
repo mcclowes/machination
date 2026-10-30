@@ -28,11 +28,11 @@ For example, a future factory cycle may supply the drones you intend to launch. 
 
 ## Review your queue
 
-Your private scheduled-order list shows your actual live plans even while you're inspecting a forecast.
+The scheduled-order queue shares the bottom tray with the time controls. It shows your actual live plans even while you're inspecting a forecast. Hide the queue to give the map more space.
 
-- **Inspect forecast** jumps to the order's time.
-- **Review/edit launch** changes the manifest while retaining its time, route, and dependent orders.
-- **Cancel** removes an order before execution. A processed order can't be undone.
+- Select an order row to inspect its execution time and reveal its details.
+- Edit the selected launch's manifest and choose **Save launch manifest**. Its time, route, and dependent orders stay the same.
+- Use the **×** beside a row to cancel it before execution. A processed order can't be undone.
 
 A scheduled launch still prepares for ten minutes when it executes. Choose its launch time with that delay in mind.
 

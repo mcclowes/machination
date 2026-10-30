@@ -114,7 +114,13 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
     assert.ok(executed.fleets.some(f => f.from === 'relay' && f.to === 'rival-home' && f.drones === 20), 'The queued attack executes after the capture');
     const failedCapture = advance({ ...saved.game, fleets: [] }, 2.01, { rivals: false });
     assert.equal(failedCapture.fleets.some(f => f.from === 'relay'), false, 'The launch still aborts if the source is not captured');
+    const queuedOrder = 'Inspect scheduled order: Quiet landing → Distant anchor';
+    await press('Now');
+    await press(queuedOrder);
+    assert.ok(hosts('TextInput').some(node => node.props.accessibilityLabel === 'Scheduled launch drones'), 'selecting a tray order reveals its editor after changing from live to forecast');
+    assert.match(text(renderer.root), /Forecast · D01 · 02:00/);
     await press('Orders');
+    assert.equal(hosts('Pressable').filter(node => node.props.accessibilityLabel === queuedOrder).length, 1, 'the queue has one home in the time tray');
     assert.match(text(renderer.root), /Quiet landing → Distant anchor/);
   } finally {
     if (renderer) await act(async () => renderer.unmount());

@@ -1,6 +1,6 @@
 /**
  * ---
- * purpose: Shared minute-precision time inspection with scrubbing, event jumps, and future-order context.
+ * purpose: Shared order and time tray with relative time, scrubbing, event jumps, and precise inspection.
  * ---
  */
 import React, { useState } from 'react';
@@ -13,8 +13,8 @@ import { MAX_PLAN_DELAY } from '../game/orders';
 import { gameClock, inspectionMode, relativeInspectionTime } from '../game/time-machine';
 import { OPENING_HOURS } from '../game/opening-clock';
 
-type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean; opening?: boolean };
-export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain, opening }: Props) {
+type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean; opening?: boolean; orders?: React.ReactNode };
+export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain, opening, orders }: Props) {
   const [expanded, setExpanded] = useState(false);
   const mode = inspectionMode(hour, inspectedHour);
   const offset = (inspectedHour ?? hour) - hour;
@@ -38,11 +38,21 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   };
   const toggleExpanded = () => { if (expanded) Keyboard.dismiss(); setExpanded(!expanded); };
   const step = (delta: number) => { const nextOffset = Math.max(minimum, Math.min(MAX_PLAN_DELAY, offset + delta)); changeTime(nextOffset ? hour + nextOffset : null); };
-  return <View style={[s.panel, compact && s.compact]}>
-    <View style={s.row}><Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text><View style={{ flex: 1 }} />{compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}</View>
-    {mode !== 'live' && <Text style={s.detail}>{relativeInspectionTime(hour, inspectedHour!)}</Text>}
-    <TimeWheel hour={hour} inspectedHour={inspectedHour} historyStart={historyStart} events={markers} onChange={changeTime} />
-    <View style={s.wheelCaption}><Text style={s.detail}>Past</Text><Text style={s.detail}>‹ Drag through time ›</Text><Text style={s.detail}>Future</Text></View>
+  return <View style={[s.panel, compact && s.compact, !!orders && s.tray]}>
+    <View style={s.trayBody}>
+      {!!orders && <View style={s.orderColumn}>{orders}</View>}
+      <View style={s.timeColumn}>
+        <View style={s.row}>
+          <View style={s.timeHeading}>
+            <Text style={s.relative}>{mode === 'live' ? 'Now' : relativeInspectionTime(hour, inspectedHour!)}</Text>
+            <Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text>
+          </View>
+          {compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control quiet label={expanded ? 'Close time controls' : 'Time Machine'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}
+        </View>
+        <TimeWheel hour={hour} inspectedHour={inspectedHour} historyStart={historyStart} events={markers} onChange={changeTime} />
+        <View style={s.wheelCaption}><Text style={s.detail}>Past</Text><Text style={s.detail}>‹ Drag through time ›</Text><Text style={s.detail}>Future</Text></View>
+      </View>
+    </View>
     {(!compact || expanded) && <View style={s.row}><Text style={s.detail}>Go to hours from now</Text><TextInput accessibilityLabel="Go to hours from now" secureTextEntry={false} keyboardType="numbers-and-punctuation" value={entry} onChangeText={setEntry} style={s.input} onSubmitEditing={inspectEntry} /><Control label="Inspect" disabled={!validEntry} onPress={inspectEntry} /></View>}
     {mode === 'future' && forecastUncertain && <Text style={s.detail}>Some site details are unknown. Economy, routes, and outcomes may change.</Text>}
     {opening && (inspectedHour ?? hour) < OPENING_HOURS && (!compact || expanded) && <Text style={s.detail}>Opening 1.5× until {gameClock(OPENING_HOURS)}: haulers, recruitment, factories, and shield recharge.</Text>}
@@ -57,6 +67,7 @@ function Control({ label, text, selected, disabled, quiet, onPress }: { label: s
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected, disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[s.control, quiet && { flexGrow: 0, borderWidth: 0 }, selected && s.selected, disabled && { opacity: 0.35 }]}><Text style={s.text}>{text ?? label}</Text></Pressable>;
 }
 const s = StyleSheet.create({
+  tray: { maxWidth: 960 }, trayBody: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 }, orderColumn: { flexBasis: 260, flexGrow: 1, flexShrink: 1, minWidth: 0 }, timeColumn: { flexBasis: 340, flexGrow: 2, flexShrink: 1, minWidth: 0 }, timeHeading: { flex: 1, minWidth: 130, paddingVertical: 6 }, relative: { color: '#e5eadc', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
   panel: { gap: 10, padding: 16, backgroundColor: '#101b21', borderTopWidth: 1, borderColor: '#23363e' }, row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }, title: { color: '#e5eadc', fontSize: 15, flexGrow: 1 }, state: { color: '#bccacc', fontSize: 12, fontVariant: ['tabular-nums'] },
   compact: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 12, paddingTop: 0, paddingBottom: 6, gap: 0, borderWidth: 0 },
   wheelCaption: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },

@@ -29,7 +29,7 @@ In version-one operations, build modules with drones on a controlled rock, then 
 
 Pulse shields have separate 100-energy reserves. Each hostile pulse drains 20 energy/hour; reserves recharge 5/hour only outside exposure. Shields protect stationed units and preparing haulers, never passing ships, and do not stop propagation. Inspect a site for your shield reserve, depletion, and estimated arrival times. Enemy charge information requires sensor visibility.
 
-Choose a launch time from now to seven days ahead and manage private plans in **Scheduled transfers**. Plans use resources available at execution, and can be canceled before launch.
+Choose a launch time from now to seven days ahead and manage private plans in the order queue beside the time controls. Select a row to inspect its time and edit its manifest, or use **×** to cancel. Plans use resources available at execution.
 
 Launches prepare for ten minutes with reserved manifests. Edit or cancel before departure in **Your live hauler orders**. Opposing ordinary haulers fight when they pass on the same route. In new operations, gifts transfer on contact to the current destination owner or a passing hauler; gift orders have a ten-minute cancellation window. Eliminated intelligences retain territory, production, and launched haulers, but lose cargo and cannot issue orders. Version-one saves keep their original transport and elimination rules.
 

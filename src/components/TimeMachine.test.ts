@@ -23,7 +23,7 @@ async function withTimeMachine(compact: boolean, check: (host: any) => Promise<v
       builder.onResolve({ filter: /^react-native$/ }, args => ({ path: args.path, namespace: 'native-host' }));
       builder.onResolve({ filter: /^react-native-svg$/ }, args => ({ path: args.path, namespace: 'svg-host' }));
       builder.onLoad({ filter: /.*/, namespace: 'svg-host' }, () => ({ contents: `export default 'Svg'; export const Defs='Defs',LinearGradient='LinearGradient',Stop='Stop',Rect='Rect',Line='Line',Path='Path',Circle='Circle';` }));
-      builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Keyboard={dismiss:()=>globalThis.${key}.dismiss()};` }));
+      builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',ScrollView='ScrollView',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Keyboard={dismiss:()=>globalThis.${key}.dismiss()};` }));
     } }] });
     const { TimeMachine } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     const flush = async (action: () => void) => { await act(async () => { action(); }); };

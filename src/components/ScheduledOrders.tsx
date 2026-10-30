@@ -1,16 +1,16 @@
 /**
  * ---
- * purpose: Shared launch timing and private queue controls for future transfers and actions.
+ * purpose: Launch timing and a collapsible order queue with time inspection and selected manifest editing.
  * ---
  */
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MODULES } from '../game/modules';
 import { isScheduledLaunch, type LaunchEdit, type ScheduledOrder } from '../game/orders';
 import { LaunchReview } from './LaunchReview';
 import type { LaunchUnit } from './launch-manifest';
 import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
-import { gameClock } from '../game/time-machine';
+import { gameClock, relativeInspectionTime } from '../game/time-machine';
 import { FACTIONS, type Faction } from '../game/players';
 import type { Fleet } from '../game/simulation';
 type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean; compact?: boolean };
@@ -46,17 +46,35 @@ export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; n
   }
   return queueActionLabel(plan.action, rocks, route);
 }
-type QueueProps = { owner?: Faction; plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean };
-export function ScheduledOrders({ owner, plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation }: QueueProps) {
+type QueueProps = { owner?: Faction; plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean; compact?: boolean };
+const orderIcons: Record<FutureAction['type'], string> = { gift: '◇', intercept: '⌖', hauler: '↗', hire: '+', promote: '★', release: '↥', 'drill-mine': '▼', shields: '◉', funding: '⇄' };
+export function ScheduledOrders({ owner, plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation, compact }: QueueProps) {
   const [review, setReview] = useState<string>();
-  return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
+  const [expanded, setExpanded] = useState(true);
+  const queue = plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
     const readOnly = disabled || owner !== undefined && p.owner !== owner;
     const reviewKey = `${p.owner}:${p.id}`;
     const action = isActionPlan(p);
     const label = scheduledOrderLabel(p, rocks, plans, fleets);
-    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{owner === undefined ? '' : `${FACTIONS[p.owner].name} · `}{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === reviewKey ? undefined : reviewKey)} style={s.cancel}><Text style={s.text}>{readOnly ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === reviewKey && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={readOnly} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled: readOnly }} disabled={readOnly} onPress={() => onCancel(p.id)} style={[s.cancel, readOnly && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
-  }) : <Text style={s.detail}>No queued orders. In team games, teammates can review your plans.</Text>}</View>;
+    const selected = review === reviewKey;
+    return <View key={reviewKey} style={s.plan}>
+      <View style={s.orderRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled: readOnly }} disabled={readOnly} onPress={() => onCancel(p.id)} style={[s.cancelIcon, readOnly && s.disabled]}><Text style={s.icon}>×</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Inspect scheduled order: ${label}`} accessibilityHint={`${relativeInspectionTime(hour, p.executeAt)}. Inspect this time and show order details.`} accessibilityState={{ expanded: selected }} onPress={() => { setReview(selected ? undefined : reviewKey); onInspect(p.executeAt); }} style={[s.summary, selected && s.selected]}>
+          <Text accessible={false} style={s.icon}>{action ? orderIcons[p.action.type] : '↗'}</Text>
+          <View style={s.description}><Text style={s.text} numberOfLines={1}>{label}</Text><Text style={s.detail}>{relativeInspectionTime(hour, p.executeAt)}{owner !== undefined && p.owner !== owner ? ` · ${FACTIONS[p.owner].name}` : ''}</Text></View>
+          <Text accessible={false} style={s.detail}>{selected ? '⌃' : '⌄'}</Text>
+        </Pressable>
+      </View>
+      {selected && <View style={s.review}><Text style={s.detail}>{gameClock(p.executeAt)}{readOnly ? ' · read-only' : ''}{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text>{isScheduledLaunch(p) && <LaunchReview key={reviewKey} plan={p} units={units} preparation={preparation} disabled={readOnly} onSave={onEdit} onClose={() => setReview(undefined)} />}</View>}
+    </View>;
+  }) : <Text style={s.detail}>No queued orders.</Text>;
+  return <View style={[s.queue, compact && s.compactQueue]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Hide scheduled orders' : 'Show scheduled orders'} accessibilityState={{ expanded }} onPress={() => setExpanded(!expanded)} style={s.queueHeading}><Text style={s.label}>Scheduled orders / {plans.length}</Text><Text style={s.detail}>{expanded ? '⌃' : '⌄'}</Text></Pressable>
+    {expanded && (compact ? <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" style={[s.queueScroll, review !== undefined && s.reviewScroll]} contentContainerStyle={s.queueBody}>{queue}</ScrollView> : queue)}
+  </View>;
 }
 const s = StyleSheet.create({
-  section: { gap: 9, marginVertical: 12 }, label: { color: '#96ad89', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, option: { flexGrow: 1, alignItems: 'center', minWidth: 45, minHeight: 44, justifyContent: 'center', paddingHorizontal: 9, borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, text: { color: '#d6e2cd', fontSize: 12, lineHeight: 19 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, queue: { gap: 13, padding: 18, borderWidth: 1, borderColor: '#30402e', backgroundColor: '#101b13' }, plan: { gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: '#30402e' }, cancel: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#43563a', paddingHorizontal: 12 }, disabled: { opacity: 0.35 },
+  compactQueue: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', gap: 0 }, queueHeading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }, queueScroll: { maxHeight: 104 }, reviewScroll: { maxHeight: 164 }, queueBody: { gap: 2 }, orderRow: { flexDirection: 'row', alignItems: 'center' }, cancelIcon: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, icon: { color: '#d6e2cd', fontSize: 20 }, summary: { flex: 1, minWidth: 0, minHeight: 48, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { flex: 1, minWidth: 0 }, review: { padding: 10, gap: 8 },
+  section: { gap: 9, marginVertical: 12 }, label: { color: '#96ad89', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, option: { flexGrow: 1, alignItems: 'center', minWidth: 45, minHeight: 44, justifyContent: 'center', paddingHorizontal: 9, borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, text: { color: '#d6e2cd', fontSize: 12, lineHeight: 19 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, queue: { gap: 6, padding: 12, borderWidth: 1, borderColor: '#30402e', backgroundColor: '#101b13' }, plan: { borderBottomWidth: 1, borderColor: '#30402e' }, cancel: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#43563a', paddingHorizontal: 12 }, disabled: { opacity: 0.35 },
 });

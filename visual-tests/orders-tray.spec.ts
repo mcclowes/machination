@@ -1,0 +1,57 @@
+import { expect, test } from '@playwright/test';
+import { createConfiguredGame } from '../src/game/world';
+import { scheduleTransfer } from '../src/game/orders';
+import { createArchive } from '../src/game/replay';
+import { encodeOperation } from '../src/game/operation-save';
+
+const epoch = Date.parse('2026-10-30T12:00:00Z');
+let game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, epoch, 73);
+const source = game.rocks.find(rock => rock.owner === 'you')!;
+const targets = game.rocks.filter(rock => rock.id !== source.id).slice(0, 4);
+for (const [index, target] of targets.entries()) game = scheduleTransfer(game, { id: `tray-order-${String(index).padStart(6, '0')}`, owner: 'you', from: source.id, to: target.id, drones: 5, executeAt: 6 + index });
+const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
+const firstOrder = `Inspect scheduled order: ${source.name} → ${targets[0]!.name}`;
+
+test('orders share the time tray, inspect on selection, and keep the map and dial visible', async ({ page }, info) => {
+  page.on('pageerror', error => { throw error; });
+  await page.clock.setFixedTime(new Date(epoch));
+  await page.addInitScript(raw => {
+    localStorage.setItem('machination.game.v1', raw);
+    localStorage.setItem('machination.briefing.v1', '1');
+  }, saved);
+  await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
+  await page.goto('/');
+  const closeManual = page.getByRole('button', { name: 'Close field manual', exact: true });
+  if (await closeManual.isVisible()) await closeManual.click();
+  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  const order = page.getByRole('button', { name: firstOrder, exact: true });
+  const wheel = page.getByLabel('Operation timeline', { exact: true });
+  await expect(order).toBeVisible();
+  await expect(wheel).toBeInViewport();
+  expect((await page.getByTestId('belt-map').boundingBox())!.height).toBeGreaterThan(200);
+  await expect(page.getByLabel('Scheduled launch drones', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: `.fettle/shots/orders-tray-${info.project.name}.png` });
+  await order.click();
+  await expect(page.getByText('6.0 hours from now', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Forecast · D01 · 06:00', { exact: true })).toBeVisible();
+  const drones = page.getByLabel('Scheduled launch drones', { exact: true });
+  await expect(drones).toHaveValue('5');
+  await page.screenshot({ path: `.fettle/shots/orders-tray-${info.project.name}-selected.png` });
+  await drones.fill('8');
+  await page.getByRole('button', { name: 'Save launch manifest', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('machination.game.v1')!).game.scheduled[0].drones)).toBe(8);
+  await page.getByRole('button', { name: 'Close review', exact: true }).click();
+  await expect(wheel).toBeInViewport();
+  expect((await page.getByTestId('belt-map').boundingBox())!.height).toBeGreaterThan(200);
+  await page.getByRole('button', { name: 'Hide scheduled orders', exact: true }).click();
+  await expect(order).toHaveCount(0);
+  await expect(wheel).toBeInViewport();
+  await page.getByRole('button', { name: 'Show scheduled orders', exact: true }).click();
+  await page.getByRole('tab', { name: 'Orders', exact: true }).click();
+  await expect(page.getByRole('button', { name: firstOrder, exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Close Your orders', exact: true }).click();
+  await page.getByRole('button', { name: `Cancel scheduled order: ${source.name} → ${targets[0]!.name}`, exact: true }).click();
+  await expect(order).toHaveCount(0);
+  await expect(page.getByText('Forecast · D01 · 06:00', { exact: true })).toBeVisible();
+  await page.screenshot({ path: `.fettle/shots/orders-tray-${info.project.name}-forecast.png` });
+});
