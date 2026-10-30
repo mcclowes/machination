@@ -68,10 +68,16 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Close site details');
     await press('Next state'); assert.match(visible(), /State 2 of 2/);
     await press('Previous state'); assert.match(visible(), /State 1 of 2/);
+    await press('Map controls'); await press('Focus your territory'); await press('Close map controls');
     await press('Inspect specialists at Alpha: Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
     assert.match(visible(), /Specialists at this site/);
     assert.ok(visible().includes(SPECIALISTS.queen.description));
+    const siteDrawer = hosts('View').find(node => node.props.testID === 'replay-site-inspector')!;
+    await flush(() => siteDrawer.props.onLayout({ nativeEvent: { layout: { height: 220 } } }));
+    const belt = () => renderer.root.findAll((node: Node) => typeof node.type === 'function' && (node.type as Function).name === 'BeltMap')[0];
+    assert.equal(belt().props.coveredBottom, 228, 'replay inspection measures its overlay and bottom gap');
     await press('Close site details');
+    assert.equal(belt().props.coveredBottom, 0, 'closing the site drawer releases its camera allowance');
     await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
     await press('Next state'); await press('Next state'); assert.doesNotMatch(visible(), /Close site details/);
     assert.ok(!visible().includes(SPECIALISTS.queen.description), 'Lost coverage closes the role details without retaining a manifest');

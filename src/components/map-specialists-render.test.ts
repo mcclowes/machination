@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import { SPECIALISTS } from '../game/specialist-catalog';
+import { chartOffsets, chartPosition } from '../game/chart-projection';
 
 const require = createRequire(import.meta.url);
 const React = require('react');
@@ -46,6 +47,70 @@ function fixture() {
   ], fleets: [{ id: 9, owner: 'you', from: 'home', to: 'away', drones: 0, departed: 0, arrives: 2,
     specialists: [{ id: 'pilot', kind: 'helmsman', owner: 'you', captive: false }] }] };
 }
+
+test('a site stays visible when inspection shrinks the chart after a hauler camera reveal', async () => {
+  const { BeltMap } = await loaded;
+  const game = { ...fixture(), rules: { map: { width: 200, height: 80, topology: 'torus' } } };
+  Object.assign(game.rocks[0]!, { x: 100, y: 20 });
+  let camera = { scale: 2, x: 0, y: -60 };
+  const changes: typeof camera[] = [];
+  const props = { game, selected: 'home', inspecting: true, onSelect() {}, player: 'you', viewport: { camera, onChange: (next: typeof camera) => { camera = next; changes.push(next); } } };
+  await withChart(props, async renderer => {
+    const resize = async (height: number) => act(async () => renderer.root.findByProps({ testID: 'belt-map' }).props.onLayout({ nativeEvent: { layout: { width: 393, height } } }));
+    await resize(616);
+    changes.splice(0);
+    await resize(250);
+    assert.equal(changes.length, 1, 'the smaller viewport reveals the selected site once');
+    await act(async () => renderer.update(React.createElement(BeltMap, { ...props, viewport: { ...props.viewport, camera } })));
+    const positions = chartOffsets(game as any, camera, { width: 393, height: 250 }).map(offset => chartPosition(game as any, camera, { x: 100 + offset.x, y: 20 + offset.y }, { width: 393, height: 250 }).y * 2.5);
+    assert.ok(positions.some(y => y >= 32 && y <= 250 - 32), 'the full site control clears both chart edges');
+    assert.equal(camera.scale, 2, 'inspection preserves the current zoom');
+    changes.splice(0);
+    await act(async () => renderer.update(React.createElement(BeltMap, { ...props, viewport: { ...props.viewport, camera: { ...camera, y: -25 } } })));
+    assert.equal(changes.length, 0, 'a later manual pan is not pulled back');
+    const site = renderer.root.findAll((node: any) => node.type === 'Pressable' && node.props.accessibilityLabel?.startsWith('Home,'))[0];
+    await act(async () => site.props.onPress());
+    assert.equal(changes.length, 1, 'reselecting the partially clipped site requests another reveal');
+  });
+});
+
+test('bounded-chart site controls clear every edge and the replay drawer without changing zoom', async () => {
+  const { BeltMap } = await loaded;
+  for (const size of [{ width: 393, height: 250, covered: 0 }, { width: 250, height: 393, covered: 0 }, { width: 393, height: 616, covered: 330 }]) {
+    for (const point of [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }]) for (const scale of [1, 4]) {
+      const game = fixture(); Object.assign(game.rocks[0]!, point);
+      let camera = { scale, x: 0, y: 0 };
+      const props = { game, selected: 'home', inspecting: true, coveredBottom: size.covered, onSelect() {}, player: 'you', viewport: { camera, onChange: (next: typeof camera) => { camera = next; } } };
+      await withChart(props, async renderer => {
+        await act(async () => renderer.root.findByProps({ testID: 'belt-map' }).props.onLayout({ nativeEvent: { layout: size } }));
+        await act(async () => renderer.update(React.createElement(BeltMap, { ...props, viewport: { ...props.viewport, camera } })));
+        const control = renderer.root.findAll((node: any) => node.type === 'Pressable' && node.props.accessibilityLabel?.startsWith('Home,'))[0];
+        assert.ok(control, 'the selected site remains rendered');
+        const left = parseFloat(control.props.style.at(-1).left) / 100 * size.width;
+        const top = parseFloat(control.props.style.at(-1).top) / 100 * size.height;
+        const detail = `${JSON.stringify({ size, point, scale })}: ${left},${top}`;
+        assert.ok(left >= 32 - 1e-6 && left <= size.width - 32 + 1e-6, detail);
+        assert.ok(top >= 32 - 1e-6 && top <= size.height - size.covered - 32 + 1e-6, detail);
+        assert.equal(camera.scale, scale);
+        const revealedStyle = { ...control.props.style.at(-1) };
+        await act(async () => renderer.update(React.createElement(BeltMap, { ...props, destination: 'away', viewport: { ...props.viewport, camera } })));
+        const planning = renderer.root.findAll((node: any) => node.type === 'Pressable' && node.props.accessibilityLabel?.startsWith('Home,'))[0];
+        assert.deepEqual(planning.props.style.at(-1), revealedStyle, 'planning keeps the current edge allowance without another reveal');
+      });
+    }
+  }
+});
+
+test('site reveal respects planning and yields the camera to an inspected hauler', async () => {
+  const game = fixture(); Object.assign(game.rocks[0]!, { x: 50, y: 0 });
+  for (const guard of [{ inspecting: false }, { destination: 'away' }, { transferRoute: { from: { x: 50, y: 0 }, to: { x: 75, y: 60 } } }, { inspectFleet: { request: 1, id: 9 } }]) {
+    const changes: unknown[] = [];
+    await withChart({ game, selected: 'home', inspecting: true, ...guard, viewport: { camera: { scale: 1, x: 0, y: 0 }, onChange: (next: unknown) => changes.push(next) } }, async renderer => {
+      await act(async () => renderer.root.findByProps({ testID: 'belt-map' }).props.onLayout({ nativeEvent: { layout: { width: 393, height: 250 } } }));
+      assert.deepEqual(changes, [], `no site reveal for ${JSON.stringify(guard)}`);
+    });
+  }
+});
 
 test('zero-drone specialist haulers and docked specialists remain visible and inspect through their map assets', async () => {
   const selected: string[] = [];

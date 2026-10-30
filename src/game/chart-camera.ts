@@ -2,6 +2,8 @@ import type { Faction } from './players';
 import { wrappedBounds, type GeometryWorld, type Point } from './geometry';
 
 export type MapCamera = { scale: number; x: number; y: number };
+/** Extra camera travel in camera units, while an inspector needs space at a chart edge. */
+export type CameraPadding = number | { top: number; right: number; bottom: number; left: number };
 type Chart = GeometryWorld & { rocks: readonly { x: number; y: number; owner?: Faction | null }[] };
 
 function axisBounds(values: number[], wrapped: boolean): [number, number] {
@@ -15,20 +17,21 @@ function axisBounds(values: number[], wrapped: boolean): [number, number] {
   return [start, start + 100 - gap];
 }
 
-/** `lift` lets an untiled chart pan its lower edge further up, in camera units, while a bottom overlay covers it. */
-export function constrainCamera(world: GeometryWorld, camera: MapCamera, lift = 0): MapCamera {
+/** Numeric padding extends the bottom edge; per-edge padding also clears site controls at bounded corners. */
+export function constrainCamera(world: GeometryWorld, camera: MapCamera, padding: CameraPadding = 0): MapCamera {
   const scale = Math.max(1, Math.min(4, camera.scale));
   const period = scale * 100, bound = (scale - 1) * 50;
-  const offset = (value: number, extra = 0) => wrappedBounds(world)
+  const edges = typeof padding === 'number' ? { top: 0, right: 0, bottom: padding, left: 0 } : padding;
+  const offset = (value: number, before: number, after: number) => wrappedBounds(world)
     ? ((value + period / 2) % period + period) % period - period / 2
-    : Math.max(-bound - extra, Math.min(bound, value)) || 0;
-  return { scale, x: offset(camera.x), y: offset(camera.y, lift) };
+    : Math.max(-bound - after, Math.min(bound + before, value)) || 0;
+  return { scale, x: offset(camera.x, edges.left, edges.right), y: offset(camera.y, edges.top, edges.bottom) };
 }
 
-export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedScale: number, lift = 0): MapCamera {
+export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedScale: number, padding: CameraPadding = 0): MapCamera {
   const scale = Math.max(1, Math.min(4, requestedScale));
   const ratio = wrappedBounds(world) ? scale / camera.scale : 1;
-  return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio }, lift);
+  return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio }, padding);
 }
 
 export function focusCamera(world: GeometryWorld, camera: MapCamera, point: Point): MapCamera {

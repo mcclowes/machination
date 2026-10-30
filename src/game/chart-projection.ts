@@ -1,5 +1,5 @@
 import { nearestImage, wrappedBounds, type GeometryWorld, type Point } from './geometry';
-import { constrainCamera, type MapCamera } from './chart-camera';
+import { constrainCamera, type CameraPadding, type MapCamera } from './chart-camera';
 
 type Viewport = { width: number; height: number };
 
@@ -51,4 +51,27 @@ export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point
   const fit = transform.scale / camera.scale;
   const height = world.rules?.map.height ?? 100;
   return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 }, overlayLift(world, viewport, coveredBottom));
+}
+
+export function siteCameraPadding(world: GeometryWorld, viewport: Viewport, coveredBottom: number, margin: number): CameraPadding {
+  if (wrappedBounds(world)) return 0;
+  const fit = chartTransform(world, { scale: 1, x: 0, y: 0 }, viewport).scale;
+  const width = (world.rules?.map.width ?? 100) * fit, height = (world.rules?.map.height ?? 100) * fit;
+  return { left: margin / width * 100, right: margin / width * 100, top: margin / height * 100, bottom: (coveredBottom + margin) / height * 100 };
+}
+
+/** Reveal once when inspecting or resizing, without centering an already visible site. */
+export function revealSiteCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: Viewport, coveredBottom: number, margin: number): MapCamera {
+  const clear = Math.max(0, viewport.height - coveredBottom);
+  const target = { x: viewport.width / 2, y: clear / 2 };
+  const inset = { x: Math.min(margin, target.x), y: Math.min(margin, target.y) };
+  const transform = chartTransform(world, camera, viewport);
+  const images = chartOffsets(world, camera, viewport).map(offset => ({ x: transform.x + (point.x + offset.x) * transform.scale, y: transform.y + (point.y + offset.y) * transform.scale }));
+  const distance = (p: Point) => (p.x - target.x) ** 2 + (p.y - target.y) ** 2;
+  const shown = images.reduce((best, p) => distance(p) < distance(best) ? p : best);
+  const dx = shown.x < inset.x || shown.x > viewport.width - inset.x ? shown.x - target.x : 0;
+  const dy = shown.y < inset.y || shown.y > clear - inset.y ? shown.y - target.y : 0;
+  if (!dx && !dy) return camera;
+  const fit = transform.scale / camera.scale;
+  return constrainCamera(world, { ...camera, x: camera.x - dx / ((world.rules?.map.width ?? 100) * fit) * 100, y: camera.y - dy / ((world.rules?.map.height ?? 100) * fit) * 100 }, siteCameraPadding(world, viewport, coveredBottom, margin));
 }

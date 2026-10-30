@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera } from './chart-projection';
+import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera } from './chart-projection';
 import { constrainCamera, focusCamera, zoomCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
@@ -69,6 +69,19 @@ test('tall torus viewports remain tiled across the entire screen after panning',
 // Issue #59: an inspected hauler must stay in the chart band above its bottom contextual card.
 const screenY = (w: typeof world | { rules?: undefined }, camera: Parameters<typeof chartTransform>[1], point: { x: number; y: number }, viewport: { width: number; height: number }) =>
   chartOffsets(w, camera, viewport).map(offset => chartPosition(w, camera, { x: point.x + offset.x, y: point.y + offset.y }, viewport).y / 100 * viewport.height);
+
+test('site inspection reveals the nearest torus copy across chart resizing and bottom overlays', () => {
+  for (const viewport of [{ width: 393, height: 250 }, { width: 1000, height: 400 }]) for (const covered of [0, viewport.height * 0.55]) {
+    for (const point of [{ x: 1, y: 1 }, { x: 199, y: 79 }]) for (const scale of [1, 4]) {
+      const camera = constrainCamera(world, { scale, x: 17, y: -38 });
+      const next = revealSiteCamera(world, camera, point, viewport, covered, 32);
+      assert.equal(next.scale, scale);
+      const visible = chartOffsets(world, next, viewport).map(offset => chartPosition(world, next, { x: point.x + offset.x, y: point.y + offset.y }, viewport));
+      assert.ok(visible.some(p => p.x / 100 * viewport.width >= 32 && p.x / 100 * viewport.width <= viewport.width - 32 && p.y / 100 * viewport.height >= 32 && p.y / 100 * viewport.height <= viewport.height - covered - 32));
+      assert.equal(revealSiteCamera(world, next, point, viewport, covered, 32), next, 'already clear sites keep the camera');
+    }
+  }
+});
 
 test('a focused point moves from under a tall bottom card to the centre of the clear band', () => {
   const phone = { width: 393, height: 616 }, card = 330;

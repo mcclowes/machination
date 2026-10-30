@@ -17,6 +17,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [selected, setSelected] = useState('');
+  const [siteCard, setSiteCard] = useState<{ id: string; height: number }>();
   const [inspection, setInspection] = useState({ request: 0, id: undefined as number | undefined });
   const [width, setWidth] = useState(1);
   const [hourText, setHourText] = useState(String(replay.through));
@@ -64,7 +65,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
       {scene.draw && <Text style={s.text}>Draw</Text>}
     </View>
     <View style={s.stage}>
-    <BeltMap fill inspecting={!!selected} game={scene} selected={selected} player={replay.perspective} onSelect={site => { setOptions(false); setSelected(site.id); }} inspectFleet={inspection}
+    <BeltMap fill inspecting={!!selected} coveredBottom={rock && siteCard?.id === rock.id ? siteCard.height + s.drawer.bottom : 0} game={scene} selected={selected} player={replay.perspective} onSelect={site => { setOptions(false); setSelected(site.id); }} inspectFleet={inspection}
       onInspectFleet={() => { setSelected(''); setOptions(false); }} timeInspection={scene.fleets.every(fleet => fleet.arrives >= replay.from && fleet.arrives <= replay.through)
         ? { liveHour: replay.through, historyStart: replay.from, onInspect: hour => { if (hour === null || hour >= replay.from && hour <= replay.through) seek({ hour: hour ?? replay.through }); } }
         : undefined} />
@@ -79,7 +80,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
         <Text style={s.text}>1× plays one game hour per second.</Text>
       </ScrollView>
     </View>}
-    {rock && <View style={s.drawer}>
+    {rock && <View testID="replay-site-inspector" style={s.drawer} onLayout={event => setSiteCard({ id: rock.id, height: event.nativeEvent.layout.height })}>
       <View style={s.drawerHeading}><Text style={s.title}>{rock.name}</Text><Control label="Close site details" text="×" onPress={() => setSelected('')} /></View>
       <ScrollView contentContainerStyle={s.details}>
       {rock.owner !== undefined && (rock.owner ? <PlayerIdentity faction={rock.owner} detail="Observed owner" /> : <Text style={s.text}>Unclaimed</Text>)}
