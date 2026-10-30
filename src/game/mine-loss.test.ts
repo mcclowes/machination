@@ -87,7 +87,7 @@ test('destroyed mines and factories stay inert through future simulation and sur
   Object.assign(mine, { x: 12, y: 50, kind: 'mine', miningAt: 24 });
   game.cargo.vesper = 11;
   detonate(game, factory);
-  const later = advance(game, 48);
+  const later = advance(game, 48, { rivals: false });
   assert.equal(later.rocks.find(r => r.id === factory.id)!.drones, 0);
   assert.equal(later.rocks.find(r => r.id === factory.id)!.shield, 0);
   assert.equal(later.cargo.vesper, 11);
