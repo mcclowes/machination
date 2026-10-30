@@ -1,4 +1,4 @@
-// Synthesises the game's sound effects into 16-bit mono WAV files under assets/sounds.
+// Rebuild procedural cues; keep the imported Harrow recordings in assets/sounds intact.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,12 +36,7 @@ const mix = (...voices) => t => voices.reduce((sum, voice) => sum + voice(t), 0)
 
 const sounds = {
   tap: render(0.05, mix(tone(1760, 0, 0.035, { gain: 0.18, harmonic: 0 }), burst(0, 0.02, 0.12, 0.6))),
-  launch: render(0.6, mix(tone(180, 0, 0.55, { gain: 0.35, glide: 420 }), burst(0, 0.55, 0.25, 0.08))),
   schedule: render(0.3, mix(tone(660, 0, 0.1, { gain: 0.3 }), tone(990, 0.12, 0.14, { gain: 0.3 }))),
-  signal: render(0.5, mix(tone(1175, 0, 0.45, { gain: 0.18, harmonic: 0.1 }), tone(1760, 0.04, 0.4, { gain: 0.1, harmonic: 0 }))),
-  combat: render(0.55, mix(tone(90, 0, 0.5, { gain: 0.55, glide: -50 }), burst(0, 0.4, 0.6, 0.25))),
-  capture: render(0.7, mix(tone(523, 0, 0.25, { gain: 0.28 }), tone(659, 0.12, 0.25, { gain: 0.28 }), tone(784, 0.24, 0.42, { gain: 0.3 }))),
-  loss: render(0.75, mix(tone(392, 0, 0.3, { gain: 0.28 }), tone(311, 0.15, 0.3, { gain: 0.28 }), tone(233, 0.3, 0.42, { gain: 0.32 }))),
   alarm: render(1.0, mix(...[0, 0.25, 0.5, 0.75].map((start, i) => tone(i % 2 ? 330 : 440, start, 0.22, { gain: 0.3, harmonic: 0.5 })))),
   victory: render(1.6, mix(tone(392, 0, 1.5, { gain: 0.2 }), tone(494, 0.15, 1.35, { gain: 0.2 }), tone(587, 0.3, 1.2, { gain: 0.2 }), tone(784, 0.45, 1.1, { gain: 0.16 }))),
   defeat: render(1.8, mix(tone(147, 0, 1.7, { gain: 0.3, glide: -30 }), tone(175, 0.1, 1.6, { gain: 0.22, glide: -30 }), burst(0, 1.2, 0.15, 0.03))),
@@ -49,7 +44,7 @@ const sounds = {
 };
 
 // Peak level per sound, so quiet UI ticks stay quieter than outcomes.
-const levels = { tap: 0.3, signal: 0.45, schedule: 0.55, error: 0.55 };
+const levels = { tap: 0.3, schedule: 0.55, error: 0.55 };
 
 function wav(samples, level) {
   const peak = samples.reduce((max, s) => Math.max(max, Math.abs(s)), 1e-9);
