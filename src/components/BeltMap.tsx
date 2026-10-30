@@ -68,9 +68,9 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const touchStart = useRef<{ x: number; y: number } | undefined>(undefined);
   type Drag = { from: T; startX: number; startY: number; x: number; y: number; target?: T };
   const [drag, setDrag] = useState<Drag>();
-  const inspectedSite = inspecting && !fleet && game.rocks.find(rock => rock.id === selected);
-  const siteToReveal = !destination && !transferRoute && !drag && inspectedSite;
-  const padding = inspectedSite ? siteCameraPadding(game, size, coveredBottom, SITE_CONTROL_WIDTH / 2) : lift;
+  const inspectedSite = inspecting && game.rocks.find(rock => rock.id === selected);
+  const siteToReveal = !fleet && !destination && !transferRoute && !drag && inspectedSite;
+  const padding = inspectedSite && !fleet ? siteCameraPadding(game, size, coveredBottom, SITE_CONTROL_WIDTH / 2) : lift;
   const camera = constrainCamera(game, viewport?.camera ?? localCamera, padding);
   const dragging = useRef<Drag | undefined>(undefined);
   const commands = useRef({ game, player, onTransfer });
@@ -205,7 +205,8 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const arrival = fleet && timeInspection ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
   const revealedSite = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!siteToReveal) { revealedSite.current = undefined; return; }
+    if (!inspectedSite) { revealedSite.current = undefined; return; }
+    if (!siteToReveal) return;
     const key = `${game.epoch}:${selected}:${siteRequest}:${size.width}:${size.height}:${coveredBottom}`;
     if (revealedSite.current === key) return;
     revealedSite.current = key;

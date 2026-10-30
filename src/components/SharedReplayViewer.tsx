@@ -80,7 +80,7 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
         <Text style={s.text}>1× plays one game hour per second.</Text>
       </ScrollView>
     </View>}
-    {rock && <View testID="replay-site-inspector" style={s.drawer} onLayout={event => setSiteCard({ id: rock.id, height: event.nativeEvent.layout.height })}>
+    {rock && <View key={rock.id} testID="replay-site-inspector" style={s.drawer} onLayout={event => setSiteCard({ id: rock.id, height: event.nativeEvent.layout.height })}>
       <View style={s.drawerHeading}><Text style={s.title}>{rock.name}</Text><Control label="Close site details" text="×" onPress={() => setSelected('')} /></View>
       <ScrollView contentContainerStyle={s.details}>
       {rock.owner !== undefined && (rock.owner ? <PlayerIdentity faction={rock.owner} detail="Observed owner" /> : <Text style={s.text}>Unclaimed</Text>)}

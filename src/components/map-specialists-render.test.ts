@@ -112,6 +112,21 @@ test('site reveal respects planning and yields the camera to an inspected hauler
   }
 });
 
+test('ending transfer planning does not undo a manual pan made during planning', async () => {
+  const { BeltMap } = await loaded;
+  const game = { ...fixture(), rules: { map: { width: 200, height: 80, topology: 'torus' } } };
+  Object.assign(game.rocks[0]!, { x: 100, y: 40 });
+  const changes: unknown[] = [];
+  const props = { game, selected: 'home', inspecting: true, onSelect() {}, viewport: { camera: { scale: 4, x: 0, y: 0 }, onChange: (next: unknown) => changes.push(next) } };
+  await withChart(props, async renderer => {
+    const panned = { ...props.viewport, camera: { scale: 4, x: 140, y: 140 } };
+    await act(async () => renderer.update(React.createElement(BeltMap, { ...props, destination: 'away', viewport: panned })));
+    assert.deepEqual(changes, []);
+    await act(async () => renderer.update(React.createElement(BeltMap, { ...props, viewport: panned })));
+    assert.deepEqual(changes, [], 'clearing the destination is not a new inspection');
+  });
+});
+
 test('zero-drone specialist haulers and docked specialists remain visible and inspect through their map assets', async () => {
   const selected: string[] = [];
   let inspections = 0;
