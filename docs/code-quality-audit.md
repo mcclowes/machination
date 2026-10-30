@@ -68,3 +68,33 @@ Pre-existing `BeltMap`, map-layering test, and `PracticeDialogue` changes remain
 - TypeScript, server frontmatter validation, and the web production export passed.
 - Final `npm run check` passed: 1,045 behavior tests, TypeScript, and three standalone server build/restart tests. No tests failed or were skipped. The shared-tree count includes the pre-existing map-layering test. The acceptance runtime was Node 24.14.1.
 - Native delivery and device interactions weren't exercised; this refactor changes server ownership only.
+
+## Pulse geometry follow-up
+
+Reviewed October 30, 2026, for [#51](https://github.com/mcclowes/machination/issues/51), starting at `9b65a6e`. This supplements the earlier audit with the strategic and tactical pulse implementation. Other agents concurrently changed lifecycle policy, queued-order decoding, game setup, recruitment, branding, and documentation; those changes have separate owners.
+
+### Responsibility boundary
+
+`pulse-simulation.ts` owned both geometric contact calculation and strategic effects such as shield drain, destruction, and victory. Tactical simulation imported its contact solver, creating a direct runtime cycle between the two effect modules.
+
+`src/game/pulse-contact.ts` now owns asset motion and expanding-circle entry/exit times. Both effect modules import it directly. It depends on flight, drift, opening-clock, and map geometry, with no runtime import of either pulse effect module. Strategic simulation keeps its existing `expandingIntersection` export for compatibility. This removes the direct effect-module cycle; it doesn't claim to eliminate every indirect engine cycle.
+
+The numerical operations, tolerances, wrapped-image selection, preparation behavior, engine-outage handling, and opening-rate behavior are unchanged. Four characterization tests passed against the original implementation before extraction and the extracted implementation afterward. They cover planar versus wrapped contacts, event bounds, moving-site entry and exit, tangency, equal-speed roots, preparing haulers, disabled engines, and the opening-rate boundary.
+
+### Boundaries retained
+
+- Tactical site and hauler effects stay local. Their short shared loop preserves contact recording, sensor jamming, site/engine damage, King effects, and event order. A descriptor with callbacks would replace the local asset checks with an additional protocol; separate loops would duplicate the shared sequence. Neither earns an extraction here.
+- Strategic shield exposure and destruction remain with strategic effects. The shared geometry module doesn't own damage or balancing policy.
+- Solo/practice lifecycle policy and queued-order request decoding were already being refactored by another active session. This follow-up leaves those files and the other concurrent changes untouched.
+- The earlier container-packaging and incomplete network-response validation findings remain recorded in #51. They aren't resolved by this behavior-preserving pulse refactor.
+
+### Verification
+
+- All 39 focused geometry, strategic pulse, tactical pulse, and authoritative-server pulse tests pass, with no skips.
+- TypeScript and the production web export pass.
+- All three standalone server build/restart tests pass outside the sandbox, including offline and Clerk account restoration.
+- Game frontmatter validation passes.
+- The full behavior run failed while the shared tree was changing, with setup/economy mismatches and test timeouts. It does not establish a green full suite. Two initial focused pulse failures also reproduced with the original pulse implementation; after the other session updated the affected rule fixtures, the focused suite passed all 39 tests.
+- Native-device interactions weren't exercised. This change doesn't modify UI, gestures, persisted formats, or wire contracts.
+
+Implementation: `7070329` (Refactor: Separate pulse contact geometry from effects). Evidence logs: `/tmp/machination-quality-pulse-final.log`, `/tmp/machination-quality-server-build.log`, `/tmp/machination-quality-web.log`, and `/tmp/machination-quality-baseline.log`.
