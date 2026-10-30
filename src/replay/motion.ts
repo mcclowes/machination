@@ -1,3 +1,4 @@
+import { tacticalConfig } from '../game/tactical-pulse';
 import { pulseConfig } from '../game/pulse';
 import { sitePosition } from '../game/drift';
 import type { ReplayScene } from './presentation';
@@ -8,6 +9,7 @@ export function moveReplayScene(scene: ReplayScene, hour: number): ReplayScene {
   const rate = (owner: string, type: string) => (scene.pulse?.modifiers ?? []).filter(m => m.factionId === owner && m.type === type && m.expiresAt > scene.hour).reduce((r, m) => r * m.multiplier, 1);
   return { ...scene, hour,
     ...(scene.pulse ? { pulse: { ...scene.pulse,
+      ...(scene.pulse.tactical ? { tactical: { ...scene.pulse.tactical, waves: scene.pulse.tactical.waves.map(w => ({ ...w, radius: w.radius + dt * tacticalConfig(scene).propagationSpeed })) } } : {}),
       kings: scene.pulse.kings.map(k => k.state === 'charging' ? { ...k, chargeProgress: k.chargeProgress + dt * rate(k.factionId, 'charge_rate') } : k),
       pulses: scene.pulse.pulses.map(p => ({ ...p, radius: p.radius + dt * config.propagationSpeed * rate(p.factionId, 'pulse_speed') })),
       shields: Object.fromEntries(Object.entries(scene.pulse.shields).map(([id, shield]) => {

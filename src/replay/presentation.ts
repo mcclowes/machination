@@ -13,11 +13,11 @@ export type ReplayRock = ReplayPoint & {
   id: string; name: string; known: boolean; drift?: Drift;
   kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator' | 'unknown';
   owner?: Faction | null; drones?: number; destroyed?: true; coreOf?: Faction;
-  shield?: number; shieldMax?: number; shieldsDisabled?: boolean; module?: ModuleKind; specialists?: ReplayUnit[];
+  sensorJammedUntil?: number; miningDisabledUntil?: number; shield?: number; shieldMax?: number; shieldsDisabled?: boolean; module?: ModuleKind; specialists?: ReplayUnit[];
 };
 export type ReplayFleet = {
   id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number;
-  preparing?: true; returning?: true; giftAt?: number; module?: ModuleKind; specialists?: ReplayUnit[]; speed?: number;
+  enginesDisabledUntil?: number; sensorJammedUntil?: number; preparing?: true; returning?: true; giftAt?: number; module?: ModuleKind; specialists?: ReplayUnit[]; speed?: number;
   route?: { from: ReplayPoint; to: ReplayPoint }; intercept?: { home: string; target?: number };
 };
 export type ReplayScene = {
@@ -58,6 +58,8 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.owner !== undefined) rock.owner = r.owner;
     if (r.known) {
       rock.drones = r.drones;
+      if (r.sensorJammedUntil !== undefined) rock.sensorJammedUntil = r.sensorJammedUntil;
+      if (r.miningDisabledUntil !== undefined) rock.miningDisabledUntil = r.miningDisabledUntil;
       if (r.destroyed !== undefined) rock.destroyed = r.destroyed;
       if (r.coreOf !== undefined) rock.coreOf = r.coreOf;
       if (r.shield !== undefined) rock.shield = r.shield;
@@ -72,6 +74,8 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
   const visible = new Map(view.fleets.map(f => [f.id, aliases.fleet(f.id)]));
   for (const f of view.fleets) {
     const fleet: ReplayFleet = { id: visible.get(f.id)!, owner: f.owner, from: f.from, to: f.to, drones: f.drones, departed: f.departed, arrives: f.arrives };
+    if (f.enginesDisabledUntil !== undefined) fleet.enginesDisabledUntil = f.enginesDisabledUntil;
+    if (f.sensorJammedUntil !== undefined) fleet.sensorJammedUntil = f.sensorJammedUntil;
     if (f.preparing !== undefined) fleet.preparing = f.preparing;
     if (f.returning !== undefined) fleet.returning = f.returning;
     if (f.giftAt !== undefined) fleet.giftAt = f.giftAt;
@@ -107,10 +111,16 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.driftingBases !== undefined) scene.rules.driftingBases = r.driftingBases;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;
   }
+  if (view.rules?.tacticalPulse && scene.rules) scene.rules.tacticalPulse = { ...view.rules.tacticalPulse };
   if (view.rules?.pulse && scene.rules) scene.rules.pulse = { ...view.rules.pulse };
   if (view.pulse) scene.pulse = { ...view.pulse,
     kings: view.pulse.kings.map(k => ({ ...k, kingId: aliases.unit(k.kingId), position: { ...k.position } })),
     pulses: view.pulse.pulses.map(p => ({ ...p, kingId: aliases.unit(p.kingId), origin: { ...p.origin } })),
     shields: Object.fromEntries(Object.entries(view.pulse.shields).map(([id, s]) => [id, { ...s }])), modifiers: view.pulse.modifiers.map(m => ({ ...m })) };
+  if (view.pulse?.tactical && scene.pulse) scene.pulse.tactical = {
+    charges: view.pulse.tactical.charges.map(c => ({ ...c, id: `charge-${aliases.unit(c.specialistId)}-${c.readyAt}`, specialistId: aliases.unit(c.specialistId) })),
+    waves: view.pulse.tactical.waves.map(w => ({ ...w, specialistId: aliases.unit(w.specialistId), origin: { ...w.origin }, hitSites: [...w.hitSites], hitFleets: w.hitFleets.filter(id => visible.has(id)).map(id => visible.get(id)!) })),
+    resistance: Object.fromEntries(Object.entries(view.pulse.tactical.resistance).map(([id, until]) => [aliases.unit(id), until])),
+  };
   return scene;
 }

@@ -20,6 +20,7 @@ function courseInputs(game: Game, fleetId: number, owner: Faction, destinationId
   if (!fleet || fleet.owner !== owner || fleet.preparing || fleet.departed > game.hour || fleet.arrives <= game.hour || fleet.courseLocked) {
     throw new Error('Choose an owned, departed hauler with an unlocked course.');
   }
+  if ((fleet.enginesDisabledUntil ?? 0) > game.hour) throw new Error('This hauler’s engines are temporarily disabled.');
   const navigators = (fleet.specialists ?? []).filter(u => u.kind === 'navigator' && u.owner === owner && !u.captive);
   if (!navigators.length) throw new Error('Changing course requires an active navigator aboard.');
   if (navigators.some(u => u.lastCourseAt !== undefined && effectiveAt < u.lastCourseAt + COURSE_COOLDOWN)) {

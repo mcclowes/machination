@@ -3,6 +3,7 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { DEFAULT_TACTICAL_PULSE_CONFIG } from './tactical-pulse';
 import { createPulseSystem, DEFAULT_PULSE_CONFIG } from './pulse';
 import { afterWork } from './opening-clock';
 import { seedDriftingBases } from './drift';
@@ -58,10 +59,10 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   const { rocks, width, height } = generateWorld(players, mapSeed);
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
-    rules: { mechanicsVersion: settings.mode === 'pulse' ? 15 : 14, ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    rules: { mechanicsVersion: settings.mode === 'pulse' ? 16 : 14, ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
-    recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0)])),
+    recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0, settings.mode === 'pulse')])),
     events: [{ hour: 0, audience: players, message: `Corporate uplink lost. Five sites assigned to each intelligence. ${settings.mode === 'pulse' ? 'Mine Pulse Material, charge your King, and eliminate every rival King.' : settings.mode === 'mining' ? 'Establish extraction to fulfill the contract.' : 'Control half of the chart to secure domination.'}` }],
   };
   for (const rock of game.rocks) {

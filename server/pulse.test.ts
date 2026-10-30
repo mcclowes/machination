@@ -47,3 +47,37 @@ test('server balance overrides apply only to new games and cannot be supplied by
   service = await GameService.open(file, () => 0, undefined, { pulse: { ...DEFAULT_PULSE_CONFIG, chargeDuration: 12 } });
   assert.equal((await service.snapshot(created.id, host)).game.rules!.pulse!.chargeDuration, 3);
 });
+
+test('Disruptor commands authorize seat aliases, charge once, and launch after server restart', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-disruptor-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let now = 0;
+  const factory = () => {
+    const game = createConfiguredGame({ playerCount: 2, mode: 'pulse' }, 0, 42);
+    game.cargo.you = 100;
+    game.rocks.find(r => r.coreOf === 'you')!.specialists!.push({ id: 'disruptor-private-id', kind: 'disruptor', owner: 'you' });
+    return game;
+  };
+  const file = join(directory, 'games.json'), host = randomBytes(32).toString('hex'), other = randomBytes(32).toString('hex');
+  let service = await GameService.open(file, () => now, factory);
+  const room = await service.create(host); await service.join(room.invite, other);
+  const started = await service.start(room.id, host);
+  const unit = started.game.rocks.flatMap(r => r.specialists ?? []).find(u => u.kind === 'disruptor')!;
+  const command = { requestId: randomUUID(), revision: started.revision, action: 'CHARGE_DISRUPTOR' as const, specialistId: unit.id, resourceCost: 20 };
+  await assert.rejects(() => service.pulse(room.id, host, { ...command, specialistId: 'disruptor-private-id' }), /observed|Disruptor|module/i);
+  await assert.rejects(() => service.pulse(room.id, other, { ...command, requestId: randomUUID(), revision: 0 }), /observed|Disruptor|module/i);
+  const charging = await service.pulse(room.id, host, command);
+  assert.equal(charging.game.cargo.you, 80);
+  assert.equal((await service.pulse(room.id, host, command)).game.cargo.you, 80);
+  assert.equal((await service.pulse(room.id, host, { resourceCost: 20, specialistId: unit.id, action: 'CHARGE_DISRUPTOR', revision: command.revision, requestId: command.requestId })).game.cargo.you, 80);
+  await assert.rejects(() => service.pulse(room.id, host, { ...command, requestId: randomUUID(), id: randomUUID() } as any), /Choose a pulse command/);
+  await assert.rejects(() => service.pulse(room.id, host, { ...command, resourceCost: 25 }), /different content/);
+  await assert.rejects(() => service.pulse(room.id, host, { ...command, requestId: randomUUID(), revision: started.revision }), /Refresh/);
+  assert.equal((await service.snapshot(room.id, other)).game.pulse!.tactical!.charges.length, 0);
+  service = await GameService.open(file, () => now, factory);
+  now = .5 * 3_600_000;
+  const fired = await service.snapshot(room.id, host);
+  assert.equal(fired.game.pulse!.tactical!.waves.length, 1);
+  assert.equal(fired.game.pulse!.tactical!.charges.length, 0);
+  assert.ok(!JSON.stringify(fired).includes('disruptor-private-id'));
+});

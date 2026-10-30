@@ -5,10 +5,11 @@
  *   - ./pulse.ts - state and balancing
  * ---
  */
+import { nextTacticalPulseEvent, advanceTacticalPulseTime, settleTacticalPulses } from './tactical-pulse-simulation';
 import { reconcileFunding } from './funding';
 import type { Fleet, Game, Rock } from './simulation';
 import { mapOffsets, worldDistance, type Point } from './geometry';
-import { fleetPosition, flightEndpoints } from './flight';
+import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
 import { sitePosition } from './drift';
 import { openingRate, OPENING_HOURS, workBetween } from './opening-clock';
 import { playersIn } from './players';
@@ -21,7 +22,8 @@ function motion(game: Game, asset: Rock | Fleet): Motion {
   if (typeof asset.id === 'string') { const rock = asset as Rock; return { point: sitePosition(game, rock, game.hour), velocity: rock.drift?.velocity ?? { x: 0, y: 0 } }; }
   const fleet = asset as Fleet;
   if (fleet.preparing) return motion(game, game.rocks.find(r => r.id === fleet.from)!);
-  const leg = flightEndpoints(game, fleet), duration = workBetween(game, fleet.departed, fleet.arrives), rate = openingRate(game, game.hour);
+  if ((fleet.enginesDisabledUntil ?? 0) > game.hour) return { point: fleetPosition(game, fleet), velocity: { x: 0, y: 0 } };
+  const leg = flightEndpoints(game, fleet), duration = workBetween(game, flightDeparture(fleet), fleet.arrives), rate = openingRate(game, game.hour);
   return { point: fleetPosition(game, fleet), velocity: { x: (leg.to.x - leg.from.x) / duration * rate, y: (leg.to.y - leg.from.y) / duration * rate } };
 }
 const hostile = (pulse: ActivePulse, owner: Rock['owner']) => !!owner && pulse.factionId !== owner;
@@ -37,12 +39,12 @@ function exposures(game: Game, rock: Rock): number {
   }).length;
 }
 /** Earliest entry or exit of a linearly moving target and an expanding circle, over toroidal images. */
-function intersection(game: Game, pulse: ActivePulse, asset: Rock | Fleet, limit: number): number {
-  const { point, velocity: v } = motion(game, asset), speed = pulseConfig(game).propagationSpeed * pulseRate(game, pulse.factionId, 'pulse_speed');
+export function expandingIntersection(game: Game, origin: Point, radius: number, speed: number, asset: Rock | Fleet, limit: number): number {
+  const { point, velocity: v } = motion(game, asset);
   let next = Infinity;
   for (const offset of mapOffsets(game)) {
-    const x = point.x + offset.x - pulse.origin.x, y = point.y + offset.y - pulse.origin.y;
-    const a = v.x * v.x + v.y * v.y - speed * speed, b = 2 * (x * v.x + y * v.y - pulse.radius * speed), c = x * x + y * y - pulse.radius * pulse.radius;
+    const x = point.x + offset.x - origin.x, y = point.y + offset.y - origin.y;
+    const a = v.x * v.x + v.y * v.y - speed * speed, b = 2 * (x * v.x + y * v.y - radius * speed), c = x * x + y * y - radius * radius;
     const discriminant = b * b - 4 * a * c;
     if (discriminant < 0) continue;
     const q = -.5 * (b + (b < 0 ? -1 : 1) * Math.sqrt(discriminant));
@@ -53,7 +55,7 @@ function intersection(game: Game, pulse: ActivePulse, asset: Rock | Fleet, limit
 }
 export function nextPulseEvent(game: Game, limit: number): number {
   if (!game.pulse) return Infinity;
-  let next = limit;
+  let next = nextTacticalPulseEvent(game, limit);
   if (game.hour < OPENING_HOURS) next = Math.min(next, OPENING_HOURS);
   for (const m of game.pulse.modifiers) if (m.expiresAt > game.hour) next = Math.min(next, m.expiresAt);
   for (const king of game.pulse.kings) if (king.state === 'charging') {
@@ -70,7 +72,7 @@ export function nextPulseEvent(game: Game, limit: number): number {
     }
   }
   for (const pulse of game.pulse.pulses) for (const asset of [...game.rocks.filter(r => !r.destroyed), ...game.fleets]) {
-    if (hostile(pulse, asset.owner)) next = Math.min(next, intersection(game, pulse, asset, next));
+    if (hostile(pulse, asset.owner)) next = Math.min(next, expandingIntersection(game, pulse.origin, pulse.radius, pulseConfig(game).propagationSpeed * pulseRate(game, pulse.factionId, 'pulse_speed'), asset, next));
   }
   return next;
 }
@@ -78,6 +80,7 @@ export function nextPulseEvent(game: Game, limit: number): number {
 export function advancePulseTime(game: Game, through: number): void {
   if (!game.pulse) return;
   const elapsed = Math.max(0, through - game.hour), config = pulseConfig(game);
+  advanceTacticalPulseTime(game, through);
   for (const king of game.pulse.kings) if (king.state === 'charging') king.chargeProgress += elapsed * pulseRate(game, king.factionId, 'charge_rate');
   for (const p of game.pulse.pulses) p.radius += elapsed * config.propagationSpeed * pulseRate(game, p.factionId, 'pulse_speed');
   for (const rock of game.rocks) {
@@ -91,6 +94,7 @@ function shieldProtects(game: Game, rock: Rock): boolean { return !rock.destroye
 export function settlePulseHazards(game: Game): void {
   if (!game.pulse) return;
   reconcilePulseKings(game);
+  settleTacticalPulses(game);
   const pulses = [...game.pulse.pulses];
   const sites = game.rocks.filter(r => !r.destroyed && !(r.pulseDisabled && r.drones === 0 && !r.specialists?.length) && pulses.some(p => hostile(p, r.owner) && covers(game, p, r)) && !shieldProtects(game, r));
   const ships = game.fleets.filter(f => {

@@ -5,6 +5,7 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import { settleTacticalPulses } from './tactical-pulse-simulation';
 import { advancePulseTime, nextPulseEvent, settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { withPulseMovement, clonePulse, completePulseCharges, pulseEnabled, type PulseSystem } from './pulse';
 import { afterWork } from './opening-clock';
@@ -38,10 +39,10 @@ export type Rock = {
   id: string; name: string; x: number; y: number; drift?: Drift;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator';
   shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number; miningInterval?: number;
-  pulseDisabled?: true; specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
+  sensorJammedUntil?: number; miningDisabledUntil?: number; pulseDisabled?: true; specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
+export type Fleet = { enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
 export type Game = {
   version: 1 | 2; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   pulse?: PulseSystem; rules?: GameRules; cargo: PlayerValues<number>; eliminated: Faction[]; nextId: number;
@@ -109,7 +110,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
-    ...input, ...(input.rules ? { rules: { ...input.rules, ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
+    ...input, ...(input.rules ? { rules: { ...input.rules, ...(input.rules.tacticalPulse ? { tacticalPulse: { ...input.rules.tacticalPulse } } : {}), ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
     ...(input.scheduled ? { scheduled: input.scheduled.map(p => ({ ...p })) } : {}),
     ...(input.minesDrilled ? { minesDrilled: { ...input.minesDrilled } } : {}),
     ...(input.pulse ? { pulse: clonePulse(input.pulse) } : {}),
@@ -156,6 +157,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     if (trace && spanFrom) trace({ type: 'span', from: spanFrom, to: traceSnapshot(game) });
     if (game.pulse) game = executeScheduled(game, trace);
     completePulseCharges(game);
+    settleTacticalPulses(game);
     if (game.version === 2) { settleEconomy(game); tracePoint(trace, 'economy', game); settleSpecialistActions(game, trace); }
     if (game.version === 2) resolveRouteEncounters(game, trace, contacts, options.encounters);
     if (game.version === 2) resolveSpecialistInterceptions(game, options.unknownInterceptions, trace, options.encounters);

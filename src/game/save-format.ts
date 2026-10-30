@@ -49,7 +49,7 @@ export function decodeSave(raw: string): Save {
     if (value === undefined) return true;
     if (g.version !== 2 || !Array.isArray(value) || value.length > 10000) return false;
     for (const u of value) {
-      if (!record(u) || typeof u.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(u.id) || unitIds.has(u.id) || !isSpecialistKind(u.kind) || !isFaction(u.owner)
+      if (!record(u) || typeof u.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(u.id) || unitIds.has(u.id) || !isSpecialistKind(u.kind) || u.kind === 'disruptor' && !rules?.tacticalPulse || !isFaction(u.owner)
         || !(u.captive === undefined || u.captive === true) || !(u.nextActionAt === undefined || nonnegative(u.nextActionAt)) || !(u.lastCourseAt === undefined || nonnegative(u.lastCourseAt))) return false;
       unitIds.add(u.id);
     }
@@ -60,7 +60,7 @@ export function decodeSave(raw: string): Save {
     for (const f of factions) {
       const state = g.recruitment[f as string];
       if (!record(state) || !Number.isSafeInteger(state.used) || (state.used as number) < 0 || !Number.isSafeInteger(state.seed) || (state.seed as number) < 0 || (state.seed as number) >= 2 ** 32
-        || !record(state.pool) || !Object.entries(state.pool).every(([k, v]) => isSpecialistKind(k) && Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 3)
+        || !record(state.pool) || !Object.entries(state.pool).every(([k, v]) => isSpecialistKind(k) && (k !== 'disruptor' || !!rules?.tacticalPulse) && Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 3)
         || !Array.isArray(state.offers) || state.offers.length !== 3 || !state.offers.every((k, i) => isSpecialistKind(k) && SPECIALISTS[k].category === HIRE_CATEGORIES[i] && ((state.pool as Record<string, number>)[k] ?? 0) > 0)) return fail();
     }
   }

@@ -14,11 +14,11 @@ import { mechanicsVersion } from './rules';
 
 export type Specialist = { id: string; kind: SpecialistKind; owner: Faction; captive?: true; nextActionAt?: number; lastCourseAt?: number };
 export type Recruitment = { used: number; seed: number; pool: Partial<Record<SpecialistKind, number>>; offers: SpecialistKind[] };
-export function newRecruitment(seed: number): Recruitment { return drawOffers({ used: 0, seed: seed >>> 0, pool: {}, offers: [] }); }
-function drawOffers(input: Recruitment): Recruitment {
+export function newRecruitment(seed: number, tactical = false): Recruitment { return drawOffers({ used: 0, seed: seed >>> 0, pool: {}, offers: [] }, tactical); }
+function drawOffers(input: Recruitment, tactical = false): Recruitment {
   const next: Recruitment = { ...input, pool: { ...input.pool }, offers: [] };
   for (const category of HIRE_CATEGORIES) {
-    const kinds = HIRE_KINDS.filter(k => SPECIALISTS[k].category === category);
+    const kinds = HIRE_KINDS.filter(k => SPECIALISTS[k].category === category && (k !== 'disruptor' || tactical));
     if (kinds.every(k => (next.pool[k] ?? 0) === 0)) for (const kind of kinds) next.pool[kind] = 3;
     const deck = kinds.flatMap(k => Array<SpecialistKind>(next.pool[k] ?? 0).fill(k));
     next.seed = (Math.imul(1664525, next.seed) + 1013904223) >>> 0;
@@ -66,7 +66,7 @@ export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind,
   }
   const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: ids?.[index] ?? `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
   return withUnitEffects({ ...game, nextId: game.nextId + amount,
-    recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }) },
+    recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === status.at ? { ...r, specialists: [...(r.specialists ?? []), ...units] } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${SPECIALISTS[kind].name}${amount > 1 ? ' units' : ''} recruited at the core.` }, ...game.events]),
   });
@@ -77,7 +77,7 @@ export function promoteSpecialist(game: Game, owner: Faction, id: string): Game 
   const unit = site?.specialists?.find(u => u.id === id);
   const kind = unit && promotion(unit.kind);
   if (!site || !unit || !kind) throw new Error('Choose a promotable module at one of your sites.');
-  return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }) },
+  return withUnitEffects({ ...game, recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1 }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === site.id ? { ...r, specialists: r.specialists!.map(u => u.id === id ? { ...u, kind, ...(kind === 'sentry' ? { nextActionAt: game.hour + 2 } : {}) } : u) } : r),
     events: recentEvents([{ hour: game.hour, audience: observers(game, site), message: `${site.name}: ${SPECIALISTS[unit.kind].name} promoted to ${SPECIALISTS[kind].name}.` }, ...game.events]),
   });

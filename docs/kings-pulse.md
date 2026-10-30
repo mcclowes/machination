@@ -4,7 +4,7 @@ Implementation and gameplay testing reference for [#87](https://github.com/mcclo
 
 ## Rules in this implementation
 
-- New configured operations default to `pulse`, mechanics revision 15. Existing operations keep their saved rules; mining and domination remain selectable.
+- New configured operations default to `pulse`, mechanics revision 16. Revision 15 keeps its original rules. Existing operations keep their saved rules; mining and domination remain selectable.
 - The movable intelligence core is the King. Mined cargo serves as Pulse Material. Losing the King eliminates its faction without fallback succession.
 - Charging commits 100 material without a refund and takes six effective hours. Opening acceleration does not shorten this timer. Firing is manual.
 - Executing a King movement order cancels charging, stored readiness, or emission immediately, including launch preparation. Canceling a launch does not restore a lost charge.
@@ -19,7 +19,7 @@ All timestamps and durations use the engine's game hours. Propagation speed uses
 
 `MACHINATION_PULSE_CONFIG` accepts validated JSON overrides for new server operations. Saved operations retain their original balance. See [the server configuration example](../.env.example) and [the balancing reference](../README.md#pulse-balancing-and-abilities).
 
-`applyPulseSpecialistEffect` supports timed charge rates, uniform pulse speeds, shield drain, charge interruption, and emission termination. Each effect command requires a unique ID and can be retained in private replay history. Ability handlers must validate ownership, range, costs, and cooldowns; the HTTP API does not accept arbitrary specialist multipliers. Temporal and gravity abilities have not been assigned to the existing specialist roster.
+`applyPulseSpecialistEffect` supports timed charge rates, uniform pulse speeds, shield drain, charge interruption, and emission termination. Each effect command requires a unique ID and can be retained in private replay history. Ability handlers must validate ownership, range, costs, and cooldowns; the HTTP API does not accept arbitrary specialist multipliers. The [Disruptor](disruptor.md) uses the hook’s pulse-speed modifier for temporary strategic slowdown. Temporal and gravity abilities have not been assigned to the existing specialist roster.
 
 The `miningDamage` option chooses destruction or disabled extraction. Regional wave distortion, alliance immunity, and finite pulse fuel remain outside this version's rules.
 

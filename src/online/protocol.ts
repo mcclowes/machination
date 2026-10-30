@@ -1,3 +1,4 @@
+import type { TacticalPulseRequest } from '../game/tactical-pulse';
 import type { PulseAction } from '../game/pulse';
 import type { LaunchEdit } from '../game/orders';
 import type { FutureAction } from '../game/future-actions';
@@ -45,4 +46,4 @@ export type RecoverSeat = { secret: string };
 
 export type EditSchedule = { requestId: string; revision: number } & LaunchEdit;
 
-export type PulseOrder = { requestId: string; revision: number; action: PulseAction };
+export type PulseOrder = { requestId: string; revision: number } & ({ action: PulseAction } | TacticalPulseRequest);

@@ -15,7 +15,10 @@ export function refreshMining(game: Game): void {
     if (rock.kind !== 'mine' || !rock.owner || rock.destroyed) continue;
     const interval = miningInterval(game, rock.owner);
     const previous = rock.miningInterval ?? MINING_DAY;
-    if (interval !== previous) rock.miningAt = game.hour + Math.max(0, (rock.miningAt! - game.hour) / previous) * interval;
+    if (interval !== previous) {
+      const resumes = Math.max(game.hour, rock.miningDisabledUntil ?? 0);
+      rock.miningAt = resumes + Math.max(0, (rock.miningAt! - resumes) / previous) * interval;
+    }
     rock.miningInterval = interval;
   }
 }

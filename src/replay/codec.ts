@@ -1,3 +1,4 @@
+import { validateTacticalPulseConfig } from '../game/tactical-pulse';
 import { validatePulseConfig } from '../game/pulse';
 import { driftingBasesEnabled } from '../game/rules';
 import { sitePosition, validDrift } from '../game/drift';
@@ -73,12 +74,14 @@ function inspect(value: unknown) {
 }
 
 function rules(v: unknown) {
-  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'portraits', 'mechanicsVersion', 'driftingBases']);
+  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases']);
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
   optional(v, 'pulse', validatePulseConfig);
-  need(v.mode !== 'pulse' || v.pulse && v.mechanicsVersion === 15);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
+  need(v.mode !== 'pulse' || v.pulse && [15, 16].includes(v.mechanicsVersion));
+  optional(v, 'tacticalPulse', validateTacticalPulseConfig);
+  need(v.mechanicsVersion === 16 ? v.mode === 'pulse' && v.tacticalPulse : !v.tacticalPulse);
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]));
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
@@ -99,7 +102,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
   }
   array(v.rocks, L.sites); const sites = new Set<string>();
   for (const r of v.rocks) {
-    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift']);
+    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift', 'sensorJammedUntil', 'miningDisabledUntil']);
     text(r.id); text(r.name); need(!sites.has(r.id)); sites.add(r.id); coord(r.x); coord(r.y); one(r.known, [true, false]);
     one(r.kind, ['core', 'reactor', 'mine', 'factory', 'generator', 'unknown']);
     if (r.drift !== undefined) { need(driftingBasesEnabled(v) && validDrift(r.drift, v)); const expected = sitePosition(v, { x: r.x, y: r.y, drift: r.drift }, v.hour); need(Math.hypot(r.x - expected.x, r.y - expected.y) < 1e-8); }
@@ -107,14 +110,16 @@ function scene(v: unknown) : asserts v is ReplayScene {
     if (!r.known) need(Object.keys(r).every(k => ['id', 'name', 'x', 'y', 'known', 'kind', 'owner', 'drift'].includes(k)));
     else { need(r.kind !== 'unknown' && own(r, 'drones')); num(r.drones); }
     optional(r, 'destroyed', n => one(n, [true])); optional(r, 'coreOf', member);
+    optional(r, 'sensorJammedUntil', num); optional(r, 'miningDisabledUntil', num);
     optional(r, 'shield', num); optional(r, 'shieldMax', num); optional(r, 'shieldsDisabled', n => one(n, [true, false]));
     optional(r, 'module', n => need(isModule(n))); optional(r, 'specialists', manifest);
   }
   array(v.fleets, L.fleets); const fleetIds = new Set<number>();
   for (const f of v.fleets) {
-    object(f, ['id', 'owner', 'from', 'to', 'drones', 'departed', 'arrives'], ['preparing', 'returning', 'giftAt', 'module', 'specialists', 'speed', 'route', 'intercept']);
+    object(f, ['id', 'owner', 'from', 'to', 'drones', 'departed', 'arrives'], ['preparing', 'returning', 'giftAt', 'module', 'specialists', 'speed', 'route', 'intercept', 'enginesDisabledUntil', 'sensorJammedUntil']);
     integer(f.id, 1); need(!fleetIds.has(f.id)); fleetIds.add(f.id); member(f.owner); need(sites.has(f.from) && sites.has(f.to));
     num(f.drones); num(f.departed); num(f.arrives); need(f.arrives > f.departed);
+    optional(f, 'enginesDisabledUntil', num); optional(f, 'sensorJammedUntil', num);
     optional(f, 'preparing', n => one(n, [true])); optional(f, 'returning', n => one(n, [true])); optional(f, 'giftAt', num);
     optional(f, 'module', n => need(isModule(n))); optional(f, 'specialists', manifest); optional(f, 'speed', n => num(n, Number.MIN_VALUE));
     optional(f, 'route', r => { object(r, ['from', 'to']); point(r.from); point(r.to); });
@@ -126,7 +131,23 @@ function scene(v: unknown) : asserts v is ReplayScene {
   optional(v, 'standings', s => { object(s, [], roster); for (const n of Object.values(s)) { object(n, ['cargo', 'funders']); num(n.cargo); integer(n.funders); } });
   optional(v, 'pulse', s => {
     need(v.rules?.mode === 'pulse');
-    object(s, ['kings', 'pulses', 'shields', 'modifiers']);
+    object(s, ['kings', 'pulses', 'shields', 'modifiers'], ['tactical']);
+    optional(s, 'tactical', t => {
+      need(v.rules.tacticalPulse);
+      object(t, ['charges', 'waves', 'resistance']);
+      array(t.charges, 1000); array(t.waves, 1000);
+      for (const c of t.charges) {
+        object(c, ['id', 'specialistId', 'factionId', 'siteId', 'readyAt', 'resourceCost']);
+        text(c.id); text(c.specialistId); member(c.factionId); need(sites.has(c.siteId)); num(c.readyAt); integer(c.resourceCost, 1);
+      }
+      for (const w of t.waves) {
+        object(w, ['id', 'specialistId', 'factionId', 'origin', 'firedAt', 'initialStrength', 'attenuationPerDistance', 'radius', 'hitSites', 'hitFleets']);
+        text(w.id); text(w.specialistId); member(w.factionId); point(w.origin); num(w.firedAt, 0, v.hour); num(w.initialStrength, Number.MIN_VALUE); num(w.attenuationPerDistance, Number.MIN_VALUE); num(w.radius);
+        array(w.hitSites, L.sites); unique(w.hitSites); w.hitSites.forEach((id: string) => need(sites.has(id)));
+        array(w.hitFleets, L.fleets); unique(w.hitFleets); w.hitFleets.forEach((id: number) => need(fleetIds.has(id)));
+      }
+      object(t.resistance, [], s.kings.map((k: Obj) => k.kingId)); Object.values(t.resistance).forEach(n => num(n));
+    });
     array(s.kings, roster.length); array(s.pulses, roster.length); array(s.modifiers, 10000);
     for (const k of s.kings) {
       object(k, ['kingId', 'factionId', 'state', 'position', 'chargeProgress', 'resourceCommitted']);

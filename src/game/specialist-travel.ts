@@ -8,7 +8,7 @@ import { stationCourse } from './drift';
 import { mechanicsVersion } from './rules';
 import { nearestImage, worldDistance, wrappedBounds, wrapPoint } from './geometry';
 import type { Faction, Fleet, Game } from './simulation';
-import { fleetPosition, type Point } from './flight';
+import { flightDeparture, fleetPosition, type Point } from './flight';
 import { restoreControl, type Specialist } from './specialists';
 import { refreshUnitEffects, specialistSpeed, withUnitEffects } from './specialist-effects';
 
@@ -43,8 +43,8 @@ export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   const interception = !!fleet.intercept || !!fleet.interceptionReturn;
   const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], true, interception ? 'interception-return' : 'return');
   fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: nearestImage(game, point, home) };
-  fleet.departed = game.hour; fleet.arrives = afterWork(game, game.hour, Math.max(1e-6, worldDistance(game, point, home) / speed));
-  if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, game.hour));
+  fleet.departed = game.hour; fleet.arrives = afterWork(game, flightDeparture(fleet), Math.max(1e-6, worldDistance(game, point, home) / speed));
+  if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, flightDeparture(fleet)));
   fleet.returning = true; fleet.speed = speed;
   if (interception && mechanicsVersion(game) >= 3) fleet.interceptionReturn = true; else delete fleet.interceptionReturn;
   if (locked) fleet.courseLocked = true;

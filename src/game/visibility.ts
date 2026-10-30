@@ -39,6 +39,15 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
   if (pulse) {
     pulse.kings = pulse.kings.filter(k => k.factionId === faction || game.rocks.some(r => r.specialists?.some(u => u.id === k.kingId) && (r.owner === faction || inRange(coverage, r, game))) || contacts.some(f => f.specialists?.some(u => u.id === k.kingId))).map(k => ({ ...k, kingId: identifyUnit(k.kingId) }));
     pulse.pulses = pulse.pulses.map(p => ({ ...p, id: `pulse-${p.factionId}-${p.firedAt}`, kingId: identifyUnit(p.kingId) }));
+    if (pulse.tactical) {
+      pulse.tactical.charges = pulse.tactical.charges.filter(c => c.factionId === faction).map(c => ({ ...c, specialistId: identifyUnit(c.specialistId) }));
+      pulse.tactical.waves = pulse.tactical.waves.map((w, index) => ({ ...w,
+        id: `tactical-${w.factionId}-${w.firedAt}-${index}`, specialistId: w.factionId === faction ? identifyUnit(w.specialistId) : `tactical-emitter-${w.factionId}-${w.firedAt}-${index}`,
+        hitSites: w.hitSites.filter(id => game.rocks.some(r => r.id === id && (r.owner === faction || inRange(coverage, r, game)))),
+        hitFleets: w.hitFleets.filter(id => visibleIds.has(id)).map(identify),
+      }));
+      pulse.tactical.resistance = Object.fromEntries(Object.entries(pulse.tactical.resistance).filter(([id]) => pulse.kings.some(k => k.kingId === identifyUnit(id))).map(([id, until]) => [identifyUnit(id), until]));
+    }
     pulse.shields = Object.fromEntries(Object.entries(pulse.shields).filter(([id]) => game.rocks.some(r => r.id === id && r.owner === faction)));
     pulse.modifiers = pulse.modifiers.filter(m => m.factionId === faction || m.type === 'pulse_speed' && pulse.pulses.some(p => p.factionId === m.factionId));
   }
@@ -67,6 +76,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);
   projected.fleets = projected.fleets.map(f => ({ ...f, id: alias(f.id), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined ? { target: alias(f.intercept.target) } : {}) } } : {}) }));
+  if (projected.pulse?.tactical) for (const wave of projected.pulse.tactical.waves) wave.hitFleets = wave.hitFleets.map(alias);
   projected.scheduled = projected.scheduled.map(p => ({ ...p, ...(p.fleetId === undefined ? {} : { fleetId: alias(p.fleetId) }), ...(isActionPlan(p) ? { action: mapActionFleets(p.action, alias) } : {}) }));
   if (view.recruitmentUncertain || projected.recruitment?.[faction]?.used !== view.recruitment?.[faction]?.used) {
     projected.recruitmentUncertain = true;

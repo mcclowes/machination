@@ -35,6 +35,7 @@ export function simulationFromObservation(view: GameView, faction: Faction) {
     nextId: identities.length + 1,
     events: view.events.map(e => ({ ...e, audience: [faction] })),
   };
+  if (simulation.pulse?.tactical) for (const wave of simulation.pulse.tactical.waves) wave.hitFleets = wave.hitFleets.map(rank).filter(id => id !== undefined);
   const territoryOwners = new Map(view.rocks.flatMap(r => !r.known && r.owner !== undefined ? [[r.id, r.owner] as const] : []));
   const alias = (id: number) => identities[id - 1] ?? Math.min(0, ...identities) - id;
   return { simulation, unknown, rank, alias, unknownInterceptions, territoryOwners };

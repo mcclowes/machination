@@ -69,6 +69,6 @@ export function replayFleetPosition(scene: ReplayScene, fleet: ReplayFleet): Poi
     if (!from || !to) throw new RangeError('Replay fleet endpoints are missing');
     leg = { from, to: wrappedBounds(scene) ? nearestImage(scene, from, to) : to };
   }
-  const progress = travelProgress(scene, fleet.departed, fleet.arrives, scene.hour);
+  const progress = travelProgress(scene, Math.max(fleet.departed, fleet.enginesDisabledUntil ?? 0), fleet.arrives, scene.hour);
   return wrapPoint(scene, { x: leg.from.x + (leg.to.x - leg.from.x) * progress, y: leg.from.y + (leg.to.y - leg.from.y) * progress });
 }

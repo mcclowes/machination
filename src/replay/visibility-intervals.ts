@@ -1,4 +1,5 @@
 /** Private sensor support over finite binary64 times in a fixed motion span. */
+import { flightDeparture } from '../game/flight';
 import { openingEnabled, openingRate, OPENING_HOURS, workBetween, travelProgress } from '../game/opening-clock';
 import { wrappedBounds, type GeometryWorld, type Point } from '../game/geometry';
 import { flightEndpoints, type FlightWorld } from '../game/flight';
@@ -14,18 +15,18 @@ export const MAX_VISIBILITY_IMAGES = 65_536;
 export class VisibilityCapacityError extends Error { constructor() { super('Replay geometry exceeds the supported sweep capacity.'); } }
 
 export function flightMotionSpans(world: FlightWorld, fleet: Fleet, from: number, through: number): MotionSpan[] {
-  if (![from, through, fleet.departed, fleet.arrives].every(Number.isFinite) || from < 0 || through < from || fleet.arrives <= fleet.departed) throw new RangeError('Provide a finite ordered flight span.');
+  if (![from, through, flightDeparture(fleet), fleet.arrives].every(Number.isFinite) || from < 0 || through < from || fleet.arrives <= flightDeparture(fleet)) throw new RangeError('Provide a finite ordered flight span.');
   const route = flightEndpoints(world, fleet);
   if (![route.from.x, route.from.y, route.to.x, route.to.y].every(Number.isFinite)) throw new RangeError('Provide finite flight endpoints.');
-  const boundaries = [...new Set([from, ...[fleet.departed, fleet.arrives, ...(openingEnabled(world) ? [OPENING_HOURS] : [])].filter(hour => hour > from && hour < through), through])].sort((a, b) => a - b);
+  const boundaries = [...new Set([from, ...[flightDeparture(fleet), fleet.arrives, ...(openingEnabled(world) ? [OPENING_HOURS] : [])].filter(hour => hour > from && hour < through), through])].sort((a, b) => a - b);
   if (boundaries.length === 1) boundaries.push(through);
   return boundaries.slice(0, -1).map((hour, index) => {
-    const progress = travelProgress(world, fleet.departed, fleet.arrives, hour);
-    const moving = hour >= fleet.departed && hour < fleet.arrives;
-    const duration = workBetween(world, fleet.departed, fleet.arrives) / openingRate(world, hour);
+    const progress = travelProgress(world, flightDeparture(fleet), fleet.arrives, hour);
+    const moving = hour >= flightDeparture(fleet) && hour < fleet.arrives;
+    const duration = workBetween(world, flightDeparture(fleet), fleet.arrives) / openingRate(world, hour);
     return { from: hour, through: boundaries[index + 1]!, motion: {
       position: { x: route.from.x + (route.to.x - route.from.x) * progress, y: route.from.y + (route.to.y - route.from.y) * progress },
-      source: { from: { ...route.from }, to: { ...route.to }, departed: fleet.departed, arrives: fleet.arrives, mechanicsVersion: world.rules?.mechanicsVersion },
+      source: { from: { ...route.from }, to: { ...route.to }, departed: flightDeparture(fleet), arrives: fleet.arrives, mechanicsVersion: world.rules?.mechanicsVersion },
       velocity: moving ? { x: (route.to.x - route.from.x) / duration, y: (route.to.y - route.from.y) / duration } : { x: 0, y: 0 },
     } };
   });

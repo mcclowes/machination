@@ -5,6 +5,7 @@
  *   - ./pulse-simulation.ts - chronological propagation and shield damage
  * ---
  */
+import { cloneTacticalPulse, commandTacticalPulse, reconcileTacticalCharges, type TacticalPulseSystem, type TacticalPulseCommand } from './tactical-pulse';
 import { reconcileFunding } from './funding';
 import type { Faction, Game } from './simulation';
 import type { Point } from './geometry';
@@ -25,9 +26,9 @@ export type PulseSpecialistEffect =
   | { type: 'charge_rate' | 'pulse_speed' | 'shield_drain'; multiplier: number; expiresAt: number }
   | { type: 'interrupt_charge' | 'terminate_pulse' };
 export type PulseModifier = Extract<PulseSpecialistEffect, { multiplier: number }> & { factionId: Faction };
-export type PulseSystem = { kings: KingPulse[]; pulses: ActivePulse[]; shields: Record<string, PlanetaryShield>; modifiers: PulseModifier[]; receipts: Record<string, string> };
+export type PulseSystem = { kings: KingPulse[]; pulses: ActivePulse[]; shields: Record<string, PlanetaryShield>; modifiers: PulseModifier[]; receipts: Record<string, string>; tactical?: TacticalPulseSystem };
 export type PulseAction = 'START_CHARGE' | 'FIRE_PULSE' | 'CANCEL_CHARGE' | 'TERMINATE_PULSE';
-export type PulseCommand = { id: string; action: PulseAction };
+export type PulseCommand = { id: string; action: PulseAction } | TacticalPulseCommand;
 export type PulseEffectCommand = { id: string; target: Faction; effect: PulseSpecialistEffect };
 export const pulseEnabled = (game: { rules?: { mode: string } }): boolean => game.rules?.mode === 'pulse';
 export const pulseConfig = (game: { rules?: { pulse?: PulseConfig } }): PulseConfig => game.rules?.pulse ?? DEFAULT_PULSE_CONFIG;
@@ -39,10 +40,10 @@ export function validatePulseConfig(value: unknown): PulseConfig {
   return { ...v };
 }
 export function clonePulse(system: PulseSystem): PulseSystem {
-  return { kings: system.kings.map(k => ({ ...k, position: { ...k.position } })), pulses: system.pulses.map(p => ({ ...p, origin: { ...p.origin } })), shields: Object.fromEntries(Object.entries(system.shields).map(([id, s]) => [id, { ...s }])), modifiers: system.modifiers.map(m => ({ ...m })), receipts: { ...system.receipts } };
+  return { ...(system.tactical ? { tactical: cloneTacticalPulse(system.tactical) } : {}), kings: system.kings.map(k => ({ ...k, position: { ...k.position } })), pulses: system.pulses.map(p => ({ ...p, origin: { ...p.origin } })), shields: Object.fromEntries(Object.entries(system.shields).map(([id, s]) => [id, { ...s }])), modifiers: system.modifiers.map(m => ({ ...m })), receipts: { ...system.receipts } };
 }
 export function createPulseSystem(game: Game): PulseSystem {
-  return { kings: game.rocks.flatMap(r => (r.specialists ?? []).filter(u => u.kind === 'queen' && !u.captive).map(u => ({ kingId: u.id, factionId: u.owner, state: 'idle' as const, position: { x: r.x, y: r.y }, chargeProgress: 0, resourceCommitted: 0 }))), pulses: [], shields: Object.fromEntries(game.rocks.filter(r => (r.shieldMax ?? 0) > 0).map(r => [r.id, { energy: pulseConfig(game).shieldMaxEnergy, exposed: 0 }])), modifiers: [], receipts: {} };
+  return { ...(game.rules?.tacticalPulse ? { tactical: { charges: [], waves: [], resistance: {} } } : {}), kings: game.rocks.flatMap(r => (r.specialists ?? []).filter(u => u.kind === 'queen' && !u.captive).map(u => ({ kingId: u.id, factionId: u.owner, state: 'idle' as const, position: { x: r.x, y: r.y }, chargeProgress: 0, resourceCommitted: 0 }))), pulses: [], shields: Object.fromEntries(game.rocks.filter(r => (r.shieldMax ?? 0) > 0).map(r => [r.id, { energy: pulseConfig(game).shieldMaxEnergy, exposed: 0 }])), modifiers: [], receipts: {} };
 }
 export function pulseRate(game: { hour: number; pulse?: Pick<PulseSystem, 'modifiers'> }, factionId: Faction, type: PulseModifier['type']): number {
   return (game.pulse?.modifiers ?? []).filter(m => m.factionId === factionId && m.type === type && m.expiresAt > game.hour).reduce((rate, m) => rate * m.multiplier, 1);
@@ -75,6 +76,7 @@ export function withPulseMovement(game: Game): Game {
   if (!game.pulse) return game;
   const result = { ...game, pulse: clonePulse(game.pulse), events: [...game.events], eliminated: [...game.eliminated] };
   reconcilePulseKings(result);
+  reconcileTacticalCharges(result);
   return result;
 }
 export function completePulseCharges(game: Game): void {
@@ -84,6 +86,7 @@ export function completePulseCharges(game: Game): void {
   }
 }
 export function commandPulse(input: Game, owner: Faction, command: PulseCommand): Game {
+  if (command?.action === 'CHARGE_DISRUPTOR' || command?.action === 'CANCEL_DISRUPTOR') return commandTacticalPulse(input, owner, command);
   if (!input.pulse || !pulseEnabled(input)) throw new Error("King's Pulse is unavailable in this operation.");
   if (!command || !/^[a-zA-Z0-9-]{16,80}$/.test(command.id)) throw new Error('Provide a unique pulse command ID.');
   const key = `${owner}:${command.id}`, payload = command.action;

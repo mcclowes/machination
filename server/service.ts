@@ -6,6 +6,8 @@
  *   - ./notification-preferences.ts - notification binding and consent updates
  * ---
  */
+import { isTacticalPulseCommand } from '../src/game/tactical-pulse';
+import type { PulseCommand } from '../src/game/pulse';
 import { createPulseSystem, validatePulseConfig, type PulseConfig } from '../src/game/pulse';
 import type { PulseOrder } from '../src/online/protocol';
 import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
@@ -505,13 +507,20 @@ export class GameService {
     });
   }
   pulse(id: string, token: Credential, command: PulseOrder): Promise<Snapshot> {
+    command = { ...command };
     return this.transaction(db => {
       const r = this.room(db, id), f = this.seat(r, token); this.settle(db, r);
-      requireThat(command && Object.keys(command).every(k => ['requestId', 'revision', 'action'].includes(k)) && ['START_CHARGE', 'CANCEL_CHARGE', 'FIRE_PULSE', 'TERMINATE_PULSE'].includes(command.action), 400, 'pulse.validation.command', 'Choose a pulse command.');
-      if (this.receipt(r, f, command.requestId, JSON.stringify(['pulse', command.action, command.revision]))) return this.view(r, f);
+      const { requestId, revision, ...request } = command;
+      const engineCommand = { ...request, id: requestId } as PulseCommand;
+      const tactical = !Object.hasOwn(request, 'id') && isTacticalPulseCommand(engineCommand);
+      requireThat(tactical || Object.keys(request).length === 1 && ['START_CHARGE', 'CANCEL_CHARGE', 'FIRE_PULSE', 'TERMINATE_PULSE'].includes(command.action), 400, 'pulse.validation.command', 'Choose a pulse command.');
+      if (this.receipt(r, f, requestId, JSON.stringify(isTacticalPulseCommand(engineCommand) ? ['pulse', engineCommand.action, revision, engineCommand.specialistId, engineCommand.action === 'CHARGE_DISRUPTOR' ? engineCommand.resourceCost : null] : ['pulse', command.action, revision]))) return this.view(r, f);
       requireThat(r.startedAt !== null, 409, 'game.conflict.lobby', 'The operation has not started.');
       requireThat(Number.isSafeInteger(command.revision) && command.revision === this.revision(r, f), 409, 'pulse.conflict.stale', 'Your orders changed. Refresh before commanding your King.');
-      try { this.act(r, { type: 'pulse', owner: f, command: { id: command.requestId, action: command.action } }); }
+      try {
+        if (isTacticalPulseCommand(engineCommand)) engineCommand.specialistId = this.futureUnit(r, f, engineCommand.specialistId, true);
+        this.act(r, { type: 'pulse', owner: f, command: engineCommand });
+      }
       catch (e) { throw new Failure(409, 'pulse.conflict.invalid', (e as Error).message); }
       this.reviseOrders(r, [f]);
       return this.view(r, f);
