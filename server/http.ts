@@ -11,7 +11,7 @@ import { Failure } from './failure';
 import type { NotificationVersion } from './notification-preferences';
 import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/contracts/protocol';
-import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/contracts/protocol';
+import type { CreateGroup, ChannelTransmission, ResignOrder, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, Transmission } from '../src/contracts/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new Failure(415, 'request.validation.content_type', 'Send JSON content.');
   const chunks: Buffer[] = []; let size = 0;
@@ -89,8 +89,8 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'orders': return service.order(id, token, input as Order);
         case 'gifts': return service.gift(id, token, input as GiftOrder);
         case 'intercepts': return service.intercept(id, token, input as InterceptOrder);
-        case 'schedules': return service.schedule(id, token, input as ScheduleOrder);
-        case 'edit-schedule': return service.editSchedule(id, token, input as EditSchedule);
+        case 'schedules': return service.schedule(id, token, input);
+        case 'edit-schedule': return service.editSchedule(id, token, input);
         case 'cancel-schedule': return service.cancelSchedule(id, token, input as CancelSchedule);
         case 'modules': return service.install(id, token, input as ModuleOrder);
         case 'funding': return service.funding(id, token, input as FundingOrder);

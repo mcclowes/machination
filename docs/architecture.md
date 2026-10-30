@@ -18,6 +18,8 @@ Transfer planning and course selection share an exclusive state in `planning-mod
 
 The server service owns authorization order, settlement, and transaction boundaries. `seat-credentials.ts` owns credential mechanics, `command-receipts.ts` owns idempotency, and `diplomacy.ts` owns fixed membership and message retention. These policies accept transaction-local data. They don't start transactions or call the service back. Notification enqueue and the corresponding command still commit together.
 
+Scheduled-order creation and editing accept `unknown` at the service boundary and pass it through the existing canonical decoders. Keep this pattern when migrating other command entry points: a type assertion isn't validation, and moving validation across authorization or settlement can change error precedence.
+
 ## Checks and formatting
 
 - `npm run check:quality` runs hooks/boundary lint, formatting, architecture checks, and TypeScript.

@@ -82,7 +82,6 @@ import type {
   CreateGroup,
   ChannelTransmission,
   ResignOrder,
-  EditSchedule,
   SpecialistOrder,
   HaulerOrder,
   SiteOrder,
@@ -93,7 +92,6 @@ import type {
   ModuleOrder,
   Order,
   GiftOrder,
-  ScheduleOrder,
   Snapshot,
   Transmission,
 } from '../src/contracts/protocol';
@@ -1419,7 +1417,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  async schedule(id: string, token: Credential, input: ScheduleOrder): Promise<Snapshot> {
+  async schedule(id: string, token: Credential, input: unknown): Promise<Snapshot> {
     const command = canonicalSchedule(input);
     return this.transaction((db) => {
       const r = this.room(db, id);
@@ -1494,7 +1492,7 @@ export class GameService {
       return this.view(r, f);
     });
   }
-  async editSchedule(id: string, token: Credential, input: EditSchedule): Promise<Snapshot> {
+  async editSchedule(id: string, token: Credential, input: unknown): Promise<Snapshot> {
     const command = canonicalScheduleEdit(input);
     return this.transaction((db) => {
       const r = this.room(db, id);
