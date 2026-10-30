@@ -3,7 +3,7 @@
  * purpose: Exact finite wave contacts, King resistance, engine outages, mining outages, and sensor jamming.
  * related:
  *   - ./tactical-pulse.ts - state and balance
- *   - ./pulse-simulation.ts - shared expanding-circle solver
+ *   - ./pulse-contact.ts - shared asset motion and contact geometry
  * ---
  */
 import type { Game, Fleet, Rock } from './simulation';
@@ -11,7 +11,7 @@ import { worldDistance, nearestImage } from './geometry';
 import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
 import { afterWork, workBetween } from './opening-clock';
 import { endPulse } from './pulse';
-import { expandingIntersection } from './pulse-simulation';
+import { expandingIntersection } from './pulse-contact';
 import { completeTacticalCharges, reconcileTacticalCharges, tacticalConfig, tacticalStrength } from './tactical-pulse';
 import { stationCourse } from './drift';
 import { observers } from './sensors';

@@ -3,33 +3,26 @@
  * purpose: Exact pulse intersections, continuous shield energy, persistent hazards, and simultaneous King elimination.
  * related:
  *   - ./pulse.ts - state and balancing
+ *   - ./pulse-contact.ts - asset motion and contact geometry
  * ---
  */
 import { nextTacticalPulseEvent, advanceTacticalPulseTime, settleTacticalPulses } from './tactical-pulse-simulation';
 import { reconcileFunding } from './funding';
-import type { Fleet, Game, Rock } from './simulation';
-import { mapOffsets, worldDistance, type Point } from './geometry';
-import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
-import { sitePosition } from './drift';
-import { openingRate, OPENING_HOURS, workBetween } from './opening-clock';
+import type { Game, Rock } from './simulation';
+import { worldDistance, type Point } from './geometry';
+import { fleetPosition } from './flight';
+import { OPENING_HOURS } from './opening-clock';
+import { pulseAssetMotion, expandingIntersection } from './pulse-contact';
 import { playersIn } from './players';
 import { observers } from './sensors';
 import { pulseConfig, pulseRate, reconcilePulseKings, type ActivePulse } from './pulse';
+export { expandingIntersection } from './pulse-contact';
 
 const EPS = 1e-9;
-type Motion = { point: Point; velocity: Point };
-function motion(game: Game, asset: Rock | Fleet): Motion {
-  if (typeof asset.id === 'string') { const rock = asset as Rock; return { point: sitePosition(game, rock, game.hour), velocity: rock.drift?.velocity ?? { x: 0, y: 0 } }; }
-  const fleet = asset as Fleet;
-  if (fleet.preparing) return motion(game, game.rocks.find(r => r.id === fleet.from)!);
-  if ((fleet.enginesDisabledUntil ?? 0) > game.hour) return { point: fleetPosition(game, fleet), velocity: { x: 0, y: 0 } };
-  const leg = flightEndpoints(game, fleet), duration = workBetween(game, flightDeparture(fleet), fleet.arrives), rate = openingRate(game, game.hour);
-  return { point: fleetPosition(game, fleet), velocity: { x: (leg.to.x - leg.from.x) / duration * rate, y: (leg.to.y - leg.from.y) / duration * rate } };
-}
 const hostile = (pulse: ActivePulse, owner: Rock['owner']) => !!owner && pulse.factionId !== owner;
 function covers(game: Game, pulse: ActivePulse, point: Point): boolean { return worldDistance(game, pulse.origin, point) <= pulse.radius + EPS; }
 function exposures(game: Game, rock: Rock): number {
-  const moving = motion(game, rock), dt = 1e-7;
+  const moving = pulseAssetMotion(game, rock), dt = 1e-7;
   return game.pulse!.pulses.filter(p => {
     if (!hostile(p, rock.owner)) return false;
     const distance = worldDistance(game, p.origin, moving.point);
@@ -37,21 +30,6 @@ function exposures(game: Game, rock: Rock): number {
     // At an exact boundary, the following interval determines energy drain.
     return worldDistance(game, p.origin, { x: moving.point.x + moving.velocity.x * dt, y: moving.point.y + moving.velocity.y * dt }) <= p.radius + pulseConfig(game).propagationSpeed * pulseRate(game, p.factionId, 'pulse_speed') * dt + EPS;
   }).length;
-}
-/** Earliest entry or exit of a linearly moving target and an expanding circle, over toroidal images. */
-export function expandingIntersection(game: Game, origin: Point, radius: number, speed: number, asset: Rock | Fleet, limit: number): number {
-  const { point, velocity: v } = motion(game, asset);
-  let next = Infinity;
-  for (const offset of mapOffsets(game)) {
-    const x = point.x + offset.x - origin.x, y = point.y + offset.y - origin.y;
-    const a = v.x * v.x + v.y * v.y - speed * speed, b = 2 * (x * v.x + y * v.y - radius * speed), c = x * x + y * y - radius * radius;
-    const discriminant = b * b - 4 * a * c;
-    if (discriminant < 0) continue;
-    const q = -.5 * (b + (b < 0 ? -1 : 1) * Math.sqrt(discriminant));
-    const roots = Math.abs(a) < 1e-12 ? b ? [-c / b] : [] : [q / a, q ? c / q : 0];
-    for (const root of roots) if (root > EPS && game.hour + root <= limit + EPS) next = Math.min(next, game.hour + root);
-  }
-  return next;
 }
 export function nextPulseEvent(game: Game, limit: number): number {
   if (!game.pulse) return Infinity;
