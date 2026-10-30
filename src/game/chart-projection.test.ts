@@ -1,10 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera } from './chart-projection';
+import { chartFit, chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera } from './chart-projection';
 import { constrainCamera, focusCamera, zoomCamera } from './chart-camera';
 import { mapOffsets } from './geometry';
 
 const world = { rules: { map: { width: 200, height: 80, topology: 'torus' as const } } };
+test('retained fit preserves scale and viewed center through panel reflow on planar and torus charts', () => {
+  for (const chart of [{}, world]) {
+    const camera = { scale: 2, x: 23, y: -31 };
+    const initial = { width: 1000, height: 350 };
+    const fitScale = chartFit(chart, initial);
+    const before = chartTransform(chart, camera, initial);
+    const center = { x: (initial.width / 2 - before.x) / before.scale, y: (initial.height / 2 - before.y) / before.scale };
+    for (const size of [{ width: 1000, height: 332 }, { width: 800, height: 500 }]) {
+      const viewport = { ...size, fitScale };
+      assert.equal(chartTransform(chart, camera, viewport).scale, before.scale);
+      assert.deepEqual(chartPosition(chart, camera, center, viewport), { x: 50, y: 50 });
+      if (!('rules' in chart)) assert.equal(overlayLift(chart, viewport, 120), overlayLift(chart, { ...initial, fitScale }, 120));
+    }
+  }
+});
 test('a short seam route and its translated contact agree on the visible copy after repeated pans', () => {
   const route = chartRoute(world, { x: 196, y: 78 }, { x: 4, y: 2 });
   assert.deepEqual(route, { from: { x: 196, y: 78 }, to: { x: 204, y: 82 } });

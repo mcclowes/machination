@@ -47,6 +47,26 @@ for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifec
     }
     await flush(() => { renderer = create(React.createElement(Chart), { createNodeMock: (element: any) => element.props.testID === 'belt-map' ? host : null }); });
     const button = (label: string) => renderer.root.findAll((node: any) => node.type === 'Pressable' && node.props.accessibilityLabel === label)[0];
+    const layout = async (height: number) => {
+      const chart = renderer.root.findAll((node: any) => node.type === 'View' && node.props.testID === 'belt-map')[0];
+      await flush(() => chart.props.onLayout({ nativeEvent: { layout: { width: 800, height } } }));
+    };
+    const shownScale = () => {
+      const group = renderer.root.findAll((node: any) => node.type === 'G' && node.props.transform?.startsWith('translate('))[0];
+      // A centered camera's SVG translation reveals the real pixel scale.
+      return (800 / 2 - Number(group.props.transform.match(/translate\(([^,]+)/)[1])) / 50;
+    };
+    await layout(0);
+    await layout(480);
+    const beforeTimeChange = shownScale();
+    assert.equal(beforeTimeChange, 9.6, 'the first measured layout sets the opening fit');
+    for (const [hour, height] of [[11, 462], [12, 480], [13, 462]] as const) {
+      game.hour = hour;
+      await flush(() => renderer.update(React.createElement(Chart)));
+      await layout(height);
+      assert.equal(shownScale(), beforeTimeChange, 'time-dependent panel height must not change rendered chart zoom');
+      assert.deepEqual(camera, { scale: 2, x: 0, y: 0 });
+    }
     assert.equal(!!button('Zoom in'), platform === 'web', 'web controls are discoverable; native controls stay compact');
     if (platform === 'ios') {
       assert.equal(listeners.size, 0);
@@ -103,6 +123,12 @@ for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifec
       assert.ok(camera.y < -(camera.scale - 1) * 50, 'button zoom preserves the same allowance');
       assert.equal(registrations, 1, 'rerenders do not accumulate wheel listeners');
     }
+    await layout(600);
+    await flush(() => button('Fit chart').props.onPress());
+    assert.equal(shownScale(), 6, 'Fit explicitly uses the current viewport');
+    await layout(360);
+    await flush(() => button('Focus your territory').props.onPress());
+    assert.equal(shownScale(), 3.6, 'Home explicitly uses the current viewport');
     await flush(() => renderer.unmount());
     renderer = undefined;
     assert.equal(listeners.size, 0);

@@ -1,23 +1,27 @@
 import { nearestImage, wrappedBounds, type GeometryWorld, type Point } from './geometry';
 import { constrainCamera, type CameraPadding, type MapCamera } from './chart-camera';
 
-type Viewport = { width: number; height: number };
+export type ChartViewport = { width: number; height: number; fitScale?: number };
+
+export function chartFit(world: GeometryWorld, viewport: ChartViewport): number {
+  return Math.min(Math.max(1, viewport.width) / (world.rules?.map.width ?? 100), Math.max(1, viewport.height) / (world.rules?.map.height ?? 100));
+}
 
 /** One scale in screen pixels per world unit, shared by geometry and touch targets. */
-export function chartTransform(world: GeometryWorld, camera: MapCamera, viewport: Viewport) {
+export function chartTransform(world: GeometryWorld, camera: MapCamera, viewport: ChartViewport) {
   const width = world.rules?.map.width ?? 100, height = world.rules?.map.height ?? 100;
-  const fit = Math.min(Math.max(1, viewport.width) / width, Math.max(1, viewport.height) / height);
+  const fit = viewport.fitScale ?? chartFit(world, viewport);
   const scale = fit * camera.scale;
   return { scale, x: viewport.width / 2 - width * scale / 2 + camera.x / 100 * width * fit, y: viewport.height / 2 - height * scale / 2 + camera.y / 100 * height * fit };
 }
 
-export function chartPosition(world: GeometryWorld, camera: MapCamera, point: Point, viewport?: Viewport): Point {
+export function chartPosition(world: GeometryWorld, camera: MapCamera, point: Point, viewport?: ChartViewport): Point {
   const size = viewport ?? { width: world.rules?.map.width ?? 100, height: world.rules?.map.height ?? 100 };
   const transform = chartTransform(world, camera, size);
   return { x: (transform.x + point.x * transform.scale) / Math.max(1, size.width) * 100, y: (transform.y + point.y * transform.scale) / Math.max(1, size.height) * 100 };
 }
 
-export function chartOffsets(world: GeometryWorld, camera: MapCamera, viewport: Viewport): Point[] {
+export function chartOffsets(world: GeometryWorld, camera: MapCamera, viewport: ChartViewport): Point[] {
   const map = wrappedBounds(world);
   if (!map) return [{ x: 0, y: 0 }];
   const { scale } = chartTransform(world, camera, viewport);
@@ -33,15 +37,15 @@ export function chartRoute(world: GeometryWorld, from: Point, to: Point): { from
 const REVEAL_MARGIN = 22;
 
 /** Camera lift that lets an untiled chart's lower edge clear a bottom overlay of `coveredBottom` pixels. */
-export function overlayLift(world: GeometryWorld, viewport: Viewport, coveredBottom: number): number {
+export function overlayLift(world: GeometryWorld, viewport: ChartViewport, coveredBottom: number): number {
   if (wrappedBounds(world) || coveredBottom <= 0) return 0;
-  const width = world.rules?.map.width ?? 100, height = world.rules?.map.height ?? 100;
-  const fit = Math.min(Math.max(1, viewport.width) / width, Math.max(1, viewport.height) / height);
+  const height = world.rules?.map.height ?? 100;
+  const fit = viewport.fitScale ?? chartFit(world, viewport);
   return (coveredBottom + REVEAL_MARGIN) / (height * fit) * 100;
 }
 
 /** Pans vertically so a point sits mid-way through the chart band left uncovered by a bottom overlay, unless it is already clear. */
-export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: Viewport, coveredBottom: number): MapCamera {
+export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: ChartViewport, coveredBottom: number): MapCamera {
   const clear = Math.max(0, viewport.height - coveredBottom);
   const target = Math.max(REVEAL_MARGIN, clear / 2);
   const transform = chartTransform(world, camera, viewport);
@@ -53,7 +57,7 @@ export function revealAboveCamera(world: GeometryWorld, camera: MapCamera, point
   return constrainCamera(world, { ...camera, y: camera.y - (nearest - target) / (height * fit) * 100 }, overlayLift(world, viewport, coveredBottom));
 }
 
-export function siteCameraPadding(world: GeometryWorld, viewport: Viewport, coveredBottom: number, margin: number): CameraPadding {
+export function siteCameraPadding(world: GeometryWorld, viewport: ChartViewport, coveredBottom: number, margin: number): CameraPadding {
   if (wrappedBounds(world)) return 0;
   const fit = chartTransform(world, { scale: 1, x: 0, y: 0 }, viewport).scale;
   const width = (world.rules?.map.width ?? 100) * fit, height = (world.rules?.map.height ?? 100) * fit;
@@ -61,7 +65,7 @@ export function siteCameraPadding(world: GeometryWorld, viewport: Viewport, cove
 }
 
 /** Reveal once when inspecting or resizing, without centering an already visible site. */
-export function revealSiteCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: Viewport, coveredBottom: number, margin: number): MapCamera {
+export function revealSiteCamera(world: GeometryWorld, camera: MapCamera, point: Point, viewport: ChartViewport, coveredBottom: number, margin: number): MapCamera {
   const clear = Math.max(0, viewport.height - coveredBottom);
   const target = { x: viewport.width / 2, y: clear / 2 };
   const inset = { x: Math.min(margin, target.x), y: Math.min(margin, target.y) };

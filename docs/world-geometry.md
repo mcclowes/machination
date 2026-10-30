@@ -10,6 +10,8 @@ Flight endpoints describe an unwrapped straight leg. Fleet positions are reduced
 
 The chart repeats adjacent images of sites, fleets, routes, and coverage. Selecting a translated image selects the same asset. Panning is periodic at Fit and zoomed scales; zoom preserves the viewed center. Home finds the smallest circular interval containing owned observed sites on each axis. Fit resets to one full tile. Multiplayer's parent owns its camera across polling and historical frame loading.
 
+The chart retains its measured pixels per world unit when timeline messages or panels change the available space. Time changes therefore preserve zoom and the viewed world center. Fit and Home explicitly recalculate framing for the current viewport; a new operation, player, or map dimensions also resets that fit.
+
 ## Verification and limits
 
 ### Ordinary route eligibility

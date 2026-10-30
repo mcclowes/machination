@@ -26,7 +26,7 @@ import type { Faction, Fleet, Rock } from '../game/simulation';
 import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
-import { chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera, siteCameraPadding } from '../game/chart-projection';
+import { chartFit, chartOffsets, chartPosition, chartRoute, chartTransform, overlayLift, revealAboveCamera, revealSiteCamera, siteCameraPadding, type ChartViewport } from '../game/chart-projection';
 import { layoutSiteNames, MAP_DRONE_COUNT_OFFSET, MAP_DRONE_COUNT_SIZE } from './map-labels';
 import { mapShields } from './map-shields';
 
@@ -49,7 +49,11 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
   useEffect(() => { if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you')); }, [game.epoch, player]);
-  const [size, setSize] = useState({ width: 400, height: 480 });
+  const [size, setSize] = useState<ChartViewport>({ width: 400, height: 480 });
+  const refit = () => setSize(size => ({ ...size, fitScale: chartFit(game, size) }));
+  useEffect(() => {
+    setSize(size => size.fitScale === undefined ? size : { ...size, fitScale: chartFit(game, size) });
+  }, [game.epoch, player, game.rules?.map.width, game.rules?.map.height]);
   const [contact, setContact] = useState<number>();
   const [siteRequest, setSiteRequest] = useState(0);
   function inspectSite(rock: T) { setContact(undefined); setSiteRequest(request => request + 1); onSelect(rock); }
@@ -217,7 +221,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     if (next !== state.camera) state.onChange(next);
   }, [game.epoch, selected, siteRequest, inspecting, destination, transferRoute, !!drag, fleet?.id, size.width, size.height, coveredBottom]);
   const measure = () => map.current?.measureInWindow((x, y) => { origin.current = { x, y }; });
-  return <View ref={map} testID="belt-map" style={[styles.chart, fill && { flex: 1, height: '100%' }]} onTouchStart={measure} onLayout={event => { setSize(event.nativeEvent.layout); measure(); }} {...pan.panHandlers}>
+  return <View ref={map} testID="belt-map" style={[styles.chart, fill && { flex: 1, height: '100%' }]} onTouchStart={measure} onLayout={event => {
+    const layout = event.nativeEvent.layout;
+    if (layout.width <= 0 || layout.height <= 0) return;
+    // Timeline messages can resize the chart without requesting a zoom.
+    setSize(size => ({ ...layout, fitScale: size.fitScale ?? chartFit(game, layout) })); measure();
+  }} {...pan.panHandlers}>
     <SpaceBackground />
     <Svg width="100%" height="100%" viewBox={`0 0 ${Math.max(1, size.width)} ${Math.max(1, size.height)}`} pointerEvents="none">
       <G transform={`translate(${projection.x}, ${projection.y})`}>
@@ -267,7 +276,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     </Pressable>)}
     {sites.map(({ key, rock, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists at ${rock.name}: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => inspectSite(rock)} />)}
     {haulers.map(({ key, fleet: f, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists aboard ${identity(f.owner).name} hauler: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} />)}
-    <View testID="map-controls" style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, padding))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => move(1, 0, 0)} /></>}</View>
+    <View testID="map-controls" style={styles.zoom}><MapControl label={mapTools ? "Close map controls" : "Map controls"} text={mapTools ? "×" : "⌖"} onPress={() => setMapTools(!mapTools)} />{mapTools && <><MapControl label="Zoom out" text="−" disabled={camera.scale <= 1} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, padding))} /><MapControl label="Zoom in" text="+" disabled={camera.scale >= 4} onPress={() => current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding))} /><MapControl label="Focus your territory" text="⌂" onPress={() => { refit(); const home = fitPlayerCamera(game, player ?? 'you'); move(home.scale, home.x, home.y); }} /><MapControl label="Fit chart" text="⊡" onPress={() => { refit(); move(1, 0, 0); }} /></>}</View>
     {fleet && <ScrollView testID="hauler-inspector" style={[styles.inspector, { maxHeight: Math.max(44, size.height - inspectorChartSpace) }]} contentContainerStyle={styles.inspectorContent} onLayout={event => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}>
       <View style={styles.contactHeading}><PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} /><MapControl label="Close hauler details" text="×" onPress={() => setContact(undefined)} /></View>
       {combatObservation && <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />}
