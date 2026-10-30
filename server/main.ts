@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { GameService } from './service';
 import { openPostgres } from './postgres-client';
 import { createApi } from './http';
+import { clientIpMode } from './client-address';
 import { clerkAuthentication } from './auth';
 import { expoPushProvider, pushConfiguration } from './expo-push';
 import { NotificationWorker } from './push-worker';
@@ -18,12 +19,13 @@ async function main() {
   const port = Number(portValue);
   if (!/^\d+$/.test(portValue) || !Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be an integer from 0 to 65535.');
   const push = pushConfiguration(process.env);
+  const clientIp = clientIpMode(process.env.MACHINATION_CLIENT_IP);
   const dataFile = resolve(process.env.MACHINATION_DATA ?? '.data/games.json');
   const databaseUrl = process.env.DATABASE_URL?.trim();
   const service = await GameService.open(databaseUrl ? await openPostgres(databaseUrl, dataFile) : dataFile, Date.now, undefined, { notifications: push.enabled, ...(process.env.MACHINATION_PULSE_CONFIG ? { pulse: validatePulseConfig({ ...DEFAULT_PULSE_CONFIG, ...JSON.parse(process.env.MACHINATION_PULSE_CONFIG) }) } : {}) });
   const worker = push.enabled ? new NotificationWorker(service.notificationQueue(), expoPushProvider({ accessToken: push.accessToken })) : undefined;
   const origins = process.env.MACHINATION_ORIGINS?.split(',').map((s: string) => s.trim()).filter(Boolean) ?? ['http://localhost:8081', 'http://localhost:8082'];
-  const server = createApi(service, origins, clerkAuthentication({ CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY, CLERK_JWT_KEY: process.env.CLERK_JWT_KEY, CLERK_ISSUER: process.env.CLERK_ISSUER }, origins));
+  const server = createApi(service, origins, clerkAuthentication({ CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY, CLERK_JWT_KEY: process.env.CLERK_JWT_KEY, CLERK_ISSUER: process.env.CLERK_ISSUER }, origins), { clientIp });
   server.once('error', error => { console.error('Game service listener failed:', error.message); process.exitCode = 1; });
   let closing = false;
   function shutdown() {

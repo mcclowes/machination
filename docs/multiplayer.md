@@ -63,8 +63,11 @@ Run **one process per data file**. This is a small hosted-playtest backend, not 
 | `MACHINATION_HOST` | `127.0.0.1` | Bind address |
 | `PORT` | `8787` | Listening port |
 | `MACHINATION_ORIGINS` | `http://localhost:8081,http://localhost:8082` | Exact allowed browser origins, comma separated |
+| `MACHINATION_CLIENT_IP` | `direct` | Rate-limit identity: socket peer (`direct`) or trusted Railway HTTP-edge `X-Real-IP` (`railway`) |
 
-Public hosting needs HTTPS termination, a persistent volume, backups, and an explicit allowed browser origin. The adapter limits JSON requests to 8 KB and 120 requests per minute per direct peer address. When proxied, the current limiter groups requests by the proxy's address. Operation capacity is 1,000 rooms, 10,000 accepted command IDs per room, and 5,000 private messages per room; reaching a limit returns an explicit failure rather than evicting retry history.
+Public hosting needs HTTPS termination, a persistent volume, backups, and an explicit allowed browser origin. The adapter limits JSON requests to 8 KB and gameplay requests to 120 per minute per client address. Direct-peer mode ignores forwarding headers. Railway mode uses one valid `X-Real-IP` address, canonicalizes equivalent IPv6 and IPv4-mapped addresses, and falls back to the direct peer for absent, duplicate, or malformed headers. `X-Forwarded-For` and `Forwarded` never select a bucket. Only enable Railway mode when every route to the listener is trusted HTTP ingress; private-network and TCP callers can supply their own headers. Don't expose a direct untrusted route to that listener.
+
+`GET /health` doesn't consume or depend on the gameplay budget. It retains the browser-origin gate and reports listener liveness, not database, push-provider, or capacity readiness. A gameplay `429` includes the remaining window as `Retry-After` seconds, exposed alongside the correlation ID to allowed browser origins. Request limits are bounded in memory and reset on restart. Operation capacity is 1,000 rooms, 10,000 accepted command IDs per room, and 5,000 private messages per room; reaching a limit returns an explicit failure rather than evicting retry history.
 
 Remaining release work includes production account sign-in, general session management, push notification delivery, moderation, native device QA, and scaling beyond one process.
 

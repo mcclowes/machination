@@ -8,6 +8,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { GameService, type AccountCredential } from './service';
 import { Failure } from './failure';
+import { clientAddress, type ClientIpMode } from './client-address';
 import type { NotificationVersion } from './notification-preferences';
 import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/contracts/protocol';
@@ -114,7 +115,7 @@ function notificationVersion(url: URL): NotificationVersion {
   if (values.length !== 1 || values[0] !== '2') throw new Failure(400, 'notification.validation.version', 'Only version=2 may be negotiated.');
   return 2;
 }
-export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication) {
+export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication, options: { clientIp?: ClientIpMode; clock?: () => number } = {}) {
   const limits = new Map<string, { count: number; resets: number }>();
   return createServer({ requestTimeout: 10000, headersTimeout: 10000, maxHeaderSize: 8192 }, async (req, res) => {
     const correlationId = randomUUID();
@@ -130,20 +131,21 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Expose-Headers', 'Retry-After, X-Correlation-ID');
       }
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-      const now = Date.now();
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      const path = url.pathname;
+      if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
+      const now = (options.clock ?? Date.now)();
       for (const [key, item] of limits) if (item.resets <= now) limits.delete(key);
-      const ip = req.socket.remoteAddress ?? 'unknown';
+      const ip = clientAddress(req, options.clientIp ?? 'direct');
       let limit = limits.get(ip);
       if (!limit) {
         if (limits.size >= 10000) throw new Failure(503, 'request.capacity.reached', 'Server is busy. Try again shortly.');
         limit = { count: 0, resets: now + 60000 }; limits.set(ip, limit);
       }
-      if (++limit.count > 120) { res.setHeader('Retry-After', '60'); throw new Failure(429, 'request.rate_limit.exceeded', 'Too many requests. Try again in a minute.'); }
-      const url = new URL(req.url ?? '/', 'http://localhost');
-      const path = url.pathname;
-      if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
+      if (++limit.count > 120) { res.setHeader('Retry-After', String(Math.max(1, Math.ceil((limit.resets - now) / 1000)))); throw new Failure(429, 'request.rate_limit.exceeded', 'Too many requests. Try again shortly.'); }
       const bearer = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1] ?? '';
       const legacy = /^[a-f0-9]{64}$/.test(bearer);
       const account = authenticate && !legacy ? await authenticate(bearer, origin) : undefined;

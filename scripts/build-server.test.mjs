@@ -11,7 +11,7 @@ import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', DATABASE_URL: '', CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -113,6 +113,38 @@ test('invalid host port configuration fails explicitly before listening', async 
       timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: port, MACHINATION_HOST: '127.0.0.1' },
     }), error => error.code === 1 && /PORT must be an integer/.test(error.stderr));
   }
+});
+
+test('invalid client IP trust configuration fails explicitly before opening storage', async () => {
+  for (const mode of ['', 'true', 'forwarded', 'Railway']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_CLIENT_IP: mode, MACHINATION_DATA: '/not-a-real-directory/games.json' },
+    }), error => error.code === 1 && /MACHINATION_CLIENT_IP must be direct or railway/.test(error.stderr));
+  }
+});
+
+test('standalone bundle separates Railway client budgets and keeps health available when throttled', { timeout: 20_000 }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-ingress-bundle-'));
+  let runtime;
+  try {
+    const entry = join(dir, 'main.mjs');
+    await copyFile(new URL('../dist-server/main.mjs', import.meta.url), entry);
+    runtime = await start(entry, join(dir, 'games.json'), { MACHINATION_CLIENT_IP: 'railway' });
+    for (let i = 0; i < 120; i++) {
+      const response = await fetch(`${runtime.origin}/missing`, { headers: { 'X-Real-IP': '192.0.2.1' } });
+      await response.arrayBuffer();
+      assert.equal(response.status, 404);
+    }
+    const limited = await fetch(`${runtime.origin}/missing`, { headers: { 'X-Real-IP': '192.0.2.1' } });
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).issues[0].issue, 'request.rate_limit.exceeded');
+    const other = await fetch(`${runtime.origin}/missing`, { headers: { 'X-Real-IP': '192.0.2.2' } });
+    await other.arrayBuffer();
+    assert.equal(other.status, 404);
+    const health = await fetch(`${runtime.origin}/health`, { headers: { 'X-Real-IP': '192.0.2.1' } });
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { status: 'ok' });
+  } finally { if (runtime) await runtime.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
 
