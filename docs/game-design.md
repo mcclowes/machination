@@ -49,6 +49,8 @@ The defining feature should be human diplomacy under long travel commitments. AI
 
 Potential module mappings: scavenger rig, routing daemon, conversion virus, and self-destruct charge. The initial playable rules are specified below; further balancing needs human playtests.
 
+The [temporal specialist proposal](temporal-specialists.md) explores Dilation → Anchor, Overclock, Hindsight, Foresight, Hastener, and the power-for-time concept. It records tradeoffs and open rules; these abilities aren't part of the playable roster.
+
 ## Release milestones
 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
