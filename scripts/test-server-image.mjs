@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { verifyContainerRuntime } from './container-runtime.mjs';
 const exec = promisify(execFile);
 const image = process.env.MACHINATION_TEST_IMAGE ?? 'machination-server:playtest';
 const name = `machination-smoke-${randomUUID()}`;
@@ -40,6 +41,7 @@ async function start(dataVolume = volume) {
 try {
   await docker('volume', 'create', volume); volumes.push(volume);
   let origin = await start();
+  await verifyContainerRuntime(docker, name);
   assert.equal(await docker('exec', name, 'id', '-u'), '1000');
   assert.equal(await docker('exec', name, 'node', '-e', "console.log(require('node:fs').existsSync('/app/node_modules'))"), 'false');
   const token = randomBytes(32).toString('hex');

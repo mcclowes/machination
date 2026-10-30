@@ -98,3 +98,17 @@ The numerical operations, tolerances, wrapped-image selection, preparation behav
 - Native-device interactions weren't exercised. This change doesn't modify UI, gestures, persisted formats, or wire contracts.
 
 Implementation: `7070329` (Refactor: Separate pulse contact geometry from effects). Evidence logs: `/tmp/machination-quality-pulse-final.log`, `/tmp/machination-quality-server-build.log`, `/tmp/machination-quality-web.log`, and `/tmp/machination-quality-baseline.log`.
+
+## Container packaging follow-up
+
+Reviewed October 30, 2026, for #51. The actual Docker build reproduced four unresolved server imports: shared replay generation, numeric support, the notification contract, and presence policy. The build-stage COPY instructions and restrictive context allowlist both omitted their owners.
+
+Both Dockerfiles now include shared replay sources and the two online runtime modules. The allowlist admits those sources while retaining the existing exclusions for tests, credentials, local state, dependencies, and native build trees. The runtime image still contains only the standalone bundle and source map.
+
+The first corrected build exposed another hidden deployment dependency: the floating `node:24-bookworm-slim` image resolved to Node 24.22.2, which failed the replay engine's existing certified numeric-runtime guard. Both build/runtime stages now use one `NODE_VERSION=24.14.1` argument per Dockerfile, matching `.nvmrc`. No numeric checks were weakened.
+
+One shared smoke helper bundles and executes the real `requireNumericRuntime` function inside each container. This checks the runtime contract directly instead of copying the supported V8 value into a test. Existing CI already builds and exercises both complete images, so no second Dockerfile or context parser was added.
+
+Verification: both image builds and both existing smoke lifecycles pass, including the numeric probe, non-root execution, authenticated persistence, graceful shutdown, and container replacement. The generic image also passes backup restoration; Railway also passes missing-volume rejection and root-owned mount/private state permission checks. The numeric probe failed against the floating Node 24.22.2 image before the pin and passes against both pinned images. Test containers and volumes were cleaned up. These are local container checks; nothing was published or deployed.
+
+The incomplete client response-decoding finding remains open. Notification cleanup is committed separately as `3f2a4ef`. Full-suite evidence and limitations remain in [the notification review](notification-quality.md#verification). Container logs are under `/private/tmp/machination-quality-container-*` and `/private/tmp/machination-quality-railway-*`.

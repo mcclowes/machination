@@ -1,14 +1,18 @@
-FROM node:24-bookworm-slim AS build
+ARG NODE_VERSION=24.14.1
+FROM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
 COPY scripts/build-server.mjs ./scripts/build-server.mjs
 COPY server ./server
 COPY src/game ./src/game
+COPY src/replay ./src/replay
 COPY src/online/protocol.ts ./src/online/protocol.ts
+COPY src/online/notification-contract.ts ./src/online/notification-contract.ts
+COPY src/online/presence.ts ./src/online/presence.ts
 RUN npm run build:server
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production \
     MACHINATION_HOST=0.0.0.0 \

@@ -26,7 +26,7 @@ Branch nesting within result dispatch falls from two statement levels to one. Ex
 - Keep database transaction ownership in `DatabaseStore`, authorization and threat settlement in `GameService`, and provider I/O in the delivery worker. No generic workflow registry or callback layer is needed.
 - Keep cohesive simulation/combat ordering and chart gesture/rendering state together. Their existing domain and geometry modules already provide useful boundaries.
 - Preserve the concurrent game-rule, map, practice-dialogue, replay, and depletion changes. This pass does not split operation screens around unstable interfaces or combine local and online execution behind mode flags.
-- The earlier incomplete network-response decoding and container-source packaging findings remain tracked in #51. They require separate contract and deployment fixes; these notification changes do not resolve them.
+- The incomplete network-response decoding finding remains tracked in #51. The subsequent [container packaging follow-up](code-quality-audit.md#container-packaging-follow-up) resolves the source-context and numeric-runtime packaging findings separately.
 
 ## Verification
 

@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { verifyContainerRuntime } from './container-runtime.mjs';
 const exec = promisify(execFile);
 const image = process.env.MACHINATION_TEST_IMAGE ?? 'machination-server:railway';
 const name = `machination-railway-${randomUUID()}`;
@@ -38,6 +39,7 @@ try {
   assert.match(missingMount, /Attach the persistent Railway volume/);
   await docker('volume', 'create', volume); mounted = true;
   let origin = await start();
+  await verifyContainerRuntime(docker, name);
   const identity = await docker('exec', name, 'node', '-e', "console.log(require('node:fs').readFileSync('/proc/1/status','utf8').split('\\n').find(l=>l.startsWith('Uid:')))");
   assert.match(identity, /^Uid:\s+1000\s+1000\s+1000\s+1000$/);
   assert.equal(await docker('exec', name, 'stat', '-c', '%u:%g:%a', '/var/lib/machination'), '0:0:755');

@@ -1,6 +1,6 @@
 # Hosted playtests
 
-The authoritative service builds into a standalone Node 24 program. Its runtime imports use Node built-ins; Expo and application `node_modules` aren't part of the runtime image. The mobile app still needs a reachable HTTPS service for remote play.
+The authoritative service builds into a standalone Node 24.14.1 program, matching `.nvmrc` and the replay engine's certified numeric runtime. Both Dockerfiles pin that version for their build and runtime stages. Runtime imports use Node built-ins; Expo and application `node_modules` aren't part of the runtime image. The mobile app still needs a reachable HTTPS service for remote play.
 
 Railway is the selected invited-playtest host. See [Railway deployment](railway.md) for the volume-compatible image, verified local checks, and provisioning status.
 
@@ -17,7 +17,7 @@ npm run test:server-image
 
 The bundle check copies only `main.mjs` into a temporary directory, starts an authenticated operation, queues a transfer, simulates offline time, and restarts the process. It also finishes an in-flight command during graceful shutdown and verifies the result is persisted.
 
-The image check uses uniquely named disposable containers and volumes. It verifies non-root execution, a read-only root filesystem, Docker health checks, authenticated state across container replacement, and restoration from a copied backup into a separate volume. It cleans up its own test resources. Set `MACHINATION_TEST_IMAGE` to check another locally built tag.
+The image check uses uniquely named disposable containers and volumes. It verifies non-root execution, a read-only root filesystem, Docker health checks, authenticated state across container replacement, and restoration from a copied backup into a separate volume. Both image checks also execute the replay engine's actual numeric-runtime guard inside the container, so a floating or overridden Node version cannot silently break visibility exports. They clean up their own test resources. Set `MACHINATION_TEST_IMAGE` to check another locally built tag.
 
 CI runs the game tests, type check, bundle check, image build, and image check. These checks don't publish an image or start a public service.
 
@@ -47,7 +47,7 @@ NODE_ENV=production PORT=8788 MACHINATION_DATA=.data/playtest-games.json \
   node dist-server/main.mjs
 ```
 
-Deploy `dist-server/main.mjs` and its source map to a Node 24 host. Install no application packages on that runtime host. Set `MACHINATION_DATA` to persistent storage owned by the process user. The default bind address remains `127.0.0.1`; set `MACHINATION_HOST` explicitly when the hosting platform requires a different internal interface.
+Deploy `dist-server/main.mjs` and its source map to a Node 24.14.1 host. Install no application packages on that runtime host. Set `MACHINATION_DATA` to persistent storage owned by the process user. The default bind address remains `127.0.0.1`; set `MACHINATION_HOST` explicitly when the hosting platform requires a different internal interface.
 
 `PORT=0` selects an ephemeral port for tests and logs the actual listening port. Invalid port configuration fails explicitly. SIGTERM and SIGINT stop new connections and let active requests finish, with a 15-second grace period; allow at least 20 seconds before a host forces termination. Run Node directly so it receives the stop signal.
 
