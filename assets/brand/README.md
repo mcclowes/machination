@@ -1,6 +1,6 @@
 # Machination identity
 
-`mark.svg` is original artwork: an angular M inside a core enclosure, with an amber port. Its colors match the command UI. The platform supplies the outer launcher mask; the exported icon has no baked-in rounded corners or shadow.
+`mark.svg` is the editable orbital core logo: a reactor on a vertical spindle, an eclipsed planet, and a sage orbit with an amber satellite. It echoes the orbital emblem in the supplied Asteroid Frontier opening artwork. Warm ivory (`#e8dfbb`), sage (`#8ea17a`), and amber (`#e9a775`) sit on the command UI's dark background (`#080f0d`). The platform supplies the outer launcher mask; the exported icon has no baked-in rounded corners or shadow.
 
 Run `npm run build:brand` to export the committed PNGs and create `.data/brand-preview.png` with launcher masks and small-size previews. The pinned Sharp renderer is a development dependency. No font or external artwork is used in the mark.
 
@@ -18,3 +18,17 @@ Run `npm run build:brand` to export the committed PNGs and create `.data/brand-p
 The export command checks dimensions, icon opacity, monochrome color, and containment of every visible adaptive-layer pixel within Android's central safe circle. It previews circular and rounded masks without modifying the actual layers. See [Android's adaptive icon requirements](https://developer.android.com/develop/ui/compose/system/icon_design_adaptive) and [Expo's icon and splash configuration](https://docs.expo.dev/develop/user-interface/splash-screen-and-app-icon/).
 
 `app.json` owns native configuration. Regenerate native projects after changing these assets. Launcher appearance, wallpaper tinting, and launch-screen timing still require native runtime review; a PNG preview or successful export doesn't prove that behavior.
+
+## Design prompt
+
+The concept was generated with the built-in imagegen tool, then rebuilt as geometric SVG to remove raster edge noise and preserve clean, reproducible exports. All shipped assets come from `mark.svg`. The prompt used for the concept was:
+
+```text
+Use case: logo-brand
+Asset type: production transparent logo emblem for Machination, an iOS/Android slow strategy game about rival machine intelligences commanding the asteroid belt.
+Primary request: design a distinctive, beautifully balanced orbital machine sigil, usable as the game's logo and app icon. A central circular reactor nucleus, a tall precise vertical spindle, a bold right-hand half-disc suggesting a planet in eclipse, and one confident diagonal orbital band wrapping the left of the nucleus. The spindle and orbital geometry should read as one engineered emblem. Small amber satellite on the orbit. Use a restrained sophisticated science-fiction book-cover identity, not a generic tech startup mark.
+Style/medium: crisp geometric vector-like graphic, flat solid fills with elegant negative space, bold silhouette. No gradients, no texture, no lighting or dimensional effects. Warm pale ivory #e8dfbb main emblem, muted sage #8ea17a orbital accent, amber #e9a775 satellite. These are the game's industrial command-console colors and the orbital emblem echoes its Asteroid Frontier opening artwork.
+Composition/framing: exactly one emblem, front-on, optically centered on a square transparent canvas. Entire emblem fits within central 70% of the canvas, with clean empty margins on all four sides. Use thick enough shapes and generous openings for recognizability at 24px.
+Text: none.
+Constraints: truly transparent background, no square tile behind it, no mockup, no typography, no letters, no hexagon, no decorative stars, no hairline ornamental details, no frame, no watermark. Deliver a finished iconic logo, not a concept sheet.
+```

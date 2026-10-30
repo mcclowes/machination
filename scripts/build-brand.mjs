@@ -7,7 +7,7 @@ const source = await readFile(new URL('mark.svg', directory), 'utf8');
 const drawing = source.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 const background = '#080f0d';
 function svg(scale, opaque = false, monochrome = '') {
-  const mark = monochrome ? drawing.replace(/#(?:6b8a62|b8e986|e9a775)/g, monochrome) : drawing;
+  const mark = monochrome ? drawing.replace(/#[0-9a-f]{6}/gi, monochrome) : drawing;
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${opaque ? `<rect width="1024" height="1024" fill="${background}"/>` : ''}<g transform="translate(512 512) scale(${scale}) translate(-512 -512)">${mark}</g></svg>`);
 }
 await mkdir(directory, { recursive: true });

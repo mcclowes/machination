@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <title>Machination core</title>
-  <path d="M768 412V660L512 808L256 660V364L512 216L688 318" fill="none" stroke="#6b8a62" stroke-width="24" stroke-linejoin="round"/>
-  <path d="M320 690V350H378L512 501L646 350H704V690H618V493L512 610L406 493V690Z" fill="#b8e986"/>
-  <circle cx="768" cy="364" r="28" fill="#e9a775"/>
+  <title>Machination orbital core</title>
+  <desc>A reactor on a vertical spindle, framed by an eclipsed planet and a sage orbit with an amber satellite.</desc>
+  <path d="M570 326C512 274 324 368 252 480C180 592 338 656 458 674L470 650C357 626 226 572 278 494C344 394 510 308 556 348Z" fill="#8ea17a"/>
+  <path d="M570 282A238 238 0 0 1 570 758C586 743 594 724 594 700V644A156 156 0 0 0 594 380V340C594 316 586 297 570 282Z" fill="#e8dfbb"/>
+  <path d="M512 192L528 374L548 398V626L528 650L512 832L496 650L476 626V398L496 374Z" fill="#e8dfbb"/>
+  <circle cx="512" cy="512" r="114" fill="none" stroke="#e8dfbb" stroke-width="26"/>
+  <path d="M385 512H639" fill="none" stroke="#e8dfbb" stroke-width="22"/>
+  <circle cx="512" cy="512" r="64" fill="#e8dfbb"/>
+  <circle cx="333" cy="411" r="32" fill="#e9a775"/>
 </svg>
