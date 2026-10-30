@@ -6,7 +6,7 @@ The publisher's [Queen and Princess entries](https://subterfuge-game.com/ruleboo
 
 ## Corrected behavior
 
-New configured games use mechanics revision 14. If a captive core returns to an owner who already controls an active core, the restored unit becomes a fallback core. The successor keeps its identity, location, hiring credits, and recruitment role. The restored fallback keeps its original identity and owner, travels on the actual return route where applicable, and supplies fallback sonar rather than a second core's shields when docked. It can succeed again if the current core is subsequently lost. Releasing a core never revives an eliminated player.
+From mechanics revision 14 onward, including new configured games, if a captive core returns to an owner who already controls an active core, the restored unit becomes a fallback core. The successor keeps its identity, location, hiring credits, and recruitment role. The restored fallback keeps its original identity and owner, travels on the actual return route where applicable, and supplies fallback sonar rather than a second core's shields when docked. It can succeed again if the current core is subsequently lost. Releasing a core never revives an eliminated player.
 
 One control-restoration function covers explicit release, Diplomat rescue, battle recapture, gifts, and Double Agent exchanges. The latter paths can carry prisoners when their captor has no friendly outpost to send them to. Existing foreign-core conversion through gifts and Hypnotist remains unchanged. The strict one-active-core invariant is retained.
 
