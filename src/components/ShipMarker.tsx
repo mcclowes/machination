@@ -30,7 +30,7 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
       opacity: burn.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.35] }),
       transform: [{ scale: burn.interpolate({ inputRange: [0, 1], outputRange: [1.18, 1] }) }],
     }]} />}
-    <Svg testID="ship-marker" width={44} height={44} viewBox="0 0 44 44" style={styles.ship} accessible={false}>
+    <Svg testID="ship-marker" width={32} height={32} viewBox="0 0 44 44" style={styles.ship} accessible={false}>
       {selected && <Circle testID="ship-selection" cx={22} cy={22} r={20} fill="none" stroke="#e5f3f4" strokeWidth={1.3} />}
       {preparing && <Circle testID="ship-docked" cx={22} cy={22} r={17} fill="none" stroke={color} strokeOpacity={0.6} strokeDasharray="2 4" />}
       <G testID="ship-hull" transform={`rotate(${heading} 22 22)`}>
@@ -52,7 +52,7 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
     {flying && <Animated.View testID="ship-engine-glow" style={[styles.engine, {
       opacity: burn.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
     }]}>
-      <Svg width={44} height={44} viewBox="0 0 44 44" accessible={false}>
+      <Svg width={32} height={32} viewBox="0 0 44 44" accessible={false}>
         <G testID="ship-exhaust" transform={`rotate(${heading} 22 22)`}>
           <Path d="M12 14 L4 15.5 L12 17 Z M12 27 L4 28.5 L12 30 Z" fill={color} fillOpacity={0.35} />
           <Path d="M12 15 L8 15.5 L12 16 Z M12 28 L8 28.5 L12 29 Z" fill="#b8eff1" fillOpacity={0.9} />
@@ -67,9 +67,9 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
 
 const styles = StyleSheet.create({
   marker: { width: 44, height: 56, alignItems: 'center' },
-  ship: { position: 'absolute', top: 6 },
-  engine: { position: 'absolute', top: 6, width: 44, height: 44 },
-  beacon: { position: 'absolute', top: 6, width: 44, height: 44, borderRadius: 22, borderWidth: 2 },
+  ship: { position: 'absolute', top: 12 },
+  engine: { position: 'absolute', top: 12, width: 32, height: 32 },
+  beacon: { position: 'absolute', top: 12, width: 32, height: 32, borderRadius: 16, borderWidth: 2 },
   manifest: { position: 'absolute', top: 40, minWidth: 24, height: 16, paddingHorizontal: 4, borderRadius: 2, borderWidth: 1, backgroundColor: '#0b1820', alignItems: 'center', justifyContent: 'center' },
   count: { color: '#e2eff0', fontSize: 12, lineHeight: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });
