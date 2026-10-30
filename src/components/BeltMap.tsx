@@ -62,7 +62,12 @@ import {
   siteCameraPadding,
   type ChartViewport,
 } from '../game/chart-projection';
-import { layoutSiteNames, MAP_DRONE_COUNT_OFFSET, MAP_DRONE_COUNT_SIZE } from './map-labels';
+import {
+  layoutSiteNames,
+  MAP_DRONE_COUNT_OFFSET,
+  MAP_DRONE_COUNT_PADDING,
+  MAP_DRONE_COUNT_SIZE,
+} from './map-labels';
 import { mapShields } from './map-shields';
 
 type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & {
@@ -81,6 +86,7 @@ const INSPECTOR_CHART_SPACE = 44 + 20;
 const SITE_CONTROL_WIDTH = 64;
 const NEUTRAL_NAME_ZOOM = 2;
 const NEUTRAL_SITE = '#a7b6b9';
+const NEUTRAL_ICON_OPACITY = 0.6;
 function isWebMouseEvent(event: GestureResponderEvent, type: string) {
   const native = event.nativeEvent as GestureResponderEvent['nativeEvent'] & { type?: string };
   return Platform.OS === 'web' && native.type === type;
@@ -516,10 +522,21 @@ export function BeltMap<T extends ChartRock>({
     height: marker.height,
   }));
   const names = layoutSiteNames(
-    sites.filter((site) => site.active || site.rock.owner || camera.scale >= NEUTRAL_NAME_ZOOM),
+    sites
+      .filter((site) => site.active || site.rock.owner || camera.scale >= NEUTRAL_NAME_ZOOM)
+      .map((site) => ({ ...site, flexible: site.active })),
     size,
     markerObstacles,
   );
+  const kingCaption = (summary: ReturnType<typeof mapSpecialistSummary>) => {
+    const king = game.pulse?.kings.find(
+      (k) =>
+        k.state !== 'idle' &&
+        k.state !== 'destroyed' &&
+        summary.groups.some((g) => g.kind === 'queen' && !g.captive && g.owner === k.factionId),
+    );
+    return king && { text: `King · ${king.state}`, color: identity(king.factionId).color };
+  };
   const reference = fleet && fleetReference?.(fleet);
   const revealed = useRef<string | undefined>(undefined);
   const revealFleetCard = useEffectEvent(() => {
@@ -746,9 +763,9 @@ export function BeltMap<T extends ChartRock>({
               style={[
                 styles.ring,
                 {
-                  borderColor: active ? '#dce7e5' : 'transparent',
+                  borderColor: active ? '#dce7e5' : rock.owner ? `${color}b3` : 'transparent',
                   borderWidth: 1.5,
-                  backgroundColor: rock.owner ? `${color}2e` : 'transparent',
+                  backgroundColor: rock.owner ? `${color}40` : 'transparent',
                 },
               ]}
             >
@@ -766,7 +783,11 @@ export function BeltMap<T extends ChartRock>({
                     accessible={false}
                     source={icon}
                     resizeMode="contain"
-                    style={[styles.baseIcon, { tintColor: color }]}
+                    style={[
+                      styles.baseIcon,
+                      { tintColor: color },
+                      !rock.owner && { opacity: NEUTRAL_ICON_OPACITY },
+                    ]}
                   />
                 ) : (
                   <Text style={{ color: rock.owner ? '#101d24' : NEUTRAL_SITE, fontSize: 15 }}>
@@ -793,7 +814,17 @@ export function BeltMap<T extends ChartRock>({
               </Text>
             )}
             {rock.known !== false && (rock.drones ?? 0) > 0 && (
-              <Text style={styles.count}>{Math.floor(rock.drones ?? 0)}</Text>
+              <Text
+                accessible={false}
+                style={[
+                  styles.count,
+                  rock.owner
+                    ? { backgroundColor: color, color: '#101d24' }
+                    : { backgroundColor: '#26363d', color: '#e4edeb' },
+                ]}
+              >
+                {Math.floor(rock.drones ?? 0)}
+              </Text>
             )}
           </Pressable>
         );
@@ -825,6 +856,7 @@ export function BeltMap<T extends ChartRock>({
           key={`units-${key}`}
           summary={specialists}
           placement={specialistMarkers.get(key)}
+          caption={kingCaption(specialists)}
           label={`Inspect specialists at ${rock.name}: ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}`}
           onPress={() => inspectSite(rock)}
         />
@@ -834,6 +866,7 @@ export function BeltMap<T extends ChartRock>({
           key={`units-${key}`}
           summary={specialists}
           placement={specialistMarkers.get(key)}
+          caption={kingCaption(specialists)}
           label={`Inspect specialists aboard ${identity(f.owner).name} hauler: ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}`}
           onPress={() => {
             setContact(f.id);
@@ -1108,10 +1141,13 @@ const styles = StyleSheet.create({
   count: {
     position: 'absolute',
     left: SITE_CONTROL_WIDTH / 2 + MAP_DRONE_COUNT_OFFSET,
-    top: 13,
-    color: '#e4edeb',
+    top: 26,
+    paddingHorizontal: MAP_DRONE_COUNT_PADDING,
+    borderRadius: 7,
+    overflow: 'hidden',
+    lineHeight: 15,
     fontSize: MAP_DRONE_COUNT_SIZE,
-    fontWeight: '600',
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 },

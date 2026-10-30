@@ -1,4 +1,5 @@
 /** Deterministic chart sampling, independent of simulation and recruitment RNG. */
+import { LOCATION_NAME_POOLS } from './location-names';
 import { isFaction, type Faction } from './players';
 import { OUTPOSTS_PER_PLAYER } from './rules';
 import type { Rock } from './simulation';
@@ -6,6 +7,8 @@ import type { Rock } from './simulation';
 type Point = { x: number; y: number };
 type Candidate = { points: Point[]; territories: number[][]; score: number };
 const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
+// Names draw from their own stream so they never shift chart layout or reveal site roles.
+const NAMING_STREAM = 0x9e3779b9;
 
 function sampler(seed: number): () => number {
   let state = seed;
@@ -106,6 +109,7 @@ export function generateWorld(players: readonly Faction[], seed: number, startin
       });
     });
   });
-  const publicSites = shuffle(rocks, random).map((rock, index) => ({ ...rock, id: index < 26 ? String.fromCharCode(97 + index) : `site-${String(index).padStart(3, '0')}`, name: `Relay ${index + 1}` }));
+  const names = shuffle([...LOCATION_NAME_POOLS.asteroid], sampler((seed ^ NAMING_STREAM) >>> 0));
+  const publicSites = shuffle(rocks, random).map((rock, index) => ({ ...rock, id: index < 26 ? String.fromCharCode(97 + index) : `site-${String(index).padStart(3, '0')}`, name: names[index]! }));
   return { rocks: publicSites, width: size, height: size };
 }

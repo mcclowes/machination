@@ -13,7 +13,7 @@ The shared catalogue lives in [location-names.ts](../src/game/location-names.ts)
 
 Import `LOCATION_NAME_POOLS` and select a category, such as `LOCATION_NAME_POOLS.asteroid`. `LocationNameKind` is the union of supported category keys. The arrays are read-only in TypeScript; copy a pool before shuffling it.
 
-This catalogue doesn't assign or rename locations. Generated charts still use their existing Relay labels, and saved operations retain their stored names. Planets, moons, stations, and regions are naming categories, not new gameplay entities.
+Generated charts name each site from the `asteroid` pool, sampled without replacement from a naming stream seeded separately from the chart layout, so names never depend on ownership, hidden cores, or production type. Saved operations retain their stored names, including the Relay labels of earlier charts. Planets, moons, stations, and regions are naming categories, not new gameplay entities.
 
 Keep additions short enough for chart labels, ideally one or two words and at most 24 characters. Use sentence case except for proper names. Entries are unique across all pools, and commander identities are excluded. The asteroid pool covers the current maximum of 100 chart sites without repeats.
 

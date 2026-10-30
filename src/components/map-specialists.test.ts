@@ -87,7 +87,8 @@ test('names avoid their own and neighboring specialist markers', () => {
   assert.equal(layoutSiteNames([site], viewport, [rect(own)]).has('a'), false, 'No room above, own marker below');
   const dense = [{ key: 'top', x: 100, y: 100, priority: 1 }, { key: 'low', x: 100, y: 170, priority: 0 }];
   const neighbor = rect(specialistMarkerPlacement(dense[1]!, 18, viewport, one)!);
-  assert.equal(layoutSiteNames(dense, viewport, [neighbor]).get('top'), 'above', 'Neighbor marker above the lower site blocks the name below');
+  assert.equal(layoutSiteNames(dense, viewport, [neighbor]).has('top'), false, 'Neighbor marker above the lower site blocks the name below');
+  assert.equal(layoutSiteNames(dense.map(s => s.key === 'top' ? { ...s, flexible: true } : s), viewport, [neighbor]).get('top'), 'above', 'A selected name may flip above');
   assert.deepEqual([...layoutSiteNames(dense, viewport, [neighbor])], [...layoutSiteNames([...dense].reverse(), viewport, [neighbor])]);
 });
 

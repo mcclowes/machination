@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ALL_PLAYERS, type Faction } from './players';
 import { generateWorld } from './generated-world';
+import { LOCATION_NAME_POOLS } from './location-names';
 
 // Independent metric keeps generator regressions visible even if shared geometry changes.
 const torusDistance = (world: { width: number; height: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -94,9 +95,22 @@ test('public site names and ordering do not label hidden cores or reserve a fixe
   for (const seed of [1, 5, 8]) {
     const world = generateWorld(['you', 'zenith'], seed);
     hostIds.add(world.rocks.find(r => r.coreOf === 'you')!.id);
-    assert.ok(world.rocks.every(r => /^Relay \d+$/.test(r.name)));
+    assert.ok(world.rocks.every(r => (LOCATION_NAME_POOLS.asteroid as readonly string[]).includes(r.name)));
   }
   assert.ok(hostIds.size > 1);
+});
+
+test('site names are unique, seeded, and drawn without replacement from the asteroid catalogue', () => {
+  const world = generateWorld(ALL_PLAYERS, 7);
+  const names = world.rocks.map(r => r.name);
+  assert.equal(new Set(names).size, names.length);
+  assert.deepEqual(generateWorld(ALL_PLAYERS, 7).rocks.map(r => r.name), names);
+  assert.notDeepEqual(generateWorld(ALL_PLAYERS, 8).rocks.map(r => r.name), names);
+});
+
+test('site names do not depend on which installation or owner a public position holds', () => {
+  const names = (players: readonly Faction[]) => generateWorld(players, 21).rocks.map(r => r.name);
+  assert.deepEqual(names(['you', 'zenith']), names(['you', 'echo']));
 });
 
 test('boundary seeds populate every chart edge and allow cores outside the former interior', () => {

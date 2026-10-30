@@ -8,8 +8,8 @@ import { SPECIALIST_BADGE_GAP, SPECIALIST_BADGE_SIZE, SPECIALIST_BADGE_HIT_SLOP,
 
 const MAX_BADGE_COUNT = 99;
 
-export function MapSpecialists({ summary, placement, label, onPress }: {
-  summary: SpecialistSummary; placement?: SpecialistMarkerPlacement; label: string; onPress: () => void;
+export function MapSpecialists({ summary, placement, label, caption, onPress }: {
+  summary: SpecialistSummary; placement?: SpecialistMarkerPlacement; label: string; caption?: { text: string; color: string }; onPress: () => void;
 }) {
   const identity = usePlayerRoster();
   if (!placement) return null;
@@ -21,6 +21,7 @@ export function MapSpecialists({ summary, placement, label, onPress }: {
       {group.captive && <View accessible={false} style={s.lock}><CaptiveLock /></View>}
       {group.count > 1 && <Text accessible={false} style={s.count}>{group.count > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : group.count}</Text>}
     </View>)}
+    {caption && <Text testID="map-specialist-caption" accessible={false} numberOfLines={1} style={[s.caption, { color: caption.color }, placement.side === 'above' ? { bottom: placement.height + 1 } : { top: placement.height + 1 }]}>{caption.text}</Text>}
     {summary.overflow > 0 && <View testID="map-specialist-overflow" accessible={false} style={s.badge}><Text accessible={false} numberOfLines={1} style={s.overflow}>{summary.overflow > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : `+${summary.overflow}`}</Text></View>}
   </Pressable>;
 }
@@ -31,4 +32,5 @@ const s = StyleSheet.create({
   lock: { position: 'absolute', right: 0, top: 0 },
   count: { position: 'absolute', right: -1, bottom: -1, color: '#e5eadc', backgroundColor: INSIGNIA_BACKGROUND, paddingHorizontal: 1, borderRadius: 3, fontSize: 9, lineHeight: 11, fontVariant: ['tabular-nums'] },
   overflow: { color: '#d6e2cd', fontSize: 10, fontVariant: ['tabular-nums'] },
+  caption: { position: 'absolute', left: -40, right: -40, textAlign: 'center', fontSize: 10, fontWeight: '600' },
 });
