@@ -52,8 +52,11 @@ test('setup starts stationary and keeps drifting bases an explicit choice across
       assert.equal(control('Drifting asteroid bases').props.accessibilityState.checked, true);
     };
     stationary();
-    await press('Gravity and curved flight paths');
+    assert.equal(control('Gravity and curved flight paths').props.accessibilityState.checked, true);
     assert.ok(setup.createConfiguredGame(selected, 0, 7).rules!.gravity);
+    await press('Gravity and curved flight paths');
+    assert.equal(setup.createConfiguredGame(selected, 0, 7).rules!.gravity, undefined);
+    await press('Gravity and curved flight paths');
     assert.equal(selected.driftingBases, false);
     await press('Drifting asteroid bases'); drifting();
     assert.equal(selected.gravity, false);

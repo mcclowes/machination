@@ -35,6 +35,7 @@ import { createConfiguredGame } from '../src/game/world';
 import {
   DEFAULT_GAME_OPTIONS,
   driftingBasesEnabled,
+  gravityOptionEnabled,
   validateOptions,
   type GameOptions,
 } from '../src/game/rules';
@@ -609,7 +610,8 @@ export class GameService {
               requested.teamFormat === existing.game.rules?.teams?.format &&
               requested.mode === (existing.game.rules?.mode ?? 'mining') &&
               !!requested.driftingBases === driftingBasesEnabled(existing.game) &&
-              !!requested.gravity === !!existing.game.rules?.gravity &&
+              gravityOptionEnabled(requested, existing.game.rules?.mechanicsVersion ?? 1) ===
+                !!existing.game.rules?.gravity &&
               JSON.stringify(
                 requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount),
               ) ===

@@ -26,14 +26,17 @@ test('gravity courses bend around mass, preserve endpoints, and reverse across c
     assert.ok(Math.abs(midpoint.y - 50) > 0.5);
   }
 });
-test('gravity is opt-in and incompatible with drifting bases; old revisions reject it', () => {
+test('gravity defaults on, supports opting out and drift, and preserves old revisions', () => {
   assert.throws(() => validateOptions({ playerCount: 3, mode: 'mining', gravity: true, driftingBases: true }));
   const game = createConfiguredGame({ playerCount: 3, mode: 'mining', gravity: true }, 0, 7);
   assert.equal(game.rules!.mechanicsVersion, 19);
   assert.ok(game.rules!.gravity!.wells.length > 0);
   assert.deepEqual(validateRules(game.rules), game.rules);
   assert.throws(() => validateRules({ ...game.rules, mechanicsVersion: 18 }));
-  assert.equal(createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 7).rules!.gravity, undefined);
+  assert.ok(createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 7).rules!.gravity);
+  assert.equal(createConfiguredGame({ playerCount: 3, mode: 'mining', gravity: false }, 0, 7).rules!.gravity, undefined);
+  assert.equal(createConfiguredGame({ playerCount: 3, mode: 'mining', driftingBases: true }, 0, 7).rules!.gravity, undefined);
+  assert.equal(createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 7, undefined, 18).rules!.gravity, undefined);
 });
 test('real gravity dispatch retains its course and agrees across partitioned advancement', () => {
   let game = createConfiguredGame({ playerCount: 3, mode: 'mining', gravity: true }, 0, 7);

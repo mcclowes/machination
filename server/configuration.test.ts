@@ -68,13 +68,15 @@ test('HTTP setup validates options and defaults to a stationary three-player pul
   const defaults = await post('games', randomBytes(32).toString('hex'), {});
   assert.equal(defaults.status, 200); assert.equal(defaults.data.game.rules.players.length, 3); assert.equal(defaults.data.game.rules.mode, 'pulse'); assert.equal(defaults.data.game.rocks.length, 30);
   assert.equal(defaults.data.game.rules.mechanicsVersion, 19);
+  assert.ok(defaults.data.game.rules.gravity.wells.length > 0);
   assert.ok(defaults.data.game.rocks.every((rock: { drift?: unknown }) => !rock.drift));
   const variant = await post('games', randomBytes(32).toString('hex'), { options: { playerCount: 2, mode: 'mining', driftingBases: true } });
   assert.equal(variant.status, 200);
   assert.equal(variant.data.game.rules.mechanicsVersion, 19);
+  assert.equal(variant.data.game.rules.gravity, undefined);
   assert.equal(variant.data.game.rocks.filter((rock: { drift?: unknown }) => rock.drift).length, 4);
   const gravityToken = randomBytes(32).toString('hex');
-  const gravityOptions = { playerCount: 2, mode: 'mining', gravity: true };
+  const gravityOptions = { playerCount: 2, mode: 'mining' };
   const gravity = await post('games', gravityToken, { options: gravityOptions });
   assert.equal(gravity.status, 200);
   assert.equal(gravity.data.game.rules.mechanicsVersion, 19);
@@ -82,6 +84,7 @@ test('HTTP setup validates options and defaults to a stationary three-player pul
   assert.ok(gravity.data.game.rocks.every((rock: { drift?: unknown }) => !rock.drift));
   assert.equal(JSON.stringify(gravity.data.game.rules).includes('"seed"'), false);
   assert.equal((await post('games', gravityToken, { options: gravityOptions })).data.id, gravity.data.id);
+  assert.equal((await post('games', gravityToken, { options: { ...gravityOptions, gravity: true } })).data.id, gravity.data.id);
   assert.equal((await post('games', gravityToken, { options: { ...gravityOptions, gravity: false } })).status, 409);
-  assert.equal((await post('games', randomBytes(32).toString('hex'), { options: { ...gravityOptions, driftingBases: true } })).status, 400);
+  assert.equal((await post('games', randomBytes(32).toString('hex'), { options: { ...gravityOptions, gravity: true, driftingBases: true } })).status, 400);
 });

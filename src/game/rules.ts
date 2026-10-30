@@ -15,8 +15,9 @@ import { validPortraits, type CharacterId } from './characters';
 export type GameOptions = { teamFormat?: TeamFormat; playerCount: number; mode: 'pulse' | 'mining' | 'domination'; portraits?: CharacterId[]; gravity?: boolean; driftingBases?: boolean; beltCompact?: boolean };
 export type GameRules = { gravity?: GravityConfig; teams?: TeamProfile; beltCompact?: 1; mechanicsVersion?: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19; driftingBases?: boolean; pulse?: PulseConfig; tacticalPulse?: TacticalPulseConfig; players: Faction[]; colors?: PlayerColor[]; portraits?: CharacterId[]; mode: GameOptions['mode']; victoryTarget: number; map: MapGeometry & { generator: 'balanced.v1' | 'balanced.v2'; seed: number } };
 export type PublicRules = Omit<GameRules, 'map'> & { map: Omit<GameRules['map'], 'seed'> };
-export const DEFAULT_GAME_OPTIONS: GameOptions = { playerCount: 3, mode: 'pulse', driftingBases: false };
+export const DEFAULT_GAME_OPTIONS: GameOptions = { playerCount: 3, mode: 'pulse', driftingBases: false, gravity: true };
 export const OUTPOSTS_PER_PLAYER = 10;
+export function gravityOptionEnabled(options: Pick<GameOptions, 'gravity' | 'driftingBases'>, revision = 19): boolean { return options.gravity ?? (revision >= 19 && !options.driftingBases); }
 export function validateOptions(value: unknown): GameOptions {
   const v = value as Partial<GameOptions> | null;
   if (!v || typeof v !== 'object' || Array.isArray(v) || Object.keys(v).some(key => !['playerCount', 'mode', 'portraits', 'driftingBases', 'beltCompact', 'teamFormat', 'gravity'].includes(key)) || !Number.isSafeInteger(v.playerCount) || v.playerCount! < 2 || v.playerCount! > ALL_PLAYERS.length || !['pulse', 'mining', 'domination'].includes(v.mode!)) throw new Error('Choose 2–10 players and King’s Pulse, mining, or domination.');

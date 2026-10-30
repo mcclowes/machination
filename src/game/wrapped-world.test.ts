@@ -169,7 +169,7 @@ test('new configured games retain torus rules through saves while old configured
   assert.equal(game.rules!.map.generator, 'balanced.v2');
   assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game })).game, game);
   const old = structuredClone(game);
-  old.rules!.map.generator = 'balanced.v1'; delete old.rules!.map.topology;
+  old.rules!.map.generator = 'balanced.v1'; delete old.rules!.map.topology; delete old.rules!.gravity;
   assert.equal(decodeSave(JSON.stringify({ savedAt: 0, game: old })).game.rules!.map.topology, undefined);
   const bad = structuredClone(game); delete bad.rules!.map.topology;
   assert.throws(() => decodeSave(JSON.stringify({ savedAt: 0, game: bad })));

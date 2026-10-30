@@ -1,6 +1,6 @@
 # Gravity and curved flight paths
 
-Gravity is an opt-in variant for new solo and multiplayer operations using mechanics revision 19. Enable **Gravity and curved flight paths** in setup. Enabling it turns off drifting bases; enabling drift turns gravity off. Existing operations retain their recorded rules and straight routes.
+Gravity is enabled by default for new solo and multiplayer operations using mechanics revision 19. Uncheck **Gravity and curved flight paths** in setup to use straight routes. Enabling it turns off drifting bases; enabling drift turns gravity off. Existing operations retain their recorded rules and courses. Creating an older mechanics revision without an explicit gravity option still produces straight routes.
 
 Two to five public giants occupy gaps between sites, depending on player count. Their dashed circles show where gravity affects flight. They bend ordinary hauler courses and change local speed. A longer arc can offset a slingshot's speed gain, so proximity to a giant isn't an automatic ETA improvement. Giants are chart features, not capturable sites or pulse targets.
 
