@@ -72,3 +72,19 @@ Add regressions at the boundary where behavior can fail. Prefer observable resul
 ## Device acceptance
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.
+
+## Screenshot comparisons
+
+`npm run test:visual` runs the production web app in Expo against an isolated
+browser context. A saved operation built by the real engine uses seed 314159
+and a fixed epoch, so global random calls and real elapsed time cannot change
+the chart. Reduced motion is enabled, the browser clock is fixed, and external
+requests are blocked. Desktop and phone viewports cover the title actions and
+selected-site chart. These web checks do not establish native iOS/Android gestures.
+
+Run on the pinned Node version. Missing baselines fail; capture is pending an
+unrestricted browser run. For an intentional change, run
+`npm run test:visual:update`, review the expected/actual/diff images, and commit
+the references beside `visual-tests/game.spec.ts`. Use the same OS, lockfile
+Chromium, and fonts for recording and comparison. Reports and traces are in
+`playwright-report` and `test-results`. Ordinary comparisons never record images.

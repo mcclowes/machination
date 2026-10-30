@@ -21,7 +21,9 @@
     "test:server-build": "npm run build:server && node --test scripts/build-server.test.mjs",
     "server:production": "node dist-server/main.mjs",
     "build:server-image": "docker build -t machination-server:playtest .",
-    "test:server-image": "node scripts/test-server-image.mjs"
+    "test:server-image": "node scripts/test-server-image.mjs",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@clerk/backend": "3.26.4",
@@ -50,6 +52,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/react": "~19.2.0",
     "esbuild": "0.28.2",
     "react-test-renderer": "19.2.0",
