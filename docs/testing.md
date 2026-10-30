@@ -1,6 +1,6 @@
 # Testing
 
-Run `npm run check` before committing behavior changes. This runs `npm test`, `npm run typecheck`, and `npm run test:server-build`, in that order. GitHub Actions runs the same command, then verifies both server containers, Expo dependency compatibility, and exports for all platforms.
+Run `npm run check` before committing behavior changes. It runs source quality (hooks/boundary lint, formatting, architecture, and TypeScript), behavior tests, and standalone server build/restart tests. GitHub Actions runs these as independent jobs alongside server containers, platform exports, the player guide, and browser smoke. Its final `check` requires every job to succeed. See [architecture and change boundaries](architecture.md) for ownership, formatter adoption, and main protection.
 
 ## Acceptance runtime
 

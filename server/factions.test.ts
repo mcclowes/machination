@@ -139,10 +139,11 @@ test('faction starter effects apply at hour zero without spending recruitment or
   const room = await service.create(host, options, 'faction'); await service.join(room.invite, guest);
   const started = await service.start(room.id, host);
   const core = started.game.rocks.find(r => r.owner === 'you' && r.specialists?.some(u => u.kind === 'queen'))!;
+  assert.ok(core.known);
   assert.equal(core.shieldBonus, 20);
-  assert.ok(started.game.rocks.filter(r => r.owner === 'you' && r.id !== core.id).every(r => r.shieldBonus === 10));
+  assert.ok(started.game.rocks.filter(r => r.owner === 'you' && r.id !== core.id).every(r => r.known && r.shieldBonus === 10));
   const industrial = await service.snapshot(room.id, guest);
-  assert.ok(industrial.game.rocks.filter(r => r.owner === 'vesper' && r.kind === 'factory').every(r => r.productionInterval === 8 / 1.5));
+  assert.ok(industrial.game.rocks.filter(r => r.owner === 'vesper' && r.kind === 'factory').every(r => r.known && r.productionInterval === 8 / 1.5));
   assert.equal(started.game.cargo.you, room.game.cargo.you);
   assert.equal(started.game.recruitment!.you!.used, 0);
 });

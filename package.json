@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
-    "check": "npm run check:architecture && npm test && npm run typecheck && npm run test:server-build",
+    "check": "npm run check:quality && npm test && npm run test:server-build",
     "check:architecture": "node scripts/check-architecture.mjs",
     "build:web": "expo export --platform web",
     "docs": "npm --prefix website start",
@@ -28,7 +28,13 @@
     "build:server-image": "docker build -t machination-server:playtest .",
     "test:server-image": "node scripts/test-server-image.mjs",
     "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots"
+    "test:visual:update": "playwright test --update-snapshots",
+    "lint": "eslint App.tsx src server --max-warnings=0 --no-warn-ignored",
+    "format": "prettier --write",
+    "format:check": "prettier --check App.tsx \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"scripts/*.{mjs,ts}\"",
+    "check:quality": "npm run lint && npm run format:check && npm run check:architecture && npm run typecheck",
+    "test:smoke": "playwright test visual-tests/orders-tray.spec.ts visual-tests/ships.spec.ts",
+    "benchmark:service": "tsx scripts/benchmark-service.ts"
   },
   "dependencies": {
     "@clerk/backend": "3.26.4",
@@ -60,9 +66,13 @@
     "@playwright/test": "1.62.1",
     "@types/react": "~19.2.0",
     "esbuild": "0.28.2",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "prettier": "3.9.10",
     "react-test-renderer": "19.2.0",
     "sharp": "0.35.5",
     "tsx": "^4.21.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "typescript-eslint": "8.72.1"
   }
 }

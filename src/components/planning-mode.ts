@@ -9,15 +9,10 @@ export type PlanningMode =
 type Action = { type: 'transfer'; enabled: boolean } | { type: 'course'; fleet?: number };
 
 export function planningTransition(mode: PlanningMode, action: Action): PlanningMode {
-  if (action.type === 'transfer')
-    return action.enabled
-      ? { kind: 'transfer' }
-      : mode.kind === 'transfer'
-        ? { kind: 'idle' }
-        : mode;
-  return action.fleet !== undefined
-    ? { kind: 'course', fleet: action.fleet }
-    : mode.kind === 'course'
-      ? { kind: 'idle' }
-      : mode;
+  if (action.type === 'transfer') {
+    if (action.enabled) return { kind: 'transfer' };
+    return mode.kind === 'transfer' ? { kind: 'idle' } : mode;
+  }
+  if (action.fleet !== undefined) return { kind: 'course', fleet: action.fleet };
+  return mode.kind === 'course' ? { kind: 'idle' } : mode;
 }

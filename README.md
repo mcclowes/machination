@@ -41,6 +41,8 @@ The [Docusaurus player guide](website/README.md) contains first-move tutorials, 
 
 ## Check
 
+See [architecture and change boundaries](docs/architecture.md) for module ownership, source-quality checks, CI policy, and persistence benchmarks.
+
 ```sh
 npm run check
 npm run build:web
