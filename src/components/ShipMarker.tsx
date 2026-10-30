@@ -10,7 +10,7 @@ import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 type Props = { color: string; drones: number; heading: number; selected?: boolean; preparing?: boolean; enginesDisabled?: boolean };
 
 export function ShipMarker({ color, drones, heading, selected, preparing, enginesDisabled }: Props) {
-  return <View pointerEvents="none" accessible={false} style={styles.marker}>
+  return <View pointerEvents="none" accessible={false} aria-hidden style={styles.marker}>
     <Svg testID="ship-marker" width={44} height={44} viewBox="0 0 44 44" style={styles.ship} accessible={false}>
       <Circle cx={22} cy={22} r={20} fill="#0b1820" fillOpacity={0.8} />
       {selected && <Circle testID="ship-selection" cx={22} cy={22} r={20} fill="none" stroke="#e5f3f4" strokeWidth={1.3} />}
@@ -44,5 +44,5 @@ const styles = StyleSheet.create({
   marker: { width: 44, height: 56, alignItems: 'center' },
   ship: { position: 'absolute', top: 6 },
   manifest: { position: 'absolute', top: 40, minWidth: 24, height: 16, paddingHorizontal: 4, borderRadius: 8, borderWidth: 1, backgroundColor: '#0b1820', alignItems: 'center', justifyContent: 'center' },
-  count: { color: '#e2eff0', fontSize: 11, lineHeight: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  count: { color: '#e2eff0', fontSize: 12, lineHeight: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
 });
