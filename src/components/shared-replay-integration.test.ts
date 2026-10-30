@@ -45,7 +45,13 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
       builder.onResolve({ filter: /replay\/files$/ }, () => ({ path: 'files', namespace: 'hosts' }));
       builder.onResolve({ filter: /^(react-native|react-native-svg|expo-clipboard|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'hosts' }));
       builder.onResolve({ filter: /(?:\/hooks\/|\/online\/|\/storage$|\/Operation$)/ }, () => ({ path: 'forbidden', namespace: 'hosts' }));
-      builder.onLoad({ filter: /.*/, namespace: 'hosts' }, args => ({ contents: args.path === 'files' ? `export const pickSharedReplay=()=>globalThis.${key}.pick();` : args.path === 'react-native' ? `export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+      builder.onLoad({ filter: /.*/, namespace: 'hosts' }, args => ({ contents: args.path === 'files' ? `export const pickSharedReplay=()=>globalThis.${key}.pick();` : args.path === 'react-native' ? `import React from 'react';
+        export const View=React.forwardRef((props,ref)=>{
+          // Equal-height content updates don't emit a fresh native layout event.
+          React.useLayoutEffect(()=>{if(props.testID==='replay-site-inspector') props.onLayout({nativeEvent:{layout:{width:300,height:220}}});},[]);
+          return React.createElement('View',{...props,ref});
+        });
+        export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
@@ -76,6 +82,8 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await flush(() => siteDrawer.props.onLayout({ nativeEvent: { layout: { height: 220 } } }));
     const belt = () => renderer.root.findAll((node: Node) => typeof node.type === 'function' && (node.type as Function).name === 'BeltMap')[0];
     assert.equal(belt().props.coveredBottom, 228, 'replay inspection measures its overlay and bottom gap');
+    await press(hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith('Beta,'))!.props.accessibilityLabel);
+    assert.equal(belt().props.coveredBottom, 228, 'switching to an equal-height site drawer remeasures its mounted frame');
     await press('Close site details');
     assert.equal(belt().props.coveredBottom, 0, 'closing the site drawer releases its camera allowance');
     await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
