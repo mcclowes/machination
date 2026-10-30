@@ -14,7 +14,7 @@ test('configured worlds persist their selected rules, independent participants, 
     assert.equal(game.rocks.length, playerCount * 10);
     assert.equal(Object.keys(game.cargo).length, playerCount);
     assert.equal(Object.keys(game.recruitment!).length, playerCount);
-    assert.equal(game.rules!.victoryTarget, mode === 'mining' ? 200 : 5 * playerCount);
+    assert.equal(game.rules!.victoryTarget, mode === 'mining' ? 300 : 5 * playerCount);
     assert.deepEqual(decodeSave(JSON.stringify({ savedAt: 0, game })).game, game);
     const view = observe(game, 'you');
     assert.equal(JSON.stringify(view).includes('"seed"'), false);

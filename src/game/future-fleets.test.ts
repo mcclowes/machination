@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, advance } from './simulation';
-import { createConfiguredGame } from './world';
+import { createPreCargoGame as createConfiguredGame } from './test-world';
 import { scheduleTransfer } from './orders';
 import { scheduleAction } from './future-actions';
 

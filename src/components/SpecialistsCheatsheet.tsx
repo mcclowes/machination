@@ -28,7 +28,7 @@ export function SpecialistsCheatsheet() {
     <View style={s.section}>
       <Text accessibilityRole="header" style={s.heading}>Recruitment and promotions</Text>
       <Text style={s.body}>Earn a credit after four normal-rate hours, then every 18. Credits accumulate. The opening runs recruitment at 1.5× for 12 game hours, bringing the first credit at 2h 40m.</Text>
-      <Text style={s.body}>Each hire offers one attack, one defense, and one other module. Hire at your core's controlled site for one credit. A traveling core can't hire. Diversion worm and Purger give two units per hire; other hires give one.</Text>
+      <Text style={s.body}>Each hire offers one attack, one defense, and one other module. In new operations, hire at your core's controlled site for one credit and 5 cargo. You start with 5 cargo and one mine. Older operations retain credit-only hiring. A traveling core can't hire. Diversion worm and Purger give two units for the same hiring cost; other hires give one.</Text>
       <Text style={s.body}>Spend one credit to promote an eligible module docked at a controlled site, even while your core travels. Promotion replaces the old ability and refreshes the offers. Hires and promotions take effect immediately when executed.</Text>
     </View>
     {groups.map(([category, title]) => <View key={category} style={s.section}>

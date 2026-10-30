@@ -1,7 +1,9 @@
 import { validCompact } from '../game/compact-save';
+import { PLANET_RESERVES } from '../game/depletion';
 import type { Faction } from '../game/players';
 import { validateTacticalPulseConfig } from '../game/tactical-pulse';
 import { validatePulseConfig } from '../game/pulse';
+import { validateTeams } from '../game/teams';
 import { driftingBasesEnabled } from '../game/rules';
 import { sitePosition, validDrift } from '../game/drift';
 import { CHARACTER_IDS } from '../game/characters';
@@ -76,15 +78,16 @@ function inspect(value: unknown) {
 }
 
 function rules(v: unknown) {
-  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases', 'beltCompact']);
+  object(v, ['players', 'mode', 'victoryTarget', 'map'], ['pulse', 'tacticalPulse', 'portraits', 'mechanicsVersion', 'driftingBases', 'beltCompact', 'teams']);
   optional(v, 'beltCompact', n => one(n, [1]));
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
   optional(v, 'pulse', validatePulseConfig);
-  need(v.mode !== 'pulse' || v.pulse && [15, 16].includes(v.mechanicsVersion));
+  need(v.mode !== 'pulse' || v.pulse && [15, 16, 17].includes(v.mechanicsVersion));
   optional(v, 'tacticalPulse', validateTacticalPulseConfig);
-  need(v.mechanicsVersion === 16 ? v.mode === 'pulse' && v.tacticalPulse : !v.tacticalPulse);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]));
+  need(v.mode === 'pulse' && (v.mechanicsVersion ?? 1) >= 16 ? !!v.tacticalPulse : !v.tacticalPulse);
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]));
+  optional(v, 'teams', t => { need((v.mechanicsVersion ?? 1) >= 17 && v.mode !== 'pulse'); validateTeams(t, v.players); });
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'portraits', p => { array(p, factions.length); need(p.length === v.players.length); p.forEach(c => one(c, CHARACTER_IDS)); unique(p); });
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
@@ -107,7 +110,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
   }
   array(v.rocks, L.sites); const sites = new Set<string>();
   for (const r of v.rocks) {
-    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift', 'sensorJammedUntil', 'miningDisabledUntil']);
+    object(r, ['id', 'name', 'x', 'y', 'known', 'kind'], ['owner', 'drones', 'destroyed', 'coreOf', 'shield', 'shieldMax', 'shieldsDisabled', 'module', 'specialists', 'drift', 'sensorJammedUntil', 'miningDisabledUntil', 'reserves']);
     text(r.id); text(r.name); need(!sites.has(r.id)); sites.add(r.id); coord(r.x); coord(r.y); one(r.known, [true, false]);
     one(r.kind, ['core', 'reactor', 'mine', 'factory', 'generator', 'unknown']);
     if (r.drift !== undefined) { need(driftingBasesEnabled(v) && validDrift(r.drift, v)); const expected = sitePosition(v, { x: r.x, y: r.y, drift: r.drift }, v.hour); need(Math.hypot(r.x - expected.x, r.y - expected.y) < 1e-8); }
@@ -116,6 +119,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
     else { need(r.kind !== 'unknown' && own(r, 'drones')); num(r.drones); }
     optional(r, 'destroyed', n => one(n, [true])); optional(r, 'coreOf', member);
     optional(r, 'sensorJammedUntil', num); optional(r, 'miningDisabledUntil', num);
+    optional(r, 'reserves', n => num(n, 0, PLANET_RESERVES));
     optional(r, 'shield', num); optional(r, 'shieldMax', num); optional(r, 'shieldsDisabled', n => one(n, [true, false]));
     optional(r, 'module', n => need(isModule(n))); optional(r, 'specialists', manifest);
   }

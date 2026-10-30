@@ -12,6 +12,10 @@ import { HIRE_CATEGORIES, HIRE_KINDS, SPECIALISTS, hireAmount, promotion, specia
 import { recentEvents } from './events';
 import { observers } from './sensors';
 import { mechanicsVersion } from './rules';
+import { reconcileFunding } from './funding';
+
+export const RECRUITMENT_CARGO_COST = 5;
+export function recruitmentCost(game: OpeningWorld): number { return (game.rules?.mechanicsVersion ?? 1) >= 17 ? RECRUITMENT_CARGO_COST : 0; }
 
 export type Specialist = { id: string; kind: SpecialistKind; owner: Faction; captive?: true; nextActionAt?: number; lastCourseAt?: number };
 export type Recruitment = { used: number; seed: number; pool: Partial<Record<SpecialistKind, number>>; offers: SpecialistKind[] };
@@ -65,17 +69,22 @@ export function hireSpecialist(game: Game, owner: Faction, kind: SpecialistKind,
   if (kind === 'martyr' && !compactAllows(game, 'weapons')) throw new Error('Strategic weapons interlocks are active under the Belt compact.');
   if (!status.at) throw new Error('Hiring needs your active core at a controlled site.');
   if (!state.offers.includes(kind)) throw new Error('Choose one of the three current recruitment offers.');
+  const cost = recruitmentCost(game);
+  if ((game.cargo[owner] ?? 0) < cost) throw new Error(`Recruitment needs ${cost} cargo.`);
   const amount = hireAmount(kind);
   if (ids !== undefined) {
     const existing = new Set([...game.rocks, ...game.fleets].flatMap(asset => asset.specialists ?? []).map(unit => unit.id));
     if (!Array.isArray(ids) || ids.length !== amount || new Set(ids).size !== amount || !Array.from(ids).every(id => typeof id === 'string' && /^[a-zA-Z0-9:-]{1,80}$/.test(id) && !existing.has(id))) throw new Error('Planned hire identities are no longer available.');
   }
   const units = Array.from({ length: amount }, (_, index): Specialist => ({ id: ids?.[index] ?? `unit-${game.nextId + index}`, owner, kind, ...(kind === 'tinkerer' || kind === 'sentry' ? { nextActionAt: game.hour + (kind === 'sentry' ? 2 : 1 / 3) } : {}) }));
-  return withUnitEffects({ ...game, nextId: game.nextId + amount,
+  const result = withUnitEffects({ ...game, nextId: game.nextId + amount,
+    cargo: { ...game.cargo, [owner]: (game.cargo[owner] ?? 0) - cost },
     recruitment: { ...game.recruitment!, [owner]: drawOffers({ ...state, used: state.used + 1, pool: { ...state.pool, [kind]: state.pool[kind]! - 1 } }, !!game.rules?.tacticalPulse) },
     rocks: game.rocks.map(r => r.id === status.at ? { ...r, specialists: [...(r.specialists ?? []), ...units] } : r),
-    events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${specialistEventName(kind)}${amount > 1 ? ' units' : ''} recruited at the core.` }, ...game.events]),
+    events: recentEvents([{ hour: game.hour, audience: observers(game, game.rocks.find(r => r.id === status.at)!), message: `${amount} ${specialistEventName(kind)}${amount > 1 ? ' units' : ''} recruited at the core${cost ? ` for ${cost} cargo` : ''}.` }, ...game.events]),
   });
+  if (cost) { reconcileFunding(result); result.events = recentEvents(result.events); }
+  return result;
 }
 export function promoteSpecialist(game: Game, owner: Faction, id: string): Game {
   const { state } = requireRecruitment(game, owner);

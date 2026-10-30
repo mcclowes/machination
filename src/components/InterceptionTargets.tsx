@@ -3,19 +3,20 @@
  * purpose: Show reachable observed haulers and immediate interceptor launch controls.
  * ---
  */
+import { allied, type TeamWorld } from '../game/teams';
 import { gameClock } from '../game/time-machine';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 import { flightDestination, interceptionCourse, type FlightWorld } from '../game/flight';
-type Props = { game: FlightWorld & { version?: 1 | 2; fleets: Fleet[]; rocks: (FlightWorld['rocks'][number] & { name: string })[] }; source: Rock; owner: Faction; drones: number; specialists?: string[]; disabled: boolean; scheduledAt?: number; targetIds?: readonly number[]; onIntercept: (target: number) => void };
+type Props = { game: FlightWorld & TeamWorld & { version?: 1 | 2; fleets: Fleet[]; rocks: (FlightWorld['rocks'][number] & { name: string })[] }; source: Rock; owner: Faction; drones: number; specialists?: string[]; disabled: boolean; scheduledAt?: number; targetIds?: readonly number[]; onIntercept: (target: number) => void };
 export function InterceptionTargets({ game, source, owner, drones, specialists, disabled, scheduledAt, targetIds, onIntercept }: Props) {
   const modern = game.version === 2;
   const rig = source.specialists?.find(u => u.kind === 'pirate' && u.owner === owner && !u.captive);
   if (modern ? !rig : source.module !== 'scavenger') return null;
   const selected = specialists?.length ? specialists : rig ? [rig.id] : [];
   const includesRig = !modern || !!source.specialists?.some(u => u.kind === 'pirate' && u.owner === owner && !u.captive && selected.includes(u.id));
-  const targets = game.fleets.filter(f => f.owner !== owner && !f.preparing && (targetIds === undefined || targetIds.includes(f.id)));
+  const targets = game.fleets.filter(f => !allied(game, owner, f.owner) && !f.preparing && (targetIds === undefined || targetIds.includes(f.id)));
   const validManifest = Number.isSafeInteger(drones) && drones >= (modern ? 0 : 1) && includesRig && drones <= Math.floor(source.drones);
   return <View style={s.panel}><Text style={s.title}>Interceptor targets</Text><Text style={s.detail}>{modern ? 'Prepares for ten minutes with an interceptor and the manifest above. Surviving interceptors return to the nearest friendly site at quadruple speed.' : "Uses this rock's interceptor and the drone manifest above. Launches immediately; surviving interceptors return here after combat."}</Text>
     {scheduledAt !== undefined && <Text style={s.detail}>Only currently observed targets can be scheduled. The target must still exist and be reachable at execution.</Text>}

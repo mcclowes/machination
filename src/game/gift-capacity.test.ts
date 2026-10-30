@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { advance, dispatch } from './simulation';
-import { createConfiguredGame } from './world';
+import { createPreCargoGame as createConfiguredGame } from './test-world';
 import { giftTransfer } from './gifts';
 import { droneInventory, powerCapacity } from './economy';
 import { nextRouteEncounter } from './route-encounters';

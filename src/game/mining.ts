@@ -4,10 +4,11 @@
  * ---
  */
 import { mechanicsVersion } from './rules';
+import { hasReserves } from './depletion';
 import type { Faction, Game } from './simulation';
 export const MINING_DAY = 24;
 export function miningInterval(game: Pick<Game, 'rocks'>, owner: Faction): number {
-  return MINING_DAY / Math.max(1, game.rocks.filter(r => r.owner === owner && !r.destroyed).length);
+  return MINING_DAY / Math.max(1, game.rocks.filter(r => r.owner === owner && !r.destroyed && hasReserves(r)).length);
 }
 export function refreshMining(game: Game): void {
   if (game.version !== 2) return;

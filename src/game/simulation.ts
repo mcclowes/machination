@@ -10,6 +10,7 @@ import { settleTacticalPulses } from './tactical-pulse-simulation';
 import { actStrategicRivals, RIVAL_DECISION_INTERVAL } from './rival-ai';
 import { advancePulseTime, nextPulseEvent, settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { withPulseMovement, clonePulse, completePulseCharges, pulseEnabled, type PulseSystem } from './pulse';
+import { allied, teamNumber, validateTeams } from './teams';
 import { afterWork } from './opening-clock';
 import { settleCourseChanges } from './specialist-navigation';
 import { positionSites, stationCourse, type Drift } from './drift';
@@ -38,6 +39,7 @@ import { FACTIONS, playersIn, type Faction, type PlayerValues } from './players'
 import { victoryProgress, victoryTarget, type GameRules } from './rules';
 export { FACTIONS, type Faction } from './players';
 export type Rock = {
+  reserves?: number; supplyAt?: number;
   id: string; name: string; x: number; y: number; drift?: Drift;
   owner: Faction | null; drones: number; kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator';
   shield?: number; shieldMax?: number; shieldAt?: number; shieldsDisabled?: boolean; productionAt?: number; productionInterval?: number; miningAt?: number; miningInterval?: number;
@@ -56,9 +58,9 @@ export type Game = {
   minesDrilled?: PlayerValues<number>;
   scheduled?: ScheduledOrder[]; events: GameEvent[]; winner: Faction | null; draw?: true;
 };
-export function operationStatus(game: Pick<Game, 'winner' | 'eliminated' | 'draw'>, faction: Faction): 'active' | 'victory' | 'defeat' | 'eliminated' | 'draw' {
+export function operationStatus(game: Pick<Game, 'winner' | 'eliminated' | 'draw'> & { rules?: Pick<GameRules, 'teams'> }, faction: Faction): 'active' | 'victory' | 'defeat' | 'eliminated' | 'draw' {
   if (game.draw) return 'draw';
-  if (game.winner === faction) return 'victory';
+  if (game.winner && allied(game, game.winner, faction)) return 'victory';
   if (game.eliminated.includes(faction)) return 'eliminated';
   return game.winner ? 'defeat' : 'active';
 }
@@ -114,7 +116,7 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
-    ...input, ...(input.compact ? { compact: cloneCompact(input.compact) } : {}), ...(input.rules ? { rules: { ...input.rules, ...(input.rules.tacticalPulse ? { tacticalPulse: { ...input.rules.tacticalPulse } } : {}), ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
+    ...input, ...(input.compact ? { compact: cloneCompact(input.compact) } : {}), ...(input.rules ? { rules: { ...input.rules, ...(input.rules.teams ? { teams: validateTeams(input.rules.teams, input.rules.players) } : {}), ...(input.rules.tacticalPulse ? { tacticalPulse: { ...input.rules.tacticalPulse } } : {}), ...(input.rules.pulse ? { pulse: { ...input.rules.pulse } } : {}), players: [...input.rules.players], map: { ...input.rules.map } } } : {}), rocks: input.rocks.map(cloneUnits), fleets: input.fleets.map(cloneUnits),
     ...(input.scheduled ? { scheduled: input.scheduled.map(p => ({ ...p })) } : {}),
     ...(input.minesDrilled ? { minesDrilled: { ...input.minesDrilled } } : {}),
     ...(input.pulse ? { pulse: clonePulse(input.pulse) } : {}),
@@ -236,9 +238,15 @@ export function advance(saved: Game, targetHour: number, options: { trace?: Simu
     const victoryState = game.rules?.mode === 'domination' && options.territoryOwners
       ? { ...game, rocks: game.rocks.map(r => ({ owner: options.territoryOwners!.has(r.id) ? options.territoryOwners!.get(r.id)! : r.owner })) }
       : game;
-    game.winner = (pulseEnabled(game) ? undefined : factions.find(f => victoryProgress(victoryState, f) >= victoryTarget(game))) ?? (factions.length === 1 ? factions[0]! : null);
+    if (game.rules?.teams) {
+      const liveTeams = game.rules.teams.members.filter(members => members.some(f => factions.includes(f)));
+      const winners = liveTeams.filter(members => victoryProgress(victoryState, members[0]!) >= victoryTarget(game));
+      if (winners.length > 1) game.draw = true;
+      else if (winners.length === 1 || liveTeams.length === 1) game.winner = (winners[0] ?? liveTeams[0])![0]!;
+    } else game.winner = (pulseEnabled(game) ? undefined : factions.find(f => victoryProgress(victoryState, f) >= victoryTarget(game))) ?? (factions.length === 1 ? factions[0]! : null);
     if (factions.length === 0) { game.draw = true; game.events.unshift({ hour: next, audience: [...playersIn(game)], message: 'All cores lost. The operation ended in a draw.' }); }
-    if (game.winner) game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${FACTIONS[game.winner].name}: ${pulseEnabled(game) ? 'last surviving King' : game.rules?.mode === 'domination' ? 'domination target secured' : 'corporate quota secured'}. Contract complete.` });
+    if (game.draw && factions.length > 0) game.events.unshift({ hour: next, audience: [...playersIn(game)], message: 'Multiple teams reached the goal at the same time. The operation ended in a draw.' });
+    if (game.winner) game.events.unshift({ hour: next, audience: [...playersIn(game)], message: `${game.rules?.teams ? `Team ${teamNumber(game, game.winner)}` : FACTIONS[game.winner].name}: ${pulseEnabled(game) ? 'last surviving King' : game.rules?.mode === 'domination' ? 'domination target secured' : 'corporate quota secured'}. Contract complete.` });
     if (game.winner || game.draw) { if (game.scheduled) game.scheduled = []; for (const fleet of game.fleets) delete fleet.pendingCourse; }
     settleCouncil(game);
     tracePoint(trace, 'victory', game);
@@ -259,7 +267,7 @@ function actRivals(input: Game, trace?: SimulationTraceSink): Game {
     if (!source) { tracePoint(trace, 'rival', game); continue; }
     const available = Math.floor(source.drones * 0.65);
     const travel = (to: Rock) => wrappedBounds(game) ? travelHours(source, to, undefined, game.version, game) : travelHours(source, to);
-    const destination = game.rocks.filter(r => !r.destroyed && r.owner !== faction && r.drones + (r.owner && r.kind !== 'mine' ? LEGACY_PRODUCTION * travel(r) : 0) < available)
+    const destination = game.rocks.filter(r => !r.destroyed && (!r.owner || !allied(game, faction, r.owner)) && r.drones + (r.owner && r.kind !== 'mine' ? LEGACY_PRODUCTION * travel(r) : 0) < available)
       .sort((a, b) => travel(a) - travel(b) || a.drones - b.drones)[0];
     if (destination) game = dispatch(game, source.id, destination.id, available, faction);
     tracePoint(trace, 'rival', game);

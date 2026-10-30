@@ -8,6 +8,9 @@
  * ---
  */
 import { councilCommand } from './council-command';
+import { factionStandings, finished, profileId } from './factions';
+import { isAllegiance, type FactionStandings } from '../src/game/factions';
+import { factionOpening } from '../src/game/faction-opening';
 import { isTacticalPulseCommand } from '../src/game/tactical-pulse';
 import type { PulseCommand } from '../src/game/pulse';
 import { createPulseSystem, validatePulseConfig, type PulseConfig } from '../src/game/pulse';
@@ -87,6 +90,37 @@ export class GameService {
     const seat = room.seats.find(s => this.matchesCredential(s, token));
     requireThat(seat, 401, 'seat.unauthorized.token', 'This token does not control a seat in this operation.');
     return seat.faction;
+  }
+  private profile(db: Database, token: Credential, requireSeat = false): string {
+    const credential = this.credential(token);
+    const seat = db.rooms.flatMap(r => r.seats).find(s => this.matchesCredential(s, token));
+    requireThat(!requireSeat || typeof token !== 'string' || seat, 401, 'seat.unauthorized.token', 'This device credential no longer controls an operation.');
+    return seat ? profileId(seat) : credential;
+  }
+  private newSeat(db: Database, token: Credential, faction: Faction, variant?: 'faction'): Room['seats'][number] {
+    const identity = this.profile(db, token);
+    const allegiance = db.factions?.find(p => p.id === identity)?.faction;
+    requireThat(!variant || allegiance, 409, 'faction.conflict.required', 'Complete an online operation and choose your faction before entering faction mode.');
+    return { faction, hash: this.credential(token), profileId: identity, ...(variant ? { allegiance } : {}), ...(typeof token !== 'string' ? token : {}) };
+  }
+  factions(token: Credential): Promise<FactionStandings> {
+    return this.transaction(db => {
+      const identity = this.profile(db, token, true);
+      this.settleRooms(db, () => true);
+      return factionStandings(db, identity);
+    });
+  }
+  chooseFaction(token: Credential, faction: unknown): Promise<FactionStandings> {
+    return this.transaction(db => {
+      const identity = this.profile(db, token, true);
+      requireThat(isAllegiance(faction), 400, 'faction.validation.identity', 'Choose a known faction.');
+      this.settleRooms(db, () => true);
+      const current = factionStandings(db, identity);
+      requireThat(current.completedGames > 0, 409, 'faction.conflict.locked', 'Complete your first online operation before choosing a faction.');
+      requireThat(!current.faction || current.faction === faction, 409, 'faction.conflict.chosen', 'Your faction choice is permanent.');
+      if (!current.faction) (db.factions ??= []).push({ id: identity, faction });
+      return factionStandings(db, identity);
+    });
   }
   /** Every settle path also records first observations of incoming threats, so no request can swallow one. */
   private settle(db: Database, room: Room) {
@@ -200,6 +234,7 @@ export class GameService {
   }
   private view(room: Room, faction: Faction): Snapshot {
     return { id: room.id, invite: room.invite, status: room.startedAt === null ? 'game.lobby' : room.game.winner || room.game.draw ? 'game.finished' : 'game.active',
+      ...(room.variant ? { variant: room.variant, allegiances: room.seats.map(s => ({ player: s.faction, faction: s.allegiance! })) } : {}),
       faction, host: faction === 'you', members: room.seats.map(s => s.faction), revision: this.revision(room, faction),
       groups: (room.diplomacy?.groups ?? []).filter(g => g.members.includes(faction)).map(({ messages, ...g }) => g),
       channels: [{ id: 'public', kind: 'public', messages: room.diplomacy?.publicMessages ?? [] },
@@ -212,7 +247,7 @@ export class GameService {
   accountSession(account: AccountCredential): Promise<Snapshot | null> {
     return this.transaction(db => {
       this.credential(account);
-      const room = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, account)));
+      const room = [...db.rooms].reverse().find(r => r.seats.some(s => this.matchesCredential(s, account)));
       if (!room) return null;
       this.settle(db, room); return this.view(room, this.seat(room, account));
     });
@@ -231,20 +266,24 @@ export class GameService {
       this.settle(db, room); return this.view(room, seat.faction);
     });
   }
-  create(token: Credential, options?: unknown): Promise<Snapshot> {
+  create(token: Credential, options?: unknown, variant?: unknown): Promise<Snapshot> {
+    if (variant !== undefined && variant !== 'faction') return Promise.reject(new Failure(400, 'game.validation.variant', 'Choose standard or faction mode.'));
     let requested: GameOptions | undefined;
     try { requested = options === undefined ? undefined : validateOptions(options); }
     catch (e) { return Promise.reject(new Failure(400, 'game.validation.options', (e as Error).message)); }
+    if (variant && requested && 'teamFormat' in requested) return Promise.reject(new Failure(400, 'game.validation.variant', 'Faction mode uses individual victories. Choose a free-for-all setup.'));
     return this.transaction(db => {
       const credential = this.credential(token);
-      const existing = db.rooms.find(r => r.seats.some(s => this.matchesCredential(s, token)));
+      for (const room of db.rooms) if (room.seats.some(s => this.matchesCredential(s, token))) this.settle(db, room);
+      const existing = db.rooms.find(r => !finished(r) && r.seats.some(s => this.matchesCredential(s, token)));
       if (existing) {
-        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && !!requested.beltCompact === !!existing.game.compact && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
+        requireThat(existing.variant === variant, 409, 'game.conflict.variant', 'This credential already belongs to an operation with a different variant.');
+        requireThat(!requested || requested.playerCount === playersIn(existing.game).length && !!requested.beltCompact === !!existing.game.compact && requested.teamFormat === existing.game.rules?.teams?.format && requested.mode === (existing.game.rules?.mode ?? 'mining') && !!requested.driftingBases === driftingBasesEnabled(existing.game) && JSON.stringify(requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount)) === JSON.stringify(existing.game.rules?.portraits ?? DEFAULT_PORTRAITS.slice(0, playersIn(existing.game).length)), 409, 'game.conflict.options', 'This credential already belongs to an operation with different settings.');
         this.settle(db, existing); return this.view(existing, this.seat(existing, token));
       }
       requireThat(db.rooms.length < 1000, 503, 'game.capacity.reached', 'This server has reached its operation limit.');
-      const room: Room = { id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
-        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? { ...DEFAULT_GAME_OPTIONS, beltCompact: true }, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [{ faction: 'you', hash: credential, ...(typeof token !== 'string' ? token : {}) }], messages: [], receipts: {} };
+      const room: Room = { ...(variant ? { variant } : {}), id: randomBytes(12).toString('hex'), invite: randomBytes(12).toString('hex'), startedAt: null,
+        referenceKey: randomBytes(32).toString('hex'), revision: 0, game: this.initialGame && !requested ? this.initialGame(this.now(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))) : createConfiguredGame(requested ?? { ...DEFAULT_GAME_OPTIONS, beltCompact: true }, this.now(), randomBytes(4).readUInt32BE(), Object.fromEntries(FACTIONS.map(f => [f, randomBytes(4).readUInt32BE()]))), seats: [this.newSeat(db, token, 'you', variant)], messages: [], receipts: {} };
       if (room.game.pulse && this.pulseDefaults) { room.game.rules!.pulse = { ...this.pulseDefaults }; room.game.pulse = createPulseSystem(room.game); }
       db.rooms.push(room);
       return this.view(room, 'you');
@@ -257,10 +296,11 @@ export class GameService {
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
       const existing = room.seats.find(s => this.matchesCredential(s, token));
       if (existing) { this.settle(db, room); return this.view(room, existing.faction); }
-      requireThat(!db.rooms.some(r => r.seats.some(s => this.matchesCredential(s, token))), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
+      for (const prior of db.rooms) if (prior.seats.some(s => this.matchesCredential(s, token))) this.settle(db, prior);
+      requireThat(!db.rooms.some(r => !finished(r) && r.seats.some(s => this.matchesCredential(s, token))), 409, 'seat.conflict.assigned', 'This token already belongs to another operation.');
       requireThat(room.startedAt === null && room.seats.length < playersIn(room.game).length, 409, 'game.conflict.closed', 'This operation is no longer accepting players.');
       const faction = playersIn(room.game)[room.seats.length]!;
-      room.seats.push({ faction, hash: credential, ...(typeof token !== 'string' ? token : {}) }); room.revision++;
+      room.seats.push(this.newSeat(db, token, faction, room.variant)); room.revision++;
       return this.view(room, faction);
     });
   }
@@ -350,7 +390,12 @@ export class GameService {
       const r = this.room(db, id); const f = this.seat(r, token);
       requireThat(f === 'you', 403, 'game.forbidden.host', 'Only the host can start the operation.');
       requireThat(r.seats.length === playersIn(r.game).length, 409, 'game.conflict.seats', `Wait for all ${playersIn(r.game).length} intelligences to join.`);
-      if (r.startedAt === null) { r.startedAt = this.now(); r.game.epoch = r.startedAt; if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour; this.reviseOrders(r, [f]); }
+      if (r.startedAt === null) {
+        if (r.variant === 'faction') r.game = factionOpening(r.game, r.seats.map(s => ({ player: s.faction, faction: s.allegiance! })));
+        r.startedAt = this.now(); r.game.epoch = r.startedAt;
+        if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour;
+        this.reviseOrders(r, [f]);
+      }
       this.settle(db, r); return this.view(r, f);
     });
   }

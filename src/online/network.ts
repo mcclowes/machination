@@ -1,6 +1,7 @@
 import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
+import { ALLEGIANCE_IDS, isAllegiance, type Allegiance, type FactionStandings } from '../game/factions';
 import type { HistorySnapshot, Snapshot } from './protocol';
 import { snapshotResponse, historicalResponse } from './snapshot-response';
 import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
@@ -49,8 +50,18 @@ export async function historicalApi(session: RequestSession & { id: string }, ho
   return historicalResponse(session.id, hour, data);
 }
 
-export function creationPayload(options?: GameOptions): { options?: GameOptions } {
-  return options === undefined ? {} : { options: validateOptions(options) };
+export function creationPayload(options?: GameOptions, variant?: 'faction'): { options?: GameOptions; variant?: 'faction' } {
+  if (variant !== undefined && variant !== 'faction') throw new Error('Unsupported operation variant.');
+  return { ...(options === undefined ? {} : { options: validateOptions(options) }), ...(variant ? { variant } : {}) };
+}
+export async function factionsApi(session: RequestSession, faction?: Allegiance): Promise<FactionStandings> {
+  const data = await request(session, 'factions', faction === undefined ? undefined : { faction });
+  if (!record(data) || !Number.isSafeInteger(data.completedGames) || (data.completedGames as number) < 0
+    || data.faction !== undefined && !isAllegiance(data.faction) || !Array.isArray(data.leaderboard)
+    || data.leaderboard.length !== ALLEGIANCE_IDS.length || !data.leaderboard.every(row => record(row) && isAllegiance(row.faction)
+      && Number.isSafeInteger(row.wins) && (row.wins as number) >= 0)
+    || new Set(data.leaderboard.map(row => row.faction)).size !== ALLEGIANCE_IDS.length) throw new Error('Unsupported faction standings response.');
+  return data as FactionStandings;
 }
 
 type SeatSession = RequestSession & { id: string };

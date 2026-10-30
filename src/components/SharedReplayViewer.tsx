@@ -1,6 +1,6 @@
 /** Read-only playback of validated public observations. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BeltMap } from './BeltMap';
 import { PlayerIdentity, PlayerPortraits } from './PlayerIdentity';
 import { SpecialistManifest } from './SpecialistManifest';
@@ -52,6 +52,11 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
     setPlaying(false); current.current = bounded; setPosition(bounded); setHourText(String(bounded.hour));
     setInspection(value => ({ request: value.request + 1, id: undefined }));
   }
+  function seekHour() {
+    if (!hourText.trim() || !Number.isFinite(Number(hourText))) return;
+    Keyboard.dismiss();
+    seek({ hour: Number(hourText) });
+  }
   const previous = previousReplayStep(replay, position), next = nextReplayStep(replay, position);
   const rock = scene.rocks.find(item => item.id === selected);
   const group = replay.groups.find(item => item.hour === position.hour);
@@ -66,16 +71,15 @@ export function SharedReplayViewer({ replay, onExit }: { replay: SharedReplay; o
     </View>
     <View style={s.stage}>
     <BeltMap fill inspecting={!!selected} coveredBottom={rock && siteCard?.id === rock.id ? siteCard.height + s.drawer.bottom : 0} game={scene} selected={selected} player={replay.perspective} onSelect={site => { setOptions(false); setSelected(site.id); }} inspectFleet={inspection}
-      onInspectFleet={() => { setSelected(''); setOptions(false); }} timeInspection={scene.fleets.every(fleet => fleet.arrives >= replay.from && fleet.arrives <= replay.through)
-        ? { liveHour: replay.through, historyStart: replay.from, onInspect: hour => { if (hour === null || hour >= replay.from && hour <= replay.through) seek({ hour: hour ?? replay.through }); } }
-        : undefined} />
+      onInspectFleet={() => { setSelected(''); setOptions(false); }} timeInspection={{ liveHour: replay.through, historyStart: replay.from, historyEnd: replay.through,
+        onInspect: hour => { if (hour === null || hour >= replay.from && hour <= replay.through) seek({ hour: hour ?? replay.through }); } }} />
     {options && <View style={s.drawer}>
       <View style={s.drawerHeading}><Text style={s.title}>Playback options</Text><Control label="Close playback options" text="×" onPress={() => setOptions(false)} /></View>
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={s.details}>
         <Text style={s.text}>Clip {gameClock(replay.from)} — {gameClock(replay.through)}</Text>
         <Text style={s.text}>Seek to an exact hour</Text>
-        <View style={s.row}><TextInput style={s.input} accessibilityLabel="Replay hour" keyboardType="decimal-pad" value={hourText} onChangeText={setHourText} />
-          <Control label="Seek hour" onPress={() => { if (hourText.trim()) seek({ hour: Number(hourText) }); }} /></View>
+        <View style={s.row}><TextInput style={s.input} accessibilityLabel="Replay hour" keyboardType="decimal-pad" value={hourText} onChangeText={setHourText} onSubmitEditing={seekHour} />
+          <Control label="Seek hour" onPress={seekHour} /></View>
         <View style={s.row}>{[0.25, 1, 4, 16].map(value => <Control key={value} label={`${value}×`} selected={speed === value} onPress={() => setSpeed(value)} />)}</View>
         <Text style={s.text}>1× plays one game hour per second.</Text>
       </ScrollView>

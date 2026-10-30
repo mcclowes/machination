@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createConfiguredGame } from './world';
+import { createPreCargoGame as createConfiguredGame } from './test-world';
 import { advance, dispatch } from './simulation';
 import { fleetPosition } from './flight';
 import { worldDistance } from './geometry';

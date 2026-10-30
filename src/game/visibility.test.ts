@@ -342,7 +342,7 @@ test('v2 third-party remote capture refreshes public owner without disclosing ba
 });
 
 test('public remote territory contributes to a supported projected domination victory', async () => {
-  const { createConfiguredGame } = await import('./world');
+  const { createPreCargoGame: createConfiguredGame } = await import('./test-world');
   const { victoryProgress } = await import('./rules');
   let game = createConfiguredGame({ playerCount: 3, mode: 'domination' }, 0, 733);
   const neutral = game.rocks.filter(r => !r.owner);
@@ -374,7 +374,7 @@ test('public remote territory contributes to a supported projected domination vi
 });
 
 test('unrelated hidden sites do not suppress a supported own mining victory', async () => {
-  const { createConfiguredGame } = await import('./world');
+  const { createPreCargoGame: createConfiguredGame } = await import('./test-world');
   const game = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 733);
   const mine = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
   mine.kind = 'mine'; mine.miningInterval = 24 / 5; mine.miningAt = 0.5;
@@ -392,7 +392,7 @@ test('unrelated hidden sites do not suppress a supported own mining victory', as
 });
 
 test('unresolved remote conquest cannot manufacture a domination victory', async () => {
-  const { createConfiguredGame } = await import('./world');
+  const { createPreCargoGame: createConfiguredGame } = await import('./test-world');
   const { victoryProgress } = await import('./rules');
   let game = createConfiguredGame({ playerCount: 3, mode: 'domination' }, 0, 733);
   const neutral = game.rocks.filter(r => !r.owner);

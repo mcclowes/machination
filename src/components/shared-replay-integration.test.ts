@@ -28,11 +28,11 @@ function fixture(zero = false): SharedReplay {
     spans: zero ? [] : [{ from: 0, through: 1, scene: scene(0, 2) }, { from: 1, through: 2, scene: scene(1, 0, false) }] };
 }
 // Real React lifecycle with native hosts; no browser or device gesture claim.
-test('shared replay import and viewer remain local, causal, bounded, and clean up playback', async () => {
+for (const platform of ['web', 'ios']) test(`shared replay import and viewer remain local, causal, bounded, and clean up playback on ${platform}`, async () => {
   const key = '__sharedReplayIntegration';
   const globals = globalThis as typeof globalThis & Record<string, any>;
-  let picked: string | null | Error = null, picks = 0, forbidden = 0, now = 1000, timer: (() => void) | undefined, starts = 0;
-  globals[key] = { pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
+  let picked: string | null | Error = null, picks = 0, forbidden = 0, now = 1000, timer: (() => void) | undefined, starts = 0, dismissals = 0;
+  globals[key] = { dismiss: () => { dismissals++; }, pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   const originals = { interval: globalThis.setInterval, clear: globalThis.clearInterval, fetch: globalThis.fetch, now: Date.now };
@@ -51,7 +51,7 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
           React.useLayoutEffect(()=>{if(props.testID==='replay-site-inspector') props.onLayout({nativeEvent:{layout:{width:300,height:220}}});},[]);
           return React.createElement('View',{...props,ref});
         });
-        export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:'ios'}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+        export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
@@ -74,7 +74,8 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     await press('Close site details');
     await press('Next state'); assert.match(visible(), /State 2 of 2/);
     await press('Previous state'); assert.match(visible(), /State 1 of 2/);
-    await press('Map controls'); await press('Focus your territory'); await press('Close map controls');
+    if (platform === 'ios') await press('Map controls');
+    await press('Focus your territory'); await press('Close map controls');
     await press('Inspect specialists at Alpha: Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
     assert.match(visible(), /Specialists at this site/);
     assert.ok(visible().includes(SPECIALISTS.queen.description));
@@ -97,6 +98,15 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     const input = hosts('TextInput')[0]!;
     await flush(() => input.props.onChangeText('999')); await press('Seek hour'); assert.match(visible(), /D01 · 02:00/);
     await flush(() => input.props.onChangeText('NaN')); await press('Seek hour'); assert.match(visible(), /D01 · 02:00/);
+    const chartBeforeSeek = hosts('View').find(node => node.props.testID === 'belt-map');
+    const dismissalsBeforeSubmit = dismissals;
+    await flush(() => input.props.onSubmitEditing?.());
+    assert.equal(dismissals, dismissalsBeforeSubmit, 'Invalid keyboard submission keeps the editor open');
+    await flush(() => input.props.onChangeText('0.5'));
+    await flush(() => input.props.onSubmitEditing?.());
+    assert.match(visible(), /D01 · 00:30/, 'Keyboard submission seeks just like the Seek hour button');
+    assert.equal(dismissals, dismissalsBeforeSubmit + 1, 'Valid keyboard submission releases chart space');
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), chartBeforeSeek, 'Precise seeking retains the mounted chart');
     await press('Beginning');
     const timeline = hosts('View').find(node => node.props.accessibilityLabel === 'Replay timeline')!;
     await flush(() => timeline.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
@@ -135,6 +145,36 @@ test('shared replay import and viewer remain local, causal, bounded, and clean u
     assert.equal(button('Close hauler details'), undefined);
     assert.equal(forbidden, 0);
     await press('Exit replay');
+    const mixed = fixture();
+    for (const state of [...mixed.groups[0]!.states, mixed.spans[0]!.scene]) {
+      state.fleets.push({ ...state.fleets[0]!, id: 2, arrives: 8, drones: 7 });
+    }
+    picked = JSON.stringify(mixed); await press('Open replay'); await press('Beginning');
+    await flush(() => hosts('Pressable').find(node => /hauler, 2 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
+    assert.ok(button('Jump to hauler arrival'), 'An unrelated out-of-clip hauler must not hide an in-clip arrival action');
+    const mixedChart = hosts('View').find(node => node.props.testID === 'belt-map');
+    await press('Close hauler details');
+    await flush(() => hosts('Pressable').find(node => /hauler, 7 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
+    assert.equal(button('Jump to hauler arrival'), undefined, 'An out-of-clip selected contact has no arrival action');
+    assert.match(visible(), /Arrival is outside the available time range/);
+    await press('Close hauler details');
+    await flush(() => hosts('Pressable').find(node => /hauler, 2 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
+    await press('Jump to hauler arrival'); assert.match(visible(), /D01 · 01:00/);
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), mixedChart, 'Arrival seeking retains the mounted chart');
+    await press('Exit replay');
+    for (const arrival of [2, 8]) {
+      const bounded = fixture(arrival === 8);
+      for (const state of [...bounded.groups[0]!.states, ...(bounded.spans[0] ? [bounded.spans[0].scene] : [])]) state.fleets[0]!.arrives = arrival;
+      picked = JSON.stringify(bounded); await press('Open replay');
+      if (arrival !== 8) await press('Beginning');
+      await flush(() => hosts('Pressable').find(node => /hauler, 2 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
+      if (arrival === 8) assert.equal(button('Jump to hauler arrival'), undefined, 'Zero-duration clips exclude future arrivals');
+      else {
+        await press('Jump to hauler arrival');
+        assert.match(visible(), arrival === 0 ? /D01 · 00:00/ : /D01 · 02:00/);
+      }
+      await press('Exit replay');
+    }
     const world = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 2026);
     const core = world.rocks.find(site => site.coreOf === 'you')!;
     core.specialists!.push({ id: 'own-engineer', kind: 'engineer', owner: 'you' },

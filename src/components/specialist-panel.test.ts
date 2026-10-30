@@ -52,6 +52,22 @@ test('global hire uses the engine core and inspection works without a selected s
   await panel.close();
 });
 
+test('recruitment shows the cargo fee and disables hires when five cargo is unavailable', async () => {
+  for (const cargo of [4, 5]) {
+    const game = fixture();
+    game.cargo.you = cargo;
+    const panel = await render(props(observe(game, 'you')));
+    const hires = panel.buttons().filter((n: any) => n.props.accessibilityLabel?.startsWith('Hire '));
+    assert.equal(hires.length, 3);
+    for (const hire of hires) {
+      assert.match(hire.props.accessibilityLabel, /1 credit and 5 cargo/);
+      assert.equal(hire.props.disabled, cargo < 5);
+    }
+    assert.match(panel.text(), /5 cargo/);
+    await panel.close();
+  }
+});
+
 test('hidden sites never supply roster identities or a hiring core, including malformed observations', async () => {
   const view = observe(fixture(),'you');
   for (const site of view.rocks) {

@@ -6,6 +6,8 @@
  * ---
  */
 import { advance, dispatch, type Faction, type Game, type Rock } from './simulation';
+import { allied } from './teams';
+import { hasReserves } from './depletion';
 import { worldDistance } from './geometry';
 import { ALL_PLAYERS, playersIn } from './players';
 import { FACTORY_OUTPUT, maximumShield } from './economy';
@@ -53,6 +55,7 @@ export const surplus = (game: Game, rock: Rock, owner: Faction): number => Math.
 export function siteValue(game: Game, rock: Rock, owner: Faction): number {
   if (rock.destroyed) return 0;
   if (ownsKing(rock, rock.owner!)) return 600;
+  if (!hasReserves(rock)) return 0;
   const personality = ALL_PLAYERS.indexOf(owner) % 3;
   const value = rock.kind === 'mine' ? (game.rules?.mode === 'domination' ? 35 : 100) : rock.kind === 'factory' ? 65 : 45;
   return value + (personality === 0 && rock.owner ? 25 : personality === 1 && !rock.owner ? 25 : personality === 2 && rock.kind === 'mine' ? 30 : 0);
@@ -135,7 +138,7 @@ export function attackSites(input: Game, owner: Faction, forecast: RivalForecast
   // Replan after each launch so committed troops and destinations are accounted for.
   for (let action = 0; action < 2; action++) {
     const candidates = ownedSites(game, owner).filter(r => r.id !== savingAt && surplus(game, r, owner) > 0 && !usedSources.has(r.id)).flatMap(source =>
-      game.rocks.filter(target => !target.destroyed && target.owner !== owner
+      game.rocks.filter(target => !target.destroyed && (!target.owner || !allied(game, owner, target.owner)) && siteValue(game, target, owner) > 0
         && plausibleAttack(game, source, target, owner)).map(target => ({ source, target,
         score: siteValue(game, target, owner) / (2 + worldDistance(game, source, target) / 8) - target.drones * 0.2,
       }))).sort((a, b) => b.score - a.score || byId(a.target, b.target) || byId(a.source, b.source)).slice(0, MAX_ATTACK_CANDIDATES);
@@ -150,7 +153,7 @@ export function attackSites(input: Game, owner: Faction, forecast: RivalForecast
         const expected = forecast(game, arrival);
         if (!expected || expected.rocks.some(r => r.id === target.id && (r.owner === owner || r.destroyed))) continue;
       }
-      const production = target.owner && target.kind === 'factory' ? FACTORY_OUTPUT * Math.ceil(workBetween(game, game.hour, arrival) / (target.productionInterval ?? 8)) : 0;
+      const production = target.owner && target.kind === 'factory' ? Math.min(target.reserves ?? Infinity, FACTORY_OUTPUT * Math.ceil(workBetween(game, game.hour, arrival) / (target.productionInterval ?? 8))) : 0;
       const estimate = Math.ceil(target.drones + production + (target.shieldsDisabled || !target.owner ? 0 : maximumShield(target)) + 8);
       // Validate both ordinary combat and specialist effects with the real engine.
       const amounts = [...new Set([Math.min(available, Math.max(1, estimate)), available])];
@@ -169,7 +172,7 @@ export function attackSites(input: Game, owner: Faction, forecast: RivalForecast
 
 export function reinforceFront(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string): Game {
   const sites = ownedSites(input, owner);
-  const enemies = input.rocks.filter(r => !r.destroyed && r.owner !== owner);
+  const enemies = input.rocks.filter(r => !r.destroyed && (!r.owner || !allied(input, owner, r.owner)) && siteValue(input, r, owner) > 0);
   if (!enemies.length) return input;
   const distance = (r: Rock) => Math.min(...enemies.map(e => worldDistance(input, r, e)));
   const front = savingAt ? sites.find(r => r.id === savingAt) : [...sites].sort((a, b) => distance(a) - distance(b) || byId(a, b))[0];

@@ -7,7 +7,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SPECIALISTS, hireAmount, promotion, type SpecialistKind } from '../game/specialist-catalog';
 import { gameClock } from '../game/time-machine';
-import { recruitmentStatus } from '../game/specialists';
+import { recruitmentCost, recruitmentStatus } from '../game/specialists';
 import type { Faction, Game, Rock } from '../game/simulation';
 import type { GameView } from '../game/visibility';
 import { SpecialistIcon } from './SpecialistIcon';
@@ -61,12 +61,16 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
   const label = (action: string) => scheduledAt === undefined ? action : `Schedule at ${gameClock(scheduledAt)}: ${action}`;
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   const coreSite = game.rocks.find(site => site.id === status.at && !site.destroyed);
-  const canRecruit = active && status.credits > 0 && !!coreSite;
+  const cost = recruitmentCost(game);
+  const price = `1 credit${cost ? ` and ${cost} cargo` : ''}`;
+  const affordable = (game.cargo[owner] ?? 0) >= cost;
+  const canRecruit = active && status.credits > 0 && !!coreSite && affordable;
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
   const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, ownership, and unit availability are checked at execution.</Text>}
+  return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, cargo, ownership, and unit availability are checked at execution.</Text>}
     <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
-    <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring and promotion cost 1 credit.</Text>
+    <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring costs {price}. Promotion costs 1 credit.</Text>
+    {cost > 0 && <Text style={s.detail}>{game.cargo[owner] ?? 0} cargo available.{!affordable ? ` Recruitment needs ${cost} cargo.` : ''}</Text>}
     <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
     {'recruitmentUncertain' in game && !!game.recruitmentUncertain && <Text style={s.detail}>A planned hire or promotion consumes the known recruitment offer. Subsequent offers are unknown; return to live time after execution to see new choices.</Text>}
     {status.offers.map(kind => {
@@ -76,7 +80,7 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
         <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
         <Text style={s.reference}>{entry.reference}</Text>
         <Text style={s.detail}>{entry.description}</Text>
-        <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · 1 credit`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for 1 credit`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
+        <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · ${price}`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for ${price}`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
       </View>;
     })}</>;
 }

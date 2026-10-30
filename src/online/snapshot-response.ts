@@ -8,6 +8,7 @@
  */
 import { validObservation } from '../game/observation-format';
 import { isFaction, playersIn } from '../game/players';
+import { isAllegiance } from '../game/factions';
 import type { GameView } from '../game/visibility';
 import { DIPLOMACY_LIMITS, type HistorySnapshot, type Snapshot } from './protocol';
 
@@ -36,6 +37,10 @@ function bounds(value: unknown): value is { from: number; through: number } {
 
 function metadata(value: Record<string, unknown>, members: unknown[]): boolean {
   const member = (faction: unknown) => isFaction(faction) && members.includes(faction);
+  if (value.variant !== undefined && value.variant !== 'faction'
+    || (value.variant === 'faction' ? !Array.isArray(value.allegiances) || value.allegiances.length !== members.length
+      || !value.allegiances.every(a => record(a) && member(a.player) && isAllegiance(a.faction))
+      || new Set(value.allegiances.map(a => a.player)).size !== members.length : value.allegiances !== undefined)) return false;
   const message = (item: unknown): item is Record<string, unknown> => record(item) && member(item.from)
     && typeof item.text === 'string' && item.text.length <= DIPLOMACY_LIMITS.text && nonnegative(item.sentAt);
   if (!Array.isArray(value.messages) || !value.messages.every(item => message(item) && count(item.id) && item.id > 0 && member(item.to))

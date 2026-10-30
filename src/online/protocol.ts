@@ -8,6 +8,7 @@ import type { HaulerChange } from '../game/transport';
 import type { ModuleKind } from '../game/modules';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/simulation';
+import type { Allegiance } from '../game/factions';
 export type Message = { id: number; from: Faction; to: Faction; text: string; sentAt: number };
 export const DIPLOMACY_LIMITS = { name: 60, text: 1000, groupsPerParticipant: 16, messagesPerChannel: 100 } as const;
 export type Group = { id: string; name: string; members: Faction[]; createdBy: Faction; createdAt: number };
@@ -19,6 +20,7 @@ export type ChannelTransmission = { requestId: string; channelId: string; text: 
 export type ObjectReference = { version: 1; gameId: string; kind: 'outpost' | 'hauler'; ref: string; hour: number };
 export type ObjectReferences = { version: 1; outposts: { id: string; ref: string }[]; haulers: { id: number; ref: string }[] };
 export type Snapshot = {
+  variant?: 'faction'; allegiances?: { player: Faction; faction: Allegiance }[];
   id: string; invite: string; status: 'game.lobby' | 'game.active' | 'game.finished';
   faction: Faction; host: boolean; members: Faction[]; revision: number;
   recoveryEnabled?: boolean;

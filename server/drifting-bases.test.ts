@@ -22,7 +22,7 @@ test('drifting rooms retain setup, rendezvous, observations, and history through
   await assert.rejects(() => service.create(host, { ...options, driftingBases: false }));
   await service.join(room.invite, rival);
   const started = await service.start(room.id, host);
-  const source = started.game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
+  const source = started.game.rocks.find(r => r.owner === 'you' && (r.drones ?? 0) >= 30)!;
   const target = started.game.rocks.filter(r => r.drift).sort((a, b) => worldDistance(started.game, source, a) - worldDistance(started.game, source, b))[0]!;
   const command = { requestId: randomUUID(), revision: started.revision, from: source.id, to: target.id, drones: 30, carryModule: false };
   const launched = await service.order(room.id, host, command);

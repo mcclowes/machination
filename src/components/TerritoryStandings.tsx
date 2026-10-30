@@ -1,6 +1,7 @@
 /** Public territorial progress for domination operations. */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { teamNumber } from '../game/teams';
 import { playersIn } from '../game/players';
 import { victoryProgress, victoryTarget } from '../game/rules';
 import { PlayerIdentity } from './PlayerIdentity';
@@ -9,7 +10,7 @@ import type { GameView } from '../game/visibility';
 export function TerritoryStandings({ game }: { game: GameView }) {
   if (game.rules?.mode !== 'domination' || game.rocks.some(r => r.owner === undefined)) return null;
   return <View style={s.panel}><Text style={s.title}>Territory standings</Text>
-    {playersIn(game).map(f => <PlayerIdentity key={f} faction={f} detail={`${victoryProgress(game, f)} / ${victoryTarget(game)} sites${game.eliminated.includes(f) ? ' · eliminated' : ''}`} />)}
+    {playersIn(game).map(f => <PlayerIdentity key={f} faction={f} detail={`${game.rules?.teams ? `Team ${teamNumber(game, f)} · ` : ''}${victoryProgress(game, f)} / ${victoryTarget(game)} sites${game.eliminated.includes(f) ? ' · eliminated' : ''}`} />)}
     {game.forecastUncertain && <Text style={s.detail}>Projected from public owners and observed outcomes. Unseen battles can change these totals.</Text>}
   </View>;
 }

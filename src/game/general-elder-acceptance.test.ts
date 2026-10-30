@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createConfiguredGame } from './world';
+import { createPreCargoGame as createConfiguredGame } from './test-world';
 import { advance, type Game } from './simulation';
 import { nextRouteEncounter } from './route-encounters';
 import { createArchive, executeCommand, exportArchive, replayTo, restoreArchive, type GameCommand, type ReplayEntry } from './replay';

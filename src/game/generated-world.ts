@@ -24,7 +24,7 @@ function shuffle<T>(values: T[], random: () => number): T[] {
   return values;
 }
 
-function candidate(count: number, size: number, random: () => number): Candidate {
+function candidate(count: number, size: number, random: () => number, startingSites: number): Candidate {
   // Candidates are canonical coordinates in [0, size), so no modulo is needed.
   const distance = (a: Point, b: Point) => {
     const dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
@@ -62,8 +62,8 @@ function candidate(count: number, size: number, random: () => number): Candidate
   }
   const expansionCounts = Array<number>(count).fill(0);
   const access = territories.map(() => [] as number[]);
-  for (const territory of territories) for (const index of territory.slice(5)) {
-    const distances = territories.map(home => Math.min(...home.slice(0, 5).map(i => distance(points[index]!, points[i]!))));
+  for (const territory of territories) for (const index of territory.slice(startingSites)) {
+    const distances = territories.map(home => Math.min(...home.slice(0, startingSites).map(i => distance(points[index]!, points[i]!))));
     const winner = distances.indexOf(Math.min(...distances));
     expansionCounts[winner] = expansionCounts[winner]! + 1;
     distances.forEach((d, player) => access[player]!.push(d));
@@ -72,7 +72,7 @@ function candidate(count: number, size: number, random: () => number): Candidate
   return { points, territories, score: spread(expansionCounts) + spread(accessMeans) / size };
 }
 
-export function generateWorld(players: readonly Faction[], seed: number): { rocks: Rock[]; width: number; height: number } {
+export function generateWorld(players: readonly Faction[], seed: number, startingMine = false): { rocks: Rock[]; width: number; height: number } {
   if (!Array.isArray(players) || players.length < 2 || players.length > 10 || new Set(players).size !== players.length || !players.every(isFaction))
     throw new Error('Choose 2–10 unique known players.');
   if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) throw new Error('Chart seed must be a uint32.');
@@ -80,7 +80,7 @@ export function generateWorld(players: readonly Faction[], seed: number): { rock
   const size = Math.sqrt(players.length * OUTPOSTS_PER_PLAYER * (1000 / 3));
   let best: Candidate | undefined;
   for (let attempt = 0; attempt < 500; attempt++) {
-    const next = candidate(players.length, size, random);
+    const next = candidate(players.length, size, random, startingMine ? 6 : 5);
     if (!best || next.score < best.score) best = next;
     if (best.score < 0.02) break;
   }
@@ -92,14 +92,16 @@ export function generateWorld(players: readonly Faction[], seed: number): { rock
     territory.forEach((pointIndex, rank) => {
       const index = rocks.length;
       const id = index < 26 ? String.fromCharCode(97 + index) : `site-${String(index).padStart(3, '0')}`;
-      const owner = rank < 5 ? players[player]! : null;
+      const mine = startingMine && rank === 5;
+      const owner = rank < (startingMine ? 6 : 5) ? players[player]! : null;
       const core = rank === 0;
       const shieldMax = shields[rank]!;
       rocks.push({
         id, name: `Relay ${index + 1}`, ...best!.points[pointIndex]!,
-        owner, kind: types[rank]!,  drones: owner && !core ? 40 : 0,
+        owner, kind: mine ? 'mine' : types[rank]!, drones: owner && !core && !mine ? 40 : 0,
         shield: 0, shieldMax, shieldAt: 48 / (shieldMax + (core ? 20 : 0)), shieldsDisabled: false, productionAt: 8,
         specialists: core && owner ? [{ id: `core-${owner}`, owner, kind: 'queen' }] : [],
+        ...(mine ? { miningAt: 4, miningInterval: 4 } : {}),
         ...(core && owner ? { coreOf: owner } : {}),
       });
     });

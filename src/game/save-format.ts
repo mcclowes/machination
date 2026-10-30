@@ -4,10 +4,11 @@
  * ---
  */
 import { validCompact } from './compact-save';
+import { PLANET_RESERVES, SUPPLY_CYCLE } from './depletion';
 import { validPulseSave } from './pulse-save';
 import { validDrift, sitePosition } from './drift';
 import { validateScheduledAction } from './future-actions';
-import { driftingBasesEnabled, mechanicsVersion, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
+import { driftingBasesEnabled, mechanicsVersion, victoryProgress, victoryTarget, validateRules, OUTPOSTS_PER_PLAYER } from './rules';
 import { playersIn } from './players';
 import type { ReplayData } from './replay';
 import { upgradeSpecialists } from './specialists';
@@ -43,7 +44,7 @@ export function decodeSave(raw: string): Save {
     || !Array.isArray(g.eliminated) || !g.eliminated.every(isFaction) || new Set(g.eliminated).size !== g.eliminated.length
     || !(g.winner === null || isFaction(g.winner))
     || !(g.specialistVersion === undefined || g.version === 2 && g.specialistVersion === 1)
-    || !(g.draw === undefined || g.version === 2 && g.draw === true && g.winner === null && Array.isArray(g.eliminated) && g.eliminated.length === factions.length)
+    || !(g.draw === undefined || g.version === 2 && g.draw === true && g.winner === null && Array.isArray(g.eliminated) && (g.eliminated.length === factions.length || !!rules?.teams))
     || !Array.isArray(g.rocks) || g.rocks.length !== (rules ? rules.players.length * OUTPOSTS_PER_PLAYER : base.rocks.length)
     || !Array.isArray(g.fleets) || !Array.isArray(g.events) || g.events.length > MAX_STORED_EVENTS) return fail();
   if (g.specialistVersion === 1 && (!record(g.recruitment) || !g.rocks.every(r => record(r) && Array.isArray(r.specialists)) || !g.fleets.every(f => record(f) && Array.isArray(f.specialists)))) return fail();
@@ -75,13 +76,18 @@ export function decodeSave(raw: string): Save {
       || new Set(g.funding.map(f => `${f.from}:${f.to}`)).size !== g.funding.length) return fail();
   }
   const ids = new Set<string>();
+  if (g.rocks.some(r => record(r) && r.reserves !== undefined) && !g.rocks.every(r => record(r) && r.reserves !== undefined)) return fail();
   for (const r of g.rocks) {
+    if (!record(r)) return fail();
+    if (r.reserves !== undefined && (g.version !== 2 || !rules || !nonnegative(r.reserves) || r.reserves > PLANET_RESERVES)) return fail();
+    if (r.kind === 'generator' && r.reserves !== undefined && r.supplyAt === undefined) return fail();
+    if (r.supplyAt !== undefined && (r.reserves === undefined || !nonnegative(r.supplyAt) || !r.destroyed && r.kind === 'generator' && (r.supplyAt <= (g.hour as number) || r.supplyAt > (g.hour as number) + SUPPLY_CYCLE))) return fail();
     if (!record(r) || typeof r.id !== 'string' || !/^[a-zA-Z0-9:-]{1,80}$/.test(r.id) || ids.has(r.id) || !rules && !base.rocks.some(b => b.id === r.id)
       || typeof r.name !== 'string' || !finite(r.x) || !finite(r.y) || rules && (r.x < 0 || r.y < 0 || r.x > rules.map.width || r.y > rules.map.height) || !nonnegative(r.drones)
       || !(r.owner === null || isFaction(r.owner)) || !(g.version === 2 ? ['factory', 'generator', 'mine'] : ['core', 'reactor', 'mine']).includes(r.kind as string)
       || !(r.coreOf === undefined || isFaction(r.coreOf)) || !(r.module === undefined || isModule(r.module))) return fail();
     if (r.drift !== undefined && (!driftingBasesEnabled({ rules }) || !validDrift(r.drift, { rules }) || !finite(g.hour) || Math.hypot(r.x - sitePosition({ rules }, r as Rock, g.hour).x, r.y - sitePosition({ rules }, r as Rock, g.hour).y) > 1e-8)) return fail();
-    if (rules?.mode === 'domination' && r.kind === 'mine') return fail();
+    if (rules?.mode === 'domination' && mechanicsVersion({ rules }) < 17 && r.kind === 'mine') return fail();
     if (mechanicsVersion({ rules }) >= 2 && r.destroyed && (r.drones !== 0 || r.shield !== 0 || r.coreOf !== undefined || r.module !== undefined || !Array.isArray(r.specialists) || r.specialists.length)) return fail();
     if (g.version === 2 && (!Number.isSafeInteger(r.shield) || !nonnegative(r.shield) || ![10, 20].includes(r.shieldMax as number)
       || (r.shield as number) > maximumShield(r as Rock) || typeof r.shieldsDisabled !== 'boolean' || !nonnegative(r.shieldAt)
@@ -143,7 +149,7 @@ export function decodeSave(raw: string): Save {
     const plans = new Set<string>();
     for (const p of g.scheduled) {
       if (!record(p) || typeof p.id !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(p.id) || !isFaction(p.owner)
-        || g.eliminated.includes(p.owner) || g.winner !== null || plans.has(`${p.owner}:${p.id}`)
+        || g.eliminated.includes(p.owner) || g.winner !== null || rules?.teams && g.draw || plans.has(`${p.owner}:${p.id}`)
         || !finite(p.executeAt) || p.executeAt <= g.hour || p.executeAt > g.hour + MAX_PLAN_DELAY) return fail();
       if (p.fleetId !== undefined) {
         if (mechanicsVersion({ rules }) < 4 || !Number.isSafeInteger(p.fleetId) || (p.fleetId as number) < 1 || (p.fleetId as number) >= (g.nextId as number) || fleetIds.has(p.fleetId as number)) return fail();
@@ -173,5 +179,11 @@ export function decodeSave(raw: string): Save {
   if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.battle === undefined || record(e.battle) && finite(e.battle.x) && finite(e.battle.y)) && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   if (!validPulseSave(g as Game)) return fail();
   const decoded = save as Save;
+  if (rules?.teams) {
+    const liveTeams = rules.teams.members.filter(members => members.some(f => !decoded.game.eliminated.includes(f)));
+    const qualified = liveTeams.filter(members => victoryProgress(decoded.game, members[0]!) >= victoryTarget(decoded.game));
+    if (decoded.game.draw && liveTeams.length > 0 && qualified.length < 2) return fail();
+    if (decoded.game.winner && !rules.teams.members.some(members => members[0] === decoded.game.winner)) return fail();
+  }
   return { ...decoded, game: upgradeSpecialists(decoded.game) };
 }

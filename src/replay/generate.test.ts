@@ -90,7 +90,7 @@ test('hidden queued commands and private prose introduce neither records nor ide
 
 test('configured worlds retain public portraits and observed preparation while stripping private fields', () => {
   const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 83);
-  const source = game.rocks.find(r => r.owner === 'you' && !r.coreOf)!;
+  const source = game.rocks.find(r => r.owner === 'you' && r.drones >= 5)!;
   const dest = game.rocks.find(r => r.owner === 'you' && r.id !== source.id)!;
   const op = applyCommand(createArchive(game), { type: 'dispatch', owner: 'you', from: source.id, to: dest.id, drones: 5 }, { rivals: false, knownThrough: 0 });
   const replay = generateSharedReplay(op, 'you', 0, 0);

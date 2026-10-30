@@ -4,6 +4,7 @@
  * ---
  */
 import { waiverActive } from './compact';
+import { allied } from './teams';
 import { sitePosition, type Drift } from './drift';
 import { worldDistance, type GeometryWorld } from './geometry';
 import { playersIn } from './players';
@@ -19,19 +20,19 @@ export function rockSensorRange(game: Game, rock: Game['rocks'][number]): number
 }
 export function sensors(game: Game, faction: Faction): Sensor[] {
   return [
-    ...game.rocks.filter(r => r.owner === faction).map(r => ({ ...sitePosition(game, r, game.hour), ...(r.drift ? { drift: r.drift } : {}), radius: rockSensorRange(game, r) })),
-    ...(game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).map(f => ({ ...fleetPosition(game, f), radius: HAULER_SENSOR_RANGE }))),
+    ...game.rocks.filter(r => r.owner && allied(game, faction, r.owner)).map(r => ({ ...sitePosition(game, r, game.hour), ...(r.drift ? { drift: r.drift } : {}), radius: rockSensorRange(game, r) })),
+    ...(game.version === 2 ? [] : game.fleets.filter(f => allied(game, faction, f.owner)).map(f => ({ ...fleetPosition(game, f), radius: HAULER_SENSOR_RANGE }))),
   ];
 }
 export function inRange(coverage: Sensor[], point: { x: number; y: number }, world: GeometryWorld = {}): boolean {
   return coverage.some(s => worldDistance(world, s, point) <= s.radius);
 }
 export function canObserveHauler(game: Game, faction: Faction, fleet: Fleet, coverage = sensors(game, faction)): boolean {
-  if (fleet.owner === faction) return true;
+  if (allied(game, faction, fleet.owner)) return true;
   if (fleet.preparing) return false;
   const incoming = game.version === 2 && (fleet.intercept
-    ? game.fleets.some(target => target.id === fleet.intercept!.target && target.owner === faction)
-    : game.rocks.some(rock => rock.id === fleet.to && rock.owner === faction));
+    ? game.fleets.some(target => target.id === fleet.intercept!.target && allied(game, faction, target.owner))
+    : game.rocks.some(rock => rock.id === fleet.to && rock.owner && allied(game, faction, rock.owner)));
   return incoming || inRange(coverage, fleetPosition(game, fleet), game);
 }
 export function observers(game: Game, point: { x: number; y: number }): Faction[] {

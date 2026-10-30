@@ -11,6 +11,7 @@ import { LaunchReview } from './LaunchReview';
 import type { LaunchUnit } from './launch-manifest';
 import { actionLabel, isActionPlan, type FutureAction } from '../game/future-actions';
 import { gameClock } from '../game/time-machine';
+import { FACTIONS, type Faction } from '../game/players';
 import type { Fleet } from '../game/simulation';
 type TimingProps = { delay: number; disabled: boolean; onChange: (delay: number) => void; future?: boolean; compact?: boolean };
 export function LaunchTiming({ delay, disabled, onChange, future, compact }: TimingProps) {
@@ -45,14 +46,16 @@ export function scheduledOrderLabel(plan: ScheduledOrder, rocks: { id: string; n
   }
   return queueActionLabel(plan.action, rocks, route);
 }
-type QueueProps = { plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean };
-export function ScheduledOrders({ plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation }: QueueProps) {
+type QueueProps = { owner?: Faction; plans: ScheduledOrder[]; fleets?: readonly Fleet[]; hour: number; rocks: { id: string; name: string }[]; disabled: boolean; onCancel: (id: string) => void; onInspect: (hour: number) => void; onEdit: (change: LaunchEdit) => void; units: LaunchUnit[]; preparation: boolean };
+export function ScheduledOrders({ owner, plans, fleets = [], hour, rocks, disabled, onCancel, onInspect, onEdit, units, preparation }: QueueProps) {
   const [review, setReview] = useState<string>();
   return <View style={s.queue}><Text style={s.label}>Scheduled orders / {plans.length}</Text>{plans.length ? [...plans].sort((a, b) => a.executeAt - b.executeAt).map(p => {
+    const readOnly = disabled || owner !== undefined && p.owner !== owner;
+    const reviewKey = `${p.owner}:${p.id}`;
     const action = isActionPlan(p);
     const label = scheduledOrderLabel(p, rocks, plans, fleets);
-    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === p.id ? undefined : p.id)} style={s.cancel}><Text style={s.text}>{disabled ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === p.id && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={disabled} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onCancel(p.id)} style={[s.cancel, disabled && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
-  }) : <Text style={s.detail}>No queued orders. Your plans remain private until execution.</Text>}</View>;
+    return <View key={`${p.owner}:${p.id}`} style={s.plan}><Text style={s.text}>{owner === undefined ? '' : `${FACTIONS[p.owner].name} · `}{label}</Text><Text style={s.detail}>{gameClock(p.executeAt)} · in {(p.executeAt - hour).toFixed(1)}h{action && (p.action.type === 'gift' || p.action.type === 'intercept') ? ` · ${p.action.drones} drones` : !action ? ` · ${p.drones} drones${p.module ? ` · ${MODULES[p.module].name}` : ''}` : ''}</Text><Pressable accessibilityRole="button" onPress={() => onInspect(p.executeAt)} style={s.cancel}><Text style={s.text}>Inspect forecast</Text></Pressable>{isScheduledLaunch(p) && <><Pressable accessibilityRole="button" onPress={() => setReview(review === reviewKey ? undefined : reviewKey)} style={s.cancel}><Text style={s.text}>{readOnly ? 'Review launch' : 'Review/edit launch'}</Text></Pressable>{review === reviewKey && <LaunchReview key={p.id} plan={p} units={units} preparation={preparation} disabled={readOnly} onSave={onEdit} onClose={() => setReview(undefined)} />}</>}<Pressable accessibilityRole="button" accessibilityLabel={`Cancel scheduled order: ${label}`} accessibilityState={{ disabled: readOnly }} disabled={readOnly} onPress={() => onCancel(p.id)} style={[s.cancel, readOnly && s.disabled]}><Text style={s.text}>Cancel order</Text></Pressable></View>;
+  }) : <Text style={s.detail}>No queued orders. In team games, teammates can review your plans.</Text>}</View>;
 }
 const s = StyleSheet.create({
   section: { gap: 9, marginVertical: 12 }, label: { color: '#96ad89', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase' }, options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, option: { flexGrow: 1, alignItems: 'center', minWidth: 45, minHeight: 44, justifyContent: 'center', paddingHorizontal: 9, borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, text: { color: '#d6e2cd', fontSize: 12, lineHeight: 19 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, queue: { gap: 13, padding: 18, borderWidth: 1, borderColor: '#30402e', backgroundColor: '#101b13' }, plan: { gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: '#30402e' }, cancel: { minHeight: 44, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#43563a', paddingHorizontal: 12 }, disabled: { opacity: 0.35 },

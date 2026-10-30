@@ -107,3 +107,27 @@ The code is consumed and the new token hash is committed atomically before succe
 Recovery preserves the seat's faction, private plans, messages, order receipts, revisions, and opaque contact IDs. The ID mapping retains its original private key across credential replacement. Snapshots expose only `recoveryEnabled` for the requesting seat; they never expose hashes, secrets, or recovery receipts. Legacy seats without recovery metadata continue to load with recovery disabled. Update the client and server together to use the recovery endpoints.
 
 The offline-code design follows [OWASP's recovery guidance](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html) on cryptographic randomness, one-way storage, and single-use credentials.
+
+## Persistent factions
+
+After your first completed online operation, open **Factions and next operation** and choose a permanent allegiance. Wins, losses, and draws qualify once the whole operation finishes; leaving a lobby or being eliminated while a match continues doesn't qualify. Solo and tactical practice don't contribute to this server-owned progression.
+
+| Faction | Starting elite in faction mode |
+| --- | --- |
+| Mnemosyne | Bulwark (Security Chief): global and local shield capacity |
+| Vesper | Warmind (General): global combat support |
+| Null collective | Overseer (Tycoon): faster global factory production |
+
+Review the faction's specialist before pressing **Join … permanently**. Choose **Faction mode** when creating your next operation, or join a faction-mode invitation. Every participant needs a faction before joining. Seat order, portrait, and corporation identity don't change allegiance. Multiple players can belong to the same faction and still compete individually. Faction mode currently uses free-for-all victories.
+
+Each participant receives one extra elite at their core when the host starts. The core, hiring credits, recruitment offers, and cargo remain intact. The elite uses ordinary specialist movement, capture, combat, and global-effect rules. Standard operations retain their normal opening.
+
+The **Faction leaderboard** shows total wins from completed faction-mode operations on this server. Each operation awards one win to its winner's frozen faction; draws award none. Standard wins aren't counted retroactively. The server derives totals from completed rooms, so refreshes, retries, and restarts cannot count a match twice. Standings refresh also settles elapsed server time, including unattended finishes.
+
+Use **Create next operation** or **Join next operation** after a match to keep the same identity and faction. Account login, seat recovery, and account linking preserve faction membership. A device-only player's progression requires their retained credential or saved recovery code; disconnecting and creating a fresh device identity starts fresh progression. Keep the server database when moving hosts.
+
+### Faction HTTP contract
+
+`GET /v1/factions` returns `{completedGames, faction?, leaderboard: [{faction, wins}]}`. `POST /v1/factions` takes exactly `{faction}` with `mnemosyne`, `vesper`, or `null`. Both accept verified account authentication or a current device-seat credential. Repeating the selected faction is harmless; changing it returns `409 faction.conflict.chosen`. Selecting before completing an online operation returns `409 faction.conflict.locked`.
+
+Create with `POST /v1/games` and `{options, variant: "faction"}`. Omit `variant` for a standard operation. Invitations inherit the host's variant. Players without an allegiance receive `409 faction.conflict.required`. Faction snapshots add `variant: "faction"` and `allegiances: [{player, faction}]`; standard snapshots omit both. The extra specialists are part of the initial replay baseline, so history, forecasts, and restarts retain the same opening. Existing database files load without faction metadata.

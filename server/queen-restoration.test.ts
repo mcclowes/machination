@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { GameService } from './service';
 import type { Database } from './database';
-import { createConfiguredGame } from '../src/game/world';
+import { createPreCargoGame as createConfiguredGame } from '../src/game/test-world';
 import { withUnitEffects } from '../src/game/specialist-effects';
 import { decodeSave } from '../src/game/save-format';
 import { activeUnits } from '../src/game/specialists';

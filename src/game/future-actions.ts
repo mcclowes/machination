@@ -3,10 +3,11 @@
  * purpose: Private future actions with execution-time requirements and stable planned unit and fleet identities.
  * ---
  */
+import { allied } from './teams';
 import { playersIn, isFaction } from './players';
 import { hireSpecialist, promoteSpecialist } from './specialists';
 import { releaseSpecialist } from './specialist-travel';
-import { drillMine, setShields } from './economy';
+import { drillMine, minesAllowed, setShields } from './economy';
 import { setFunding } from './funding';
 import { hireAmount, isSpecialistKind, SPECIALISTS, specialistEventName, type SpecialistKind } from './specialist-catalog';
 import type { Faction, Game } from './simulation';
@@ -104,12 +105,13 @@ export function scheduleAction(game: Game, plan: ActionPlan): Game {
   if (existing.some(p => p.id === plan.id && p.owner === plan.owner)) throw new Error('This plan ID is already in use.');
   const action = validateFutureAction(plan.action);
   if (('rock' in action) && !game.rocks.some(r => r.id === action.rock)) throw new Error('Choose a known chart site.');
-  if (game.rules?.mode === 'domination' && (action.type === 'drill-mine' || action.type === 'funding')) throw new Error('Mining and funding are unavailable in domination operations.');
+  if (action.type === 'drill-mine' && !minesAllowed(game) || action.type === 'funding' && game.rules?.mode === 'domination') throw new Error('Mining and funding are unavailable in this operation.');
   if (action.type === 'funding' && (action.to === plan.owner || !playersIn(game).includes(action.to))) throw new Error('Choose another participant to fund.');
   const sites = new Set(game.rocks.map(r => r.id));
   if ('from' in action && !sites.has(action.from)) throw new Error('Choose a known departure site.');
   if (action.type === 'gift' && (action.from === action.to || !sites.has(action.to) || action.recipient === plan.owner || !playersIn(game).includes(action.recipient))) throw new Error('Choose a different destination and another participant.');
   if (action.type === 'hauler' && action.change.action === 'course' && !sites.has(action.change.to)) throw new Error('Choose a known destination.');
+  if (game.rules?.teams && action.type === 'intercept' && game.fleets.some(f => f.id === action.target && f.owner !== plan.owner && allied(game, plan.owner, f.owner))) throw new Error('Pirates cannot target teammates.');
   const reference = action.type === 'intercept' ? action.target : action.type === 'hauler' ? action.change.fleet : undefined;
   if (reference !== undefined && !game.fleets.some(f => f.id === reference && (f.owner === plan.owner || canObserveHauler(game, plan.owner, f))) && !plannedFleetIds(game, plan.owner).includes(reference)) throw new Error('Choose an owned, observed, or planned hauler.');
   const manifest = action.type === 'hauler' ? action.change.action === 'edit-launch' ? action.change.specialists : undefined : 'specialists' in action ? action.specialists : undefined;

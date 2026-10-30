@@ -6,6 +6,7 @@
 import { createCompact } from './compact';
 import { DEFAULT_TACTICAL_PULSE_CONFIG } from './tactical-pulse';
 import { createPulseSystem, DEFAULT_PULSE_CONFIG } from './pulse';
+import { createTeams } from './teams';
 import { afterWork } from './opening-clock';
 import { seedDriftingBases } from './drift';
 import { ALL_PLAYERS } from './players';
@@ -54,18 +55,20 @@ export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, n
   };
 }
 
-export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>): Game {
+export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>, revision: 14 | 16 | 17 = 17): Game {
   const settings = validateOptions(options);
+  if (settings.teamFormat && revision < 17) throw new Error('Team games require current operation rules.');
   const players = ALL_PLAYERS.slice(0, settings.playerCount);
-  const { rocks, width, height } = generateWorld(players, mapSeed);
+  const startingMine = revision >= 17;
+  const { rocks, width, height } = generateWorld(players, mapSeed, startingMine);
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
     rivalPolicy: 1,
-    rules: { mechanicsVersion: settings.mode === 'pulse' ? 16 : 14, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
-    cargo: Object.fromEntries(players.map(owner => [owner, 0])),
-    minesDrilled: Object.fromEntries(players.map(owner => [owner, 0])),
+    rules: { ...(settings.teamFormat ? { teams: createTeams(settings.teamFormat, players) } : {}), mechanicsVersion: revision, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? settings.teamFormat || startingMine ? 300 : 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    cargo: Object.fromEntries(players.map(owner => [owner, startingMine ? 5 : 0])),
+    minesDrilled: Object.fromEntries(players.map(owner => [owner, startingMine ? 1 : 0])),
     recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0, settings.mode === 'pulse')])),
-    events: [{ hour: 0, audience: players, message: `Corporate uplink lost. Five sites assigned to each intelligence. ${settings.mode === 'pulse' ? 'Mine Pulse Material, charge your King, and eliminate every rival King.' : settings.mode === 'mining' ? 'Establish extraction to fulfill the contract.' : 'Control half of the chart to secure domination.'}` }],
+    events: [{ hour: 0, audience: players, message: `Corporate uplink lost. ${startingMine ? 'Six sites, including one mine, and 5 cargo assigned to each intelligence.' : 'Five sites assigned to each intelligence.'} ${settings.mode === 'pulse' ? 'Mine Pulse Material, charge your King, and eliminate every rival King.' : settings.mode === 'mining' ? startingMine ? 'Extract 300 cargo to fulfill the contract.' : 'Establish extraction to fulfill the contract.' : 'Control half of the chart to secure domination.'}` }],
   };
   for (const rock of game.rocks) {
     if (rock.productionAt !== undefined) rock.productionAt = afterWork(game, 0, rock.productionAt);

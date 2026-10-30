@@ -1,5 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const port = Number(process.env.MACHINATION_VISUAL_PORT ?? 3094);
+const origin = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: './visual-tests',
   workers: 1,
@@ -10,7 +13,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide', maxDiffPixelRatio: 0.001 } },
   use: {
-    baseURL: 'http://127.0.0.1:3094',
+    baseURL: origin,
     contextOptions: { reducedMotion: 'reduce' },
     locale: 'en-GB',
     timezoneId: 'UTC',
@@ -21,10 +24,10 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: {
-    command: 'npm run web -- --port 3094',
-    url: 'http://127.0.0.1:3094',
+    command: `npm run web -- --port ${port}`,
+    url: origin,
     timeout: 180_000,
     reuseExistingServer: false,
-    env: { CI: '1', BROWSER: 'none', EXPO_OFFLINE: '1', EXPO_NO_TELEMETRY: '1', EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: '' },
+    env: { CI: '1', BROWSER: 'none', EXPO_OFFLINE: '1', EXPO_NO_TELEMETRY: '1', EXPO_NO_DOTENV: '1', EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: '' },
   },
 });

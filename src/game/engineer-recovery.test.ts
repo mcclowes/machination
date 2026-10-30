@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { advance, dispatch } from './simulation';
-import { createConfiguredGame } from './world';
+import { createPreCargoGame as createConfiguredGame } from './test-world';
 import { decodeSave } from './save-format';
 import { createArchive, replayTo } from './replay';
 

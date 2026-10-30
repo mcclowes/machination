@@ -1,4 +1,4 @@
-/** JRPG radio overlay and attempt-local playback. The exercise clock stays under player control. */
+/** Practice radio overlay and attempt-local playback. The exercise clock stays under player control. */
 import React, { useState } from 'react';
 import { displaySpecialistNames } from '../game/specialist-catalog';
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -7,7 +7,7 @@ import type { TrainingScenario } from '../game/training';
 import { TRAINING_DIALOGUE, trainingDialoguePhase, type DialoguePhase, type DialogueSpeaker } from '../game/training-dialogue';
 
 const speakers = {
-  commander: { name: 'Admiral', role: 'Command channel', color: '#dbbc77', art: require('../../assets/players/dialogue/admiral.png') },
+  commander: { name: 'Admiral', role: 'Command channel', color: '#b8e986', art: require('../../assets/players/dialogue/admiral.png') },
   enemy: { name: 'Vesper', role: 'Hostile transmission', color: '#e49a78', art: require('../../assets/players/dialogue/vesper.png') },
 };
 const phaseLabels = { briefing: 'Mission briefing', underway: 'Incoming transmission', passed: 'Mission complete', failed: 'Mission debrief' };
@@ -43,17 +43,15 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
           <View pointerEvents="none" accessible={false} style={[s.portraits, { height: artHeight }]}>
             {(['commander', 'enemy'] as const).map((id: DialogueSpeaker) => <Image key={id} accessible={false} source={speakers[id].art} resizeMode="contain" style={[s.portrait, { height: artHeight, opacity: line.speaker === id ? 1 : 0.38 }, id === 'enemy' && s.enemyPortrait]} />)}
           </View>
-          <View style={[s.nameRow, line.speaker === 'enemy' && s.enemyNameRow]}><View style={[s.nameplate, { borderColor: speaker.color }, line.speaker === 'enemy' && s.enemyPlate]}><Text style={[s.speaker, { color: speaker.color }]}>{speaker.name}</Text><Text style={s.channel}>{speaker.role}</Text></View></View>
-          <View style={[s.frame, { borderColor: speaker.color }]}>
-            <View style={s.innerFrame}>
-              <ScrollView key={`${phase}:${index}`} style={{ maxHeight: height * (landscape ? 0.25 : 0.28) }} contentContainerStyle={s.dialogueContent}>
-                <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{displaySpecialistNames(line.text)}</Text>
-              </ScrollView>
-              <View style={s.footer}>
-                <Text style={s.counter}>{index + 1} / {lines.length}</Text>
-                <Pressable accessibilityRole="button" onPress={close} style={s.skip}><Text style={s.skipText}>Skip dialogue</Text></Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel={continueLabel} onPress={() => last ? close() : setCursor({ phase, index: index + 1 })} style={[s.next, { borderColor: speaker.color }]}><Text style={[s.nextText, { color: speaker.color }]}>{continueLabel} <Text accessible={false}>▸</Text></Text></Pressable>
-              </View>
+          <View style={s.frame}>
+            <View style={[s.nameplate, { borderLeftColor: speaker.color }]}><Text style={[s.speaker, { color: speaker.color }]}>{speaker.name}</Text><Text style={s.channel}>{speaker.role}</Text></View>
+            <ScrollView key={`${phase}:${index}`} style={{ maxHeight: height * (landscape ? 0.25 : 0.28) }} contentContainerStyle={s.dialogueContent}>
+              <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{displaySpecialistNames(line.text)}</Text>
+            </ScrollView>
+            <View style={s.footer}>
+              <Text style={s.counter}>{index + 1} / {lines.length}</Text>
+              <Pressable accessibilityRole="button" onPress={close} style={s.skip}><Text style={s.skipText}>Skip dialogue</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={continueLabel} onPress={() => last ? close() : setCursor({ phase, index: index + 1 })} style={s.next}><Text style={s.nextText}>{continueLabel} <Text accessible={false}>▸</Text></Text></Pressable>
             </View>
           </View>
         </View>
@@ -63,20 +61,19 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
 }
 
 const s = StyleSheet.create({
-  replay: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: '#776746', backgroundColor: '#222a25' }, replayText: { color: '#dbbc77', fontSize: 11 },
+  replay: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: '#40563a', backgroundColor: '#19271a' }, replayText: { color: '#b8e986', fontSize: 11 },
   overlay: { flex: 1, justifyContent: 'space-between', backgroundColor: 'rgba(5, 12, 16, 0.36)' },
-  mission: { alignSelf: 'flex-start', margin: 24, padding: 14, gap: 5, maxWidth: 460, backgroundColor: 'rgba(15, 27, 32, 0.94)', borderLeftWidth: 3, borderLeftColor: '#dbbc77' }, missionCompact: { margin: 12, padding: 10 },
-  eyebrow: { color: '#dbbc77', fontSize: 10, letterSpacing: 2 }, missionTitle: { color: '#f0e5ce', fontSize: 19, fontWeight: '600' }, missionDetail: { color: '#b7c2b9', fontSize: 12, lineHeight: 18 },
+  mission: { alignSelf: 'flex-start', margin: 24, padding: 14, gap: 6, maxWidth: 460, backgroundColor: '#14232b', borderWidth: 1, borderColor: '#30454c' }, missionCompact: { margin: 12, padding: 10 },
+  eyebrow: { color: '#b8e986', fontSize: 11 }, missionTitle: { color: '#e5eadc', fontSize: 15 }, missionDetail: { color: '#a8b7a2', fontSize: 12, lineHeight: 18 },
   scene: { width: '100%', alignSelf: 'center', paddingBottom: 14, flexShrink: 1 },
-  portraits: { flexDirection: 'row', justifyContent: 'space-between', overflow: 'hidden', marginBottom: -28 },
+  portraits: { flexDirection: 'row', justifyContent: 'space-between', overflow: 'hidden' },
   portrait: { width: '47%', alignSelf: 'flex-end', transform: [{ scaleX: -1 }] }, enemyPortrait: { marginLeft: 'auto' },
-  nameRow: { alignItems: 'flex-start', paddingLeft: 16, zIndex: 1 }, enemyNameRow: { alignItems: 'flex-end', paddingLeft: 0, paddingRight: 16 },
-  nameplate: { minWidth: 156, paddingHorizontal: 18, paddingVertical: 9, backgroundColor: '#253134', borderWidth: 2, borderBottomWidth: 0, borderTopLeftRadius: 10, borderTopRightRadius: 3 }, enemyPlate: { backgroundColor: '#462b25' },
-  speaker: { fontSize: 21, fontWeight: '700', fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' }, channel: { color: '#c1beb0', fontSize: 10, marginTop: 3, letterSpacing: 0.5 },
-  frame: { padding: 3, borderWidth: 2, borderTopLeftRadius: 7, borderBottomRightRadius: 12, backgroundColor: '#182126', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-  innerFrame: { backgroundColor: 'rgba(20, 30, 34, 0.98)', borderWidth: 1, borderColor: '#5a6258' }, dialogueContent: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 10 },
-  dialogue: { color: '#f2e9d7', fontSize: 21, lineHeight: 31, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' }, compactDialogue: { fontSize: 17, lineHeight: 25 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 8, flexWrap: 'wrap' }, counter: { color: '#9eaa9f', fontSize: 11, marginRight: 'auto' },
-  skip: { minHeight: 44, paddingHorizontal: 8, justifyContent: 'center' }, skipText: { color: '#b1b8ac', fontSize: 11 },
-  next: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', backgroundColor: '#2c3532', borderWidth: 1, borderRadius: 3 }, nextText: { fontSize: 12, fontWeight: '600' },
+  nameplate: { gap: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#101b21', borderLeftWidth: 2, borderBottomWidth: 1, borderBottomColor: '#23363e' },
+  speaker: { fontSize: 14, fontWeight: '600' }, channel: { color: '#a8b7a2', fontSize: 11 },
+  frame: { borderWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' },
+  dialogueContent: { padding: 16 },
+  dialogue: { color: '#d6e2cd', fontSize: 17, lineHeight: 25 }, compactDialogue: { fontSize: 15, lineHeight: 22 },
+  footer: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderTopWidth: 1, borderColor: '#23363e', flexWrap: 'wrap' }, counter: { color: '#8c9f85', fontSize: 11, marginRight: 'auto' },
+  skip: { minHeight: 44, paddingHorizontal: 10, justifyContent: 'center', borderWidth: 1, borderColor: '#40563a', backgroundColor: '#19271a' }, skipText: { color: '#b8e986', fontSize: 11 },
+  next: { minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', backgroundColor: '#b8e986' }, nextText: { color: '#182312', fontSize: 11, fontWeight: '600' },
 });

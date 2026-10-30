@@ -3,11 +3,12 @@
  * purpose: Choose the single most significant sound cue for a change between two observed views.
  * ---
  */
+import { allied, type TeamWorld } from '../game/teams';
 import type { Faction } from '../game/players';
 
 export type SoundCue = 'tap' | 'launch' | 'schedule' | 'signal' | 'combat' | 'capture' | 'loss' | 'alarm' | 'victory' | 'defeat' | 'error';
 type Owned = { owner?: Faction | null };
-export type CueView = {
+export type CueView = TeamWorld & {
   epoch: number; rocks: Owned[]; fleets: Owned[]; scheduled: Owned[];
   events: { hour: number; message: string }[]; eliminated: Faction[]; winner: Faction | null;
 };
@@ -22,11 +23,11 @@ function newEvents(previous: CueView['events'], next: CueView['events']) {
   return seen === -1 ? next : next.slice(0, seen);
 }
 const count = (items: Owned[], player: Faction) => items.filter(item => item.owner === player).length;
-const defeated = (view: CueView, player: Faction) => (!!view.winner && view.winner !== player) || view.eliminated.includes(player);
+const defeated = (view: CueView, player: Faction) => (!!view.winner && !allied(view, view.winner, player)) || view.eliminated.includes(player);
 
 export function cueForUpdate(previous: CueView | undefined, next: CueView, player: Faction): SoundCue | null {
   if (!previous || previous.epoch !== next.epoch) return null;
-  if (next.winner === player && previous.winner !== player) return 'victory';
+  if (next.winner && allied(next, next.winner, player) && (!previous.winner || !allied(previous, previous.winner, player))) return 'victory';
   if (defeated(next, player) && !defeated(previous, player)) return 'defeat';
   const territory = count(next.rocks, player) - count(previous.rocks, player);
   if (territory > 0) return 'capture';

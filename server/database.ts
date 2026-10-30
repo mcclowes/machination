@@ -15,16 +15,19 @@ import { decodeReplay } from '../src/game/replay-save';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS, type Group, type ChannelMessage, type Message } from '../src/online/protocol';
 import { validateNotifications, type NotificationState } from './notification-state';
+import { finished, validateFactions, type FactionProfile } from './factions';
+import type { Allegiance } from '../src/game/factions';
 
 type Diplomacy = { groups: (Group & { messages: ChannelMessage[] })[]; publicMessages: ChannelMessage[] };
 export type Room = {
+  variant?: 'faction';
   referenceKey?: string;
   id: string; invite: string; startedAt: number | null; revision: number; game: Game;
-  seats: { accountId?: string; faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
+  seats: { profileId?: string; allegiance?: Allegiance; accountId?: string; faction: Faction; hash: string; revision?: number; lastActiveHour?: number; identityHash?: string; recoveryHash?: string; recoveryReceipt?: { secretHash: string; credentialHash: string } }[]; messages: Message[];
   receipts: Record<string, string>; diplomacy?: Diplomacy; replay?: ReplayData;
 };
 // Notification state is optional and created on first registration, so older files load unchanged.
-export type Database = { version: 1; rooms: Room[]; notifications?: NotificationState };
+export type Database = { version: 1; rooms: Room[]; factions?: FactionProfile[]; notifications?: NotificationState };
 const isHash = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 export class DatabaseStore {
@@ -80,7 +83,8 @@ export class DatabaseStore {
       }
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     validateNotifications(database);
-    const accounts = database.rooms.flatMap(r => r.seats.flatMap(s => s.accountId ? [s.accountId] : []));
+    validateFactions(database);
+    const accounts = database.rooms.filter(r => !finished(r)).flatMap(r => r.seats.flatMap(s => s.accountId ? [s.accountId] : []));
     if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
     const store = new DatabaseStore(file, database);
     if (database.rooms.some(r => r.referenceKey === undefined)) {

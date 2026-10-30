@@ -5,6 +5,7 @@
  */
 import { MapBattles } from './MapBattles';
 import { MapPulses } from './MapPulses';
+import { ShipMarker } from './ShipMarker';
 import type { GameView } from '../game/visibility';
 import { HaulerCombat, type CombatObservation } from './HaulerCombat';
 import { MapSpecialists } from './MapSpecialists';
@@ -45,7 +46,7 @@ function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
   const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
   return baseIcons[kind];
 }
-type Props<T extends ChartRock> = { game: { events?: GameView['events']; pulse?: GameView['pulse']; epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; coveredBottom?: number; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; combatObservation?: CombatObservation; timeInspection?: { liveHour: number; historyStart?: number; onInspect: (hour: number | null) => void } };
+type Props<T extends ChartRock> = { game: { events?: GameView['events']; pulse?: GameView['pulse']; epoch?: number; hour: number; rocks: T[]; fleets: Fleet[]; rules?: { map: MapGeometry }; coverage?: { x: number; y: number; radius: number }[] }; selected: string; inspecting?: boolean; coveredBottom?: number; destination?: string; transferRoute?: { from: Point; to: Point }; onSelect: (rock: T) => void; onTransfer?: (from: T, to: T) => void; fill?: boolean; viewport?: { camera: MapCamera; onChange: (camera: MapCamera) => void }; player?: Faction; onInspectFleet?: () => void; onManageFleet?: (id: number) => void; inspectFleet?: { request: number; id?: number }; fleetReference?: (fleet: Fleet) => string | undefined; combatObservation?: CombatObservation; timeInspection?: { liveHour: number; historyStart?: number; historyEnd?: number; onInspect: (hour: number | null) => void } };
 export function BeltMap<T extends ChartRock>({ game, selected, inspecting = false, coveredBottom = 0, destination, transferRoute, onSelect, onTransfer, fill, viewport, player, onInspectFleet, onManageFleet, inspectFleet, fleetReference, combatObservation, timeInspection }: Props<T>) {
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() => fitPlayerCamera(game, player ?? 'you'));
@@ -190,10 +191,12 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
   })).filter(site => site.location.x >= -15 && site.location.x <= 115 && site.location.y >= -15 && site.location.y <= 115);
   const haulers = offsets.flatMap((offset, tile) => game.fleets.map(f => {
     const worldPoint = fleetPosition(game, f);
+    const { from, to } = flightEndpoints(game, f);
+    const heading = Math.atan2(to.y - from.y, to.x - from.x) * 180 / Math.PI;
     const location = position({ x: worldPoint.x + offset.x, y: worldPoint.y + offset.y });
     const point = { x: location.x / 100 * size.width, y: location.y / 100 * size.height };
     const specialists = mapSpecialistSummary(f);
-    return { key: `contact-${tile}-${f.id}`, fleet: f, location, ...point, specialists, radius: haulerRadius(f), controlWidth: styles.hauler.width, controlHeight: styles.hauler.height, priority: contact === f.id ? 2000 : f.owner === player ? 100 : 50 };
+    return { key: `contact-${tile}-${f.id}`, fleet: f, location, heading, ...point, specialists, radius: haulerRadius(f), controlWidth: styles.hauler.width, controlHeight: styles.hauler.height, priority: contact === f.id ? 2000 : f.owner === player ? 100 : 50 };
   })).filter(hauler => hauler.location.x >= -10 && hauler.location.x <= 110 && hauler.location.y >= -10 && hauler.location.y <= 110);
   const specialistMarkers = layoutSpecialistMarkers([...sites, ...haulers], markerViewport);
   const markerObstacles = [...specialistMarkers.values()].map(marker => ({ x: marker.left, y: marker.top, width: marker.width, height: marker.height }));
@@ -209,7 +212,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
     const next = revealAboveCamera(state.world, state.camera, fleetPosition(state.world, fleet), state.size, card.height + styles.inspector.bottom);
     if (next !== state.camera) state.onChange(next);
   }, [fleet?.id, card, inspectFleet?.request, size.width, size.height]);
-  const arrival = fleet && timeInspection ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
+  const arrival = fleet && timeInspection && (timeInspection.historyEnd === undefined || fleet.arrives <= timeInspection.historyEnd) ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives) : undefined;
   const revealedSite = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!inspectedSite) { revealedSite.current = undefined; return; }
@@ -235,7 +238,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       x: (game.rules?.map.width ?? 100) * projection.scale,
       y: (game.rules?.map.height ?? 100) * projection.scale,
     } : undefined} />
-    <Svg width="100%" height="100%" viewBox={`0 0 ${Math.max(1, size.width)} ${Math.max(1, size.height)}`} pointerEvents="none">
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFillObject} viewBox={`0 0 ${Math.max(1, size.width)} ${Math.max(1, size.height)}`} pointerEvents="none">
       <G transform={`translate(${projection.x}, ${projection.y})`}>
       {offsets.map((offset, tile) => <G key={tile} transform={`translate(${offset.x * sx}, ${offset.y * sy})`}>
       {game.pulse && <MapPulses pulse={game.pulse} sx={sx} sy={sy} />}
@@ -279,8 +282,8 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
         {rock.known !== false && (rock.drones ?? 0) > 0 && <Text style={styles.count}>{Math.floor(rock.drones ?? 0)}</Text>}
       </Pressable>;
     })}
-    {haulers.map(({ key, fleet: f, location, specialists }) => <Pressable key={key} accessibilityRole="button" accessibilityLabel={`${identity(f.owner).name} hauler${f.preparing ? ", preparing launch" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}>
-      <View style={[styles.contactRing, { borderColor: contact === f.id ? '#e5eadc' : identity(f.owner).color, backgroundColor: identity(f.owner).color }]}><Text style={styles.fleetCount}>{f.drones}</Text></View>
+    {haulers.map(({ key, fleet: f, location, heading, specialists }) => <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: contact === f.id }} accessibilityLabel={`${identity(f.owner).name} hauler${f.preparing ? ", preparing launch" : ""}${(f.enginesDisabledUntil ?? 0) > game.hour ? ', engines disabled' : ''}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours${specialists.total ? `, ${specialistManifestDescription(specialists, owner => identity(owner).name)}` : ''}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}>
+      <ShipMarker color={identity(f.owner).color} drones={f.drones} heading={heading} selected={contact === f.id} preparing={f.preparing} enginesDisabled={(f.enginesDisabledUntil ?? 0) > game.hour} />
     </Pressable>)}
     {sites.map(({ key, rock, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists at ${rock.name}: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => inspectSite(rock)} />)}
     {haulers.map(({ key, fleet: f, specialists }) => <MapSpecialists key={`units-${key}`} summary={specialists} placement={specialistMarkers.get(key)} label={`Inspect specialists aboard ${identity(f.owner).name} hauler: ${specialistManifestDescription(specialists, owner => identity(owner).name)}`} onPress={() => { setContact(f.id); onInspectFleet?.(); }} />)}
@@ -292,7 +295,7 @@ export function BeltMap<T extends ChartRock>({ game, selected, inspecting = fals
       <Text style={styles.contactText}>{game.rocks.find(r => r.id === fleet.from)?.name} → {flightDestination(game.rocks, fleet)}</Text>
       <Text style={styles.contactText}>{fleet.intercept ? 'Interception' : 'Arrival'} in {Math.max(0, (fleet.arrives - game.hour) * 60).toFixed(0)} minutes</Text>
       <View style={styles.actions}>
-        {timeInspection && <MapControl label={fleet.intercept ? 'Jump to interception' : 'Jump to hauler arrival'} text={fleet.intercept ? 'Jump to interception' : 'Jump to arrival'} disabled={arrival === undefined} onPress={() => { if (arrival !== undefined) { timeInspection.onInspect(arrival); setContact(undefined); } }} />}
+        {timeInspection && (timeInspection.historyEnd === undefined || arrival !== undefined) && <MapControl label={fleet.intercept ? 'Jump to interception' : 'Jump to hauler arrival'} text={fleet.intercept ? 'Jump to interception' : 'Jump to arrival'} disabled={arrival === undefined} onPress={() => { if (arrival !== undefined) { timeInspection.onInspect(arrival); setContact(undefined); } }} />}
         {fleet.owner === player && onManageFleet && <MapControl label="Manage this hauler" text="Manage orders" onPress={() => { onManageFleet(fleet.id); setContact(undefined); }} />}
         <MapControl label="Inspect hauler destination" text="Inspect destination" onPress={() => { const target = game.rocks.find(r => r.id === fleet.to); if (target) onSelect(target); setContact(undefined); }} />
       </View>
@@ -310,7 +313,7 @@ const styles = StyleSheet.create({
   inspectorContent: { padding: 12, gap: 6 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zoom: { position: 'absolute', right: 10, top: 10, flexDirection: 'row', flexWrap: 'wrap', width: 44, gap: 4 }, mapControl: { minWidth: 44, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#15262de8', borderRadius: 22 },
-  hauler: { position: 'absolute', width: 44, height: 44, marginLeft: -22, marginTop: -22, alignItems: 'center', justifyContent: 'center' }, contactRing: { minWidth: 32, height: 24, paddingHorizontal: 4, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, fleetCount: { color: '#08100b', fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
+  hauler: { position: 'absolute', width: 44, height: 56, marginLeft: -22, marginTop: -28, alignItems: 'center', justifyContent: 'center' }, inspector: { position: 'absolute', bottom: 10, left: 10, right: 10, backgroundColor: '#101e15', borderWidth: 1, borderColor: '#526644' }, contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, contactTitle: { fontSize: 14, flex: 1 }, contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#101d24' },
   rock: { position: 'absolute', width: SITE_CONTROL_WIDTH, height: 44, marginLeft: -SITE_CONTROL_WIDTH / 2, marginTop: -22, alignItems: 'center', justifyContent: 'center' },
   ring: { width: 38, height: 38, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

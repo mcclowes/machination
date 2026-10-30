@@ -1,5 +1,6 @@
 import { cloneCompact, type BeltCompact } from '../game/compact';
 import type { PublicRules } from '../game/rules';
+import { validateTeams } from '../game/teams';
 import type { Drift } from '../game/drift';
 import type { GameView } from '../game/visibility';
 import type { Faction } from '../game/players';
@@ -11,6 +12,7 @@ import { maximumShield } from '../game/economy';
 export type ReplayUnit = { id: string; kind: SpecialistKind; owner: Faction; captive?: true };
 type ReplayPoint = { x: number; y: number };
 export type ReplayRock = ReplayPoint & {
+  reserves?: number;
   id: string; name: string; known: boolean; drift?: Drift;
   kind: 'core' | 'reactor' | 'mine' | 'factory' | 'generator' | 'unknown';
   owner?: Faction | null; drones?: number; destroyed?: true; coreOf?: Faction;
@@ -60,6 +62,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.drift) rock.drift = { origin: { x: r.drift.origin.x, y: r.drift.origin.y }, velocity: { x: r.drift.velocity.x, y: r.drift.velocity.y } };
     if (r.owner !== undefined) rock.owner = r.owner;
     if (r.known) {
+      if (r.reserves !== undefined) rock.reserves = r.reserves;
       rock.drones = r.drones;
       if (r.sensorJammedUntil !== undefined) rock.sensorJammedUntil = r.sensorJammedUntil;
       if (r.miningDisabledUntil !== undefined) rock.miningDisabledUntil = r.miningDisabledUntil;
@@ -109,6 +112,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     const r = view.rules;
     scene.rules = { players: r.players.map(f => f), mode: r.mode, victoryTarget: r.victoryTarget,
       map: { generator: r.map.generator, width: r.map.width, height: r.map.height } };
+    if (r.teams !== undefined) scene.rules.teams = validateTeams(r.teams, r.players);
     if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
     if (r.beltCompact !== undefined) scene.rules.beltCompact = r.beltCompact;
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;

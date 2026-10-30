@@ -5,6 +5,7 @@
  */
 import { compactTransitMultiplier } from './compact';
 import { withPulseMovement } from './pulse';
+import { allied } from './teams';
 import { sitePosition } from './drift';
 import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
@@ -22,7 +23,7 @@ import type { EncounterSink } from './combat-report';
 export function dispatchSpecialistIntercept(game: Game, fromId: string, targetId: number, drones: number, owner: Faction, requireContact: boolean, ids?: string[], fleetId?: number): Game {
   if (game.winner || game.draw || game.eliminated.includes(owner)) throw new Error('This intelligence is no longer operational.');
   const source = game.rocks.find(r => r.id === fromId && r.owner === owner && !r.destroyed);
-  const target = game.fleets.find(f => f.id === targetId && f.owner !== owner && !f.preparing);
+  const target = game.fleets.find(f => f.id === targetId && !allied(game, owner, f.owner) && !f.preparing);
   if (!source || !target || requireContact && !canObserveHauler(game, owner, target)) throw new Error('Choose a controlled departure and an observed traveling enemy hauler.');
   const selected = ids ?? source.specialists?.filter(u => u.kind === 'pirate' && u.owner === owner && !u.captive).slice(0, 1).map(u => u.id) ?? [];
   const units = manifestUnits(source, owner, selected);
@@ -50,7 +51,7 @@ export function resolveSpecialistInterceptions(game: Game, unknown: readonly num
       }
       const target = game.fleets.find(f => f.id === rig.intercept!.target);
       const point = flightEndpoints(game, rig).to;
-      if (target && target.owner !== rig.owner && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target, encounters, 'interception');
+      if (target && !allied(game, rig.owner, target.owner) && worldDistance(game, fleetPosition(game, target), point) <= 1e-6) resolveHaulerContact(game, rig, target, encounters, 'interception');
       if (game.fleets.some(f => f.id === rig.id) && rig.intercept) returnHauler(game, rig);
     } finally { tracePoint(trace, 'interception', game); }
   }

@@ -1,4 +1,5 @@
 /** Private binary64 support inside one fixed state span; never serialize motion sources. */
+import { allied } from '../game/teams';
 import type { MovingPoint } from '../game/drift';
 import { canObserveHauler, HAULER_SENSOR_RANGE, rockSensorRange } from '../game/sensors';
 import type { Faction, Game } from '../game/simulation';
@@ -24,8 +25,8 @@ export function observationIntervals(game: Game, faction: Faction, through: numb
   const from = game.hour;
   const intervals = precision === 'continuous' ? continuousVisibilityIntervals : visibilityIntervals;
   const whole = (): VisibilityInterval[] => [{ from, through }];
-  const fixed: MovingSensor[] = game.rocks.filter(r => r.owner === faction).map(r => ({ ...motion(r), radius: rockSensorRange(game, r) }));
-  const mobile = game.version === 2 ? [] : game.fleets.filter(f => f.owner === faction).flatMap(f => flightMotionSpans(game, f, from, through));
+  const fixed: MovingSensor[] = game.rocks.filter(r => r.owner && allied(game, faction, r.owner)).map(r => ({ ...motion(r), radius: rockSensorRange(game, r) }));
+  const mobile = game.version === 2 ? [] : game.fleets.filter(f => allied(game, faction, f.owner)).flatMap(f => flightMotionSpans(game, f, from, through));
   function support(pieces: MotionSpan[]): VisibilityInterval[] {
     const windows: VisibilityInterval[] = [];
     for (const piece of pieces) {
@@ -39,7 +40,7 @@ export function observationIntervals(game: Game, faction: Faction, through: numb
   }
   const sites = new Map<string, VisibilityInterval[]>();
   for (const rock of game.rocks) {
-    const intervals = rock.owner === faction ? whole() : support([{ from, through, motion: motion(rock) }]);
+    const intervals = rock.owner && allied(game, faction, rock.owner) ? whole() : support([{ from, through, motion: motion(rock) }]);
     if (intervals.length) sites.set(rock.id, intervals);
   }
   const fleets = new Map<number, VisibilityInterval[]>();

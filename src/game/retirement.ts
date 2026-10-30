@@ -4,6 +4,7 @@
  * ---
  */
 import { reconcilePulseKings } from './pulse';
+import { teamMembers, teamNumber } from './teams';
 import { playersIn } from './players';
 import { advance, FACTIONS, type Faction, type Game } from './simulation';
 import { defendWithPreparations } from './transport';
@@ -24,9 +25,10 @@ function retire(input: Game, owners: readonly Faction[], reason: 'resigned' | 'i
   reconcilePulseKings(game);
   reconcileFunding(game);
   const remaining = playersIn(game).filter(owner => !game.eliminated.includes(owner));
-  if (remaining.length === 1) {
-    game.winner = remaining[0]!;
-    game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: `${FACTIONS[game.winner].name}: last operational intelligence. Contract complete.` });
+  const onlyTeam = remaining.length > 0 && !!game.rules?.teams && remaining.every(f => teamMembers(game, remaining[0]!).includes(f));
+  if (remaining.length === 1 || onlyTeam) {
+    game.winner = teamMembers(game, remaining[0]!)[0]!;
+    game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: `${game.rules?.teams ? `Team ${teamNumber(game, game.winner)}: last operational team.` : `${FACTIONS[game.winner].name}: last operational intelligence.`} Contract complete.` });
   } else if (!remaining.length) {
     game.draw = true;
     game.events.unshift({ hour: game.hour, audience: [...playersIn(game)], message: 'All intelligences retired. The operation ended in a draw.' });

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createGame } from '../src/game/simulation';
-import { createConfiguredGame } from '../src/game/world';
+import { createPreCargoGame as createConfiguredGame } from '../src/game/test-world';
 import { isActionPlan } from '../src/game/future-actions';
 import { GameService } from './service';
 import { createApi } from './http';

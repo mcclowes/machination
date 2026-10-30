@@ -7,6 +7,8 @@
  * ---
  */
 import type { Faction, Game } from './simulation';
+import { allied } from './teams';
+import { hasReserves } from './depletion';
 import { ALL_PLAYERS, playersIn } from './players';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { commandPulse, pulseConfig } from './pulse';
@@ -71,13 +73,13 @@ function recruit(game: Game, owner: Faction): Game {
 }
 function invest(game: Game, owner: Faction, forecast: RivalForecast): { game: Game; savingAt?: string } {
   const sites = ownedSites(game, owner);
-  const mines = sites.filter(r => r.kind === 'mine' && !r.pulseDisabled).length;
+  const mines = sites.filter(r => r.kind === 'mine' && !r.pulseDisabled && hasReserves(r)).length;
   const desired = Math.min(3, Math.max(1, Math.floor(sites.length / (rivalStyle(owner) === 'industrialist' ? 3 : 4))));
   if (!minesAllowed(game) || game.rules?.mode === 'domination' || mines >= desired) return { game };
-  const enemies = game.rocks.filter(r => !r.destroyed && r.owner && r.owner !== owner);
+  const enemies = game.rocks.filter(r => !r.destroyed && r.owner && !allied(game, owner, r.owner));
   const distance = (r: typeof sites[number]) => Math.min(100, ...enemies.map(e => worldDistance(game, r, e)));
-  const candidates = sites.filter(r => r.kind !== 'mine' && !ownsKing(r, owner)
-    && sites.filter(s => s.kind === r.kind).length > (r.kind === 'factory' ? 2 : 1)
+  const candidates = sites.filter(r => hasReserves(r) && r.kind !== 'mine' && !ownsKing(r, owner)
+    && sites.filter(s => s.kind === r.kind && hasReserves(s)).length > (r.kind === 'factory' ? 2 : 1)
     && !game.fleets.some(f => f.owner !== owner && f.to === r.id && f.giftAt === undefined))
     .sort((a, b) => (b.drones + distance(b) + (b.kind === 'generator' ? 30 : 0)) - (a.drones + distance(a) + (a.kind === 'generator' ? 30 : 0)) || byId(a, b));
   const site = candidates[0];

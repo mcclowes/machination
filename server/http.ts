@@ -27,10 +27,19 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
   } catch { throw new Failure(400, 'request.validation.json', 'Send a JSON object.'); }
 }
 async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential): Promise<unknown> {
+  if (url.pathname === '/v1/factions') {
+    if (req.method === 'GET') return service.factions(token);
+    if (req.method === 'POST') {
+      const input = await body(req);
+      if (Object.keys(input).length !== 1 || !('faction' in input)) throw new Failure(400, 'faction.validation.identity', 'Provide one faction choice.');
+      return service.chooseFaction(token, input.faction);
+    }
+    throw new Failure(405, 'request.validation.method', 'Method not allowed.');
+  }
   if (req.method === 'POST' && url.pathname === '/v1/games') {
     const input = await body(req);
-    if (Object.keys(input).some(key => key !== 'options')) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
-    return service.create(token, input.options);
+    if (Object.keys(input).some(key => !['options', 'variant'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
+    return service.create(token, input.options, input.variant);
   }
   if (req.method === 'POST' && url.pathname === '/v1/join') {
     const input = await body(req);

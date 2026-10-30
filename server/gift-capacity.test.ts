@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { GameService } from './service';
-import { createConfiguredGame } from '../src/game/world';
+import { createPreCargoGame as createConfiguredGame } from '../src/game/test-world';
 import { advance } from '../src/game/simulation';
 import { powerCapacity } from '../src/game/economy';
 

@@ -5,7 +5,7 @@ Quick reference for current Machination operations. Specialists are called **mod
 ## Recruitment and transport
 
 - Earn one hiring credit after 4 normal-rate hours, then one every 18 normal-rate hours. Credits accumulate. New operations run recruitment, production, shield recharge, and travel at 1.5× for the first 12 game hours, so the first credit arrives at 2h 40m.
-- Choose one of three offers: one attack, one defense, and one other specialist. A hire costs one credit and appears at your controlled site containing the Intelligence core. Hiring is unavailable while the core is in transit.
+- Choose one of three offers: one attack, one defense, and one other specialist. In new operations, a hire costs one credit and 5 cargo and appears at your controlled site containing the Intelligence core. Every player starts with 5 cargo and one mine. Batch hires pay the same 5-cargo fee. Older operations retain credit-only hiring. Hiring is unavailable while the core is in transit or cargo is insufficient.
 - Diversion worm and Purger hires give **two units**; every other hire gives one.
 - Promotion costs one credit, replaces the selected unit, and redraws the offers. The unit must be docked at one of your controlled sites; the core can be traveling elsewhere. Promoted specialists aren't directly hireable.
 - Hires and promotions apply immediately when executed. There's currently no recruitment undo/finalize window; see the [recruitment lifecycle gap](recruitment-lifecycle.md).
