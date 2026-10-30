@@ -31,7 +31,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   return <PlayerPortraits.Provider value={portraits}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
-      <View style={s.chart}>{chart}{!!hint && <View style={s.hint}>{hint}</View>}</View>
+      <View style={s.chart}>{chart}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
       {panel && <View style={[s.drawer, wide ? s.sidebar : s.sheet]}>
         <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={s.close}><Text style={s.text}>×</Text></Pressable></View>
         <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>{panel.content}</ScrollView>

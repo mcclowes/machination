@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTrainingAttempt, assessTrainingAttempt } from './training';
+import { createTrainingAttempt, assessTrainingAttempt, canResolveTrainingOrders } from './training';
 import { applyCommand } from './replay';
 import { advance } from './simulation';
 
@@ -11,6 +11,18 @@ test('first launch requires an actual surviving capture', () => {
   assert.equal(assessTrainingAttempt('first-launch', sent).status, 'active');
   const solved = { ...sent, game: advance(sent.game, 2, { rivals: false }) };
   assert.equal(assessTrainingAttempt('first-launch', solved).status, 'passed');
+});
+
+test('playback rejects empty and canceled plans, and can resume after a capture while mining is still pending', () => {
+  const initial = createTrainingAttempt('mining-rate');
+  assert.equal(canResolveTrainingOrders(initial), false);
+  const sent = applyCommand(initial.archive, { type: 'dispatch', owner: 'you', from: 'works', to: 'relay', drones: 6 }, { rivals: false, knownThrough: 0 });
+  const canceled = applyCommand(sent.archive, { type: 'hauler', owner: 'you', change: { fleet: sent.game.fleets[0]!.id, action: 'cancel-launch' } }, { rivals: false, knownThrough: 0 });
+  assert.equal(canResolveTrainingOrders(canceled), false);
+  const captured = { ...sent, game: advance(sent.game, 2, { rivals: false }) };
+  assert.equal(captured.game.fleets.length, 0);
+  assert.equal(assessTrainingAttempt('mining-rate', captured).status, 'active');
+  assert.equal(canResolveTrainingOrders(captured), true);
 });
 
 import { TRAINING_SCENARIOS, type TrainingId } from './training';

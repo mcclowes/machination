@@ -15,26 +15,26 @@ const solutions: Record<TutorialMissionId, Step[]> = {
   'joint-attack': [[0, launch('works', 'relay', 15)], [0, launch('home', 'relay', 15)]],
   reinforcements: [[0, launch('works', 'home', 25)]],
   'scheduled-arrival': [[0, { type: 'schedule', owner: 'you', plan: { id: 'tutorial-arrival-001', from: 'works', to: 'relay', drones: 25, executeAt: 1 } }]],
-  'factory-specialist': [[0, launch('home', 'works', 0, ['training-foreman'])]],
-  'hiring-specialists': [[4, { type: 'hire', owner: 'you', kind: 'lieutenant' }]],
-  'combat-priority': [[0, launch('works', 'relay', 6, ['training-assassin', 'training-lieutenant'])]],
+  'factory-specialist': [[0, launch('works', 'relay', 13, ['training-infiltrator'])]],
+  'hiring-specialists': [[4, { type: 'hire', owner: 'you', kind: 'saboteur' }], [4, launch('works', 'rival-home', 0, ['unit-2'])]],
+  'combat-priority': [[4, { type: 'hire', owner: 'you', kind: 'martyr' }], [4, launch('works', 'home', 0, ['core-you'])]],
   promotion: [[4, { type: 'promote', owner: 'you', id: 'training-lieutenant' }], [4, launch('works', 'relay', 12, ['training-lieutenant'])]],
   'drilling-mines': [[0, { type: 'drill-mine', owner: 'you', rock: 'works' }]],
-  'the-gift': [[0, { type: 'gift', owner: 'you', from: 'works', to: 'relay', drones: 6, recipient: 'vesper' }]],
-  funding: [[0, { type: 'funding', owner: 'you', to: 'vesper', enabled: true }]],
-  'combat-specialist': [[0, launch('works', 'relay', 6, ['training-lieutenant'])]],
-  'route-combat': [[0, launch('works', 'relay', 25)]],
-  'global-abilities': [[0, launch('works', 'relay', 6, ['training-helmsman'])]],
+  'the-gift': [[0, { type: 'gift', owner: 'you', from: 'works', to: 'relay', drones: 6, recipient: 'null' }]],
+  funding: [[0, { type: 'funding', owner: 'you', to: 'null', enabled: true }]],
+  'combat-specialist': [[0, launch('home', 'works', 12)], [1, launch('works', 'relay', 24)]],
+  'route-combat': [[0, launch('home', 'works', 15)], [1, launch('works', 'relay', 30)]],
+  'global-abilities': [[4, { type: 'hire', owner: 'you', kind: 'foreman' }], [4, { type: 'schedule-action', owner: 'you', plan: { id: 'tutorial-promote-01', executeAt: 17, action: { type: 'promote', id: 'unit-3' } } }]],
   'electrical-output': [[4, { type: 'hire', owner: 'you', kind: 'tinkerer' }]],
   'mining-rate': [[0, launch('works', 'relay', 6)]],
-  'losing-mine': [[0, launch('works', 'relay', 20)]],
-  'losing-core': [[0, launch('works', 'rival-home', 40)]],
-  'disabling-shields': [[0, { type: 'shields', owner: 'you', rock: 'relay', disabled: true }]],
-  'captive-specialists': [[0, { type: 'release', owner: 'you', id: 'training-captive' }]],
-  'order-matters': [[0, launch('works', 'relay', 0, ['training-infiltrator'])], [0.5, launch('works', 'relay', 10)]],
-  'fastest-route': [[0, launch('home', 'works', 0, ['training-smuggler', 'training-navigator'])], [1.5, launch('works', 'relay', 0, ['training-smuggler', 'training-navigator'])]],
+  'losing-mine': [[4, { type: 'hire', owner: 'you', kind: 'doubleAgent' }], [16, { type: 'hire', owner: 'you', kind: 'pirate' }], [16, { type: 'intercept', owner: 'you', from: 'home', target: 1, drones: 0, specialists: ['unit-2', 'unit-3'] }], [16, launch('works', 'home', 33)]],
+  'losing-core': [[0, launch('works', 'relay', 30, ['training-smuggler'])], [1, launch('relay', 'rival-home', 16, ['training-smuggler', 'training-assassin'])]],
+  'disabling-shields': [[0, { type: 'shields', owner: 'you', rock: 'home', disabled: true }], [0, { type: 'gift', owner: 'you', from: 'home', to: 'relay', drones: 2, recipient: 'null' }]],
+  'captive-specialists': [[0, launch('works', 'remote-1', 9)], [1.2, { type: 'release', owner: 'you', id: 'training-captive' }]],
+  'order-matters': [[0, launch('home', 'rival-home', 14)]],
+  'fastest-route': [[0, launch('home', 'works', 13, ['core-you', 'training-smuggler'])], [3, { type: 'hire', owner: 'you', kind: 'infiltrator' }], [3, launch('works', 'relay', 28, ['training-smuggler', 'training-lieutenant', 'unit-2'])]],
   'against-the-odds': [[0, launch('works', 'home', 31, ['training-helmsman'])]],
-  'test-of-character': [[0, launch('home', 'works', 0, ['core-you'])]],
+  'test-of-character': [[0, launch('works', 'relay', 0, ['training-saboteur'])], [1.5, { type: 'intercept', owner: 'you', from: 'home', target: 3, drones: 0, specialists: ['training-pirate', 'training-martyr'] }]],
 };
 
 function submit(op: LocalOperation, c: GameCommand): LocalOperation {
@@ -43,27 +43,36 @@ function submit(op: LocalOperation, c: GameCommand): LocalOperation {
 const clock = (op: LocalOperation, hour: number): LocalOperation => ({ ...op, game: advance(op.game, hour, { rivals: false }) });
 const solo = { initial: () => { throw new Error('solo touched'); }, create: () => { throw new Error('solo touched'); }, load: async () => { throw new Error('solo touched'); }, save: async () => { throw new Error('solo touched'); } };
 
+test('losing an ally outpost fails immediately even while the player core remains safe', () => {
+  const policy = localLifecycle(solo, 'the-gift');
+  const op = policy.advance(policy.initial(), 4, 'manual');
+  assert.equal(policy.assess(op)?.status, 'failed');
+  assert.ok(op.game.hour < 4);
+  assert.ok(op.game.rocks.some(r => r.specialists?.some(u => u.id === 'core-you' && !u.captive)));
+  assert.equal(policy.advance(op, 10, 'manual'), op);
+});
+
 const wrongPlans: Partial<Record<TutorialMissionId, Step[]>> = {
   'joint-attack': [[0, launch('works', 'relay', 15)]],
   reinforcements: [[0, launch('works', 'relay', 25)]],
   'scheduled-arrival': [[1, launch('works', 'relay', 25)]],
-  'factory-specialist': [[0, launch('home', 'relay', 0, ['training-foreman'])]],
-  'hiring-specialists': [[4, { type: 'hire', owner: 'you', kind: 'inspector' }]],
-  'combat-priority': [[0, launch('works', 'relay', 6, ['training-lieutenant'])]],
+  'factory-specialist': [[0, launch('works', 'relay', 13)]],
+  'hiring-specialists': [[4, { type: 'hire', owner: 'you', kind: 'lieutenant' }]],
+  'combat-priority': [[4, { type: 'hire', owner: 'you', kind: 'martyr' }]],
   promotion: [[4, launch('works', 'relay', 12, ['training-lieutenant'])]],
   'the-gift': [[0, launch('works', 'relay', 6)]],
-  funding: [[0, { type: 'funding', owner: 'you', to: 'vesper', enabled: true }], [7, { type: 'funding', owner: 'you', to: 'vesper', enabled: false }]],
+  funding: [[0, { type: 'funding', owner: 'you', to: 'null', enabled: true }], [7, { type: 'funding', owner: 'you', to: 'null', enabled: false }]],
   'combat-specialist': [[0, launch('works', 'relay', 6)]],
   'route-combat': [[0, launch('works', 'relay', 10)]],
-  'global-abilities': [[0, launch('works', 'relay', 6)]],
+  'global-abilities': [[4, { type: 'hire', owner: 'you', kind: 'foreman' }]],
   'electrical-output': [[4, { type: 'hire', owner: 'you', kind: 'inspector' }]],
   'mining-rate': [[0, launch('works', 'relay', 4)]],
-  'losing-mine': [[0, launch('works', 'relay', 8)]],
+  'losing-mine': [[0, launch('works', 'home', 33)]],
   'losing-core': [[0, launch('works', 'rival-home', 20)]],
   'disabling-shields': [[0, { type: 'shields', owner: 'you', rock: 'home', disabled: true }]],
   'captive-specialists': [[0, launch('works', 'home', 1)]],
-  'order-matters': [[0, launch('works', 'relay', 10)], [0.5, launch('works', 'relay', 0, ['training-infiltrator'])]],
-  'fastest-route': [[0, launch('home', 'relay', 0, ['training-smuggler', 'training-navigator'])]],
+  'order-matters': [[0, launch('works', 'relay', 8)]],
+  'fastest-route': [[0, launch('home', 'relay', 13, ['core-you', 'training-smuggler'])]],
   'against-the-odds': [[0, launch('works', 'home', 10, ['training-helmsman'])]],
   'test-of-character': [[0, launch('home', 'relay', 0, ['core-you'])]],
 };
@@ -93,8 +102,7 @@ test('previewing a solved future does not complete the actual attempt', () => {
 
 test('waiting out a raid at the station cannot pass the hauler combat lesson', () => {
   let op = clock(createTrainingAttempt('route-combat'), 2);
-  op = clock(submit(op, launch('works', 'relay', 20)), 4);
-  assert.equal(op.game.rocks.find(r => r.id === 'relay')!.owner, 'you');
+  op = clock(submit(op, launch('works', 'relay', 15)), 4);
   assert.equal(assessTrainingAttempt('route-combat', op).status, 'failed');
 });
 
@@ -103,13 +111,23 @@ test('mine construction alone does not pass before actual extraction', () => {
   assert.equal(op.game.rocks.find(r => r.id === 'works')!.kind, 'mine');
   assert.equal(assessTrainingAttempt('drilling-mines', op).status, 'active');
   assert.equal(assessTrainingAttempt('drilling-mines', clock(op, 11.99)).status, 'active');
-  assert.equal(assessTrainingAttempt('drilling-mines', clock(op, 12)).status, 'passed');
+  assert.equal(assessTrainingAttempt('drilling-mines', clock(op, 12)).status, 'active');
+  assert.equal(assessTrainingAttempt('drilling-mines', clock(op, 48)).status, 'active');
+  assert.equal(assessTrainingAttempt('drilling-mines', clock(op, 60)).status, 'passed');
+});
+
+test('the final mission rejects a detonation that prevents the courier arrival even when the core survives', () => {
+  let op = submit(createTrainingAttempt('test-of-character'), solutions['test-of-character'][0]![1]);
+  const intercept = solutions['test-of-character'][1]![1];
+  op = clock(submit(clock(op, 4), intercept), 6);
+  assert.ok(op.game.rocks.some(r => r.specialists?.some(u => u.id === 'core-you' && !u.captive)));
+  assert.equal(assessTrainingAttempt('test-of-character', op).status, 'failed');
 });
 
 test('commands issued after the deadline cannot satisfy recruitment or crash assessment', () => {
-  let op = clock(createTrainingAttempt('hiring-specialists'), 7);
-  op = submit(op, { type: 'hire', owner: 'you', kind: 'lieutenant' });
-  assert.equal(assessTrainingAttempt('hiring-specialists', op).status, 'failed');
+  let op = clock(createTrainingAttempt('electrical-output'), 13);
+  op = submit(op, { type: 'hire', owner: 'you', kind: 'tinkerer' });
+  assert.equal(assessTrainingAttempt('electrical-output', op).status, 'failed');
 });
 
 test('practice accounts for all 24 source missions without dropping the five existing IDs', () => {
@@ -119,6 +137,28 @@ test('practice accounts for all 24 source missions without dropping the five exi
   assert.equal(TRAINING_SCENARIOS.length, 28);
   assert.equal(new Set(TRAINING_SCENARIOS.map(s => s.id)).size, 28);
   for (const id of ['first-launch', 'shield-combat', 'unit-transport', 'future-production', 'interception']) assert.ok(TRAINING_SCENARIOS.some(s => s.id === id));
+});
+
+test('diplomacy missions protect an ally from a distinct hostile faction', () => {
+  for (const id of ['the-gift', 'funding', 'disabling-shields', 'captive-specialists'] as const) {
+    const { game } = createTrainingAttempt(id);
+    assert.deepEqual(game.rules!.players, ['you', 'vesper', 'null']);
+    assert.equal(game.rocks.find(r => r.id === 'relay')!.owner, 'null');
+    assert.ok(game.fleets.some(f => f.owner === 'vesper' && f.to === 'relay') || game.scheduled?.some(p => p.owner === 'vesper' && !('action' in p) && p.to === 'relay'));
+  }
+});
+
+test('a launched hauler converted into a gift is valid allied support', () => {
+  let op = submit(createTrainingAttempt('the-gift'), launch('works', 'relay', 6));
+  const fleet = op.game.fleets.find(f => f.owner === 'you')!;
+  op = submit(op, { type: 'hauler', owner: 'you', change: { fleet: fleet.id, action: 'gift' } });
+  assert.equal(assessTrainingAttempt('the-gift', clock(op, 4)).status, 'passed');
+});
+
+test('a generator handover also works when its garrison moves to a friendly site', () => {
+  let op = submit(createTrainingAttempt('disabling-shields'), { type: 'shields', owner: 'you', rock: 'home', disabled: true });
+  op = submit(op, launch('home', 'works', 2));
+  assert.equal(assessTrainingAttempt('disabling-shields', clock(op, 12)).status, 'passed');
 });
 
 for (const mission of TUTORIAL_MISSIONS) {

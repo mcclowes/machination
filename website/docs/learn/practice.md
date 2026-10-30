@@ -7,6 +7,41 @@ Choose **Start tactical practice** on the opening screen. Each exercise uses the
 
 The exercises teach orders and combat in a mining-mode scenario. They don't teach every rule of the default King's Pulse mode.
 
+## Mission sequence
+
+The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfuge.fandom.com/wiki/Puzzles), using Machination's names, maps, and controls. Four additional exercises follow it. Each mission includes optional hints and checks your actual orders and results.
+
+| Source mission | Practice exercise | Goal |
+| --- | --- | --- |
+| Combat 1 | Open a foothold | Capture a neighboring outpost |
+| Combat 2 | Joint attack | Combine attacks from two sites |
+| Combat 3 | Reinforcements | Keep a threatened outpost |
+| Combat 4 | Orders after arrival | Queue an attack before its incoming supply arrives |
+| Specialists 1 | The factory | Overcome shields and ongoing defender production |
+| Specialists 2 | Recruit a specialist | Recruit diversion worms and stop a raid |
+| Specialists 3 | Combat priority | Use detonation before an Elder suppresses local abilities |
+| Specialists 4 | Promotion | Promote before attacking a stronger garrison |
+| Winning 1 | Drill a mine | Construct a mine and extract five cargo |
+| Diplomacy 1 | The gift | Reinforce an ally through a gift |
+| Diplomacy 2 | Funding | Fund an ally's production before an attack |
+| Combat 5 | A specialist | Consolidate against a defending combat specialist |
+| Combat 6 | Hauler combat | Survive a route encounter and capture its defended source |
+| Specialists 5 | Global abilities | Schedule a promotion that repairs remote victories |
+| Specialists 6 | Power capacity | Resume production before an incoming raid |
+| Winning 2 | Mining rate | Expand extraction and win before hour 48 |
+| Winning 3 | Losing a mine | Protect a mine from 197 drones and win before hour 48 |
+| Winning 4 | Losing a core | Liberate a kill protocol and eliminate the enemy core |
+| Diplomacy 3 | Disabling shields | Hand over a generator so an ally can resume production |
+| Diplomacy 4 | Captive specialists | Release a captive to help an ally hold its outpost |
+| Advanced 1 | Order matters | Remove a global combat bonus before the next attack |
+| Advanced 2 | The fastest route | Relocate, recruit, consolidate, and attack before the deadline |
+| Advanced 3 | Against the odds | Keep the core through two specialist-led waves |
+| Kobayashi Maru | A test of character | Hold the destination until an unscathed courier arrives |
+
+Original walkthroughs can use historical specialist abilities. Promotion and the advanced exercises adapt those rules to the current catalog, and the fastest-route deadline is shorter on the smaller map. The mine-defense endgame uses the classic 200-cargo quota and free hiring; the other mining endgame uses the current quota.
+
+**Resolve orders** also works after construction, funding, recruitment, promotion, shield changes, and captive release. You can play economic outcomes through time without launching a hauler. A retention objective fails as soon as its defended site changes hands, even if your own core remains safe.
+
 ## Open a foothold
 
 **Objective:** capture Quiet landing with surviving drones.

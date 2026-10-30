@@ -4,7 +4,7 @@ import { createArchive, exportArchive, replayTo, restoreArchive } from './replay
 import type { LocalOperation } from './operation-save';
 import { dispatch, type Game, type Rock } from './simulation';
 import { activeUnits } from './specialists';
-import { TUTORIAL_MISSIONS, configureTutorialMission, tutorialMissionPassed, type TutorialMissionId } from './training-missions';
+import { TUTORIAL_MISSIONS, configureTutorialMission, tutorialMissionFailure, tutorialMissionPassed, type TutorialMissionId } from './training-missions';
 
 export type TrainingId = 'first-launch' | 'shield-combat' | 'unit-transport' | 'future-production' | 'interception' | TutorialMissionId;
 export type TrainingScenario = { id: TrainingId; reference?: string; title: string; instruction: string; objective: string; hints: readonly string[]; deadline: number; focus: string };
@@ -16,6 +16,16 @@ const originalScenarios: readonly TrainingScenario[] = [
   { id: 'interception', title: 'Cut the approach', instruction: 'Use Foundry’s interceptor to intercept the inbound raid before it reaches Core berth.', objective: 'Stop the raid with an interception order and keep your core safe.', hints: ['Select Foundry, set the drone manifest, and use its Interceptor targets list.', 'The interceptor travels twice as fast on its interception leg.'], deadline: 6, focus: 'works' },
 ];
 export const TRAINING_SCENARIOS: readonly TrainingScenario[] = [originalScenarios[0]!, ...TUTORIAL_MISSIONS, ...originalScenarios.slice(1)];
+
+/** Completed launches and site actions can still have unresolved mission outcomes. */
+export function canResolveTrainingOrders({ game, archive }: LocalOperation): boolean {
+  if (game.fleets.some(f => f.owner === 'you') || game.scheduled?.some(p => p.owner === 'you')) return true;
+  const entries = exportArchive(archive).entries.filter(e => 'owner' in e.command && e.command.owner === 'you');
+  const last = entries.at(-1)?.command;
+  return entries.some(e => ['drill-mine', 'funding', 'hire', 'promote', 'shields', 'release'].includes(e.command.type))
+    || ['dispatch', 'gift', 'intercept', 'schedule', 'schedule-action'].includes(last?.type ?? '')
+    || last?.type === 'hauler' && last.change.action === 'gift';
+}
 
 function isTutorialMission(id: TrainingId): id is TutorialMissionId { return TUTORIAL_MISSIONS.some(s => s.id === id); }
 
@@ -59,6 +69,8 @@ export function assessTrainingAttempt(id: TrainingId, operation: LocalOperation)
     && (id !== 'unit-transport' || state.rocks.some(r => r.id === 'home' && r.owner === 'you' && r.specialists?.some(u => u.id === 'core-you' && !u.captive)));
   if (!safe(game)) return { status: 'failed', message: id === 'unit-transport' ? 'Your intelligence core must remain at Core berth. Retry the exercise.' : 'Keep your intelligence core safe. Retry the exercise.' };
   if (isTutorialMission(id)) {
+    const failure = tutorialMissionFailure(id, operation);
+    if (failure) return { status: 'failed', message: failure };
     const actual = game.hour > scenario.deadline ? {
       game: at(scenario.deadline),
       archive: restoreArchive({ ...history, entries: history.entries.filter(e => e.hour <= scenario.deadline) }),
