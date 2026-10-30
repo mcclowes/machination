@@ -6,6 +6,7 @@ import { createConfiguredGame } from '../src/game/world';
 import { decodeSave } from '../src/game/save-format';
 import { actStrategicPlayer, RIVAL_DECISION_INTERVAL } from '../src/game/rival-ai';
 import { playersIn } from '../src/game/players';
+import { actSimultaneously } from '../src/game/rival-orders';
 
 const [hours = 168, count = 3, seed = 42] = process.argv.slice(2).map(Number);
 assert.ok(Number.isFinite(hours) && hours > 0 && hours <= 2000);
@@ -17,7 +18,7 @@ for (const mode of (process.argv[5] ? [process.argv[5]] : ['pulse', 'mining', 'd
   let game = initial;
   for (let hour = RIVAL_DECISION_INTERVAL; hour <= hours + RIVAL_DECISION_INTERVAL && !game.winner && !game.draw; hour += RIVAL_DECISION_INTERVAL) {
     game = advance(game, Math.min(hour, hours), { rivals: false });
-    if (hour <= hours) for (const owner of playersIn(game)) game = actStrategicPlayer(game, owner);
+    if (hour <= hours) game = actSimultaneously(game, playersIn(game).filter(f => !game.eliminated.includes(f)), actStrategicPlayer);
     if (game.hour >= hours) break;
   }
   assert.ok([...game.rocks, ...game.fleets].every(a => Number.isFinite(a.drones) && a.drones >= 0));

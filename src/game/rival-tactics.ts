@@ -46,13 +46,15 @@ export function createRivalForecast(game: Game): RivalForecast {
     return future;
   };
 }
-export function reserve(game: Game, rock: Rock, owner: Faction): number {
+/** Floors are per-decision minimum garrisons, such as a King guard, that attacks and logistics must leave behind. */
+export type Floors = ReadonlyMap<string, number>;
+export function reserve(game: Game, rock: Rock, owner: Faction, floors?: Floors): number {
   const incoming = game.fleets.filter(f => f.owner !== owner && f.giftAt === undefined && f.to === rock.id && f.arrives <= game.hour + RIVAL_LOOKAHEAD && !game.eliminated.includes(f.owner));
   const shields = rock.shieldsDisabled ? 0 : rock.shield ?? 0;
   const threat = incoming.reduce((n, f) => n + f.drones, 0);
-  return Math.max(ownsKing(rock, owner) ? 24 : 6, threat - shields + (incoming.length ? 8 : 0));
+  return Math.max(ownsKing(rock, owner) ? 24 : 6, floors?.get(rock.id) ?? 0, threat - shields + (incoming.length ? 8 : 0));
 }
-export const surplus = (game: Game, rock: Rock, owner: Faction): number => Math.max(0, Math.floor(rock.drones - reserve(game, rock, owner)));
+export const surplus = (game: Game, rock: Rock, owner: Faction, floors?: Floors): number => Math.max(0, Math.floor(rock.drones - reserve(game, rock, owner, floors)));
 export function siteValue(game: Game, rock: Rock, owner: Faction): number {
   if (rock.destroyed) return 0;
   if (ownsKing(rock, rock.owner!)) return 600;
@@ -120,7 +122,7 @@ function evacuateKing(game: Game, source: Rock, owner: Faction, forecast: RivalF
 }
 
 export type TaskForce = (source: Rock, target: Rock, owner: Faction) => Specialist[];
-function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction, units: Specialist[]): boolean {
+function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction, units: Specialist[], floors?: Floors): boolean {
   if (game.fleets.some(f => f.to === target.id)) return true;
   const has = (kind: string) => units.some(u => u.kind === kind);
   const defending = (target.specialists ?? []).filter(u => !u.captive && u.owner === target.owner);
@@ -129,23 +131,23 @@ function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction,
     + (units.length ? 10 * unitCount(game, owner, 'general') : 0);
   const shields = has('infiltrator') || target.shieldsDisabled || !target.owner ? 0 : target.shield ?? 0;
   const drones = target.drones * (has('thief') ? 0.7 : 1);
-  const available = surplus(game, source, owner);
+  const available = surplus(game, source, owner, floors);
   return available + ability + (unitCount(game, owner, 'king') ? Math.floor(available / 4) : 0) > drones + shields;
 }
 
-export function attackSites(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string, select: TaskForce = (source, _target, owner) => mobileUnits(source, owner)): Game {
+export function attackSites(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string, select: TaskForce = (source, _target, owner) => mobileUnits(source, owner), floors?: Floors): Game {
   let game = input;
   const usedSources = new Set<string>();
   // Replan after each launch so committed troops and destinations are accounted for.
   for (let action = 0; action < 2; action++) {
-    const candidates = ownedSites(game, owner).filter(r => r.id !== savingAt && surplus(game, r, owner) > 0 && !usedSources.has(r.id)).flatMap(source =>
+    const candidates = ownedSites(game, owner).filter(r => r.id !== savingAt && surplus(game, r, owner, floors) > 0 && !usedSources.has(r.id)).flatMap(source =>
       game.rocks.filter(target => !target.destroyed && (!target.owner || !allied(game, owner, target.owner)) && siteValue(game, target, owner) > 0
-        && plausibleAttack(game, source, target, owner, select(source, target, owner))).map(target => ({ source, target,
+        && plausibleAttack(game, source, target, owner, select(source, target, owner), floors)).map(target => ({ source, target,
         score: siteValue(game, target, owner) / (2 + worldDistance(game, source, target) / 8) - target.drones * 0.2,
       }))).sort((a, b) => b.score - a.score || byId(a.target, b.target) || byId(a.source, b.source)).slice(0, MAX_ATTACK_CANDIDATES);
     let launched = false;
     for (const { source, target } of candidates) {
-      const available = surplus(game, source, owner);
+      const available = surplus(game, source, owner, floors);
       const units = select(source, target, owner);
       const probe = order(game, source, target, available, owner, units);
       const arrival = probe.fleets.at(-1)!.arrives;
@@ -171,19 +173,46 @@ export function attackSites(input: Game, owner: Faction, forecast: RivalForecast
   return game;
 }
 
-export function reinforceFront(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string): Game {
+export function reinforceFront(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string, floors?: Floors): Game {
   const sites = ownedSites(input, owner);
   const enemies = input.rocks.filter(r => !r.destroyed && (!r.owner || !allied(input, owner, r.owner)) && siteValue(input, r, owner) > 0);
   if (!enemies.length) return input;
   const distance = (r: Rock) => Math.min(...enemies.map(e => worldDistance(input, r, e)));
   const front = savingAt ? sites.find(r => r.id === savingAt) : [...sites].sort((a, b) => distance(a) - distance(b) || byId(a, b))[0];
   if (!front) return input;
-  const donor = sites.filter(r => r.id !== front.id && r.id !== savingAt && surplus(input, r, owner) >= 10
+  const donor = sites.filter(r => r.id !== front.id && r.id !== savingAt && surplus(input, r, owner, floors) >= 10
     && (savingAt || distance(r) > distance(front) + 5)
     && !input.fleets.some(f => f.owner === owner && f.from === r.id && f.to === front.id))
-    .sort((a, b) => surplus(input, b, owner) - surplus(input, a, owner) || byId(a, b))[0];
+    .sort((a, b) => surplus(input, b, owner, floors) - surplus(input, a, owner, floors) || byId(a, b))[0];
   if (!donor) return input;
-  const sent = order(input, donor, front, surplus(input, donor, owner), owner, mobileUnits(donor, owner));
+  const sent = order(input, donor, front, surplus(input, donor, owner, floors), owner, mobileUnits(donor, owner));
   const arrival = sent.fleets.at(-1)!.arrives;
   return arrival <= input.hour + RIVAL_LOOKAHEAD && held(forecast(sent, arrival), front.id, owner) && sourceSafe(input, sent, donor, owner, forecast) ? sent : input;
+}
+
+const STRIKE_WINDOW = 6;
+/** Garrisons the King against the largest hostile stack that could land before the next decision can react. */
+export function guardKing(input: Game, owner: Faction): { game: Game; floors: Floors } {
+  const king = ownedSites(input, owner).find(r => ownsKing(r, owner));
+  if (!king) return { game: input, floors: new Map() };
+  // Rivals launch at most two attacks per decision, so the two largest stacks in reach bound the strike.
+  const strike = input.rocks.filter(r => !r.destroyed && r.owner && !allied(input, owner, r.owner) && !input.eliminated.includes(r.owner)
+    && worldDistance(input, r, king) / 8 <= STRIKE_WINDOW).map(r => Math.floor(r.drones)).sort((a, b) => b - a).slice(0, 2).reduce((n, d) => n + d, 0);
+  const shields = king.shieldsDisabled ? 0 : king.shield ?? 0;
+  const required = Math.max(0, strike - shields + 8);
+  const donors = ownedSites(input, owner).filter(r => r.id !== king.id).sort((a, b) => worldDistance(input, a, king) - worldDistance(input, b, king) || byId(a, b));
+  // An unwinnable garrison only strands the army; evacuation handles strikes that actually launch.
+  if (required > king.drones + donors.reduce((n, r) => n + surplus(input, r, owner), 0)) return { game: input, floors: new Map() };
+  const floors = new Map([[king.id, required]]);
+  let game = input;
+  let deficit = required - king.drones;
+  for (const donor of donors) {
+    if (deficit <= 0) break;
+    const source = game.rocks.find(r => r.id === donor.id)!;
+    const amount = Math.min(surplus(game, source, owner), Math.ceil(deficit));
+    if (amount <= 0) continue;
+    game = order(game, source, king, amount, owner);
+    deficit -= amount;
+  }
+  return { game, floors };
 }

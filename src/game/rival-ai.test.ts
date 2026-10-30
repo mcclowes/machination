@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { advance, dispatch, type Game, type Rock } from './simulation';
 import { createConfiguredGame } from './world';
-import { actStrategicRivals } from './rival-ai';
+import { actStrategicPlayer, actStrategicRivals } from './rival-ai';
 import { createArchive, replayTo } from './replay';
 import { encodeOperation, decodeOperation } from './operation-save';
 import { commandPulse } from './pulse';
 import { createRivalForecast, RIVAL_FORECAST_BUDGET } from './rival-tactics';
 import { decodeSave } from './save-format';
+import { actSimultaneously } from './rival-orders';
+import { hireSpecialist } from './specialists';
+import type { Faction } from './simulation';
 
 function scenario(mode: 'mining' | 'pulse' | 'domination' = 'domination', playerCount = 2): Game {
   const game = createConfiguredGame({ playerCount, mode }, 0, 42);
@@ -233,4 +236,48 @@ test('moves a fabricator from the core to the site covering the most factories',
   const transfer = actStrategicRivals(game).fleets.find(f => f.owner === 'vesper' && f.specialists?.some(u => u.id === 'fabricator'));
   assert.equal(transfer?.to, hub.id);
   assert.equal(transfer?.drones, 0);
+});
+
+test('rivals decide simultaneously, so no seat reacts to another seat\'s same-tick orders', () => {
+  for (const mode of ['domination', 'mining', 'pulse'] as const) {
+    const game = advance(createConfiguredGame({ playerCount: 4, mode }, 0, 7), 24, { rivals: false });
+    for (const owner of ['vesper', 'null', 'aether'] as const) game.cargo[owner] = 40;
+    const merged = actStrategicRivals(game);
+    const summary = (g: Game, owner: string) => ({
+      fleets: g.fleets.filter(f => f.owner === owner && !game.fleets.some(old => old.id === f.id)).map(f => `${f.from}>${f.to}:${f.drones}:${f.specialists?.map(u => u.kind).sort()}`).sort(),
+      recruits: g.recruitment?.[owner as 'vesper']?.used, cargo: g.cargo[owner as 'vesper'], mines: g.rocks.filter(r => r.owner === owner && r.kind === 'mine').length,
+    });
+    for (const owner of ['vesper', 'null', 'aether'] as const) assert.deepEqual(summary(merged, owner), summary(actStrategicPlayer(game, owner), owner), `${mode}:${owner}`);
+  }
+});
+
+test('replays same-tick hires under fresh identities when seats would collide', () => {
+  const game = scenario('domination', 3);
+  site(game, 2, { owner: 'null', x: 70, y: 70, drones: 60, specialists: [{ id: 'king-null', owner: 'null', kind: 'queen' }], coreOf: 'null' });
+  site(game, 3, { owner: 'vesper', x: 14, y: 10, drones: 10 });
+  site(game, 4, { owner: 'null', x: 74, y: 70, drones: 10 });
+  game.cargo = { ...game.cargo, vesper: 5, null: 5 };
+  for (const owner of ['vesper', 'null'] as const) game.recruitment![owner]!.offers = ['thief', 'thief', 'thief'];
+  const plan = (snapshot: Game, owner: Faction) => {
+    const core = snapshot.rocks.find(r => r.specialists?.some(u => u.owner === owner && u.kind === 'queen'))!;
+    const hired = hireSpecialist(snapshot, owner, 'thief');
+    const unit = hired.rocks.find(r => r.id === core.id)!.specialists!.find(u => u.kind === 'thief')!;
+    return dispatch(hired, core.id, owner === 'vesper' ? game.rocks[3]!.id : game.rocks[4]!.id, 0, owner, false, [unit.id]);
+  };
+  const result = actSimultaneously(game, ['vesper', 'null'], plan);
+  const carried = result.fleets.flatMap(f => (f.specialists ?? []).map(u => `${f.owner}:${u.kind}:${u.id}`));
+  assert.equal(carried.length, 2);
+  assert.equal(new Set(carried.map(c => c.split(':')[2])).size, 2);
+  assert.deepEqual(carried.map(c => c.split(':').slice(0, 2).join(':')).sort(), ['null:thief', 'vesper:thief']);
+});
+
+test('garrisons an exposed King against a stack that could land before the next decision', () => {
+  const game = scenario();
+  game.rocks[0]!.drones = 0;
+  game.rocks[1]!.drones = 0;
+  const donor = site(game, 2, { owner: 'vesper', x: 20, y: 10, drones: 100 });
+  site(game, 3, { owner: 'you', x: 34, y: 10, drones: 40 });
+  const result = actStrategicRivals(game);
+  const guard = result.fleets.filter(f => f.owner === 'vesper' && f.from === donor.id && f.to === game.rocks[1]!.id).reduce((n, f) => n + f.drones, 0);
+  assert.ok(guard >= 48 - 20, `garrison ${guard}`);
 });

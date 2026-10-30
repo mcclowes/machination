@@ -4,6 +4,7 @@ import { advance } from '../src/game/simulation';
 import { createConfiguredGame } from '../src/game/world';
 import { actStrategicPlayer, RIVAL_DECISION_INTERVAL } from '../src/game/rival-ai';
 import { playersIn } from '../src/game/players';
+import { actSimultaneously } from '../src/game/rival-orders';
 import { activeUnits } from '../src/game/specialists';
 import type { RivalPolicy } from '../src/game/rival-policy';
 
@@ -18,7 +19,7 @@ for (let index = 0; index < games; index++) {
   const policyOf = new Map(playersIn(game).map((owner, seat) => [owner, ((seat + index) % 2 ? 2 : 1) as RivalPolicy]));
   for (let hour = RIVAL_DECISION_INTERVAL; hour <= hours && !game.winner && !game.draw; hour += RIVAL_DECISION_INTERVAL) {
     game = advance(game, hour, { rivals: false });
-    for (const owner of playersIn(game)) game = actStrategicPlayer(game, owner, policyOf.get(owner)!);
+    game = actSimultaneously(game, playersIn(game).filter(f => !game.eliminated.includes(f)), (snapshot, owner) => actStrategicPlayer(snapshot, owner, policyOf.get(owner)!));
   }
   if (game.winner) tally[policyOf.get(game.winner)!].wins++;
   for (const [owner, policy] of policyOf) {

@@ -2,7 +2,7 @@
 
 New configured operations use strategic rivals. Solo remains a full-information simulation: rivals can inspect the same complete chart as the human player. Multiplayer and practice keep automatic rivals disabled.
 
-Every three game hours, each living rival makes decisions in this order:
+Every three game hours, each living rival makes decisions in this order. Under policy 2, every rival plans against the same pre-decision snapshot and the resulting orders are merged afterwards, so no rival reacts to another's same-tick orders. Policy 1 decides in seat order.
 
 1. Reinforce threatened sites, prioritizing the King. Evacuate an outmatched King when a simulated escape survives. Anticipate hostile pulses before their wavefront traps the King on station.
 2. Charge or fire King's Pulse using the normal material cost and charging rules.
@@ -14,6 +14,7 @@ Policy 2 adds deliberate specialist use:
 
 - **Recruitment** never stalls. Every offer except the meltdown charge has a value, so a poor offer set is spent and redrawn rather than hoarded. A promotion is taken only when it beats the best affordable hire.
 - **Task forces** carry only units that change the fight: hijackers, strikers, maulers, thrusters, and reclaimers always; breachers against shields; purgers against defending specialists; an arbiter only to cancel the defender's arbiter or to suppress defending abilities when the attack has none. Couriers and navigators stay home. Sites defended by a purger or meltdown charge get no specialists.
+- **King guard** garrisons the King against the two largest hostile stacks that could land within six hours, before the next decision can react. Attacks and logistics leave that garrison behind. Unwinnable garrisons are skipped and evacuation takes over.
 - **Positioning** moves one stationed unit per decision, unescorted, when a forecast shows it arriving: fabricators to the site covering the most factories, overseers to the safest factory, capacitors to the highest shield site, custodians and bulwarks to the core, watchdogs and idle strike units to the front.
 
 Conquerors favor hostile territory, expansionists favor neutral sites, and industrialists favor mines. Preferences are fixed by faction identity. The planner uses deterministic ordering and ordinary commands, inventories, travel, and combat. It never grants resources or skips preparation.

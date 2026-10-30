@@ -19,8 +19,9 @@ import { hireSpecialist, promoteSpecialist, recruitmentCost, recruitmentStatus, 
 import { promotion, type SpecialistKind } from './specialist-catalog';
 import { victoryTarget } from './rules';
 import { worldDistance } from './geometry';
-import { attackSites, byId, defendSites, createRivalForecast, type RivalForecast, ownsKing, ownedSites, reinforceFront, reserve, RIVAL_LOOKAHEAD } from './rival-tactics';
+import { attackSites, byId, defendSites, createRivalForecast, guardKing, type Floors, type RivalForecast, ownsKing, ownedSites, reinforceFront, reserve, RIVAL_LOOKAHEAD } from './rival-tactics';
 import type { RivalPolicy } from './rival-policy';
+import { actSimultaneously } from './rival-orders';
 import { hireScore, positionSpecialists, reservesForVictory, taskForce } from './rival-specialists';
 
 export const RIVAL_DECISION_INTERVAL = 3;
@@ -30,8 +31,10 @@ export function rivalStyle(owner: Faction): RivalStyle { return (['conqueror', '
 
 export function actStrategicRivals(input: Game, trace?: SimulationTraceSink): Game {
   if (input.winner || input.draw || input.version !== 2) return input;
+  const owners = playersIn(input).filter(f => f !== 'you' && !input.eliminated.includes(f));
+  if ((input.rivalPolicy ?? 1) !== 1) return actSimultaneously(input, owners, actStrategicPlayer, game => tracePoint(trace, 'rival', game));
   let game = input;
-  for (const owner of playersIn(input).filter(f => f !== 'you')) {
+  for (const owner of owners) {
     if (game.eliminated.includes(owner)) continue;
     game = actStrategicPlayer(game, owner);
     tracePoint(trace, 'rival', game);
@@ -43,12 +46,14 @@ export function actStrategicPlayer(input: Game, owner: Faction, policy: RivalPol
   if (input.winner || input.draw || input.version !== 2 || input.eliminated.includes(owner) || !playersIn(input).includes(owner)) return input;
   const forecast = createRivalForecast(input);
   let game = defendSites(input, owner, forecast);
+  let floors: Floors | undefined;
+  if (policy !== 1) ({ game, floors } = guardKing(game, owner));
   game = pursuePulse(game, owner);
   game = policy === 1 ? recruit(game, owner) : recruitV2(game, owner);
   const investment = invest(game, owner, forecast);
-  game = attackSites(investment.game, owner, forecast, investment.savingAt, policy === 1 ? undefined : taskForce);
+  game = attackSites(investment.game, owner, forecast, investment.savingAt, policy === 1 ? undefined : taskForce, floors);
   if (policy !== 1) game = positionSpecialists(game, owner, forecast);
-  return reinforceFront(game, owner, forecast, investment.savingAt);
+  return reinforceFront(game, owner, forecast, investment.savingAt, floors);
 }
 
 function pursuePulse(game: Game, owner: Faction): Game {
