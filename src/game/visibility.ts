@@ -69,7 +69,7 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     version: game.version, ...(game.minesDrilled ? { minesDrilled: Object.fromEntries(teamMembers(game, faction).map(f => [f, game.minesDrilled![f]])) } : {}),
     hour: game.hour, epoch: game.epoch,
     rocks: game.rocks.map(r => r.owner && allied(game, faction, r.owner) || inRange(coverage, r, game)
-      ? { ...r, ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, ...(r.drift ? { drift: r.drift } : {}), kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false, ...(game.version === 2 ? { owner: r.owner } : {}) }),
+      ? { ...r, ...(r.overclock ? { overclock: { ...r.overclock } } : {}), ...units(r), known: true } : { id: r.id, name: r.name, x: r.x, y: r.y, ...(r.drift ? { drift: r.drift } : {}), kind: !r.destroyed && (remoteTypes || r.kind === 'mine') ? r.kind : 'unknown', known: false, ...(game.version === 2 ? { owner: r.owner } : {}) }),
     fleets: contacts.map(f => ({ ...publicFleet(f), ...units(f), id: identify(f.id), ...(f.route ? { route: { from: { ...f.route.from }, to: { ...f.route.to } } } : {}), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined && visibleIds.has(f.intercept.target) ? { target: identify(f.intercept.target) } : {}) } } : {}) })),
     cargo: Object.fromEntries(teamMembers(game, faction).map(f => [f, game.cargo[f]])), eliminated: [...game.eliminated], winner: game.winner, ...(game.draw ? { draw: true } : {}),
     events: game.events.filter(e => e.audience?.some(f => allied(game, faction, f))).slice(0, EVENTS_PER_OBSERVER).map(e => ({ hour: e.hour, message: e.message, ...(e.discoveredAt === undefined ? {} : { discoveredAt: e.discoveredAt }), ...(e.battle ? { battle: { ...e.battle } } : {}) })),
@@ -81,7 +81,7 @@ export function forecastObservation(view: GameView, faction: Faction, targetHour
   if (!Number.isFinite(targetHour) || targetHour < view.hour) throw new Error('Time can only move forward.');
   const { simulation, unknown, alias, unknownInterceptions, territoryOwners } = simulationFromObservation(view, faction);
   const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain || !!view.pulse);
-  const predicted = advance(simulation, targetHour, { rivals: false, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
+  const predicted = advance(simulation, targetHour, { rivals: false, temporalForecast: true, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
   predicted.fleets.sort((a, b) => a.id - b.id);
   const projected = observe(predicted, faction);
   if (view.foresight?.length) { projected.foresight = view.foresight.map(w => ({ ...w })); projected.forecastUncertain = true; }

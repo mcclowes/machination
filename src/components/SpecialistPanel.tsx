@@ -33,7 +33,15 @@ export function SpecialistPanel({ game, owner, enabled, scheduledAt, onHire, onP
     <Text style={s.heading}>Specialists</Text>
     <RecruitmentOffers game={observed} owner={owner} enabled={enabled} scheduledAt={scheduledAt} onHire={onHire} />
     <Text style={s.detail}>{promotable} docked {promotable === 1 ? 'specialist' : 'specialists'} can promote{status.credits === 0 ? ' when a credit is available' : ''}.</Text>
-    {game.foresight?.map(w => <Text key={w.specialistId} style={s.detail}>Foresight: specialist death predicted at {gameClock(w.deathAt)} from {w.source}. Conditional on current plans.</Text>)}
+    {game.foresight?.map(w => {
+      const threatened = rows.find(row => row.unit.id === w.specialistId);
+      const name = threatened ? SPECIALISTS[threatened.unit.kind].name : 'Specialist';
+      return <View key={w.specialistId}>
+        <Text style={s.detail}>Foresight: {name} death predicted at {gameClock(w.deathAt)} from {w.source}. Conditional on current plans.</Text>
+        {threatened?.site && <Button label={`Inspect threatened ${name}`} onPress={() => onInspectSite(threatened.site!.id)} />}
+        {threatened?.fleet && <Button label={`Inspect threatened ${name}`} onPress={() => onInspectFleet(threatened.fleet!.id)} />}
+      </View>;
+    })}
     <Text style={s.heading}>Known roster · {rows.length}</Text>
     {rows.length === 0 && <Text style={s.detail}>No known specialists.</Text>}
     {rows.map(row => {

@@ -8,6 +8,7 @@ import { commandTacticalPulse, DEFAULT_TACTICAL_PULSE_CONFIG } from './tactical-
 import { decodeSave } from './save-format';
 import { commandHauler } from './transport';
 import { fleetPosition } from './flight';
+import { actStrategicPlayer } from './rival-ai';
 
 test('Anchor pauses King and Disruptor charging without refunding or producing an early wave', () => {
   let game = temporalWorld();
@@ -75,4 +76,29 @@ test('a drifting Dilation field produces the same remaining travel across split 
   assert.equal(whole.fleets[0]!.speed, 4);
   assert.ok(Math.abs(whole.fleets[0]!.arrives - split.fleets[0]!.arrives) < 1e-8);
   assert.ok(Math.abs(fleetPosition(whole, whole.fleets[0]!).x - fleetPosition(split, split.fleets[0]!).x) < 1e-8);
+});
+
+test('a rival with three temporal offers still recruits instead of keeping an unusable deck forever', () => {
+  const game = temporalWorld();
+  game.recruitment!.vesper!.offers = ['hastener', 'dilation', 'overclock'];
+  const recruited = actStrategicPlayer(game, 'vesper');
+  assert.ok([...recruited.rocks, ...recruited.fleets].some(a => a.specialists?.some(u => u.owner === 'vesper' && u.kind === 'hastener')));
+  assert.equal(recruited.recruitment!.vesper!.used, 1);
+});
+
+test('a held hauler returns from a destroyed drifting site without jumping back to its old arrival point', () => {
+  let game = temporalWorld();
+  game.rules!.driftingBases = true;
+  game.rules!.map = { generator: 'balanced.v2', topology: 'torus', seed: 19, width: 500, height: 500 };
+  game.rocks[0]!.x = 16;
+  Object.assign(game.rocks[1]!, { x: 20, y: 0, drift: { origin: { x: 8, y: 0 }, velocity: { x: 0.5, y: 0 } } });
+  game.rocks[1]!.specialists!.push({ id: 'drifting-anchor', kind: 'anchor', owner: 'you' });
+  game = dispatch(game, game.rocks[0]!.id, game.rocks[1]!.id, 1, 'you');
+  game = activateTemporal(game, 'you', 'drifting-anchor');
+  const frozen = advance(game, 25.5, { rivals: false });
+  assert.equal(frozen.fleets[0]!.heldAt, game.rocks[1]!.id);
+  Object.assign(frozen.rocks[1]!, { destroyed: true, drones: 0, shield: 0, specialists: [] });
+  const thawed = advance(frozen, 26, { rivals: false });
+  assert.equal(thawed.fleets[0]!.returning, true);
+  assert.ok(Math.abs(fleetPosition(thawed, thawed.fleets[0]!).x - 21) < 1e-8);
 });

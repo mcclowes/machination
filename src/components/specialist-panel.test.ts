@@ -231,3 +231,17 @@ test('temporal controls activate docked units and retain visible cooldown and re
   assert.equal(historical.buttons().find((n: any) => n.props.accessibilityLabel === 'Activate stasis · 2h').props.disabled, true);
   await historical.close();
 });
+
+test('Foresight identifies the threatened specialist and opens its current location', async () => {
+  const view = observe(fixture(), 'you');
+  const site = view.rocks.find(r => r.owner === 'you' && r.specialists?.some(u => u.kind === 'queen'))!;
+  view.foresight = [{ specialistId: site.specialists![0]!.id, deathAt: 8, source: 'queued enemy transfer' }];
+  const inspected: string[] = [];
+  const panel = await render({ ...props(view), onInspectSite: id => inspected.push(id) });
+  const threat = panel.buttons().find((n: any) => n.props.accessibilityLabel === 'Inspect threatened Intelligence core');
+  assert.ok(threat);
+  await act(async () => threat.props.onPress());
+  assert.deepEqual(inspected, [site.id]);
+  assert.match(panel.text(), /queued enemy transfer/);
+  await panel.close();
+});

@@ -139,7 +139,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
   if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game, preserveDueClocks); tracePoint(trace, 'effects', game); }
   if (mechanicsVersion(game) >= 10) { const before = game; game = settleCourseChanges(game); if (game !== before) tracePoint(trace, 'course-change', game); }
   settlePulseHazards(game); evaluatePulseVictory(game);
-  if (!options.temporalForecast && Number.isInteger(game.hour)) { refreshForesight(game); tracePoint(trace, 'temporal-intelligence', game); }
+  if (!options.temporalForecast && temporalEnabled(game) && Number.isInteger(game.hour)) { refreshForesight(game); tracePoint(trace, 'temporal-intelligence', game); }
   if (game.pulse) tracePoint(trace, 'pulse', game);
   while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));

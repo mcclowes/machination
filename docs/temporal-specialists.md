@@ -16,7 +16,7 @@ Activate a docked Anchor from the specialist panel or its site. Stasis lasts two
 
 During stasis:
 
-- Local factory output, mining, generator depletion, shield recharge, timed specialist actions, and King and Disruptor charging pause.
+- Local factory output, mining, reactor depletion, shield recharge, timed specialist actions, and King and Disruptor charging pause.
 - Preparing departures return their manifests to the site. New departures, hiring, promotion, release, construction, shield changes, and charge/fire commands at the site are refused.
 - Friendly and hostile haulers reaching the site wait without docking or resolving site combat. On thaw, they resolve in the existing launch-ID order. Held haulers follow a drifting site's position, cannot reroute, and don't participate in transit combat or receive additional engine delays.
 - Already-emitted pulses continue to propagate and can damage the site. Stasis provides no pulse immunity; shield energy can still drain under exposure.
@@ -47,7 +47,7 @@ Only an action description is revealed, not the enemy's complete historical stat
 
 An active Foresight warns when the current committed simulation would kill one of your active specialists within 24 game hours. It considers enemy private orders and already-launched haulers. A warning identifies the threatened specialist, predicted death time, and relevant hostile transfer or encounter, while leaving unrelated orders private. Capture alone isn't death.
 
-Predictions refresh after player commands and at simulation event boundaries, including hourly horizon checks. Canceling or changing a lethal plan withdraws its current prediction. Earlier warning events remain part of the historical record. The specialist panel shows the current warnings.
+Predictions refresh after player commands and at simulation event boundaries, including hourly horizon checks. Canceling or changing a lethal plan withdraws its current prediction. Earlier warning events remain part of the historical record. The specialist panel shows the current warnings and opens the threatened unit's location. Speculative forecasts retain disclosed warnings without generating new private intelligence.
 
 Warnings are conditional on committed plans. They grant information without immunity, and say nothing about attacks the opponent hasn't ordered. Live actions that kill immediately have no guaranteed response interval. Foresight doesn't introduce a new attack delay or change command commitment rules.
 

@@ -78,7 +78,11 @@ export function refreshTemporalProduction(game: Game, site: Rock, interval: numb
   if (pause > game.hour) site.productionPausedUntil = pause; else delete site.productionPausedUntil;
 }
 export function holdStasisArrival(game: Game, fleet: Fleet, site: Rock): boolean {
-  if (!inStasis(game, site)) { delete fleet.heldAt; return false; }
+  if (!inStasis(game, site)) {
+    if (fleet.heldAt) { const point = fleetPosition(game, fleet); fleet.route = { from: point, to: point }; }
+    delete fleet.heldAt;
+    return false;
+  }
   const point = fleetPosition(game, fleet);
   fleet.route = { from: point, to: point };
   fleet.departed = game.hour;

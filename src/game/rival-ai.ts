@@ -6,7 +6,7 @@
  *   - ./rival-ai.test.ts - adversarial decisions and persistence invariants
  * ---
  */
-import { inStasis } from './temporal';
+import { inStasis, temporalEnabled } from './temporal';
 import type { Faction, Game } from './simulation';
 import { allied } from './teams';
 import { hasReserves } from './depletion';
@@ -65,6 +65,7 @@ function recruit(game: Game, owner: Faction): Game {
   // Do not repeatedly spend the last material needed to start a King's charge.
   if (game.pulse && cargo >= pulseConfig(game).activationResourceCost * 0.8) return game;
   const scores: Partial<Record<SpecialistKind, number>> = {
+    ...(temporalEnabled(game) ? { hastener: 50, dilation: 35, overclock: 40, hindsight: 25, foresight: 30 } : {}),
     smuggler: 100, foreman: 95, lieutenant: 90, inspector: 80, tinkerer: capacityTight ? 110 : 15,
     thief: 65, infiltrator: 65, warHero: 65, assassin: 60, elder: 55, navigator: 55, helmsman: 50,
     engineer: 50, princess: game.pulse ? 0 : 30, sentry: 50,

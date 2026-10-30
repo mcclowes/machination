@@ -17,7 +17,7 @@ import { unitCount, type Specialist } from './specialists';
 
 export const RIVAL_LOOKAHEAD = 12;
 const MAX_ATTACK_CANDIDATES = 4;
-const MOBILE_KINDS = new Set(['thief', 'infiltrator', 'lieutenant', 'warHero', 'assassin', 'helmsman', 'smuggler', 'elder', 'engineer']);
+const MOBILE_KINDS = new Set(['thief', 'infiltrator', 'lieutenant', 'warHero', 'assassin', 'helmsman', 'smuggler', 'elder', 'engineer', 'hastener']);
 export const byId = (a: { id: string }, b: { id: string }): number => a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 export const ownsKing = (rock: Rock, owner: Faction): boolean => !!rock.specialists?.some(u => u.owner === owner && u.kind === 'queen' && !u.captive);
 export const ownedSites = (game: Game, owner: Faction): Rock[] => game.rocks.filter(r => !r.destroyed && r.owner === owner && !inStasis(game, r));
@@ -38,10 +38,10 @@ export function createRivalForecast(game: Game): RivalForecast {
     const earlier = [...states.keys()].filter(h => h <= target).sort((a, b) => b - a)[0]!;
     let future = states.get(earlier)!;
     for (let next = Math.floor(earlier) + 1; next < target && !future.winner && !future.draw; next++) {
-      future = advance(future, next, { rivals: false });
+      future = advance(future, next, { rivals: false, temporalForecast: true });
       states.set(next, future);
     }
-    future = advance(future, target, { rivals: false });
+    future = advance(future, target, { rivals: false, temporalForecast: true });
     states.set(target, future);
     return future;
   };
