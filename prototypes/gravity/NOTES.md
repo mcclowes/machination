@@ -20,7 +20,7 @@ Do curved, gravity-bent hauler courses feel good and stay legible on a real char
 
 ## Findings so far
 
-- Courses are symmetric and converge (3,000 iterations change nothing visible over 500). Plotting costs a few ms per course.
+- Courses are symmetric, and integrating 4× finer changes nothing measurable. Plotting costs about 2ms per course.
 - With a long-tailed falloff, every course got faster everywhere, which is just a higher base speed. The compact falloff fixed this: only routes through the reach circle change.
 - v1 used an elastic band pulled toward wells. Max spotted it hugged the giant in an S-wiggle; a real course aims wide and arcs back. Replaced with the ballistic solver.
 - With ballistic arcs, the slingshot is roughly neutral at the defaults (about −1% to −2%), because the wider course offsets the speed gain. That's a tradeoff, not a flat buff.
