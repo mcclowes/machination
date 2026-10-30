@@ -19,6 +19,7 @@ import { MAX_PLAN_DELAY } from './orders';
 import { MAX_STORED_EVENTS } from './events';
 import { isModule } from './modules';
 import { createLegacyGame } from './legacy';
+import { isRivalPolicy } from './rival-policy';
 import { maximumShield } from './economy';
 import { type Game, type Faction, type Rock, createGame } from './simulation';
 export type Save = { savedAt: number; game: Game; replay?: ReplayData };
@@ -31,7 +32,7 @@ export function decodeSave(raw: string): Save {
   try { save = JSON.parse(raw); } catch { return fail(); }
   if (!record(save) || !nonnegative(save.savedAt) || !record(save.game)) return fail();
   const g = save.game;
-  if (g.rivalPolicy !== undefined && (g.version !== 2 || g.rivalPolicy !== 1)) return fail();
+  if (g.rivalPolicy !== undefined && (g.version !== 2 || !isRivalPolicy(g.rivalPolicy))) return fail();
   let rules;
   try { rules = g.rules === undefined ? undefined : validateRules(g.rules); } catch { return fail(); }
   if (rules && (g.version !== 2 || g.specialistVersion !== 1)) return fail();
