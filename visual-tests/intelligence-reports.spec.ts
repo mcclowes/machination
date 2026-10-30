@@ -42,6 +42,7 @@ test('solo intelligence ranks the race, switches columns, and funds a player', a
   await expect(board.getByText('Vesper could win in 20.6 days', { exact: true })).toBeVisible();
   const ids = await board.locator('[data-testid^="intelligence-row-"]').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-testid')));
   expect(ids).toEqual(['intelligence-row-you', 'intelligence-row-vesper', 'intelligence-row-null', 'intelligence-row-aether', 'intelligence-row-umbra', 'intelligence-row-orbit']);
+  await expect(page.getByTestId('intelligence-row-you')).toBeInViewport({ ratio: 0.95 });
   await expect(page.getByTestId('intelligence-row-you').getByText('63', { exact: true })).toBeVisible();
   await page.screenshot({ path: `.fettle/shots/intelligence-drones-${info.project.name}.png` });
   await board.getByRole('tab', { name: 'Sites', exact: true }).click();

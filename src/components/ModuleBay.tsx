@@ -17,7 +17,7 @@ export function ModuleBay({ rock, enabled, carry, onCarry, onBuild }: Props) {
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: carry, disabled: !enabled }} disabled={!enabled} onPress={() => onCarry(!carry)} style={[s.load, !enabled && { opacity: 0.4 }]}><Text style={s.loadText}>{carry ? '☑' : '☐'} Load onto the next hauler</Text></Pressable>
       <Text style={s.detail}>Stored modules have no combat effect. A carried module is destroyed if its hauler loses. An occupied arrival bay scraps the incoming module.</Text>
     </> : <>
-      <Text style={s.detail}>Build with drones. One module per rock. Load explicitly when planning a transfer.</Text>
+      <Text style={s.detail}>Build with drones. One module per site. Load explicitly when planning a transfer.</Text>
       {(Object.keys(MODULES) as ModuleKind[]).map(kind => {
         const entry = MODULES[kind];
         const disabled = !enabled || rock.drones < entry.cost;

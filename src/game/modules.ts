@@ -7,7 +7,7 @@ export const MODULES = {
   routing: { name: 'Thruster', eventName: 'Routing daemon', code: 'TH', cost: 24, description: 'Loaded haulers travel 50% faster. Survives a successful arrival.' },
   virus: { name: 'Hijacker', eventName: 'Conversion virus', code: 'HJ', cost: 36, description: 'Before hostile combat, converts 20% of opposing drones, up to 20. Survives a successful arrival.' },
   scavenger: { name: 'Interceptor', eventName: 'Scavenger rig', code: 'IN', cost: 28, description: 'Can intercept observed enemy haulers and return home. Winning combat recovers 25% of drone losses.' },
-  charge: { name: 'Meltdown charge', eventName: 'Self-destruct charge', code: 'MC', cost: 20, description: 'On hostile contact, sacrifices its hauler to destroy up to twice its drone payload. Cannot claim a rock or destroy a core.' },
+  charge: { name: 'Meltdown charge', eventName: 'Self-destruct charge', code: 'MC', cost: 20, description: 'On hostile contact, sacrifices its hauler to destroy up to twice its drone payload. Cannot claim a site or destroy a core.' },
 } as const;
 export type ModuleKind = keyof typeof MODULES;
 export const isModule = (value: unknown): value is ModuleKind => typeof value === 'string' && Object.prototype.hasOwnProperty.call(MODULES, value);

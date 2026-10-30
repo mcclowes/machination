@@ -4,24 +4,15 @@ A slow strategy game about rival intelligences operating mining concerns in the 
 
 ## Vocabulary
 
-| Concept | Machination |
-| --- | --- |
-| Player | Intelligence |
-| Outpost | Rock |
-| Submarine | Hauler |
-| Driller | Drone |
-| Generator | Reactor |
-| Queen | Core |
-| Victory resource | Cargo, commodity deliberately unspecified |
-| Specialist | Module or unusual unit |
+Use the [terminology policy](terminology.md) for player-facing names and the [player glossary](../website/glossary/glossary.json) for definitions. Core terms are intelligence, site, factory, reactor, mine, drone, hauler, specialist, and manifest. Mining and domination use cargo; King’s Pulse calls the same mined resource pulse material. The intelligence core is the King only in King’s Pulse.
 
-The Director can become the corporate authority in flavor text. The core is the vulnerable operational entity on the map.
+The Director can appear as a corporate authority in flavor text. Mechanics and controls use the preferred terms, including in practice dialogue.
 
 ## Faithful rules upgrade
 
-New operations use version two with mechanics revision 18. Each intelligence starts with six sites, including one mine, and 5 cargo. Four industry sites hold 40 drones each; the core's site and the mine hold none. The generated chart retains ten sites per player, leaving four dormant expansion sites per player. The existing factory and generator mix is preserved; the mine occupies the sixth starting site. Older operations retain their saved starting layout and economy.
+New operations use version two with mechanics revision 18. Each intelligence starts with six sites, including one mine, and 5 cargo. Four industry sites hold 40 drones each; the core's site and the mine hold none. The generated chart retains ten sites per player, leaving four dormant expansion sites per player. The existing factory and reactor mix is preserved; the mine occupies the sixth starting site. Older operations retain their saved starting layout and economy.
 
-Factories deliver six drones every eight hours. Total stationed and traveling drones count toward capacity: 150 from an active core plus 50 per controlled generator, with specialist and funding modifiers. Capacity limits production; it doesn't destroy drones after territorial losses. Mines replace factories or generators and cost 50/100/200/300… drones according to lifetime construction count. The starting mine counts as the first, so the next mine costs 100 drones. Each mine produces one cargo per controlled site per day, paid one unit at a time every 24 / controlled-site-count hours. The starting mine pays its first unit at hour four; mining does not use opening acceleration. Territorial changes preserve progress toward the next unit. Capturing a mine resets its clock and removes 20% of the former owner's cargo. New mining operations require 300 cargo to win; older configured operations retain 200.
+Factories deliver six drones every eight hours. Total stationed and traveling drones count toward capacity: 150 from an active core plus 50 per controlled reactor, with specialist and funding modifiers. Capacity limits production; it doesn't destroy drones after territorial losses. Mines replace factories or reactors and cost 50/100/200/300… drones according to lifetime construction count. The starting mine counts as the first, so the next mine costs 100 drones. Each mine produces one cargo per controlled site per day, paid one unit at a time every 24 / controlled-site-count hours. The starting mine pays its first unit at hour four; mining does not use opening acceleration. Territorial changes preserve progress toward the next unit. Capturing a mine resets its clock and removes 20% of the former owner's cargo. New mining operations require 300 cargo to win; older configured operations retain 200.
 
 Each hire costs one hiring credit and 5 cargo, including hires that produce multiple units. The initial 5 cargo can pay for the first hire. Promotions cost one credit without cargo. Scheduled hires reserve neither credits nor cargo and check affordability at execution; failed hires consume neither resource nor recruitment offers. Mines are also available in new domination operations to fund recruitment, while victory still requires half the chart. Older operations retain credit-only recruitment and their original mining restrictions.
 
@@ -29,11 +20,11 @@ Sites have 10 or 20 shield capacity; the core adds 20 locally. Charge recovers o
 
 New launches reserve their manifests and prepare for ten minutes; editing and cancellation are available until departure. Travel uses continuous distance-based timing. Ordinary opposing haulers encounter on their shared route. Gifts transfer on contact, including interception by a passing hauler; gift orders take effect after a ten-minute cancellation window. Core loss removes cargo and future orders but preserves remaining sites, production, and launched haulers.
 
-Version-one saves and ongoing server rooms retain the prototype rules below. New rooms default to version two. Module, transport, leadership, and sensor parity work is tracked in [#18](https://github.com/mcclowes/machination/issues/18); this economy upgrade doesn't establish complete parity.
+Version-one saves and ongoing server rooms retain the prototype rules below. New rooms default to version two. Specialist, transport, leadership, and sensor parity work is tracked in [#18](https://github.com/mcclowes/machination/issues/18); this economy upgrade doesn't establish complete parity.
 
 ## Intelligence reports
 
-The Intel drawer opens with a ranked scoreboard in solo and online operations. Mining ranks public cargo, domination ranks controlled sites, and King's Pulse ranks available Material without treating it as a victory target. Ties share a rank; eliminated intelligences remain below active players. Team operations rank combined victory progress once per team while keeping each player's military and funding details separate.
+The Intel drawer opens with a ranked scoreboard in solo and online operations. Mining ranks public cargo, domination ranks controlled sites, and King's Pulse ranks available pulse material without treating it as a victory target. Ties share a rank; eliminated intelligences remain below active players. Team operations rank combined victory progress once per team while keeping each player's military and funding details separate.
 
 The Drones, Sites, and Funding tabs compare the same ranked roster. Your drones include stationed and traveling inventory, with capacity and current production bonuses. Rival drone totals include only observed forces; hidden capacity, production, and site types stay unknown. Sponsor counts are public, while identities remain private to the parties. Funding actions retain the same cargo-lead requirement and support live or scheduled changes. Historical reports are read-only, and forecasts are labeled as projections.
 

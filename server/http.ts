@@ -3,15 +3,15 @@
  * purpose: Bounded JSON HTTP adapter for the multiplayer service, with seat authentication and consistent failures.
  * ---
  */
-import type { PulseOrder } from '../src/online/protocol';
+import type { PulseOrder } from '../src/contracts/protocol';
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { GameService, type AccountCredential } from './service';
 import { Failure } from './failure';
 import type { NotificationVersion } from './notification-preferences';
 import type { AccountAuthentication } from './auth';
-import type { FundingOrder } from '../src/online/protocol';
-import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/online/protocol';
+import type { FundingOrder } from '../src/contracts/protocol';
+import type { CreateGroup, ChannelTransmission, ResignOrder, EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Transmission } from '../src/contracts/protocol';
 async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
   if (!request.headers['content-type']?.startsWith('application/json')) throw new Failure(415, 'request.validation.content_type', 'Send JSON content.');
   const chunks: Buffer[] = []; let size = 0;

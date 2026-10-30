@@ -1,4 +1,4 @@
-import { DIPLOMACY_LIMITS, type ObjectReference } from './protocol';
+import { DIPLOMACY_LIMITS, type ObjectReference } from '../contracts/protocol';
 
 // Canonical JS numbers need at most 24 characters; leave room for the fixed fields.
 const MAX_TOKEN_LENGTH = 160;

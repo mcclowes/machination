@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { createGame, type Fleet } from '../src/game/simulation';
 import { forecastObservation } from '../src/game/visibility';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 import { GameService } from './service';
 import { createApi } from './http';
 

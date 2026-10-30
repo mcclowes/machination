@@ -1,3 +1,5 @@
+import type { Plugin } from 'esbuild';
+
 // Operation tests keep real presentation with reduced motion; motion lifecycle has its own tests.
 export const OPERATION_MOTION_NATIVE = `
   class StaticValue {
@@ -16,3 +18,11 @@ export const OPERATION_MOTION_PREFERENCE = `
   export const nativeDriver=Platform.OS!=='web';
   export const useAmbientMotion=()=>({reduced:true,animate:false});
 `;
+
+export const operationMotionPreferencePlugin: Plugin = {
+  name: 'static-operation-motion',
+  setup(builder) {
+    builder.onResolve({ filter: /use-ambient-motion$/ }, () => ({ path: 'preference', namespace: 'static-operation-motion' }));
+    builder.onLoad({ filter: /.*/, namespace: 'static-operation-motion' }, () => ({ contents: OPERATION_MOTION_PREFERENCE }));
+  },
+};

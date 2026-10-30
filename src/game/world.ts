@@ -13,6 +13,7 @@ import { ALL_PLAYERS } from './players';
 import { validateOptions, type GameOptions } from './rules';
 import { generateWorld } from './generated-world';
 import { newRecruitment } from './specialists';
+import { CURRENT_RIVAL_POLICY } from './rival-policy';
 import type { Faction, Game, Rock } from './simulation';
 
 export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, number>>): Game {
@@ -63,7 +64,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   const { rocks, width, height } = generateWorld(players, mapSeed, startingMine);
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
-    rivalPolicy: 1,
+    rivalPolicy: CURRENT_RIVAL_POLICY,
     rules: { ...(settings.teamFormat ? { teams: createTeams(settings.teamFormat, players) } : {}), mechanicsVersion: revision, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? settings.teamFormat || startingMine ? 300 : 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, startingMine ? 5 : 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, startingMine ? 1 : 0])),

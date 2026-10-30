@@ -12,6 +12,7 @@ import { temporalEnabled, type OverclockLoan } from './temporal';
 import { cloneCompact, nextCouncilEvent, settleCouncil, compactTransitMultiplier, type BeltCompact } from './compact';
 import { settleTacticalPulses } from './tactical-pulse-simulation';
 import { actStrategicRivals, RIVAL_DECISION_INTERVAL } from './rival-ai';
+import type { RivalPolicy } from './rival-policy';
 import { advancePulseTime, nextPulseEvent, settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { withPulseMovement, clonePulse, completePulseCharges, pulseEnabled, type PulseSystem } from './pulse';
 import { allied, teamNumber, validateTeams } from './teams';
@@ -52,8 +53,9 @@ export type Rock = {
 };
 export type Fleet = { heldAt?: string; thrust?: 1.5; enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
 export type Game = {
-  temporalIntel?: TemporalIntelligence; compact?: BeltCompact;
-  rivalPolicy?: 1;
+  temporalIntel?: TemporalIntelligence;
+  compact?: BeltCompact;
+  rivalPolicy?: RivalPolicy;
   version: 1 | 2; hour: number; epoch: number; rocks: Rock[]; fleets: Fleet[];
   pulse?: PulseSystem; rules?: GameRules; cargo: PlayerValues<number>; eliminated: Faction[]; nextId: number;
   specialistVersion?: 1;
@@ -273,7 +275,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     settleCouncil(game);
     tracePoint(trace, 'victory', game);
     if (!game.pulse && !game.winner && !game.draw) game = executeScheduled(game, trace);
-    if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy === 1 ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy === 1 ? actStrategicRivals(game, trace) : actRivals(game, trace);
+    if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy ? actStrategicRivals(game, trace) : actRivals(game, trace);
     if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary)) refreshForesight(game);
     game.events = recentEvents(game.events);
     tracePoint(trace, 'retention', game);

@@ -9,7 +9,7 @@ The specialist named **Siege controller** is a different unit. Its Subterfuge co
 
 ## Build the material reserve
 
-Capture territory and drill mines to produce **Pulse Material**, the mode's name for mined cargo. Check the [economy rules](../reference/rules.md#production-and-time) before converting a factory or generator into a mine.
+Capture territory and drill mines to produce **pulse material**, the mode's name for mined cargo. Check the [economy rules](../reference/rules.md#production-and-time) before converting a factory or reactor into a mine.
 
 Charge requires 100 material. Committing it spends the reserve without a refund. This can also change funding eligibility.
 

@@ -1,5 +1,6 @@
 /** Mission radio scripts. Dialogue follows assessed live progress, never an inspected forecast. */
 import { TRAINING_SCENARIOS, type TrainingId } from './training';
+import { SPECIALIST_INTRODUCTIONS, specialistIntroduction } from './specialist-introductions';
 
 export type DialogueSpeaker = 'commander' | 'enemy';
 export type DialoguePhase = 'briefing' | 'underway' | 'passed' | 'failed';
@@ -12,7 +13,7 @@ const originalDialogue: Partial<Record<TrainingId, MissionDialogue>> = {
   'first-launch': {
     briefing: [
       commander('Welcome to the quiet belt, Captain. Vesper holds the far approach. We need a foothold at Quiet landing. She also has our radio frequency. That part was not my decision.'),
-      enemy('Vesper, since he skipped the introduction. Four old sentry drones on that rock, Captain. I learned to fly dodging their guns. Do try to leave something for the scrap merchants.'),
+      enemy('Vesper, since he skipped the introduction. Four old sentry drones on that site, Captain. I learned to fly dodging their guns. Do try to leave something for the scrap merchants.'),
       commander('She has had years to rehearse that. Launch from Foundry, send more than four drones, and allow ten minutes to prepare. Capture Quiet landing with survivors before hour six.'),
     ],
     underway: [enemy('Quiet landing. Whoever named it never landed there. Take your time with the numbers, Captain. Just remember the clock charges by the hour.')],
@@ -31,7 +32,7 @@ const originalDialogue: Partial<Record<TrainingId, MissionDialogue>> = {
   },
   'unit-transport': {
     briefing: [
-      commander('Our thruster is needed at Foundry. Move it from Core berth alone. No drones, no other modules, and absolutely no intelligence core aboard. Vesper listens for careless cargo talk.'),
+      commander('Our thruster is needed at Foundry. Move it from Core berth alone. No drones, no other specialists, and absolutely no intelligence core aboard. Vesper listens for careless cargo talk.'),
       enemy('A thruster, is it? I flew couriers before I had a fleet, Captain. Nobody ever put the interesting cargo on the paperwork. What are you really carrying?'),
       commander('You can remain curious. Select only the thruster in the manifest and set drones to zero. Deliver it to Foundry before hour six, and keep the core at Core berth throughout.'),
     ],
@@ -61,12 +62,17 @@ const originalDialogue: Partial<Record<TrainingId, MissionDialogue>> = {
   },
 };
 
-export const TRAINING_DIALOGUE = Object.fromEntries(TRAINING_SCENARIOS.map(scenario => [scenario.id, originalDialogue[scenario.id] ?? {
+function withIntroductions(id: TrainingId, dialogue: MissionDialogue): MissionDialogue {
+  const profiles = (SPECIALIST_INTRODUCTIONS[id] ?? []).map(kind => commander(specialistIntroduction(kind)));
+  return { ...dialogue, briefing: [...dialogue.briefing.slice(0, -1), ...profiles, dialogue.briefing.at(-1)!] };
+}
+
+export const TRAINING_DIALOGUE = Object.fromEntries(TRAINING_SCENARIOS.map(scenario => [scenario.id, withIntroductions(scenario.id, originalDialogue[scenario.id] ?? {
   briefing: [commander(scenario.instruction), enemy('You have your orders, Captain. Let us see whether they survive contact.'), commander(`${scenario.objective} You have ${scenario.deadline} hours. Time stays paused until you advance it.`)],
   underway: [enemy('The clock is running. Your plan still has to reach its destination.')],
   passed: [enemy('This position is settled. The next one will be harder.'), commander(`Exercise complete: ${scenario.title.toLowerCase()}. ${scenario.objective}`)],
   failed: [enemy('A plan is only as good as its outcome, Captain.'), commander(`Reset the exercise and try again. ${scenario.hints[0] ?? scenario.objective}`)],
-}])) as Record<TrainingId, MissionDialogue>;
+})])) as Record<TrainingId, MissionDialogue>;
 
 export function trainingDialoguePhase(status: 'active' | 'passed' | 'failed', hour: number): DialoguePhase {
   return status === 'active' ? hour > 0 ? 'underway' : 'briefing' : status;

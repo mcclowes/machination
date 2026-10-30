@@ -52,8 +52,8 @@ export function SpecialistPanel({ game, owner, enabled, scheduledAt, onHire, onP
       const returnSite = game.rocks.some(home => home.owner === unit.owner && !(home.known && home.destroyed));
       return <View key={unit.id} style={s.card}>
         <View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View>
-        <Text style={s.detail}>{specialistReference(unit.kind)} · {unit.captive ? unit.owner === owner ? 'Your captive unit' : 'Captive' : fleet ? fleet.preparing ? 'Preparing departure' : 'In transit' : 'Docked'}</Text>
-        <Text style={s.detail}>{unit.captive ? 'Captive units have no abilities.' : entry.description}</Text>
+        <Text style={s.detail}>{specialistReference(unit.kind)} · {unit.captive ? unit.owner === owner ? 'Your captive specialist' : 'Captive' : fleet ? fleet.preparing ? 'Preparing departure' : 'In transit' : 'Docked'}</Text>
+        <Text style={s.detail}>{unit.captive ? 'Captive specialists have no abilities.' : entry.description}</Text>
         {site ? <Button label={`Inspect site ${site.name}`} onPress={() => onInspectSite(site.id)} /> : fleet && <Button label={`Inspect hauler ${fleet.id}: ${siteName(fleet.from)} → ${siteName(fleet.to)}`} onPress={() => onInspectFleet(fleet.id)} />}
         {unit.owner === owner && next && !unit.captive && <>
           <Text style={s.detail}>Promote to {SPECIALISTS[next].name}: {SPECIALISTS[next].description}</Text>

@@ -1,3 +1,4 @@
+import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -27,14 +28,15 @@ for (const platform of ['web', 'ios']) test(`chart zoom controls and wheel lifec
   };
   let renderer: any;
   try {
-    const output = await build({ entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'chart-hosts', setup(builder) {
+    const output = await build({ entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [operationMotionPreferencePlugin, { name: 'chart-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /\/(?:SpaceBackground|CopyObjectReference|PlayerIdentity)$/ }, args => ({ path: args.path, namespace: 'chart-leaves' }));
       builder.onLoad({ filter: /.*/, namespace: 'chart-leaves' }, () => ({ contents: 'import React from "react"; export const SpaceBackground=props=>React.createElement("SpaceBackground",props),CopyObjectReference=()=>null,PlayerIdentity=()=>null,usePlayerRoster=()=>()=>({color:"white"});' }));
       builder.onResolve({ filter: /^react-native(?:-svg)?$/ }, args => ({ path: args.path, namespace: 'chart-hosts' }));
       builder.onLoad({ filter: /.*/, namespace: 'chart-hosts' }, args => ({ contents: args.path === 'react-native-svg'
         ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Text='SvgText';`
-        : `export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Text',Image='Image',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Platform={OS:${JSON.stringify(platform)}};` }));
+        : `${OPERATION_MOTION_NATIVE}
+export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Text',Image='Image',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Platform={OS:${JSON.stringify(platform)}};` }));
     } }] });
     const { BeltMap } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     const flush = async (fn: () => void) => { await act(async () => { fn(); }); };

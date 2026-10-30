@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { createGame } from '../src/game/simulation';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { FundingOrder, Snapshot } from '../src/online/protocol';
+import type { FundingOrder, Snapshot } from '../src/contracts/protocol';
 
 test('HTTP funding authorizes sponsors, hides unrelated identities, retries once, persists, and expires offline', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-funding-'));

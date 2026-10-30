@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 test('every HTTP view filters hidden state, scopes history, and isolates command revisions', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-visibility-'));

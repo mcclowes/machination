@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createGame } from '../src/game/simulation';
 import { api, historicalApi, RejectedCommand } from '../src/online/network';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 import { GameService } from './service';
 import { createApi } from './http';
 

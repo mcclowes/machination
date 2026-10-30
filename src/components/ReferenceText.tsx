@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ObjectReference } from '../online/protocol';
+import type { ObjectReference } from '../contracts/protocol';
 import { splitObjectReferences } from '../online/object-references';
 import { gameClock } from '../game/time-machine';
 import { CopyObjectReference } from './CopyObjectReference';

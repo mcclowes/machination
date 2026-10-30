@@ -31,6 +31,12 @@ This reproduces the mission objectives and teaching problems with Machination's 
 | [Advanced 3](https://subterfuge.fandom.com/wiki/Advanced_3) | Against All Odds | `against-the-odds` | Retain the core site through separate Elder and Infiltrator waves using a remote General |
 | [Kobayashi Maru](https://subterfuge.fandom.com/wiki/Kobayashi_Maru) | A Test of Character | `test-of-character` | Retain the outpost until its Intelligence Officer courier arrives without combat; divert one wave and detonate another safely |
 
+## Specialist introductions
+
+Each specialist available in practice is introduced once, with a profile line in the briefing of the first exercise that features it (`src/game/specialist-introductions.ts`). The catalog above features 17 specialists. Twelve original drills follow the supplementary lessons, each introducing one specialist the catalog never uses: Custodian, Bulwark, Hijacker, Navigator, Swarm coordinator, Envoy, Fallback core, Assimilator, Siege controller, Watchdog, Power governor, and Overseer (`src/game/specialist-drills.ts`). Each drill passes only when that specialist's ability decides the outcome.
+
+The Disruptor is excluded because it exists only under pulse rules, and practice runs mining rules. The six temporal specialists require revision 18; existing practice fixtures retain their earlier rules and don't introduce them.
+
 ## Compatibility adaptations
 
 The promotion walkthrough uses the historical Sentry-to-War-Hero graph. The current catalog has the opposite promotion direction, so that lesson uses Lieutenant-to-General while retaining the promotion-and-capture objective. It does not change the live specialist graph.

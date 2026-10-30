@@ -88,7 +88,7 @@ function inspect(game: Game) {
     for (const r of v.rocks.filter(r => !r.known)) for (const field of ['drones', 'specialists', 'shield', 'productionAt', 'miningAt']) assert.equal(field in r, false);
     for (const f of v.fleets) { assert.equal('lastContacts' in f, false); if (f.preparing) assert.equal(f.owner, owner); }
     assert.ok(v.scheduled.every(p => p.owner === owner));
-    assert.deepEqual(v.events, game.events.filter(e => e.audience?.includes(owner)).slice(0, v.events.length).map(e => ({ hour: e.hour, message: e.message })));
+    assert.deepEqual(v.events, game.events.filter(e => e.audience?.includes(owner)).slice(0, v.events.length).map(e => ({ hour: e.hour, message: e.message, ...(e.battle ? { battle: { ...e.battle } } : {}) })));
   }
 }
 

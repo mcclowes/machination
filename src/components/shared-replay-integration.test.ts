@@ -1,3 +1,4 @@
+import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -12,6 +13,7 @@ import { generateSharedReplay } from '../replay/generate';
 import { encodeSharedReplay } from '../replay/codec';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { playerAppearance } from '../game/players';
+import { siteKindLabel } from '../content/terminology';
 const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
@@ -38,7 +40,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
   const originals = { interval: globalThis.setInterval, clear: globalThis.clearInterval, fetch: globalThis.fetch, now: Date.now };
   let renderer: any;
   try {
-    const output = await build({ entryPoints: [new URL('./ReplayLibraryScreen.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [{ name: 'replay-hosts', setup(builder) {
+    const output = await build({ entryPoints: [new URL('./ReplayLibraryScreen.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node', loader: { '.png': 'dataurl' }, plugins: [operationMotionPreferencePlugin, { name: 'replay-hosts', setup(builder) {
       builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
       builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'replay-sky' }));
       builder.onLoad({ filter: /.*/, namespace: 'replay-sky' }, () => ({ contents: 'export const SpaceBackground=()=>null;' }));
@@ -51,7 +53,8 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
           React.useLayoutEffect(()=>{if(props.testID==='replay-site-inspector') props.onLayout({nativeEvent:{layout:{width:300,height:220}}});},[]);
           return React.createElement('View',{...props,ref});
         });
-        export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+        ${OPERATION_MOTION_NATIVE}
+export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
@@ -63,10 +66,15 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
     const button = (label: string) => hosts('Pressable').find(node => node.props.accessibilityLabel === label)!;
     const press = async (label: string) => { const node = button(label); assert.ok(node, label); assert.ok(!node.props.disabled, label); await flush(() => node.props.onPress()); };
     const visible = () => text(renderer.root);
+    const coreManifest = `${SPECIALISTS.queen.name} (${playerAppearance('you').name})`;
+    const firstAlphaLabel = `Alpha, ${siteKindLabel('core').toLowerCase()}, ${playerAppearance('you').name}, 1 drones, ${coreManifest}`;
     await flush(() => { renderer = create(React.createElement(ReplayLibraryScreen, { onExit() {} })); });
     assert.equal(picks, 0); assert.equal(starts, 0);
     picked = JSON.stringify(fixture()); await press('Open replay');
     assert.match(visible(), /D01 · 02:00/); assert.match(visible(), /Winner/); assert.equal(starts, 0);
+    await press(`Inspect specialists at Alpha: ${coreManifest}`);
+    assert.ok(visible().includes(SPECIALISTS.queen.description));
+    await press('Close site details');
     assert.equal(hosts('TextInput').length, 0, 'Precise seek stays behind playback options');
     await press('Beginning'); assert.match(visible(), /State 1 of 2/);
     await press(hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith('Beta,'))!.props.accessibilityLabel); assert.match(visible(), /Outside recorded sensor coverage/);
@@ -76,7 +84,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
     await press('Previous state'); assert.match(visible(), /State 1 of 2/);
     if (platform === 'ios') await press('Map controls');
     await press('Focus your territory'); await press('Close map controls');
-    await press('Inspect specialists at Alpha: Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
+    await press(firstAlphaLabel); assert.match(visible(), /Specialist owner/);
     assert.match(visible(), /Specialists at this site/);
     assert.ok(visible().includes(SPECIALISTS.queen.description));
     const siteDrawer = hosts('View').find(node => node.props.testID === 'replay-site-inspector')!;
@@ -87,7 +95,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
     assert.equal(belt().props.coveredBottom, 228, 'switching to an equal-height site drawer remeasures its mounted frame');
     await press('Close site details');
     assert.equal(belt().props.coveredBottom, 0, 'closing the site drawer releases its camera allowance');
-    await press('Alpha, core, Mnemosyne, 1 drones, Intelligence core (Mnemosyne)'); assert.match(visible(), /Specialist owner/);
+    await press(firstAlphaLabel); assert.match(visible(), /Specialist owner/);
     await press('Next state'); await press('Next state'); assert.doesNotMatch(visible(), /Close site details/);
     assert.ok(!visible().includes(SPECIALISTS.queen.description), 'Lost coverage closes the role details without retaining a manifest');
     await press('Beginning');

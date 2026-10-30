@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('all catalog missions and existing completion marks are reachable', async ({ page }, info) => {
-  await expect(page.getByRole('button', { name: /^Start:/ })).toHaveCount(28);
+  await expect(page.getByRole('button', { name: /^Start:/ })).toHaveCount(TRAINING_SCENARIOS.length);
   await expect(page.getByText('1. Open a foothold · completed', { exact: true })).toBeVisible();
   for (const scenario of TRAINING_SCENARIOS) await expect(page.getByRole('button', { name: `Start: ${scenario.title}`, exact: true })).toHaveCount(1);
   await page.screenshot({ path: `.fettle/shots/tutorial-catalog-${info.project.name}.png` });

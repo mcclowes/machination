@@ -1,6 +1,6 @@
 import { isCompactPolicy } from '../src/game/compact-policies';
 import { isCouncilChoice } from '../src/game/compact';
-import type { CouncilOrder } from '../src/online/protocol';
+import type { CouncilOrder } from '../src/contracts/protocol';
 import { Failure } from './failure';
 export function councilCommand(value: unknown): CouncilOrder {
   const v = value as CouncilOrder;

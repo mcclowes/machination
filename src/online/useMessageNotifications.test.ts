@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { useMessageNotifications, type MessageNotificationDeps, type MessageNotificationState, type NotificationSeat } from './useMessageNotifications';
 import type { NotificationDevice, NotificationPermission } from './notification-device';
-import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
+import type { MessageNotificationSettings, SetMessageNotifications } from '../contracts/notifications';
 import { RejectedCommand } from './network';
 
 const require = createRequire(import.meta.url);

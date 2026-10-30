@@ -1,3 +1,4 @@
+import { resourceName } from '../content/terminology';
 /**
  * ---
  * purpose: Shared specialist recruitment, promotion, captive release, and explicit transport selection.
@@ -40,9 +41,9 @@ export function SpecialistBay({ game, rock, owner, enabled, mode = 'all', schedu
       const checked = selected.includes(unit.id);
       const canLoad = game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner) && controlled && owned && !unit.captive && selectionEnabled;
       return <View key={unit.id} style={[s.card, checked && s.selected]}>
-        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your unit' : 'Foreign unit'}</Text></View>
+        <View style={s.between}><View style={s.identity}><SpecialistIcon kind={unit.kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>{unit.captive ? 'Captive' : owned ? 'Your specialist' : 'Foreign specialist'}</Text></View>
         {mode !== 'cargo' && <><Text style={s.reference}>{specialistReference(unit.kind)}</Text>
-        <Text style={s.detail}>{unit.captive ? 'Captive units have no abilities and cannot be loaded.' : entry.description}</Text></>}
+        <Text style={s.detail}>{unit.captive ? 'Captive specialists have no abilities and cannot be loaded.' : entry.description}</Text></>}
         {!unit.captive && owned && <Pressable accessibilityRole="checkbox" accessibilityLabel={`Load ${entry.name} onto the next hauler`} accessibilityState={{ checked, disabled: !canLoad }} disabled={!canLoad} onPress={() => onSelect(checked ? selected.filter(id => id !== unit.id) : [...selected, unit.id])} style={[s.button, checked && s.selected, !canLoad && s.disabled]}>
           <Text style={s.buttonText}>{checked ? '☑ Unload from next hauler' : '☐ Load onto next hauler'}</Text>
         </Pressable>}
@@ -66,16 +67,17 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
   const active = enabled && game.version === 2 && !game.winner && !game.draw && !game.eliminated.includes(owner);
   const coreSite = game.rocks.find(site => site.id === status.at && !site.destroyed);
   const cost = recruitmentCost(game);
-  const price = `1 credit${cost ? ` and ${cost} cargo` : ''}`;
+  const resource = resourceName(game.rules?.mode);
+  const price = `1 credit${cost ? ` and ${cost} ${resource}` : ''}`;
   const affordable = (game.cargo[owner] ?? 0) >= cost;
   const canRecruit = active && !(coreSite && 'stasisUntil' in coreSite && inStasis(game, coreSite)) && status.credits > 0 && !!coreSite && affordable;
   const minutes = Math.max(0, Math.ceil((status.nextAt - game.hour) * 60));
   const nextIn = `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, cargo, ownership, and unit availability are checked at execution.</Text>}
-    <View style={s.between}><Text style={s.name}>{status.credits} time {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
+  return <><Text style={s.label}>Specialist bay</Text>{scheduledAt !== undefined && <Text style={s.detail}>Schedule specialist actions for {gameClock(scheduledAt)}. Credits, resources, ownership, and specialist availability are checked at execution.</Text>}
+    <View style={s.between}><Text style={s.name}>{status.credits} hiring {status.credits === 1 ? 'credit' : 'credits'}</Text><Text style={s.cost}>Next credit in {nextIn}</Text></View>
     <Text style={s.detail}>Next recruitment: {gameClock(status.nextAt)}. Hiring costs {price}. Promotion costs 1 credit.</Text>
-    {cost > 0 && <Text style={s.detail}>{game.cargo[owner] ?? 0} cargo available.{!affordable ? ` Recruitment needs ${cost} cargo.` : ''}</Text>}
-    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked modules can promote at any controlled site.</Text>
+    {cost > 0 && <Text style={s.detail}>{game.cargo[owner] ?? 0} {resource} available.{!affordable ? ` Recruitment needs ${cost} ${resource}.` : ''}</Text>}
+    <Text style={s.detail}>{coreSite ? `Recruit at ${coreSite.name}, your current core site.` : 'Move your Intelligence core to a controlled site to hire.'} Docked specialists can promote at any controlled site.</Text>
     {'recruitmentUncertain' in game && !!game.recruitmentUncertain && <Text style={s.detail}>A planned hire or promotion consumes the known recruitment offer. Subsequent offers are unknown; return to live time after execution to see new choices.</Text>}
     {status.offers.map(kind => {
       const entry = SPECIALISTS[kind];
@@ -84,7 +86,7 @@ export function RecruitmentOffers({ game, owner, enabled, scheduledAt, siteAllow
         <View style={s.between}><View style={s.identity}><SpecialistIcon kind={kind} /><Text style={s.name}>{entry.name}</Text></View><Text style={s.cost}>×{amount}</Text></View>
         <Text style={s.reference}>{specialistReference(kind)}</Text>
         <Text style={s.detail}>{entry.description}</Text>
-        <Action label={label(`Hire ${amount > 1 ? `${amount} units` : 'unit'} · ${price}`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for ${price}`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
+        <Action label={label(`Hire ${amount > 1 ? `${amount} specialists` : 'specialist'} · ${price}`)} accessibilityLabel={label(`Hire ${amount} ${entry.name} for ${price}`)} disabled={!canRecruit || !siteAllowed} onPress={() => onHire(kind)} />
       </View>;
     })}</>;
 }

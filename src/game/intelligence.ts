@@ -57,5 +57,5 @@ export function intelligenceReport(view: GameView, viewer: Faction) {
     }).filter((r, i, all) => r.team === undefined || all.findIndex(other => other.team === r.team) === i).sort((a, b) => a.hours - b.hours);
     if (Number.isFinite(estimates[0]?.hours) && (!estimates[1] || estimates[0]!.hours < estimates[1].hours)) projection = estimates[0];
   }
-  return { rows, projection, scoreLabel: domination ? 'Sites' : view.rules?.mode === 'pulse' ? 'Material' : 'Cargo', target };
+  return { rows, projection, scoreLabel: domination ? 'Sites' : view.rules?.mode === 'pulse' ? 'Pulse material' : 'Cargo', target };
 }

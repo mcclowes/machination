@@ -7,9 +7,7 @@ COPY scripts/build-server.mjs ./scripts/build-server.mjs
 COPY server ./server
 COPY src/game ./src/game
 COPY src/replay ./src/replay
-COPY src/online/protocol.ts ./src/online/protocol.ts
-COPY src/online/notification-contract.ts ./src/online/notification-contract.ts
-COPY src/online/presence.ts ./src/online/presence.ts
+COPY src/contracts ./src/contracts
 RUN npm run build:server
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime

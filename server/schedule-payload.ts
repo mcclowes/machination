@@ -5,7 +5,7 @@
  *   - ./service.ts - authorization, transaction ownership, and queued-order execution
  * ---
  */
-import type { EditSchedule, ScheduleOrder } from '../src/online/protocol';
+import type { EditSchedule, ScheduleOrder } from '../src/contracts/protocol';
 import type { HaulerChange } from '../src/game/transport';
 import { validateFutureAction } from '../src/game/future-actions';
 import { validateLaunchEdit } from '../src/game/orders';

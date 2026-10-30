@@ -8,7 +8,7 @@
  */
 import type { Database, Room } from './database';
 import type { Faction } from '../src/game/players';
-import type { MessageNotificationSettings } from '../src/online/notification-contract';
+import type { MessageNotificationSettings } from '../src/contracts/notifications';
 import { Failure, requireThat } from './failure';
 import { detach, evict, EXPO_TOKEN, isCurrent, newBindingId, NOTIFICATION_LIMITS, revisionFloor, seatAcceptsIncoming, seatGeneration, setIncomingLedger, tokenHash } from './notifications';
 

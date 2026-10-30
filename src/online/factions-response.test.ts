@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { factionsApi } from './network';
-import { snapshotResponse } from './snapshot-response';
+import { snapshotResponse } from '../contracts/snapshot';
 import { testSnapshot } from './test-snapshot';
 
 test('faction standings reject malformed identities, counts, and missing or duplicate leaderboard factions', async t => {

@@ -2,9 +2,9 @@ import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
 import { ALLEGIANCE_IDS, isAllegiance, type Allegiance, type FactionStandings } from '../game/factions';
-import type { HistorySnapshot, Snapshot } from './protocol';
-import { snapshotResponse, historicalResponse } from './snapshot-response';
-import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
+import type { HistorySnapshot, Snapshot } from '../contracts/protocol';
+import { snapshotResponse, historicalResponse } from '../contracts/snapshot';
+import type { MessageNotificationSettings, SetMessageNotifications } from '../contracts/notifications';
 
 export class RejectedCommand extends Error { constructor(public status: number, message: string, public issue?: string) { super(message); } }
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);

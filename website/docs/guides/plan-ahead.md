@@ -22,7 +22,7 @@ An uncertain encounter is still uncertain when you scrub forward. Don't treat mi
 
 Inspect a future time, up to seven days ahead. Select your departure site and plan the transfer from that future context. Confirm the execution time before submitting.
 
-Scheduled orders **don't reserve drones, modules, credits, or cargo**. They check ownership and resources when they execute. If the full manifest isn't available then, the order aborts.
+Scheduled orders **don't reserve drones, specialists, credits, or cargo**. They check ownership and resources when they execute. If the full manifest isn't available then, the order aborts.
 
 For example, a future factory cycle may supply the drones you intend to launch. A second order spending those same drones first can make the launch fail. [Borrow tomorrow](../learn/practice.md#borrow-tomorrow) is a safe place to practice this.
 

@@ -87,7 +87,7 @@ test('charges and fires the pulse through ordinary resource-paying commands', ()
 
 test('new rival policy survives save/replay and rejects unsupported policies', () => {
   const game = createConfiguredGame({ playerCount: 3, mode: 'pulse' }, 0, 123);
-  assert.equal(game.rivalPolicy, 1);
+  assert.equal(game.rivalPolicy, 2);
   const archive = createArchive(game, { rivals: true });
   const jumped = advance(game, 36);
   let stepped = game;
@@ -96,7 +96,8 @@ test('new rival policy survives save/replay and rejects unsupported policies', (
   assert.deepEqual(replayTo(archive, 36, { rivals: true, knownThrough: 36 }), jumped);
   const raw = encodeOperation({ game: jumped, archive }, 0);
   assert.deepEqual(decodeOperation(raw, 0).game, jumped);
-  assert.throws(() => decodeSave(JSON.stringify({ savedAt: 0, game: { ...game, rivalPolicy: 2 } })), /unsupported/);
+  assert.throws(() => decodeSave(JSON.stringify({ savedAt: 0, game: { ...game, rivalPolicy: 3 } })), /unsupported/);
+  assert.equal(decodeSave(JSON.stringify({ savedAt: 0, game: { ...game, rivalPolicy: 1 } })).game.rivalPolicy, 1);
 });
 
 test('accounts for shields and committed enemy reinforcements at arrival', () => {
@@ -193,4 +194,43 @@ test('claims useful territory retained by an eliminated faction', () => {
   const abandoned = site(game, 2, { owner: 'you', x: 18, y: 10, drones: 0, kind: 'factory' });
   const result = actStrategicRivals(game);
   assert.ok(result.fleets.some(f => f.owner === 'vesper' && f.to === abandoned.id));
+});
+
+test('policy two spends a credit on a poor offer set that policy one hoards', () => {
+  const game = scenario();
+  game.cargo.vesper = 5;
+  game.recruitment!.vesper!.offers = ['pirate', 'saboteur', 'diplomat'];
+  const used = game.recruitment!.vesper!.used;
+  assert.equal(actStrategicRivals(game).recruitment!.vesper!.used, used + 1);
+  assert.equal(actStrategicRivals({ ...game, rivalPolicy: 1 }).recruitment!.vesper!.used, used);
+});
+
+test('attack task forces carry only the specialists that change the fight', () => {
+  const game = scenario();
+  site(game, 2, { owner: 'vesper', x: 14, y: 10, drones: 100, specialists: [
+    { id: 'hijacker', owner: 'vesper', kind: 'thief' }, { id: 'courier', owner: 'vesper', kind: 'smuggler' }, { id: 'arbiter', owner: 'vesper', kind: 'elder' }] });
+  const target = site(game, 3, { x: 22, y: 10, drones: 0, kind: 'factory' });
+  const attack = actStrategicRivals(game).fleets.find(f => f.owner === 'vesper' && f.to === target.id);
+  assert.deepEqual(attack?.specialists?.map(u => u.id), ['hijacker']);
+});
+
+test('keeps specialists out of a site defended by a purger', () => {
+  const game = scenario();
+  site(game, 2, { owner: 'vesper', x: 14, y: 10, drones: 100, specialists: [{ id: 'striker', owner: 'vesper', kind: 'lieutenant' }] });
+  const target = site(game, 3, { owner: 'you', x: 22, y: 10, drones: 5, kind: 'factory', specialists: [{ id: 'purger', owner: 'you', kind: 'assassin' }] });
+  const attack = actStrategicRivals(game).fleets.find(f => f.owner === 'vesper' && f.to === target.id);
+  assert.ok(attack);
+  assert.deepEqual(attack.specialists, []);
+});
+
+test('moves a fabricator from the core to the site covering the most factories', () => {
+  const game = scenario();
+  for (const rock of game.rocks) if (!rock.owner) Object.assign(rock, { x: 90, y: 20 });
+  game.rocks[1]!.specialists!.push({ id: 'fabricator', owner: 'vesper', kind: 'foreman' });
+  const hub = site(game, 2, { owner: 'vesper', x: 40, y: 40, drones: 30 });
+  site(game, 3, { owner: 'vesper', x: 28, y: 40, drones: 30, kind: 'factory' });
+  site(game, 4, { owner: 'vesper', x: 52, y: 40, drones: 30, kind: 'factory' });
+  const transfer = actStrategicRivals(game).fleets.find(f => f.owner === 'vesper' && f.specialists?.some(u => u.id === 'fabricator'));
+  assert.equal(transfer?.to, hub.id);
+  assert.equal(transfer?.drones, 0);
 });

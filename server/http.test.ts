@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 test('three real HTTP clients share persistent server time, authorized orders, and private messages', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-'));

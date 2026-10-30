@@ -8,7 +8,7 @@ import type { AddressInfo } from 'node:net';
 import { createLegacyGame } from '../src/game/legacy';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 import { api as clientApi, historicalApi } from '../src/online/network';
 import { encodeObjectReference, parseObjectReference } from '../src/online/object-references';
 import { copyableReference, resolveReference } from '../src/online/reference-inspection';

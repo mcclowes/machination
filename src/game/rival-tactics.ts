@@ -119,9 +119,9 @@ function evacuateKing(game: Game, source: Rock, owner: Faction, forecast: RivalF
   return game;
 }
 
-function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction): boolean {
+export type TaskForce = (source: Rock, target: Rock, owner: Faction) => Specialist[];
+function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction, units: Specialist[]): boolean {
   if (game.fleets.some(f => f.to === target.id)) return true;
-  const units = mobileUnits(source, owner);
   const has = (kind: string) => units.some(u => u.kind === kind);
   const defending = (target.specialists ?? []).filter(u => !u.captive && u.owner === target.owner);
   if (defending.some(u => u.kind === 'martyr') && !has('elder')) return false;
@@ -133,20 +133,20 @@ function plausibleAttack(game: Game, source: Rock, target: Rock, owner: Faction)
   return available + ability + (unitCount(game, owner, 'king') ? Math.floor(available / 4) : 0) > drones + shields;
 }
 
-export function attackSites(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string): Game {
+export function attackSites(input: Game, owner: Faction, forecast: RivalForecast, savingAt?: string, select: TaskForce = (source, _target, owner) => mobileUnits(source, owner)): Game {
   let game = input;
   const usedSources = new Set<string>();
   // Replan after each launch so committed troops and destinations are accounted for.
   for (let action = 0; action < 2; action++) {
     const candidates = ownedSites(game, owner).filter(r => r.id !== savingAt && surplus(game, r, owner) > 0 && !usedSources.has(r.id)).flatMap(source =>
       game.rocks.filter(target => !target.destroyed && (!target.owner || !allied(game, owner, target.owner)) && siteValue(game, target, owner) > 0
-        && plausibleAttack(game, source, target, owner)).map(target => ({ source, target,
+        && plausibleAttack(game, source, target, owner, select(source, target, owner))).map(target => ({ source, target,
         score: siteValue(game, target, owner) / (2 + worldDistance(game, source, target) / 8) - target.drones * 0.2,
       }))).sort((a, b) => b.score - a.score || byId(a.target, b.target) || byId(a.source, b.source)).slice(0, MAX_ATTACK_CANDIDATES);
     let launched = false;
     for (const { source, target } of candidates) {
       const available = surplus(game, source, owner);
-      const units = mobileUnits(source, owner);
+      const units = select(source, target, owner);
       const probe = order(game, source, target, available, owner, units);
       const arrival = probe.fleets.at(-1)!.arrives;
       if (arrival > game.hour + RIVAL_LOOKAHEAD) continue;

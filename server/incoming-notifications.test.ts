@@ -15,8 +15,8 @@ import { NOTIFICATION_LIMITS, type Job } from './notifications';
 import { createConfiguredGame } from '../src/game/world';
 import type { Database } from './database';
 import { advance, dispatch, type Game } from '../src/game/simulation';
-import type { Snapshot } from '../src/online/protocol';
-import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND } from '../src/online/notification-contract';
+import type { Snapshot } from '../src/contracts/protocol';
+import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND } from '../src/contracts/notifications';
 
 const HOUR = 3_600_000;
 const secret = () => randomBytes(32).toString('hex');

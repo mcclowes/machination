@@ -1,5 +1,5 @@
 /** Installation identity, opaque tap payloads, and authenticated notification navigation. */
-import { INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_KIND, type IncomingNotificationData, type MessageNotificationData } from './notification-contract';
+import { INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_KIND, type IncomingNotificationData, type MessageNotificationData } from '../contracts/notifications';
 import { OPAQUE_ID } from './network';
 
 export type InstallationStore = { getItemAsync(key: string): Promise<string | null>; setItemAsync(key: string, value: string): Promise<void> };

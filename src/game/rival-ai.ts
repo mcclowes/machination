@@ -1,8 +1,9 @@
 /**
  * ---
- * purpose: Version-one strategic rival policy: survival, victory investment, recruitment, and bounded military decisions.
+ * purpose: Strategic rival policies: survival, victory investment, recruitment, and bounded military decisions.
  * related:
  *   - ./rival-tactics.ts - authoritative combat forecasts and troop movements
+ *   - ./rival-specialists.ts - policy-two specialist recruitment, task forces, and positioning
  *   - ./rival-ai.test.ts - adversarial decisions and persistence invariants
  * ---
  */
@@ -19,8 +20,11 @@ import { promotion, type SpecialistKind } from './specialist-catalog';
 import { victoryTarget } from './rules';
 import { worldDistance } from './geometry';
 import { attackSites, byId, defendSites, createRivalForecast, type RivalForecast, ownsKing, ownedSites, reinforceFront, reserve, RIVAL_LOOKAHEAD } from './rival-tactics';
+import type { RivalPolicy } from './rival-policy';
+import { hireScore, positionSpecialists, reservesForVictory, taskForce } from './rival-specialists';
 
 export const RIVAL_DECISION_INTERVAL = 3;
+
 export type RivalStyle = 'conqueror' | 'expansionist' | 'industrialist';
 export function rivalStyle(owner: Faction): RivalStyle { return (['conqueror', 'expansionist', 'industrialist'] as const)[ALL_PLAYERS.indexOf(owner) % 3]!; }
 
@@ -34,14 +38,16 @@ export function actStrategicRivals(input: Game, trace?: SimulationTraceSink): Ga
   }
   return game;
 }
-export function actStrategicPlayer(input: Game, owner: Faction): Game {
+/** Policy defaults to the operation's pinned policy; benchmarks may override it per seat. */
+export function actStrategicPlayer(input: Game, owner: Faction, policy: RivalPolicy = input.rivalPolicy ?? 1): Game {
   if (input.winner || input.draw || input.version !== 2 || input.eliminated.includes(owner) || !playersIn(input).includes(owner)) return input;
   const forecast = createRivalForecast(input);
   let game = defendSites(input, owner, forecast);
   game = pursuePulse(game, owner);
-  game = recruit(game, owner);
+  game = policy === 1 ? recruit(game, owner) : recruitV2(game, owner);
   const investment = invest(game, owner, forecast);
-  game = attackSites(investment.game, owner, forecast, investment.savingAt);
+  game = attackSites(investment.game, owner, forecast, investment.savingAt, policy === 1 ? undefined : taskForce);
+  if (policy !== 1) game = positionSpecialists(game, owner, forecast);
   return reinforceFront(game, owner, forecast, investment.savingAt);
 }
 
@@ -72,6 +78,24 @@ function recruit(game: Game, owner: Faction): Game {
   };
   const kind = [...status.offers].sort((a, b) => (scores[b] ?? 0) / (1 + unitCount(game, owner, b)) - (scores[a] ?? 0) / (1 + unitCount(game, owner, a)) || (a < b ? -1 : a > b ? 1 : 0))[0];
   return kind && (scores[kind] ?? 0) > 0 ? hireSpecialist(game, owner, kind) : game;
+}
+function bestPromotion(game: Game, owner: Faction, capacityTight: boolean) {
+  return ownedSites(game, owner).flatMap(r => (r.specialists ?? []).filter(u => u.owner === owner && !u.captive).map(unit => ({ unit, kind: promotion(unit.kind) })))
+    .map(p => ({ ...p, score: p.kind === 'tycoon' ? 120 : p.kind === 'general' ? 100 : p.kind === 'energy' && capacityTight ? 130 : p.kind === 'security' ? 80 : p.kind === 'admiral' ? 70 : 0 }))
+    .filter(p => p.kind && unitCount(game, owner, p.kind) < (p.kind === 'tycoon' || p.kind === 'general' ? 2 : 1))
+    .sort((a, b) => b.score - a.score || byId(a.unit, b.unit))[0];
+}
+/** Compares promotion against the best affordable hire, and always spends a credit rather than stalling on a poor offer set. */
+function recruitV2(game: Game, owner: Faction): Game {
+  const status = recruitmentStatus(game, owner);
+  if (!status.credits || !status.at || game.rocks.some(r => r.id === status.at && inStasis(game, r))) return game;
+  const capacityTight = powerCapacity(game, owner) - droneInventory(game, owner) < 30;
+  const promotable = bestPromotion(game, owner, capacityTight);
+  const hire = reservesForVictory(game, owner) ? undefined : [...status.offers]
+    .map(kind => ({ kind, score: hireScore(game, kind, capacityTight) / (1 + unitCount(game, owner, kind)) }))
+    .filter(o => o.score > 0).sort((a, b) => b.score - a.score || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0))[0];
+  if (promotable && promotable.score >= 70 && promotable.score >= (hire?.score ?? 0)) return promoteSpecialist(game, owner, promotable.unit.id);
+  return hire ? hireSpecialist(game, owner, hire.kind) : game;
 }
 function invest(game: Game, owner: Faction, forecast: RivalForecast): { game: Game; savingAt?: string } {
   const sites = ownedSites(game, owner);

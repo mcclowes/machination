@@ -134,8 +134,8 @@ test('practice accounts for all 24 source missions without dropping the five exi
   const references = TRAINING_SCENARIOS.flatMap(s => s.reference ? [s.reference] : []);
   const expected = ['Combat 1', 'Combat 2', 'Combat 3', 'Combat 4', 'Specialists 1', 'Specialists 2', 'Specialists 3', 'Specialists 4', 'Winning 1', 'Diplomacy 1', 'Diplomacy 2', 'Combat 5', 'Combat 6', 'Specialists 5', 'Specialists 6', 'Winning 2', 'Winning 3', 'Winning 4', 'Diplomacy 3', 'Diplomacy 4', 'Advanced 1', 'Advanced 2', 'Advanced 3', 'Kobayashi Maru'];
   assert.deepEqual(references, expected);
-  assert.equal(TRAINING_SCENARIOS.length, 28);
-  assert.equal(new Set(TRAINING_SCENARIOS.map(s => s.id)).size, 28);
+  assert.equal(TRAINING_SCENARIOS.length, 40);
+  assert.equal(new Set(TRAINING_SCENARIOS.map(s => s.id)).size, 40);
   for (const id of ['first-launch', 'shield-combat', 'unit-transport', 'future-production', 'interception']) assert.ok(TRAINING_SCENARIOS.some(s => s.id === id));
 });
 

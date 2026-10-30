@@ -81,9 +81,11 @@ test('a drifting Dilation field produces the same remaining travel across split 
 test('a rival with three temporal offers still recruits instead of keeping an unusable deck forever', () => {
   const game = temporalWorld();
   game.recruitment!.vesper!.offers = ['hastener', 'dilation', 'overclock'];
-  const recruited = actStrategicPlayer(game, 'vesper');
-  assert.ok([...recruited.rocks, ...recruited.fleets].some(a => a.specialists?.some(u => u.owner === 'vesper' && u.kind === 'hastener')));
-  assert.equal(recruited.recruitment!.vesper!.used, 1);
+  for (const policy of [1, 2] as const) {
+    const recruited = actStrategicPlayer(game, 'vesper', policy);
+    assert.ok([...recruited.rocks, ...recruited.fleets].some(a => a.specialists?.some(u => u.owner === 'vesper' && u.kind === 'hastener')));
+    assert.equal(recruited.recruitment!.vesper!.used, 1);
+  }
 });
 
 test('a held hauler returns from a destroyed drifting site without jumping back to its old arrival point', () => {

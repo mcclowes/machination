@@ -13,7 +13,7 @@ import type { Faction, Game } from '../src/game/simulation';
 import { exportArchive, type ReplayData } from '../src/game/replay';
 import { decodeReplay } from '../src/game/replay-save';
 import { decodeSave } from '../src/game/save-format';
-import { DIPLOMACY_LIMITS, type Group, type ChannelMessage, type Message } from '../src/online/protocol';
+import { DIPLOMACY_LIMITS, type Group, type ChannelMessage, type Message } from '../src/contracts/protocol';
 import { validateNotifications, type NotificationState } from './notification-state';
 import { finished, validateFactions, type FactionProfile } from './factions';
 import type { Allegiance } from '../src/game/factions';

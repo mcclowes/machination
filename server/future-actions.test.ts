@@ -11,7 +11,7 @@ import { isActionPlan } from '../src/game/future-actions';
 import { promotion } from '../src/game/specialist-catalog';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { ScheduleOrder } from '../src/online/protocol';
+import type { ScheduleOrder } from '../src/contracts/protocol';
 
 async function setup(t: TestContext, initialGame: typeof createGame = epoch => createGame(epoch, { you: 42, vesper: 43, null: 44 })) {
   const directory = await mkdtemp(join(tmpdir(), 'machination-future-'));

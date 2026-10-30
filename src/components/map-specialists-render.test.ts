@@ -1,3 +1,4 @@
+import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -11,12 +12,13 @@ const React = require('react');
 const { create, act } = require('react-test-renderer');
 const loaded = build({
   entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false, format: 'esm', platform: 'node',
-  plugins: [{ name: 'specialist-chart-host', setup(builder) {
+  plugins: [operationMotionPreferencePlugin, { name: 'specialist-chart-host', setup(builder) {
     builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
     builder.onResolve({ filter: /\.png$/ }, () => ({ path: 'image', namespace: 'image-host' }));
     builder.onLoad({ filter: /.*/, namespace: 'image-host' }, () => ({ contents: `export default 'chart-image';` }));
     builder.onResolve({ filter: /^react-native$/ }, () => ({ path: 'native', namespace: 'native-host' }));
-    builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',Image='Image',StyleSheet={create:x=>x,absoluteFillObject:{position:'absolute',left:0,right:0,top:0,bottom:0}},Platform={OS:'ios'},PanResponder={create:x=>({panHandlers:x})};` }));
+    builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `${OPERATION_MOTION_NATIVE}
+export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',Image='Image',StyleSheet={create:x=>x,absoluteFillObject:{position:'absolute',left:0,right:0,top:0,bottom:0}},Platform={OS:'ios'},PanResponder={create:x=>({panHandlers:x})};` }));
     builder.onResolve({ filter: /^react-native-svg$/ }, () => ({ path: 'svg', namespace: 'svg-host' }));
     builder.onLoad({ filter: /.*/, namespace: 'svg-host' }, () => ({ contents: `export default 'Svg';export const Circle='Circle',G='G',Line='Line',Path='Path',Text='SvgText';` }));
     builder.onResolve({ filter: /\/(Artwork|SpecialistIcon|PlayerIdentity|SpaceBackground|DriftCourse|CopyObjectReference|HaulerCombat)$/ }, args => ({ path: args.path.split('/').at(-1)!, namespace: 'chart-host' }));

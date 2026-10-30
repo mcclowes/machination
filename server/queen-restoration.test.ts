@@ -12,7 +12,7 @@ import { decodeSave } from '../src/game/save-format';
 import { activeUnits } from '../src/game/specialists';
 import { canObserveHauler } from '../src/game/sensors';
 import type { Faction, Game } from '../src/game/simulation';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 const HOUR = 3_600_000;
 const sites = { core: '', fallback: '', enemy: '' };

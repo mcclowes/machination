@@ -9,7 +9,7 @@ import { GameService } from './service';
 import { createApi } from './http';
 import { NOTIFICATION_LIMITS } from './notifications';
 import type { Database } from './database';
-import type { MessageNotificationSettings } from '../src/online/notification-contract';
+import type { MessageNotificationSettings } from '../src/contracts/notifications';
 
 const secret = () => randomBytes(32).toString('hex');
 const device = () => randomBytes(32).toString('hex');

@@ -1,13 +1,13 @@
-import type { CouncilOrder, PulseOrder } from './protocol';
+import type { CouncilOrder, PulseOrder } from '../contracts/protocol';
 import type { RequestSession } from './account-auth';
 import { validateOptions, type GameOptions } from '../game/rules';
-import type { ResignOrder, CreateGroup, ChannelTransmission } from './protocol';
-import type { FundingOrder } from './protocol';
+import type { ResignOrder, CreateGroup, ChannelTransmission } from '../contracts/protocol';
+import type { FundingOrder } from '../contracts/protocol';
 import { api, creationPayload } from './network';
 import { AppState, Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
-import type { EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from './protocol';
+import type { EditSchedule, SpecialistOrder, HaulerOrder, SiteOrder, CancelSchedule, RecoverSeat, RecoverySetup, InterceptOrder, ModuleOrder, Order, GiftOrder, ScheduleOrder, Snapshot, Transmission } from '../contracts/protocol';
 export type Pending = { kind: 'council'; body: CouncilOrder } | { kind: 'pulse'; body: PulseOrder } | { kind: 'edit-schedule'; body: EditSchedule } | { kind: 'resign'; body: ResignOrder } | { kind: 'funding'; body: FundingOrder } | { kind: 'groups'; body: CreateGroup } | { kind: 'channel-messages'; body: ChannelTransmission } | { kind: 'specialists'; body: SpecialistOrder } | { kind: 'haulers'; body: HaulerOrder } | { kind: 'sites'; body: SiteOrder } | { kind: 'gifts'; body: GiftOrder } | { kind: 'recover'; body: RecoverSeat } | { kind: 'recovery'; body: RecoverySetup } | { kind: 'intercepts'; body: InterceptOrder } | { kind: 'schedules'; body: ScheduleOrder } | { kind: 'cancel-schedule'; body: CancelSchedule } | { kind: 'modules'; body: ModuleOrder } | { kind: 'orders'; body: Order } | { kind: 'messages'; body: Transmission };
 export type Session = RequestSession & { id?: string; invite?: string; variant?: 'faction'; options?: GameOptions; pending?: Pending };
 const KEY = 'machination.online.v1';

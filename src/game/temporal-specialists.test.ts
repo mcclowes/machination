@@ -141,6 +141,22 @@ test('multiple Anchors cannot chain permanent stasis at the same site', () => {
   assert.equal(activateTemporal(advance(thawed, 36, { rivals: false }), 'you', 'anchor-second').rocks[1]!.stasisUntil, 38);
 });
 
+test('scheduled Anchor activation freezes later local orders and survives a save between activation and thaw', () => {
+  let game = temporalWorld();
+  game.rocks[1]!.specialists!.push({ id: 'scheduled-anchor', kind: 'anchor', owner: 'you' });
+  game = executeCommand(game, { type: 'schedule-action', owner: 'you', plan: {
+    id: 'scheduled-anchor-0001', executeAt: 25, action: { type: 'activate', id: 'scheduled-anchor' },
+  } });
+  game = scheduleTransfer(game, { id: 'frozen-departure-0001', owner: 'you', from: game.rocks[1]!.id, to: game.rocks[0]!.id, drones: 1, executeAt: 25.5 });
+  const frozen = advance(game, 26, { rivals: false });
+  assert.equal(frozen.rocks[1]!.stasisUntil, 27);
+  assert.equal(frozen.fleets.length, 0);
+  assert.equal(frozen.scheduled!.length, 0);
+  assert.ok(frozen.events.some(e => e.audience?.includes('you') && /aborted.*stasis/i.test(e.message)));
+  const restored = decodeSave(JSON.stringify({ savedAt: 0, game: frozen })).game;
+  assert.deepEqual(advance(restored, 28, { rivals: false }), advance(game, 28, { rivals: false }));
+});
+
 test('Overclock debt remains with a captured site and pauses without catch-up', () => {
   let game = temporalWorld();
   Object.assign(game.rocks[1]!, { kind: 'factory', productionAt: 32, productionInterval: 8, drones: 0, x: 8 });

@@ -13,10 +13,8 @@
 !src/game/**
 !src/replay/
 !src/replay/**
-!src/online/
-!src/online/protocol.ts
-!src/online/notification-contract.ts
-!src/online/presence.ts
+!src/contracts/
+!src/contracts/**
 
 **/*.test.*
 **/.env*

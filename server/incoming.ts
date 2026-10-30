@@ -9,7 +9,7 @@
 import { canObserveHauler } from '../src/game/sensors';
 import { observe } from '../src/game/visibility';
 import { FACTIONS } from '../src/game/players';
-import { inactivityRemaining } from '../src/online/presence';
+import { inactivityRemaining } from '../src/game/retirement';
 import type { Faction, Fleet, Game } from '../src/game/simulation';
 import { HOUR_MS } from '../src/game/retirement';
 
