@@ -9,7 +9,11 @@
     "icon": "./assets/brand/icon.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mcclowes.machination"
+      "bundleIdentifier": "com.mcclowes.machination",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.mcclowes.machination",
@@ -34,6 +38,7 @@
           "icon": "./assets/brand/notification.png",
           "color": "#b8e986",
           "defaultChannel": "machination-messages",
+          "mode": "production",
           "enableBackgroundRemoteNotifications": false
         }
       ],

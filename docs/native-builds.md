@@ -53,6 +53,32 @@ Physical devices and distribution require Apple signing configuration. No signin
 
 The simulator command retains full Xcode diagnostics. A subsequent Xcode 27.1 build failed with exit 65 and several SwiftCompile reports of exit code 0 with no further output. An [Expo issue](https://github.com/expo/expo/issues/50279) reports a similar failure associated with `-quiet`; removing that flag here preserves diagnostic context without asserting that it alone fixes every compiler failure. The current diagnostic retry uses the actual ARM64 simulator destination and a result bundle. Installation still requires a successful terminal build result; an older app left in the output directory isn't evidence that the retry passed. See [#8](https://github.com/mcclowes/machination/issues/8).
 
+## TestFlight
+
+Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration declares version 0.1.0, build 1, exempt encryption, and production APNs entitlements. Increment `expo.ios.buildNumber` in `app.json` for each upload. Push delivery still requires the separate provider setup in [notifications](notifications.md).
+
+Run from a fixed source snapshot with its matching `package-lock.json` dependencies. Preserve concurrent edits in the shared checkout. Check the source before generating its device archive:
+
+```sh
+npm run check
+export APPLE_TEAM_ID=BCB43KG62T
+export IOS_PROVISIONING_PROFILE='Machination App Store 20261029'
+export EXPO_PUBLIC_GAME_SERVER=https://machination-api-production.up.railway.app
+bash scripts/ios-testflight.sh archive
+```
+
+The archive command regenerates iOS, installs pods, and creates `ios/build/testflight/Machination.xcarchive`. It requires HTTPS for the bundled service origin and refuses to overwrite an existing archive. Set `IOS_RELEASE_DIR` to retain another build separately. Supply the shared production Clerk publishable key as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` only after native authentication is configured; an absent key leaves account sign-in disabled while solo, practice, and device-token multiplayer remain available.
+
+Use `bash scripts/ios-testflight.sh export` to export a signed IPA without uploading it.
+
+Create the app record in App Store Connect before the first upload. Set `ASC_KEY_ID` and `ASC_ISSUER_ID` for an existing API key stored in altool's standard private-key location, then upload:
+
+```sh
+bash scripts/ios-testflight.sh upload
+```
+
+This exports a signed IPA and uploads it through Apple's altool. It doesn't publish to the App Store or invite testers. Confirm Apple's build processing succeeds, add testing notes, and attach the build to the intended internal TestFlight group. External testing requires Beta App Review. See [Apple's TestFlight distribution guide](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases) and [Expo's TestFlight guide](https://docs.expo.dev/submit/testflight/).
+
 ## Verification boundaries
 
 An Expo JavaScript export proves bundling, not native compilation. A Gradle or Xcode build proves compilation, not installation or gameplay. Before distributing, verify first-launch dismissal, operation save/reload, foreground/background catch-up, map selection, transfers, module combat, invitation joining, private messages, and retry behavior on both native platforms. Include notched screens, the software keyboard, and enlarged text in layout checks.
