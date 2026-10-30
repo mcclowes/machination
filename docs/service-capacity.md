@@ -16,9 +16,11 @@ The queued poll behind a historical read completed in 71.44 ms in the one-room c
 
 The benchmark records event-loop delay separately: p99 was 254.54 ms / 168.82 ms, and maximum delay was 721.42 ms / 379.06 ms. Those measurements include host scheduling and other machine activity. The reported request times cover service execution and persistence, not network transit or Clerk token verification.
 
-## Decision
+## Original decision
 
 Retain the existing single-process JSON store. This run doesn't justify replacing persistence. It does demonstrate that historical reads and global snapshot writes deserve continued measurement as operation count and retained history grow.
+
+That was the decision from this measurement. Current source also supports [Postgres storage](postgres.md) following #111; these JSON timings don't establish Postgres capacity, Supabase latency, or a safe production load.
 
 The command supports up to 100 rooms, 1,000 retained commands, 100 samples, and 47 catch-up hours. Use larger histories on a quiet host before selecting checkpoints, room-scoped persistence, or SQLite. A command limit is a supported workload bound, not a promise that its largest combination is fast.
 
