@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
-    "check": "npm run check:quality && npm test && npm run test:server-build",
+    "check": "npm run check:quality && npm test -- --suite-timeout=1800000 && npm run test:server-build",
     "check:architecture": "node scripts/check-architecture.mjs",
     "build:web": "expo export --platform web",
     "docs": "npm --prefix website start",

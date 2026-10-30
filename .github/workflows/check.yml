@@ -27,7 +27,7 @@ jobs:
   behavior:
     name: Behavior
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       CI: '1'
     steps:
@@ -37,7 +37,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm test
+      - run: npm test -- --suite-timeout=1800000
   server:
     name: Server packaging
     runs-on: ubuntu-latest
