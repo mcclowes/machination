@@ -148,3 +148,13 @@ The cadence comparison and historical mine-replay restoration pass. Buffered out
 At the release owner's request, a one-second stack sample and two process snapshots inspected only this job. The remaining configuration test consumed CPU while its RSS fell from about 255 MB to 240 MB; the first full process-tree reading was about 443 MB. These observations don't establish a growing leak or explain the scheduler's earlier 5 GB estimate. The already-failing run was stopped to release the Ambient window. All observed child processes exited, and the requested notification was delivered to Saggar session `0C10F5B2`. New heavy work remains held.
 
 Evidence: `/private/tmp/machination-quality-resumed-final.log`, `/private/tmp/machination-quality-resumed-acceptance/QUALITY_SOURCE_MANIFEST.json`, `/private/tmp/machination-quality-3234-processes.json`, and `/private/tmp/machination-quality-3234-stack.txt`. The next acceptance attempt must inspect the recorded failures before scheduling a retry.
+
+### Targeted acceptance repairs
+
+All 23 assertion failures recorded in #3234 now pass in focused checks. Match assertions include battle coordinates while retaining exact event order, audiences, and simulation state. Historical restoration still matches the entire stored record; traced and ordinary reconstruction agree, and historical simulation comparison excludes only later map annotations. Replay UI tests cover badge inspection at an unobstructed endpoint and site inspection while a departing hauler overlaps its site. Complete accessible labels use the terminology catalog.
+
+- `fe549f6`: all 20 generated and contested match scenarios pass.
+- `40aa3a8`: all 22 simulation-trace and battle-marker tests pass.
+- `5bf334a`: all 16 shared-replay UI and specialist-placement tests pass on the web/iOS hosts.
+
+These checks have no failures or skips. They do not establish full acceptance: the configuration matrix and current quality guards remain in the final gate. A fixed candidate captures 640 current files and their SHA-256 hashes, with installed dependencies shared by symlink. The working tree matched every captured file when the gate was submitted. The single pending command is `npm run check` on explicit Node 24.14.1 through Turnstile, with existing deadlines and floors. Evidence is in `/private/tmp/machination-quality-completion-check.log`; no full-suite pass is claimed while it is pending.
