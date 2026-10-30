@@ -23,7 +23,7 @@ export function canResolveTrainingOrders({ game, archive }: LocalOperation): boo
   if (game.fleets.some(f => f.owner === 'you') || game.scheduled?.some(p => p.owner === 'you')) return true;
   const entries = exportArchive(archive).entries.filter(e => 'owner' in e.command && e.command.owner === 'you');
   const last = entries.at(-1)?.command;
-  return entries.some(e => ['drill-mine', 'funding', 'hire', 'promote', 'shields', 'release'].includes(e.command.type))
+  return entries.some(e => ['pulse', 'drill-mine', 'funding', 'hire', 'promote', 'shields', 'release'].includes(e.command.type))
     || ['dispatch', 'gift', 'intercept', 'schedule', 'schedule-action'].includes(last?.type ?? '')
     || last?.type === 'hauler' && last.change.action === 'gift';
 }
@@ -32,7 +32,7 @@ function isTutorialMission(id: TrainingId): id is TutorialMissionId { return TUT
 const isScriptedExercise = (id: TrainingId) => isTutorialMission(id) || isSpecialistDrill(id);
 
 export function createTrainingAttempt(id: TrainingId): LocalOperation {
-  const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 18, undefined, 17);
+  const game = createConfiguredGame({ playerCount: 2, mode: id === 'pulse-counterattack' ? 'pulse' : 'mining' }, 0, 18, undefined, 17);
   const site = (siteId: string, name: string, x: number, y: number, owner: Rock['owner'], drones: number, core = false): Rock => ({
     id: siteId, name, x, y, owner, drones, kind: siteId === 'works' ? 'factory' : 'generator',
     shield: owner ? core ? 30 : 10 : 0, shieldMax: 10, shieldAt: 48 / (core ? 30 : 10), shieldsDisabled: false, productionAt: 8,

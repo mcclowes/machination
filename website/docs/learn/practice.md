@@ -5,11 +5,11 @@ description: What each Machination practice exercise teaches, with optional hint
 
 Choose **Start tactical practice** on the opening screen. Each exercise uses the real chart and orders with a manual clock. Retry starts from the same position; completed exercises keep their marks separately from your live operations.
 
-The exercises teach orders and combat in a mining-mode scenario. They don't teach every rule of the default King's Pulse mode.
+Most exercises teach orders and combat in mining mode. **Inside the pulse** uses King's Pulse mode: Vesper's wave is already expanding, your charge is underway, and you must find a way to win before your shield collapses. Use the Time Machine and optional hints to compare your options.
 
 ## Mission sequence
 
-The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfuge.fandom.com/wiki/Puzzles), using Machination's names, maps, and controls. Four additional exercises and twelve specialist drills follow it. Each mission includes optional hints and checks your actual orders and results.
+The main sequence follows the 24 [Subterfuge tutorial missions](https://subterfuge.fandom.com/wiki/Puzzles), using Machination's names, maps, and controls. A King's Pulse challenge, four additional exercises, and twelve specialist drills follow it. Each mission includes optional hints and checks your actual orders and results.
 
 | Source mission | Practice exercise | Goal |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Subterfuge tutorial coverage
 
-Tracked in [#101](https://github.com/mcclowes/machination/issues/101). Practice contains 40 exercises: counterparts for all 24 entries in the [Subterfuge puzzle catalog](https://subterfuge.fandom.com/wiki/Puzzles), followed by four supplementary lessons and twelve specialist drills. Mission descriptions and walkthroughs were checked against the public wiki API on October 30, 2026. The table links each source page and records the assessed behavior.
+Tracked in [#101](https://github.com/mcclowes/machination/issues/101). Practice contains 41 exercises: counterparts for all 24 entries in the [Subterfuge puzzle catalog](https://subterfuge.fandom.com/wiki/Puzzles), plus the original King's Pulse counterattack challenge, followed by four supplementary lessons and twelve specialist drills. Mission descriptions and walkthroughs were checked against the public wiki API on October 30, 2026. The table links each source page and records the assessed behavior.
 
 This reproduces the mission objectives and teaching problems with Machination's controls and engine. Maps, starting inventories, travel times, and dialogue are adapted. Exact original map geometry and current in-app tutorial baselines have not been verified. The official [rulebook](https://subterfuge-game.com/rulebook/index.html) and [specialist reference](https://subterfuge-game.com/rulebook/Specialists.html) supply the underlying rules; historical walkthroughs can describe different specialist behavior.
 

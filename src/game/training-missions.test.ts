@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assessTrainingAttempt, createTrainingAttempt, TRAINING_SCENARIOS } from './training';
+import { assessTrainingAttempt, createTrainingAttempt, canResolveTrainingOrders, TRAINING_SCENARIOS } from './training';
 import { applyCommand, exportArchive, replayTo, type GameCommand } from './replay';
 import { advance } from './simulation';
 import { decodeSave } from './save-format';
@@ -12,6 +12,7 @@ import { localLifecycle } from './local-lifecycle';
 type Step = [number, GameCommand];
 const launch = (from: string, to: string, drones: number, specialists?: string[]): GameCommand => ({ type: 'dispatch', owner: 'you', from, to, drones, ...(specialists ? { specialists } : {}) });
 const solutions: Record<TutorialMissionId, Step[]> = {
+  'pulse-counterattack': [[2, { type: 'pulse', owner: 'you', command: { id: 'practice-counterfire-01', action: 'FIRE_PULSE' } }]],
   'joint-attack': [[0, launch('works', 'relay', 15)], [0, launch('home', 'relay', 15)]],
   reinforcements: [[0, launch('works', 'home', 25)]],
   'scheduled-arrival': [[0, { type: 'schedule', owner: 'you', plan: { id: 'tutorial-arrival-001', from: 'works', to: 'relay', drones: 25, executeAt: 1 } }]],
@@ -53,6 +54,7 @@ test('losing an ally outpost fails immediately even while the player core remain
 });
 
 const wrongPlans: Partial<Record<TutorialMissionId, Step[]>> = {
+  'pulse-counterattack': [[0, { type: 'pulse', owner: 'you', command: { id: 'practice-cancel-0001', action: 'CANCEL_CHARGE' } }]],
   'joint-attack': [[0, launch('works', 'relay', 15)]],
   reinforcements: [[0, launch('works', 'relay', 25)]],
   'scheduled-arrival': [[1, launch('works', 'relay', 25)]],
@@ -134,8 +136,8 @@ test('practice accounts for all 24 source missions without dropping the five exi
   const references = TRAINING_SCENARIOS.flatMap(s => s.reference ? [s.reference] : []);
   const expected = ['Combat 1', 'Combat 2', 'Combat 3', 'Combat 4', 'Specialists 1', 'Specialists 2', 'Specialists 3', 'Specialists 4', 'Winning 1', 'Diplomacy 1', 'Diplomacy 2', 'Combat 5', 'Combat 6', 'Specialists 5', 'Specialists 6', 'Winning 2', 'Winning 3', 'Winning 4', 'Diplomacy 3', 'Diplomacy 4', 'Advanced 1', 'Advanced 2', 'Advanced 3', 'Kobayashi Maru'];
   assert.deepEqual(references, expected);
-  assert.equal(TRAINING_SCENARIOS.length, 40);
-  assert.equal(new Set(TRAINING_SCENARIOS.map(s => s.id)).size, 40);
+  assert.equal(TRAINING_SCENARIOS.length, 41);
+  assert.equal(new Set(TRAINING_SCENARIOS.map(s => s.id)).size, 41);
   for (const id of ['first-launch', 'shield-combat', 'unit-transport', 'future-production', 'interception']) assert.ok(TRAINING_SCENARIOS.some(s => s.id === id));
 });
 
@@ -208,3 +210,19 @@ for (const mission of TUTORIAL_MISSIONS) {
     assert.equal(policy.advance(op, mission.deadline + 10, 'manual'), op);
   });
 }
+
+test('counterpulse victory extinguishes the opening enemy wave; delayed firing loses', () => {
+  const initial = createTrainingAttempt('pulse-counterattack');
+  assert.equal(initial.game.pulse!.pulses[0]!.factionId, 'vesper');
+  assert.equal(initial.game.pulse!.kings.find(k => k.factionId === 'you')!.state, 'charging');
+  assert.throws(() => submit(initial, solutions['pulse-counterattack'][0]![1]), /finish charging/);
+  const fired = submit(clock(initial, 2), solutions['pulse-counterattack'][0]![1]);
+  assert.equal(canResolveTrainingOrders(fired), true);
+  const won = clock(fired, 12);
+  assert.equal(won.game.winner, 'you');
+  assert.ok(won.game.pulse!.shields.home!.energy > 0);
+  assert.ok(!won.game.pulse!.pulses.some(p => p.factionId === 'vesper'));
+  const late = clock(submit(clock(initial, 4), solutions['pulse-counterattack'][0]![1]), 12);
+  assert.equal(late.game.winner, 'vesper');
+  assert.equal(assessTrainingAttempt('pulse-counterattack', late).status, 'failed');
+});

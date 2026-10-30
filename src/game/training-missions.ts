@@ -15,6 +15,7 @@ import { exportArchive, replayTo, traceReplayTo, type GameCommand } from './repl
 import type { LocalOperation } from './operation-save';
 import type { FutureAction } from './future-actions';
 import { scheduleTransfer } from './orders';
+import { commandPulse, createPulseSystem } from './pulse';
 
 export const TUTORIAL_MISSIONS = [
   { id: 'joint-attack', reference: 'Combat 2', title: 'Joint attack', instruction: 'Combine the fifteen drones at Core berth and the fifteen at Foundry to take Quiet landing.', objective: 'Capture the twenty-drone garrison using attacks from both sites.', hints: ['One fleet cannot defeat the garrison.', 'The first attack weakens the defenders for the second.'], deadline: 4, focus: 'works' },
@@ -40,6 +41,7 @@ export const TUTORIAL_MISSIONS = [
   { id: 'fastest-route', reference: 'Advanced 2', title: 'The fastest route', instruction: `Move your core, ${SPECIALISTS.smuggler.name}, and thirteen drones to Foundry, recruit a ${SPECIALISTS.infiltrator.name}, then attack Quiet landing.`, objective: 'Conquer Quiet landing by hour four using the faster friendly-site route.', hints: ['Foundry already has fifteen drones and a combat specialist.', 'Your core can recruit at the rendezvous; send the attack specialists onward while leaving it safe.'], deadline: 4, focus: 'home' },
   { id: 'against-the-odds', reference: 'Advanced 3', title: 'Against the odds', instruction: `Reinforce shield-disabled Core berth before a raid carrying an ${SPECIALISTS.elder.name} and a separate shield-removal wave arrive. Keep the ${SPECIALISTS.general.name} at Foundry.`, objective: 'Keep Core berth through both waves using a remote global ability.', hints: [`The ${SPECIALISTS.elder.name} suppresses local abilities, while a remote global bonus still applies.`, 'The second wave cannot be stopped by relying on shields.'], deadline: 8, focus: 'works' },
   { id: 'test-of-character', reference: 'Kobayashi Maru', title: 'A test of character', instruction: 'Hold Foundry until the incoming sensor courier arrives without entering combat. Divert the first raid, then detonate the second at a safe distance.', objective: 'Keep Foundry throughout and deliver the sensor courier without combat.', hints: ['Use a diversion worm on the close route first.', `Intercept the distant ${SPECIALISTS.elder.name} with your ${SPECIALISTS.pirate.name} and ${SPECIALISTS.martyr.name}, far enough away to spare the site and courier.`], deadline: 6, focus: 'home' },
+  { id: 'pulse-counterattack', title: 'Inside the pulse', instruction: "Vesper has launched her King's Pulse. Your own charge is underway, but your shields cannot hold forever. Intelligence reports Distant anchor’s planetary shield has ten energy and is recharging. Find a way to win before Core berth falls.", objective: 'Defeat Vesper while keeping your King alive before hour twelve.', hints: ['Your full planetary shield buys five hours after the wave arrives. Inspect your charge and shield in the Time Machine.', 'Your charge finishes at hour two. A counterpulse can destroy the enemy King and extinguish her wave before your shield fails.'], deadline: 12, focus: 'home' },
 ] as const;
 export type TutorialMissionId = typeof TUTORIAL_MISSIONS[number]['id'];
 
@@ -80,6 +82,16 @@ export function configureTutorialMission(game: Game, id: TutorialMissionId): Gam
     return source;
   };
   switch (id) {
+    case 'pulse-counterattack': {
+      game.pulse = createPulseSystem(game);
+      const yours = game.pulse.kings.find(k => k.factionId === 'you')!;
+      Object.assign(yours, { state: 'charging', chargeProgress: 4, resourceCommitted: 100 });
+      const theirs = game.pulse.kings.find(k => k.factionId === 'vesper')!;
+      Object.assign(theirs, { state: 'ready', chargeProgress: 6, resourceCommitted: 100 });
+      game.pulse.shields[rival.id]!.energy = 10;
+      game = commandPulse(game, 'vesper', { id: 'practice-enemy-fire-01', action: 'FIRE_PULSE' });
+      break;
+    }
     case 'joint-attack': home.drones = works.drones = 15; enemy(20); break;
     case 'reinforcements': rival.drones = 50; incoming('rival-home', 'home', 50); break;
     case 'scheduled-arrival': home.y = 6; home.drones = 30; works.drones = 0; enemy(20); incoming('home', 'works', 30); break;
@@ -171,6 +183,7 @@ export function tutorialMissionPassed(id: TutorialMissionId, operation: LocalOpe
   const held = (site: string, owner: Faction = 'you') => everyState(state => state.rocks.find(r => r.id === site)!.owner === owner);
   const raid = history.baseline.fleets.find(f => f.owner === 'vesper');
   switch (id) {
+    case 'pulse-counterattack': return game.winner === 'you';
     case 'joint-attack': return captured && ['home', 'works'].every(from => used(c => c.type === 'dispatch' && c.from === from && c.to === 'relay'));
     case 'reinforcements': return !!raid && game.hour >= raid.arrives && held('home') && at('home').drones > 0 && used(c => c.type === 'dispatch' && c.from === 'works' && c.to === 'home');
     case 'scheduled-arrival': return captured && entries.some(e => {
