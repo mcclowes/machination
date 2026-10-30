@@ -36,6 +36,40 @@ test('solo still restores and saves its operation and uses ordinary elapsed time
   assert.equal(policy.advance(operation, 0.5, 'clock').game.hour, 0.5);
 });
 
+test('solo creates only when storage is empty and propagates persistence failures', async () => {
+  const game = createGame(0);
+  const operation = { game, archive: createArchive(game, { rivals: true }) };
+  let creates = 0;
+  let failLoad = false;
+  const failure = new Error('Storage unavailable');
+  const policy = localLifecycle({
+    initial: () => operation,
+    create: () => { creates++; return operation; },
+    load: async () => { if (failLoad) throw failure; return null; },
+    save: async () => { throw failure; },
+  });
+  assert.equal(creates, 0, 'Constructing a policy does not create an operation');
+  assert.equal(policy.assess(operation), undefined);
+  assert.equal(await policy.load(), operation);
+  assert.equal(creates, 1);
+  failLoad = true;
+  await assert.rejects(policy.load(), error => error === failure);
+  assert.equal(creates, 1, 'A failed read never replaces stored progress');
+  await assert.rejects(policy.save(operation), error => error === failure);
+});
+
+test('practice caps manual time at its deadline and freezes failed attempts', () => {
+  const fail = () => { throw new Error('Practice touched solo storage'); };
+  const policy = localLifecycle({ load: fail, save: fail, create: fail, initial: fail }, 'first-launch');
+  const first = policy.initial();
+  const ended = policy.advance(first, 20, 'manual');
+  assert.equal(ended.game.hour, 6);
+  assert.equal(policy.assess(ended)?.status, 'failed');
+  assert.equal(first.game.hour, 0);
+  assert.equal(policy.advance(ended, 21, 'manual'), ended);
+  assert.throws(() => policy.submit(ended, { type: 'resign', owner: 'you' }), /exercise has ended/);
+});
+
 test('practice stops at the first assessed outcome even when a large step crosses a later core loss', () => {
   const fail = () => { throw new Error('Practice touched solo storage'); };
   const policy = localLifecycle({ load: fail, save: fail, create: fail, initial: fail }, 'first-launch');
