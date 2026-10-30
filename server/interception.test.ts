@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 test('HTTP interception requires an observed seat-scoped target and survives retries and restart', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-intercept-'));

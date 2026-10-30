@@ -1,6 +1,7 @@
+import { inactivityRemaining } from '../game/retirement';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inactivityRemaining, presenceDue } from './presence';
+import { presenceDue } from './presence';
 
 const due = (now: number, lastActivity: number) => presenceDue({ now, lastActivity, active: true, eligible: true });
 

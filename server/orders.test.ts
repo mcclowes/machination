@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 test('HTTP plans remain private, cancel safely, and execute exactly once across a server restart', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-orders-'));

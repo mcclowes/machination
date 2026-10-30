@@ -1,7 +1,7 @@
 import type { RequestSession } from './account-auth';
 import { useEffect, useState } from 'react';
 import { historicalApi } from './network';
-import type { HistorySnapshot } from './protocol';
+import type { HistorySnapshot } from '../contracts/protocol';
 
 type Seat = RequestSession & { id: string; faction: HistorySnapshot['faction'] };
 type Result = { key: string; frame?: HistorySnapshot; error?: string };

@@ -35,7 +35,7 @@ import { type ModuleKind } from './src/game/modules';
 import { DroneManifest } from './src/components/DroneManifest';
 import { BeltMap } from './src/components/BeltMap';
 import { createGame, FACTIONS, operationStatus, travelHours, type Game, type Rock } from './src/game/simulation';
-import { loadGame, saveGame } from './src/game/storage';
+import { loadGame, saveGame } from './src/solo/storage';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
 import { futureCommandFleets, observedInterceptionIds, launchBlockReason } from './src/components/fleet-planning';
@@ -64,7 +64,7 @@ import { playSound, useSoundCues } from './src/audio/sound';
 import { SoundToggle } from './src/components/SoundToggle';
 import { useNotificationLaunch } from './src/online/useNotificationLaunch';
 import { launchDeps } from './src/online/notification-wiring';
-import { INCOMING_NOTIFICATION_KIND } from './src/online/notification-contract';
+import { INCOMING_NOTIFICATION_KIND } from './src/contracts/notifications';
 
 function operationFor(game: Game): LocalOperation { return { game, archive: createArchive(game, { rivals: true }) }; }
 function newOperation(options: GameOptions = DEFAULT_GAME_OPTIONS): LocalOperation { return operationFor(createSoloGame(options, Date.now(), Math.floor(Math.random() * 2 ** 32))); }

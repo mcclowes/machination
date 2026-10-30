@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ObjectReference } from './protocol';
+import type { ObjectReference } from '../contracts/protocol';
 import { encodeObjectReference, parseObjectReference, splitObjectReferences } from './object-references';
 
 const reference: ObjectReference = { version: 1, gameId: 'a'.repeat(24), kind: 'hauler', ref: 'b'.repeat(64), hour: 0 };

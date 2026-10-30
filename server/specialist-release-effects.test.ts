@@ -7,7 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { GameService } from './service';
 import { createConfiguredGame } from '../src/game/world';
 import { maximumShield } from '../src/game/economy';
-import type { Snapshot } from '../src/online/protocol';
+import type { Snapshot } from '../src/contracts/protocol';
 
 for (const kind of ['admiral', 'tycoon', 'security', 'king'] as const) {
   test(`released ${kind} effects are authoritative at the command hour through retry, history, and restart`, async t => {

@@ -8,7 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { GameService } from './service';
 import { createApi } from './http';
-import type { GiftOrder, Snapshot } from '../src/online/protocol';
+import type { GiftOrder, Snapshot } from '../src/contracts/protocol';
 
 test('HTTP gifts authorize observed support, deduplicate, preserve ownership across restart, and settle offline', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-gifts-'));

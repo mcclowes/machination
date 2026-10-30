@@ -4,12 +4,12 @@
  * related:
  *   - ./notification-state.ts - persisted metadata and restart validation
  *   - ./push-worker.ts - claims jobs, sends outside transactions, and records tickets and receipts
- *   - ../src/online/notification-contract.ts - shared client contract
+ *   - ../src/contracts/notifications.ts - shared client contract
  * ---
  */
 import { createHash, randomBytes } from 'node:crypto';
 import type { Faction } from '../src/game/players';
-import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_CHANNEL, MESSAGE_NOTIFICATION_KIND, type IncomingNotificationData, type MessageNotificationData } from '../src/online/notification-contract';
+import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_CHANNEL, MESSAGE_NOTIFICATION_KIND, type IncomingNotificationData, type MessageNotificationData } from '../src/contracts/notifications';
 import type { Database, Room } from './database';
 import { NOTIFICATION_LIMITS, type Binding, type IncomingAlert, type Job, type NotificationState } from './notification-state';
 export { EXPO_TOKEN, NOTIFICATION_LIMITS, validateNotifications } from './notification-state';

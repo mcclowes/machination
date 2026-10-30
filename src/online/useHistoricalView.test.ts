@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historyKey, requestHistoricalView } from './useHistoricalView';
-import type { HistorySnapshot } from './protocol';
+import type { HistorySnapshot } from '../contracts/protocol';
 
 const seat = { url: 'https://belt.example', token: 'secret', id: 'operation', faction: 'you' as const };
 const frame = { id: seat.id, faction: seat.faction, visibility: 'sensors.v1', history: { from: 0, through: 5, at: 1 }, game: { hour: 1, scheduled: [] } } as unknown as HistorySnapshot;

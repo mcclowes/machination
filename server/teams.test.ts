@@ -10,7 +10,7 @@ import { generateSharedReplay } from '../src/replay/generate';
 import { decodeReplay } from '../src/game/replay-save';
 import { decodeSharedReplay, encodeSharedReplay } from '../src/replay/codec';
 import { type Game } from '../src/game/simulation';
-import { snapshotResponse, historicalResponse } from '../src/online/snapshot-response';
+import { snapshotResponse, historicalResponse } from '../src/contracts/snapshot';
 
 for (const format of ['2v2', '4v4', '3v3v3'] as const) test(`${format}: authenticated seats share plans without command authority, retain history and restart`, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'machination-teams-')); t.after(() => rm(dir, { recursive: true, force: true }));

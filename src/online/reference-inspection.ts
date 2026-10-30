@@ -2,7 +2,7 @@
 import { fleetPosition } from '../game/flight';
 import { focusCamera, type MapCamera } from '../game/chart-camera';
 import type { GameView } from '../game/visibility';
-import type { ObjectReference, ObjectReferences } from './protocol';
+import type { ObjectReference, ObjectReferences } from '../contracts/protocol';
 
 export type ReferenceFrame = { id: string; at: number; game: GameView; references?: ObjectReferences };
 export type ReferenceTarget = { point: { x: number; y: number } } & ({ kind: 'outpost'; id: string } | { kind: 'hauler'; id: number });

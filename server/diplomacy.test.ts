@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { GameService } from './service';
 import { createApi } from './http';
-import { DIPLOMACY_LIMITS } from '../src/online/protocol';
+import { DIPLOMACY_LIMITS } from '../src/contracts/protocol';
 import { createLegacyGame } from '../src/game/legacy';
 const secret = () => randomBytes(32).toString('hex');
 async function fixture(t: import('node:test').TestContext) {

@@ -1,3 +1,4 @@
+import { inactivityRemaining } from '../game/retirement';
 import { DisruptorControls } from '../components/DisruptorControls';
 import { displaySpecialistNames, SPECIALISTS } from '../game/specialist-catalog';
 import { PulseMoveWarning, PulseControls, PulseLocation } from '../components/PulseControls';
@@ -20,7 +21,7 @@ import { accountSessionApi } from './network';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ResignationControl } from '../components/ResignationControl';
-import { presenceDue, inactivityRemaining } from './presence';
+import { presenceDue } from './presence';
 import { stationCourse } from '../game/drift';
 import { flightDestination } from '../game/flight';
 import { InterceptionTargets } from '../components/InterceptionTargets';
@@ -60,7 +61,7 @@ import { commandId, connect, newCredential, newSession, restoreSession, storeSes
 import { useHistoricalView } from './useHistoricalView';
 import { api, RejectedCommand } from './network';
 import { parseRecoveryCode, formatRecoveryCode } from './recovery';
-import type { ObjectReference, Snapshot } from './protocol';
+import type { ObjectReference, Snapshot } from '../contracts/protocol';
 import { copyableReference, focusReferenceCamera, referenceInspectionHour, resolveReference, type ReferenceFrame } from './reference-inspection';
 import { encodeObjectReference } from './object-references';
 import { CopyObjectReference } from '../components/CopyObjectReference';
@@ -71,7 +72,7 @@ import { MessageNotificationSettings } from './MessageNotificationSettings';
 import { useMessageNotifications } from './useMessageNotifications';
 import { notificationDeps, useNotificationDevice } from './notification-wiring';
 import { notificationDisposition, type NotificationRequest } from './message-notifications';
-import { INCOMING_NOTIFICATION_KIND } from './notification-contract';
+import { INCOMING_NOTIFICATION_KIND } from '../contracts/notifications';
 const seatIdentity = (session?: Session | null) => session ? JSON.stringify([session.url, session.id, session.accountId ?? null, session.accountId ? null : session.token]) : undefined;
 function Action({ text, onPress, disabled = false }: { text: string; onPress: () => void; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" disabled={disabled} accessibilityState={{ disabled }} onPress={() => { playSound('tap'); onPress(); }} style={[s.button, disabled && { opacity: 0.35 }]}><Text style={s.buttonText}>{text}</Text></Pressable>;

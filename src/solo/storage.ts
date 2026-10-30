@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { decodeOperation, encodeOperation, type LocalOperation } from './operation-save';
+import { decodeOperation, encodeOperation, type LocalOperation } from '../game/operation-save';
 const KEY = 'machination.game.v1';
 export async function loadGame(): Promise<LocalOperation | null> {
   await pending.catch(() => undefined);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createGame, dispatch } from '../game/simulation';
 import { observe } from '../game/visibility';
 import { copyableReference, focusReferenceCamera, referenceInspectionHour, resolveReference } from './reference-inspection';
-import type { ObjectReference } from './protocol';
+import type { ObjectReference } from '../contracts/protocol';
 
 test('chat references inspect recipient aliases only inside the requested observed frame', () => {
   const initial = createGame(0);

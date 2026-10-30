@@ -1,7 +1,7 @@
 /** Opt-in message notifications for one server, seat, operation, and installation. Stale completions never cross seats. */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RequestSession } from './account-auth';
-import type { MessageNotificationSettings, SetMessageNotifications } from './notification-contract';
+import type { MessageNotificationSettings, SetMessageNotifications } from '../contracts/notifications';
 import { canRegister, type NotificationDevice, type NotificationPermission } from './notification-device';
 import { RejectedCommand } from './network';
 

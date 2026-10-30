@@ -1,6 +1,6 @@
 /** Expo SDK 55 adapter, loaded by multiplayer settings or after a prior opt-in for tap handling. */
 import { Platform } from 'react-native';
-import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_CHANNEL } from './notification-contract';
+import { INCOMING_NOTIFICATION_CHANNEL, INCOMING_NOTIFICATION_KIND, MESSAGE_NOTIFICATION_CHANNEL } from '../contracts/notifications';
 import { parseNotificationData } from './message-notifications';
 import type { NotificationDevice, NotificationPermission, loadNotificationDevice as Load } from './notification-device';
 export type { NotificationDevice, NotificationOpen, NotificationPermission } from './notification-device';

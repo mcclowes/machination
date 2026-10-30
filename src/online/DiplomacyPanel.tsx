@@ -8,7 +8,7 @@ import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } fr
 import { FACTIONS, type Faction } from '../game/simulation';
 import { PlayerIdentity } from '../components/PlayerIdentity';
 import { commandId, type Pending } from './client';
-import { DIPLOMACY_LIMITS, type ObjectReference, type Snapshot } from './protocol';
+import { DIPLOMACY_LIMITS, type ObjectReference, type Snapshot } from '../contracts/protocol';
 import { ReferenceText } from '../components/ReferenceText';
 
 type ChatCommand = Extract<Pending, { kind: 'messages' | 'channel-messages' | 'groups' }>;

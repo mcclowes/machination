@@ -40,3 +40,8 @@ function retire(input: Game, owners: readonly Faction[], reason: 'resigned' | 'i
 export function resign(game: Game, owner: Faction): Game { return retire(game, [owner], 'resigned'); }
 /** The server owns inactivity deadlines; retire all seats due at the same instant together. */
 export function resignInactive(game: Game, owners: readonly Faction[]): Game { return retire(game, owners, 'inactive'); }
+
+export function inactivityRemaining(expiresAt: number, serverTime: number): string {
+  const minutes = Math.max(0, Math.ceil((expiresAt - serverTime) / 60_000));
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}

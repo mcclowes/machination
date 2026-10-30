@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { build } from 'esbuild';
-import type { ObjectReference } from '../online/protocol';
+import type { ObjectReference } from '../contracts/protocol';
 import { encodeObjectReference } from '../online/object-references';
 
 // Replace native host views, retaining the real component and its event handlers.

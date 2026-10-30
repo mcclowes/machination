@@ -1,7 +1,7 @@
 import { createGame } from '../game/world';
 import { playersIn, type Faction } from '../game/players';
 import { observe } from '../game/visibility';
-import type { Snapshot } from './protocol';
+import type { Snapshot } from '../contracts/protocol';
 
 export function testSnapshot(id = 'operation', faction: Faction = 'you', game = createGame(0)): Snapshot {
   return {
