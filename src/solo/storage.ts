@@ -1,7 +1,13 @@
 /** @format */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { decodeOperation, encodeOperation, summarizeOperation, type LocalOperation, type OperationSummary } from '../game/operation-save';
+import {
+  decodeOperation,
+  encodeOperation,
+  summarizeOperation,
+  type LocalOperation,
+  type OperationSummary,
+} from '../game/operation-save';
 const KEY = 'machination.game.v1';
 export async function peekGame(): Promise<OperationSummary | null> {
   await pending.catch(() => undefined);
