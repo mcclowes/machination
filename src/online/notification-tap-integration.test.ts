@@ -149,17 +149,35 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   process.env.EXPO_PUBLIC_GAME_SERVER = url;
   const originalInterval = globalThis.setInterval;
   globalThis.setInterval = (() => 0) as unknown as typeof setInterval;
+  const originalFetch = globalThis.fetch;
+  let pendingRequests = 0, requestRevision = 0;
+  globalThis.fetch = async (input, init) => {
+    pendingRequests++; requestRevision++;
+    try { return await originalFetch(input, init); }
+    finally { pendingRequests--; }
+  };
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   let renderer: any;
   t.after(async () => {
     if (renderer) await act(async () => renderer.unmount());
+    globalThis.fetch = originalFetch;
     globalThis.setInterval = originalInterval; delete globals[KEY];
     if (originalServer === undefined) delete process.env.EXPO_PUBLIC_GAME_SERVER; else process.env.EXPO_PUBLIC_GAME_SERVER = originalServer;
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(dir, { recursive: true, force: true });
   });
   const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(`${await bundleFor(!!options.account)}\n// ${randomUUID()}`).toString('base64')}`);
-  const settle = async () => { for (let i = 0; i < 20; i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); }); };
+  const settle = async () => {
+    const deadline = Date.now() + 10_000;
+    let idlePasses = 0, previousRevision = requestRevision;
+    for (let pass = 0; Date.now() < deadline; pass++) {
+      await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
+      idlePasses = pendingRequests === 0 && previousRevision === requestRevision ? idlePasses + 1 : 0;
+      previousRevision = requestRevision;
+      if (pass >= 19 && idlePasses >= 3) return;
+    }
+    assert.fail('HTTP requests and React effects did not settle within 10 seconds.');
+  };
   const hosts = (type: string) => renderer.root.findAll((node: Node) => node.type === type) as Node[];
   const label = (node: Node) => node.props.accessibilityLabel ?? text(node);
   const press = async (name: string) => {
