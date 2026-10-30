@@ -65,6 +65,8 @@ Open **Manual → Art archive** to browse all 24 generated illustrations from th
 
 ## Scope
 
+See [multiplayer iOS release readiness](docs/ios-release-readiness.md) for the release gates, current gaps, and physical-device acceptance scenarios.
+
 This is a playable foundation, not a store release. Opt-in message notification code is implemented, with delivery disabled by default; provider configuration and actual device delivery remain unverified. See [notification setup and boundaries](docs/notifications.md). Public frontend hosting and public store distribution remain unimplemented; an internal TestFlight build is out (see [native builds](docs/native-builds.md)). Clerk login with a dedicated Machination account, cross-device seat restoration, and legacy seat linking are implemented; production activation needs production-instance configuration and native registration. See [account setup](docs/accounts.md). Players can save a single-use offline recovery code for their multiplayer seat. Invite-only multiplayer and private bilateral messages run against the included local service or the [Railway playtest API](docs/railway.md). Travel uses distance on a fixed map, not orbital physics. iOS simulator startup, clock progression, save restoration, core commands, private messaging, and seat recovery are verified. Android and physical-device behavior still need verification.
 
 Run `npm run server` and open **Multiplayer uplink** to create or join an operation of two to ten players. Online play uses sensor-limited views: unknown sites display `?`, and scouts reveal nearby contacts. Forecasts leave hidden arrival outcomes unresolved. Solo remains a full-information training simulation. See [multiplayer setup and API](docs/multiplayer.md).
