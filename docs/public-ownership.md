@@ -10,7 +10,7 @@ A [firsthand 2016 FAQ](https://herbertzhb.wordpress.com/2016/06/28/subterfuge-2/
 
 ## Information contract
 
-Hidden sites use an explicit allowlist: id, name, coordinates, known, kind, and version-two owner. They expose no drones, specialists or unit IDs, modules, core identity, shields, production/mining clocks, or destroyed flag. Public mine types and active Intelligence Officer type knowledge retain their existing exceptions. A remote wreck retains its administrative owner under the existing mechanics, while destruction and former type remain hidden. This change doesn't settle original wreck counting or sonar rules.
+Hidden sites use an explicit allowlist: id, name, coordinates, drift for drifting sites, known, kind, and version-two owner. They expose no drones, specialists or unit IDs, modules, core identity, shields, production/mining clocks, or destroyed flag. Public mine types and active Intelligence Officer type knowledge retain their existing exceptions. A remote wreck retains its administrative owner under the existing mechanics, while destruction and former type remain hidden. This change doesn't settle original wreck counting or sonar rules.
 
 Fresh snapshots update ownership after remote conquest. Historical snapshots use ownership at the requested time. Public ownership doesn't widen private orders, fleets, event audiences, channels, unit inspection, or command authorization. Replay archives, commands, digests, saved authoritative state, and mechanics versions are unchanged.
 

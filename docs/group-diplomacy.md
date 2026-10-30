@@ -1,6 +1,6 @@
 # Group diplomacy contract
 
-Implements the server portion of #18. Keep #18 open for funding and UI integration.
+Implements the server portion of #18. [Funding](funding.md) and the [integrated UI](#integrated-ui) have since landed.
 
 ## UI integration
 
@@ -20,7 +20,7 @@ All commands return the caller's complete filtered `Snapshot` and require the ex
 | `POST /v1/games/:id/groups` | `CreateGroup: { requestId, name, members }` | `createGroup(session, body)` |
 | `POST /v1/games/:id/channel-messages` | `ChannelTransmission: { requestId, channelId, text }` | `sendChannelMessage(session, body)` |
 
-The caller must explicitly appear in `members`, alongside at least one other joined seat. Duplicate and unknown members are rejected. Membership ordering is canonicalized, so reordered retries are equivalent. Duplicate names are allowed; identify groups by ID. `DIPLOMACY_LIMITS` exports 60 characters for names, 1,000 for messages, 16 private groups per participant, and 100 retained messages per channel. String limits count JavaScript UTF-16 code units before trimming; whitespace-only input is rejected. There are at most three seats today.
+The caller must explicitly appear in `members`, alongside at least one other joined seat. Duplicate and unknown members are rejected. Membership ordering is canonicalized, so reordered retries are equivalent. Duplicate names are allowed; identify groups by ID. `DIPLOMACY_LIMITS` exports 60 characters for names, 1,000 for messages, 16 private groups per participant, and 100 retained messages per channel. String limits count JavaScript UTF-16 code units before trimming; whitespace-only input is rejected. Rooms have up to ten seats.
 
 `Pending` adds `groups` and `channel-messages` variants. The parent UI must store pending commands before sending and replay the exact body/request ID after uncertain responses, using the existing recovery pattern. Helpers send commands; they don't manage pending storage. Creation retries return the current filtered snapshot rather than a special created-group result, so diff group IDs against the previous snapshot if selection is needed. Unchanged accepted request IDs never create duplicate groups or messages, including after restart or credential recovery. Reusing a request ID for different content returns the existing `command.conflict.reused_id` failure. Receipt comparison preserves original name/text whitespace, so retries must preserve the exact body.
 
@@ -40,7 +40,7 @@ Database version 1 remains readable: missing diplomacy metadata initializes empt
 
 Consulted the [official Subterfuge site](https://play.subterfuge-game.com/) on October 28, 2026. It describes real-time diplomacy and coordination as part of play and links tutorials and a rulebook. A targeted search of the official domain did not produce a primary specification for group-chat creation, fixed membership, or retention. The site establishes the broad diplomacy context, not these exact group semantics.
 
-Named private groups and a public room channel follow the requested scope. Fixed membership, quotas, retention, and retry behavior are implementation choices for privacy and bounded storage, not claims about original Subterfuge mechanics. This adds no enforced alliances, shared sonar, ownership changes, or gameplay effects. UI integration remains parent-owned.
+Named private groups and a public room channel follow the requested scope. Fixed membership, quotas, retention, and retry behavior are implementation choices for privacy and bounded storage, not claims about original Subterfuge mechanics. This adds no enforced alliances, shared sonar, ownership changes, or gameplay effects.
 
 ## Verification
 
