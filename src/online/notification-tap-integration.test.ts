@@ -301,7 +301,7 @@ test('a pre-incoming server still supports message taps and disabling notificati
 test('each incoming tap confirms fresh consent even when the binding ID has not changed', async t => {
   const s = await scenario(t, { incoming: true });
   await s.mount();
-  await s.press('Open multiplayer uplink');
+  await s.press('Resume multiplayer operation');
   await s.press('Signals');
   assert.ok(s.signalsOpen());
   const before = s.requests.filter(request => request.endsWith('/notifications')).length;
@@ -334,7 +334,7 @@ test('incoming alerts wait through unreadable settings and preserve solo, practi
     await s.press('Dismiss');
     await s.press(open === 'Open shared replay' ? 'Exit replay library' : '‹ Games');
   }
-  await s.press('Open solo operation');
+  await s.press('Resume solo operation');
   s.failing.settings = true;
   await act(async () => s.fake.tap(s.tapFor(s.current, { kind: 'machination.incoming' })));
   await s.settle();
@@ -444,7 +444,7 @@ test('a rejected seat credential is terminal and ignores the tap', async t => {
 test('a warm app re-reads the binding for each tap instead of trusting cached settings', async t => {
   const s = await scenario(t);
   await s.mount();
-  await s.press('Open multiplayer uplink');
+  await s.press('Resume multiplayer operation');
   await s.press('Setup');
   assert.match(s.visible(), /Turn off device notifications/, 'the app cached this device as enabled');
   const reads = () => s.requests.filter(r => r.endsWith('/notifications')).length;
