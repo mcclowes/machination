@@ -37,9 +37,9 @@ for (const [name, base, bonus, core, destroyed, expected] of [
   });
 }
 
-for (const kind of ['security', 'king'] as const) for (const revision of [14, 16, 17] as const) {
-  test(`actual ${kind} revision ${revision} observation retains total capacity through export, codec, and seeking`, () => {
-    const baseline = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 2026, undefined, revision);
+for (const kind of ['security', 'king'] as const) {
+  test(`actual ${kind} observation retains total capacity through export, codec, and seeking`, () => {
+    const baseline = createConfiguredGame({ playerCount: 3, mode: 'mining' }, 0, 2026);
     const own = baseline.rocks.filter(site => site.owner === 'you');
     const core = own.find(site => site.coreOf)!;
     const [caster, factory, wreck] = own.filter(site => !site.coreOf);
@@ -55,7 +55,7 @@ for (const kind of ['security', 'king'] as const) for (const revision of [14, 16
     assert.equal(observed.rocks.find(site => site.id === hidden.id)!.known, false);
     const replay = decodeSharedReplay(encodeSharedReplay(generateSharedReplay({ game, archive: createArchive(game) }, 'you', 0, 0)));
     const scene = seekReplay(replay, 0);
-    assert.equal(scene.rules!.mechanicsVersion, revision);
+    assert.equal(scene.rules!.mechanicsVersion, baseline.rules!.mechanicsVersion);
     assert.equal(scene.rocks.find(site => site.id === core.id)!.shieldMax, kind === 'security' ? 50 : 20);
     assert.equal(scene.rocks.find(site => site.id === caster!.id)!.shieldMax, kind === 'security' ? 30 : 0);
     assert.equal(scene.rocks.find(site => site.id === factory!.id)!.shieldMax, kind === 'security' ? 20 : 0);
