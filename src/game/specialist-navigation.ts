@@ -3,6 +3,8 @@
  * purpose: Authorized navigator course changes with continuous geometry and a shared eight-hour cooldown.
  * ---
  */
+import { gravityCourse } from './gravity';
+
 import { recentEvents } from './events';
 import { mechanicsVersion } from './rules';
 import { afterWork } from './opening-clock';
@@ -41,6 +43,8 @@ function redirectCourse(game: Game, fleetId: number, owner: Faction, destination
     ...(mechanicsVersion(game) >= 12 ? { courseChanged: true as const } : {}),
     route: { from: point, to: nearestImage(game, point, destination) },
     departed: game.hour, arrives: afterWork(game, game.hour, Math.max(1e-6, worldDistance(game, point, destination) / speed)) };
+  const curved = gravityCourse(game, point, destination, speed, game.hour, owner);
+  if (curved) Object.assign(changed, curved);
   if (destination.drift) Object.assign(changed, stationCourse(game, point, destination, speed, game.hour));
   delete changed.intercept;
   delete changed.returning;

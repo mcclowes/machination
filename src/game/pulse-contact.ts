@@ -7,9 +7,8 @@
  */
 import type { Fleet, Game, Rock } from './simulation';
 import { mapOffsets, type Point } from './geometry';
-import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
+import { fleetPosition, fleetVelocity, nextFlightVertex } from './flight';
 import { sitePosition } from './drift';
-import { openingRate, workBetween } from './opening-clock';
 
 const EPS = 1e-9;
 type Motion = { point: Point; velocity: Point };
@@ -22,12 +21,12 @@ export function pulseAssetMotion(world: Game, asset: Rock | Fleet): Motion {
   if (fleet.heldAt) return pulseAssetMotion(world, world.rocks.find(r => r.id === fleet.heldAt)!);
   if (fleet.preparing) return pulseAssetMotion(world, world.rocks.find(r => r.id === fleet.from)!);
   if ((fleet.enginesDisabledUntil ?? 0) > world.hour) return { point: fleetPosition(world, fleet), velocity: { x: 0, y: 0 } };
-  const leg = flightEndpoints(world, fleet), duration = workBetween(world, flightDeparture(fleet), fleet.arrives), rate = openingRate(world, world.hour);
-  return { point: fleetPosition(world, fleet), velocity: { x: (leg.to.x - leg.from.x) / duration * rate, y: (leg.to.y - leg.from.y) / duration * rate } };
+  return { point: fleetPosition(world, fleet), velocity: fleetVelocity(world, fleet, true) };
 }
 
 /** Earliest entry or exit of a linearly moving target and an expanding circle, over toroidal images. */
 export function expandingIntersection(world: Game, origin: Point, radius: number, speed: number, asset: Rock | Fleet, limit: number): number {
+  if (typeof asset.id === 'number') limit = Math.min(limit, nextFlightVertex(world, asset as Fleet));
   const { point, velocity: v } = pulseAssetMotion(world, asset);
   let next = Infinity;
   for (const offset of mapOffsets(world)) {

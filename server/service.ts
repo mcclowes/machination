@@ -609,6 +609,7 @@ export class GameService {
               requested.teamFormat === existing.game.rules?.teams?.format &&
               requested.mode === (existing.game.rules?.mode ?? 'mining') &&
               !!requested.driftingBases === driftingBasesEnabled(existing.game) &&
+              !!requested.gravity === !!existing.game.rules?.gravity &&
               JSON.stringify(
                 requested.portraits ?? DEFAULT_PORTRAITS.slice(0, requested.playerCount),
               ) ===

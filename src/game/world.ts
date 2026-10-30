@@ -3,6 +3,8 @@
  * purpose: Version-two starting chart with equal territories, separate industry/power sites, and dormant expansion.
  * ---
  */
+import { createGravity } from './gravity';
+
 import { createCompact } from './compact';
 import { DEFAULT_TACTICAL_PULSE_CONFIG } from './tactical-pulse';
 import { createPulseSystem, DEFAULT_PULSE_CONFIG } from './pulse';
@@ -56,8 +58,9 @@ export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, n
   };
 }
 
-export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>, revision: 14 | 16 | 17 | 18 = 18): Game {
+export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>, revision: 14 | 16 | 17 | 18 | 19 = 19): Game {
   const settings = validateOptions(options);
+  if (settings.gravity && revision < 19) throw new Error('Gravity requires current operation rules.');
   if (settings.teamFormat && revision < 17) throw new Error('Team games require current operation rules.');
   const players = ALL_PLAYERS.slice(0, settings.playerCount);
   const startingMine = revision >= 17;
@@ -65,7 +68,7 @@ export function createConfiguredGame(options: GameOptions, epoch: number, mapSee
   if (settings.driftingBases) seedDriftingBases(rocks, { rules: { map: { width, height, topology: 'torus' } } });
   const game: Game = { ...createGame(epoch, seeds), rocks,
     rivalPolicy: CURRENT_RIVAL_POLICY,
-    rules: { ...(settings.teamFormat ? { teams: createTeams(settings.teamFormat, players) } : {}), mechanicsVersion: revision, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? settings.teamFormat || startingMine ? 300 : 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
+    rules: { ...(settings.gravity ? { gravity: createGravity({ width, height }, rocks, players.length) } : {}), ...(settings.teamFormat ? { teams: createTeams(settings.teamFormat, players) } : {}), mechanicsVersion: revision, ...(settings.beltCompact ? { beltCompact: 1 as const } : {}), ...(settings.mode === 'pulse' ? { pulse: { ...DEFAULT_PULSE_CONFIG }, tacticalPulse: { ...DEFAULT_TACTICAL_PULSE_CONFIG } } : {}), driftingBases: !!settings.driftingBases, players, ...(settings.portraits ? { portraits: [...settings.portraits] } : {}), mode: settings.mode, victoryTarget: settings.mode === 'pulse' ? 1 : settings.mode === 'mining' ? settings.teamFormat || startingMine ? 300 : 200 : rocks.length / 2, map: { generator: 'balanced.v2', topology: 'torus', seed: mapSeed, width, height } },
     cargo: Object.fromEntries(players.map(owner => [owner, startingMine ? 5 : 0])),
     minesDrilled: Object.fromEntries(players.map(owner => [owner, startingMine ? 1 : 0])),
     recruitment: Object.fromEntries(players.map((owner, index) => [owner, newRecruitment(seeds?.[owner] ?? (mapSeed + index + 1) >>> 0, settings.mode === 'pulse', revision >= 18)])),

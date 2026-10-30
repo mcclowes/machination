@@ -8,7 +8,7 @@
  */
 import type { Game, Fleet, Rock } from './simulation';
 import { worldDistance, nearestImage } from './geometry';
-import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
+import { fleetPosition, flightEndpoints, flightDeparture, remainingFlightRoute } from './flight';
 import { afterWork, workBetween } from './opening-clock';
 import { endPulse } from './pulse';
 import { expandingIntersection } from './pulse-contact';
@@ -61,7 +61,7 @@ function disableEngines(game: Game, fleet: Fleet): void {
   if ((fleet.enginesDisabledUntil ?? 0) >= until) return;
   const point = fleetPosition(game, fleet), destination = nearestImage(game, point, flightEndpoints(game, fleet).to);
   const remaining = workBetween(game, Math.max(game.hour, flightDeparture(fleet)), fleet.arrives);
-  fleet.route = { from: point, to: destination };
+  fleet.route = fleet.route?.course ? remainingFlightRoute(game, fleet) : { from: point, to: destination };
   fleet.departed = game.hour;
   fleet.enginesDisabledUntil = until;
   fleet.arrives = afterWork(game, until, Math.max(1e-6, remaining));

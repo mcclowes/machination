@@ -3,6 +3,8 @@
  * purpose: Captive releases and unit-only return haulers, retaining real transit and ownership.
  * ---
  */
+import { gravityCourse } from './gravity';
+
 import { requireUnfrozen } from './temporal-facilities';
 import { compactTransitMultiplier } from './compact';
 import { afterWork } from './opening-clock';
@@ -21,6 +23,8 @@ export function sendUnitsHome(game: Game, point: Point, owner: Faction, units: S
   const speed = specialistSpeed(game, owner, units, true, mission === 'interception' ? 'interception-return' : 'return');
   const fleet: Fleet = { id: game.nextId++, owner, from: home.id, to: home.id, drones: 0, specialists: units, speed, ...(compactTransitMultiplier(game) === 1.5 ? { thrust: 1.5 as const } : {}),
     route: { from: wrappedBounds(game) ? wrapPoint(game, point) : { ...point }, to: nearestImage(game, wrapPoint(game, point), home) }, departed: game.hour, arrives: afterWork(game, game.hour, Math.max(1e-6, worldDistance(game, point, home) / speed)), returning: true, ...(mission === 'interception' && mechanicsVersion(game) >= 3 ? { interceptionReturn: true } : {}) };
+  const curved = gravityCourse(game, point, home, speed, game.hour, owner);
+  if (curved) Object.assign(fleet, curved);
   if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, game.hour));
   game.fleets.push(fleet);
   return fleet;
@@ -47,6 +51,8 @@ export function returnHauler(game: Game, fleet: Fleet, locked = false): void {
   const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], true, interception ? 'interception-return' : 'return');
   fleet.from = home.id; fleet.to = home.id; fleet.route = { from: point, to: nearestImage(game, point, home) };
   fleet.departed = game.hour; fleet.arrives = afterWork(game, flightDeparture(fleet), Math.max(1e-6, worldDistance(game, point, home) / speed));
+  const curved = gravityCourse(game, point, home, speed, flightDeparture(fleet), fleet.owner);
+  if (curved) Object.assign(fleet, curved);
   if (home.drift) Object.assign(fleet, stationCourse(game, point, home, speed, flightDeparture(fleet)));
   fleet.returning = true; fleet.speed = speed;
   if (compactTransitMultiplier(game) === 1.5) fleet.thrust = 1.5; else delete fleet.thrust;

@@ -1,3 +1,5 @@
+/** Keep one alias set per export, including gaps where a contact disappears. */
+import type { FlightRoute } from '../game/flight-route';
 import type { OverclockLoan } from '../game/temporal';
 import type { ObservedEvent } from '../game/events';
 import { cloneCompact, type BeltCompact } from '../game/compact';
@@ -23,7 +25,7 @@ export type ReplayRock = ReplayPoint & {
 export type ReplayFleet = {
   id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number;
   heldAt?: string; enginesDisabledUntil?: number; sensorJammedUntil?: number; preparing?: true; returning?: true; giftAt?: number; module?: ModuleKind; specialists?: ReplayUnit[]; speed?: number;
-  route?: { from: ReplayPoint; to: ReplayPoint }; intercept?: { home: string; target?: number };
+  route?: FlightRoute; intercept?: { home: string; target?: number };
 };
 export type ReplayScene = {
   discoveries?: ObservedEvent[]; foresight?: GameView['foresight']; compact?: BeltCompact;
@@ -35,7 +37,7 @@ export type ReplayScene = {
   pulse?: GameView['pulse']; rules?: PublicRules;
 };
 
-/** Keep one alias set per export, including gaps where a contact disappears. */
+
 export function createReplayAliases(): { fleet: (id: number) => number; unit: (id: string) => string } {
   const fleets = new Map<number, number>();
   const units = new Map<string, string>();
@@ -95,7 +97,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (f.module !== undefined) fleet.module = f.module;
     if (f.specialists !== undefined) fleet.specialists = units(f.specialists);
     if (f.speed !== undefined) fleet.speed = f.speed;
-    if (f.route !== undefined) fleet.route = { from: { x: f.route.from.x, y: f.route.from.y }, to: { x: f.route.to.x, y: f.route.to.y } };
+    if (f.route !== undefined) fleet.route = { from: { x: f.route.from.x, y: f.route.from.y }, to: { x: f.route.to.x, y: f.route.to.y }, ...(f.route.course ? { course: f.route.course.map(p => ({ ...p })) } : {}) };
     if (f.intercept !== undefined) {
       fleet.intercept = { home: f.intercept.home };
       const target = f.intercept.target === undefined ? undefined : visible.get(f.intercept.target);
@@ -124,6 +126,7 @@ export function presentObservation(view: GameView, aliases = createReplayAliases
     if (r.portraits !== undefined) scene.rules.portraits = [...r.portraits];
     if (r.beltCompact !== undefined) scene.rules.beltCompact = r.beltCompact;
     if (r.mechanicsVersion !== undefined) scene.rules.mechanicsVersion = r.mechanicsVersion;
+    if (r.gravity) scene.rules.gravity = { wells: r.gravity.wells.map(w => ({ ...w })) };
     if (r.driftingBases !== undefined) scene.rules.driftingBases = r.driftingBases;
     if (r.map.topology !== undefined) scene.rules.map.topology = r.map.topology;
   }

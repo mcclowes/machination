@@ -3,6 +3,9 @@
  * purpose: Deterministic asteroid motion and rendezvous courses shared by simulation, forecasts, and charts.
  * ---
  */
+import { gravityCourse } from './gravity';
+import type { FlightRoute } from './flight-route';
+
 import { mapOffsets, nearestImage, wrapPoint, worldDistance, type GeometryWorld, type Point } from './geometry';
 import type { Rock } from './simulation';
 import { afterWork, openingEnabled, openingRate, OPENING_HOURS, workBetween } from './opening-clock';
@@ -47,7 +50,9 @@ export function seedDriftingBases(rocks: Rock[], world: GeometryWorld): void {
 }
 
 /** Earliest reachable image of the destination, including motion during launch preparation. */
-export function stationCourse(world: GeometryWorld, source: MovingPoint, target: MovingPoint, speed: number, departed: number): { arrives: number; route: { from: Point; to: Point } } {
+export function stationCourse(world: GeometryWorld, source: MovingPoint, target: MovingPoint, speed: number, departed: number): { arrives: number; route: FlightRoute } {
+  const curved = gravityCourse(world, source, target, speed, departed, 'owner' in source && typeof source.owner === 'string' ? source.owner : null);
+  if (curved) return curved;
   if (openingEnabled(world)) return openingStationCourse(world, source, target, speed, departed);
   const from = sitePosition(world, source, departed);
   const to = sitePosition(world, target, departed);

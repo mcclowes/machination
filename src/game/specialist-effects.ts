@@ -12,7 +12,7 @@ import { afterWork, workBetween } from './opening-clock';
 import { stationCourse } from './drift';
 import { mechanicsVersion, type GameRules } from './rules';
 import { nearestImage, wrappedBounds } from './geometry';
-import { fleetPosition, flightEndpoints, flightDeparture } from './flight';
+import { fleetPosition, flightEndpoints, flightDeparture, remainingFlightRoute } from './flight';
 import { applyStationPassives } from './specialist-actions';
 import type { Faction, Game } from './simulation';
 import type { Specialist, UnitWorld } from './specialists';
@@ -51,6 +51,13 @@ export function refreshUnitEffects(game: Game, preserveDueClocks = false): void 
     const target = game.rocks.find(r => r.id === fleet.to);
     const speed = specialistSpeed(game, fleet.owner, fleet.specialists ?? [], target?.owner === fleet.owner, fleet.intercept ? 'intercept' : fleet.interceptionReturn ? 'interception-return' : fleet.returning ? 'return' : undefined, fleet.thrust ?? 1) * dilationMultiplier(game, fleet, temporalFields);
     if (fleet.speed === speed) continue;
+    if (fleet.route?.course) {
+      const remaining = workBetween(game, Math.max(game.hour, flightDeparture(fleet)), fleet.arrives);
+      if (!fleet.preparing) { fleet.route = remainingFlightRoute(game, fleet); fleet.departed = game.hour; }
+      fleet.arrives = afterWork(game, flightDeparture(fleet), Math.max(1e-6, remaining * (fleet.speed ?? speed) / speed));
+      fleet.speed = speed;
+      continue;
+    }
     const point = fleet.preparing ? flightEndpoints(game, fleet).from : fleetPosition(game, fleet);
     const endpoint = wrappedBounds(game) ? nearestImage(game, point, flightEndpoints(game, fleet).to) : flightEndpoints(game, fleet).to;
     if (!fleet.preparing) { fleet.route = { from: point, to: { ...endpoint } }; fleet.departed = game.hour; }

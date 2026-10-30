@@ -5,7 +5,7 @@
  */
 export type Point = { x: number; y: number };
 export type MapGeometry = { width: number; height: number; topology?: 'torus' };
-export type GeometryWorld = { rules?: { map: MapGeometry; mechanicsVersion?: number } };
+export type GeometryWorld = { rules?: { map: MapGeometry; mechanicsVersion?: number; gravity?: import('./gravity').GravityConfig } };
 export function wrappedBounds(world: GeometryWorld): MapGeometry | undefined {
   return world.rules?.map.topology === 'torus' ? world.rules.map : undefined;
 }

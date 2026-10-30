@@ -3,13 +3,13 @@
  * purpose: Exact encounters between opposing ordinary haulers traveling the same outpost route.
  * ---
  */
-import { afterWork, workBetween } from './opening-clock';
+import { afterWork } from './opening-clock';
 import { driftingBasesEnabled, mechanicsVersion, type PublicRules } from './rules';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import type { EncounterSink } from './combat-report';
 import { mapOffsets, worldDistance } from './geometry';
 import { resolveHaulerContact } from './specialist-combat';
-import { flightEndpoints, fleetPosition, flightDeparture, type FlightWorld } from './flight';
+import { fleetVelocity, nextFlightVertex, fleetPosition, type FlightWorld } from './flight';
 import type { Fleet, Game } from './simulation';
 
 const CONTACT_TOLERANCE = 1e-9;
@@ -19,13 +19,11 @@ function ordinaryPair(a: Fleet, b: Fleet): boolean {
 export function encounterHour(game: FlightWorld & { rules?: PublicRules }, a: Fleet, b: Fleet): number {
   if (a.heldAt || b.heldAt || a.owner === b.owner || a.preparing || b.preparing || a.intercept || b.intercept) return Infinity;
   if (mechanicsVersion(game) >= 12 && !driftingBasesEnabled(game) && !a.returning && !b.returning && !a.courseChanged && !b.courseChanged && !ordinaryPair(a, b)) return Infinity;
-  const aa = flightEndpoints(game, a); const bb = flightEndpoints(game, b);
-  const ta = workBetween(game, flightDeparture(a), a.arrives); const tb = workBetween(game, flightDeparture(b), b.arrives);
   const pausedA = (a.enginesDisabledUntil ?? 0) > game.hour, pausedB = (b.enginesDisabledUntil ?? 0) > game.hour;
-  const va = pausedA ? { x: 0, y: 0 } : { x: (aa.to.x - aa.from.x) / ta, y: (aa.to.y - aa.from.y) / ta };
-  const vb = pausedB ? { x: 0, y: 0 } : { x: (bb.to.x - bb.from.x) / tb, y: (bb.to.y - bb.from.y) / tb };
+  const va = pausedA ? { x: 0, y: 0 } : fleetVelocity({ ...game, hour: Math.max(game.hour, a.departed) }, a);
+  const vb = pausedB ? { x: 0, y: 0 } : fleetVelocity({ ...game, hour: Math.max(game.hour, b.departed) }, b);
   if (Math.abs(va.x * vb.y - va.y * vb.x) > 1e-6) return Infinity;
-  const start = Math.max(a.departed, b.departed, pausedA || pausedB ? game.hour : 0);
+  const start = Math.max(a.departed, b.departed, pausedA || pausedB || a.route?.course || b.route?.course ? game.hour : 0);
   const pa = fleetPosition({ ...game, hour: start }, a); const pb = fleetPosition({ ...game, hour: start }, b);
   const vx = va.x - vb.x; const vy = va.y - vb.y;
   const speed2 = vx * vx + vy * vy;
@@ -35,6 +33,7 @@ export function encounterHour(game: FlightWorld & { rules?: PublicRules }, a: Fl
     const dx = pa.x - pb.x - offset.x, dy = pa.y - pb.y - offset.y;
     const elapsed = -(dx * vx + dy * vy) / speed2;
     const hour = afterWork(game, start, elapsed);
+    if (hour > Math.min(nextFlightVertex(game, a), nextFlightVertex(game, b)) + CONTACT_TOLERANCE) continue;
     if (pausedA && hour > a.enginesDisabledUntil! || pausedB && hour > b.enginesDisabledUntil!) continue;
     if (a.lastContacts?.some(c => c.id === b.id && Math.abs(c.hour - hour) < 1e-9)) continue;
     if (elapsed >= -CONTACT_TOLERANCE && Math.hypot(dx + vx * elapsed, dy + vy * elapsed) < 1e-6 && hour < Math.min(a.arrives, b.arrives) - CONTACT_TOLERANCE) earliest = Math.min(earliest, hour);

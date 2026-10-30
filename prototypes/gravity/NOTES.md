@@ -29,4 +29,4 @@ Do curved, gravity-bent hauler courses feel good and stay legible on a real char
 
 ## Verdict
 
-_To fill in after Max plays with it._
+Integrated as an opt-in gameplay variant in mechanics revision 19. See [gravity rules](../../docs/gravity.md). The engine keeps fixed ballistic courses, neutral giants, and speed-integrated timing, with safe powered detours when no coasting solution exists. Interceptors fly straight under power. Specialist-created antigravity wells and interactive shadow overlays remain separate work. This sandbox remains available for tuning experiments.

@@ -1,3 +1,5 @@
+/** Accepts a validated shared replay. Ordinals apply after clamping, only at exact groups. */
+import { routePosition } from '../game/flight-route';
 import { travelProgress } from '../game/opening-clock';
 import { moveReplayScene } from './motion';
 import { sitePosition } from '../game/drift';
@@ -29,7 +31,7 @@ function locate(replay: SharedReplay, hour: number, ordinal?: number) {
   return { hour: clamped, index, group, exact, ordinal: ordinal ?? group.states.length - 1 };
 }
 
-/** Accepts a validated shared replay. Ordinals apply after clamping, only at exact groups. */
+
 export function seekReplay(replay: SharedReplay, hour: number, ordinal?: number): ReplayScene {
   const at = locate(replay, hour, ordinal);
   const source = at.exact ? at.group.states[at.ordinal] : replay.spans[at.index]?.scene;
@@ -70,5 +72,6 @@ export function replayFleetPosition(scene: ReplayScene, fleet: ReplayFleet): Poi
     leg = { from, to: wrappedBounds(scene) ? nearestImage(scene, from, to) : to };
   }
   const progress = travelProgress(scene, Math.max(fleet.departed, fleet.enginesDisabledUntil ?? 0), fleet.arrives, scene.hour);
+  if (leg.course) return wrapPoint(scene, routePosition(leg, progress));
   return wrapPoint(scene, { x: leg.from.x + (leg.to.x - leg.from.x) * progress, y: leg.from.y + (leg.to.y - leg.from.y) * progress });
 }

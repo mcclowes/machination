@@ -3,6 +3,8 @@
  * purpose: Validate versioned local snapshots before they reach the simulation or replace saved progress.
  * ---
  */
+import { validRoute } from './flight-route';
+
 import { validTemporalSave } from './temporal-save';
 import { isTemporalKind, temporalEnabled } from './temporal';
 import { validCompact } from './compact-save';
@@ -116,7 +118,7 @@ export function decodeSave(raw: string): Save {
       || !(f.module === undefined || isModule(f.module))
       || !finite(f.arrives) || f.arrives <= g.hour || f.arrives <= f.departed) return fail();
     if (f.route !== undefined) {
-      if (!record(f.route) || !record(f.route.from) || !record(f.route.to)
+      if (!validRoute(f.route, !!rules?.gravity) || !record(f.route.from) || !record(f.route.to)
         || !finite(f.route.from.x) || !finite(f.route.from.y) || !finite(f.route.to.x) || !finite(f.route.to.y)
         || g.version === 1 && f.from !== f.to || !(g.version === 2 || f.intercept || f.returning === true)) return fail();
     }

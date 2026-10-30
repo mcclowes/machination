@@ -6,6 +6,8 @@
  *   - ../contracts/snapshot.ts - live and historical envelope decoding
  * ---
  */
+import { validRoute } from './flight-route';
+
 import { temporalEnabled, isTemporalKind } from './temporal';
 import { validCompact } from './compact-save';
 import { validDrift } from './drift';
@@ -64,7 +66,7 @@ function fleet(value: unknown, world: World, sites: ReadonlySet<string>): value 
     || !['preparing', 'courseChanged', 'returning', 'interceptionReturn', 'courseLocked'].every(key => optional(value, key, flag))
     || !optional(value, 'thrust', thrust => thrust === 1.5)) return false;
   if (!optional(value, 'heldAt', site => temporalEnabled(world) && text(site) && sites.has(site) && value.to === site)) return false;
-  if (!optional(value, 'route', route => record(route) && point(route.from) && point(route.to))) return false;
+  if (!optional(value, 'route', route => validRoute(route, !!world.rules?.gravity))) return false;
   if (!optional(value, 'intercept', intercept => record(intercept) && text(intercept.home) && sites.has(intercept.home) && optional(intercept, 'target', fleetId))) return false;
   if (!optional(value, 'pendingCourse', course => record(course) && player(course.owner, world) && text(course.to) && sites.has(course.to) && nonnegative(course.executeAt))) return false;
   return optional(value, 'lastContacts', contacts => list(contacts, contact => record(contact) && fleetId(contact.id) && nonnegative(contact.hour)));

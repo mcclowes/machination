@@ -10,7 +10,7 @@ test('doubles creates two fixed pairs and preserves current starting resources',
   const game = createConfiguredGame({ playerCount: 4, mode: 'mining', teamFormat: '2v2' }, 0, 471);
   assert.deepEqual(game.rules!.teams!.members, [['you', 'vesper'], ['null', 'aether']]);
   assert.equal(game.rules!.victoryTarget, 300);
-  assert.equal(game.rules!.mechanicsVersion, 18);
+  assert.equal(game.rules!.mechanicsVersion, 19);
   assert.equal(game.rocks.length, 40);
   assert.equal(game.rocks.filter(rock => rock.kind === 'mine').length, 4);
   assert.equal(game.cargo.you, 5);

@@ -5,6 +5,9 @@
  *   - ./simulation.test.ts - behavioral scenarios
  * ---
  */
+import type { FlightRoute } from './flight-route';
+import { gravityCourse } from './gravity';
+
 import { cloneTemporalIntelligence, recordTemporalAction, recordTemporalCommand, settleHindsight, nextHindsightEvent, refreshForesight, type TemporalIntelligence } from './temporal-intelligence';
 import { requireUnfrozen, nextTemporalFacilityEvent, settleTemporalFacilities, holdStasisArrival } from './temporal-facilities';
 import { nextDilationEvent } from './temporal-travel';
@@ -34,7 +37,7 @@ import { nextRouteEncounter, routeCandidates, resolveRouteEncounters } from './r
 import { LAUNCH_PREPARATION, completePreparations } from './transport';
 import { nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
-import { transferDuration, type Point } from './flight';
+import { transferDuration, nextFlightVertex, type Point } from './flight';
 import { isActionPlan, actionEventLabel, executeScheduledAction } from './future-actions';
 import type { ScheduledOrder } from './orders';
 import { recentEvents, type GameEvent } from './events';
@@ -51,7 +54,7 @@ export type Rock = {
   sensorJammedUntil?: number; miningDisabledUntil?: number; pulseDisabled?: true; specialists?: Specialist[]; shieldBonus?: number; destroyed?: true;
   coreOf?: Faction; module?: ModuleKind;
 };
-export type Fleet = { heldAt?: string; thrust?: 1.5; enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: { from: Point; to: Point }; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
+export type Fleet = { heldAt?: string; thrust?: 1.5; enginesDisabledUntil?: number; sensorJammedUntil?: number; id: number; owner: Faction; from: string; to: string; drones: number; departed: number; arrives: number; preparing?: true; speed?: number; lastContacts?: { id: number; hour: number }[]; specialists?: Specialist[]; giftAt?: number; pendingCourse?: { owner: Faction; to: string; executeAt: number }; courseChanged?: true; module?: ModuleKind; route?: FlightRoute; intercept?: { target?: number; home: string }; returning?: true; interceptionReturn?: true; courseLocked?: true };
 export type Game = {
   temporalIntel?: TemporalIntelligence;
   compact?: BeltCompact;
@@ -106,7 +109,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   const speed = specialistSpeed(game, owner, manifest, to.owner === owner);
   const duration = game.version === 2 ? Math.max(1e-6, worldDistance(game, from, to) / speed) : travelHours(from, to, module, game.version);
   const departed = game.hour + (game.version === 2 ? LAUNCH_PREPARATION : 0);
-  const course = game.version === 2 && (from.drift || to.drift) ? stationCourse(game, from, to, speed, departed) : undefined;
+  const course = gravityCourse(game, from, to, speed, departed, owner) ?? (game.version === 2 && (from.drift || to.drift) ? stationCourse(game, from, to, speed, departed) : undefined);
   const result = withPulseMovement({
     ...game, nextId: game.nextId + (fleetId === undefined ? 1 : 0),
     rocks: game.rocks.map(r => {
@@ -152,7 +155,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     });
     const contacts = mechanicsVersion(game) >= 5 ? routeCandidates(game) : undefined;
     const routeHour = game.version === 2 ? contacts ? Math.min(...contacts.map(c => c.hour)) : nextRouteEncounter(game) : Infinity;
-    const naturalBoundary = Math.min(nextHindsightEvent(game), nextTemporalFacilityEvent(game), nextDilationEvent(game), nextCouncilEvent(game), game.version === 2 ? Math.min(nextEconomyEvent(game), routeHour, nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.flatMap(f => f.pendingCourse ? [f.pendingCourse.executeAt] : []), ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
+    const naturalBoundary = Math.min(...game.fleets.map(f => nextFlightVertex(game, f)), nextHindsightEvent(game), nextTemporalFacilityEvent(game), nextDilationEvent(game), nextCouncilEvent(game), game.version === 2 ? Math.min(nextEconomyEvent(game), routeHour, nextSpecialistEvent(game)) : Infinity, Math.floor(game.hour) + 1, nextArrival, ...game.fleets.flatMap(f => f.pendingCourse ? [f.pendingCourse.executeAt] : []), ...game.fleets.filter(f => f.preparing).map(f => f.departed), ...quotaTimes, ...(game.scheduled ?? []).map(p => p.executeAt));
     const boundary = Math.min(targetHour, naturalBoundary);
     const pulseEvent = nextPulseEvent(game, boundary);
     const candidate = Math.abs(boundary - pulseEvent) < 1e-9 ? boundary : Math.min(boundary, pulseEvent);
