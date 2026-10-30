@@ -8,6 +8,7 @@ import { createTrainingAttempt } from '../game/training';
 import { applyCommand, createArchive } from '../game/replay';
 import { encodeOperation } from '../game/operation-save';
 import { advance } from '../game/simulation';
+import { OPERATION_MOTION_NATIVE, OPERATION_MOTION_PREFERENCE } from '../test-support/operation-motion-host';
 
 const require = createRequire(import.meta.url);
 const React = require('react') as typeof import('react');
@@ -43,21 +44,24 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
       plugins: [{ name: 'launch-native-hosts', setup(builder) {
         builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
         builder.onResolve({ filter: /\/SpaceBackground$/ }, () => ({ path: 'sky', namespace: 'launch-sky' }));
+        builder.onResolve({ filter: /use-ambient-motion$/ }, () => ({ path: 'motion', namespace: 'launch-host' }));
         builder.onLoad({ filter: /.*/, namespace: 'launch-sky' }, () => ({ contents: 'export const SpaceBackground=()=>null;' }));
         const stubs: Record<string, string> = {
+          motion: OPERATION_MOTION_PREFERENCE,
           'react-native': `import React from 'react';
             export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView';
             export const Modal=({visible,children,...props})=>visible?React.createElement('Modal',props,children):null;
             export const StyleSheet={create:x=>x,absoluteFillObject:{},hairlineWidth:1},Platform={OS:'web',select:x=>x.web??x.default};
             export const useWindowDimensions=()=>({width:1200,height:800,scale:1,fontScale:1});
             export const Dimensions={get:()=>({width:1200,height:800})},PanResponder={create:x=>({panHandlers:x})};
-            export const AppState={currentState:'active',addEventListener:(name)=>globalThis[${JSON.stringify(key)}].subscribe(name)},Keyboard={dismiss(){},addListener:name=>globalThis[${JSON.stringify(key)}].subscribe(name)};`,
+            export const AppState={currentState:'active',addEventListener:(name)=>globalThis[${JSON.stringify(key)}].subscribe(name)},Keyboard={dismiss(){},addListener:name=>globalThis[${JSON.stringify(key)}].subscribe(name)};
+            ${OPERATION_MOTION_NATIVE}`,
           'react-native-safe-area-context': `export const SafeAreaProvider='SafeAreaProvider',SafeAreaView='SafeAreaView';`,
           'expo-status-bar': `export const StatusBar='StatusBar';`,
           'expo-crypto': `export const randomUUID=()=> 'launch-host-uuid';`,
           'expo-clipboard': `export const setStringAsync=async()=>true;`,
           '@react-native-async-storage/async-storage': `export default globalThis[${JSON.stringify(key)}].storage;`,
-          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',Rect='Rect',Stop='Stop';`,
+          'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText',Defs='Defs',LinearGradient='LinearGradient',RadialGradient='RadialGradient',Rect='Rect',Stop='Stop';`,
         };
         builder.onResolve({ filter: /OnlineOperation$/ }, () => ({ path: 'online-boundary', namespace: 'launch-host' }));
         builder.onResolve({ filter: /notification-wiring$/ }, () => ({ path: 'notification-boundary', namespace: 'launch-host' }));

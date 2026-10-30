@@ -64,7 +64,7 @@ function relevantWells(map: MapSize, wells: readonly Well[], a: Point, b: Point,
 type Flight = { points: Point[]; miss: number; valid: boolean };
 
 /**
- * Fly from a with an initial heading offset (tangent `aim` off the chord) until crossing b's perpendicular.
+ * Fly from a with an initial heading `aim` off the chord until crossing b's perpendicular.
  * Gravity turns the heading toward each well, so the course curves with the mass on the inside.
  * Shape ignores owner speed so every intelligence flies the same course between two sites.
  */
@@ -72,7 +72,8 @@ export function fly(a: Point, b: Point, aim: number, wells: readonly Well[], tun
   const cx = b.x - a.x, cy = b.y - a.y, length = Math.hypot(cx, cy) || 1;
   const ux = cx / length, uy = cy / length, nx = -uy, ny = ux;
   const steps = tuning.samples * 3, ds = length / steps;
-  let dx = ux + aim * nx, dy = uy + aim * ny;
+  // Rational parametrisation spans ±90° without trig: aim ±1 is perpendicular to the chord.
+  let dx = ux * (1 - aim * aim) + nx * 2 * aim, dy = uy * (1 - aim * aim) + ny * 2 * aim;
   let dl = Math.hypot(dx, dy); dx /= dl; dy /= dl;
   let p = { x: a.x, y: a.y };
   const points = [p];
@@ -101,7 +102,7 @@ export function fly(a: Point, b: Point, aim: number, wells: readonly Well[], tun
   return { points, miss: 0, valid: false };
 }
 
-const AIMS = 41, MAX_AIM = 1.5, BISECTIONS = 48;
+const AIMS = 61, MAX_AIM = 0.9, BISECTIONS = 48;
 
 const pathLength = (points: readonly Point[]) => points.reduce((sum, q, i) => i ? sum + Math.hypot(q.x - points[i - 1]!.x, q.y - points[i - 1]!.y) : 0, 0);
 
@@ -149,6 +150,16 @@ function shootLeg(a: Point, b: Point, wells: readonly Well[], tuning: Tuning): {
     if (!best || pathLength(points) < pathLength(best)) best = points;
   }
   return best ? orient(best, 1) : orient([{ ...start }, { ...end }], 0);
+}
+
+/** True when a hauler can coast from `from` to `to` without a burn. Used to shade shadows. */
+export function coastable(map: MapSize, from: Point, to: Point, wells: readonly Well[], tuning: Tuning): boolean {
+  const end = nearestImage(map, from, to);
+  const near = relevantWells(map, wells, from, end, tuning.reach);
+  // A straight chord that never enters any influence circle is already a coasting course.
+  if (near.every(w => segmentDistance(w, from, end) >= tuning.reach + w.radius)) return true;
+  const swap = from.x > end.x || from.x === end.x && from.y > end.y;
+  return swap ? coast(end, from, near, tuning) !== null : coast(from, end, near, tuning) !== null;
 }
 
 export function speedFactor(p: Point, wells: readonly Well[], tuning: Tuning, owner: string | null): number {

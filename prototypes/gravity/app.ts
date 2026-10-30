@@ -5,7 +5,7 @@
  */
 import { generateWorld } from '../../src/game/generated-world';
 import type { Faction } from '../../src/game/players';
-import { DEFAULT_TUNING, placeGiants, plotCourse, positionAt, speedFactor, wrapPoint, type Course, type Point, type Tuning, type Well } from './model';
+import { coastable, DEFAULT_TUNING, placeGiants, plotCourse, positionAt, speedFactor, wrapPoint, type Course, type Point, type Tuning, type Well } from './model';
 
 const PLAYERS: Faction[] = ['you', 'vesper', 'null'];
 const OWNER_COLORS: Record<string, string> = { you: '#4fb3ff', vesper: '#ff6b6b', null: '#e0c84f', aether: '#ff9ae6', umbra: '#9a9aff', orbit: '#5fe0e0' };
@@ -24,7 +24,8 @@ const state = {
   sites: [] as Site[], width: 100, height: 100,
   antigravity: [] as Well[], waypoints: [] as Point[],
   from: null as Site | null, to: null as Site | null,
-  allRoutes: false, field: false, chord: true,
+  allRoutes: false, field: false, chord: true, shadows: true,
+  shadowCells: [] as Point[], shadowKey: '',
   course: null as Course | null, launchedAt: null as number | null, hour: 0, playRate: 2,
 };
 
@@ -63,6 +64,33 @@ function drawField(all: Well[]): void {
     if (Math.abs(f - 1) < 0.03) continue;
     ctx.fillStyle = f > 1 ? `rgba(123,224,138,${Math.min(0.5, (f - 1) * 0.5)})` : `rgba(255,138,92,${Math.min(0.5, (1 - f) * 0.9)})`;
     ctx.fillRect(i * size, j * size, size + 0.5, size + 0.5);
+  }
+}
+
+const SHADOW_CELLS = 45;
+
+/** Cells a coasting hauler from the selected site can't reach. Cached because each cell is a full course solve. */
+function shadowCells(all: Well[]): Point[] {
+  const from = state.from!;
+  const key = JSON.stringify([from.id, all, state.tuning, state.sites.length, state.seed]);
+  if (key === state.shadowKey) return state.shadowCells;
+  const blocking = all.filter(w => w.id !== from.id);
+  const size = state.width / SHADOW_CELLS, cells: Point[] = [];
+  for (let i = 0; i < SHADOW_CELLS; i++) for (let j = 0; j < SHADOW_CELLS; j++) {
+    const p = { x: (i + 0.5) * size, y: (j + 0.5) * size };
+    if (blocking.some(w => Math.hypot(w.x - p.x, w.y - p.y) < w.radius * 1.3)) continue;
+    if (!coastable(state, from, p, blocking, state.tuning)) cells.push(p);
+  }
+  state.shadowKey = key; state.shadowCells = cells;
+  return cells;
+}
+
+function drawShadows(all: Well[]): void {
+  const size = canvas.width / SHADOW_CELLS;
+  ctx.fillStyle = 'rgba(150, 110, 255, 0.28)';
+  for (const p of shadowCells(all)) {
+    const c = toCanvas(p);
+    ctx.fillRect(c.x - size / 2, c.y - size / 2, size + 0.5, size + 0.5);
   }
 }
 
@@ -111,6 +139,7 @@ function render(): void {
   ctx.fillStyle = '#0b0d14'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   const all = wells();
   if (state.field) drawField(all);
+  if (state.shadows && state.from) drawShadows(wells([state.from.id]));
 
   for (const w of all) {
     if (w.id.startsWith('giant')) {
@@ -118,7 +147,11 @@ function render(): void {
       const c = toCanvas(w);
       eachImage((ox, oy) => { ctx.beginPath(); ctx.arc(c.x + ox, c.y + oy, reach, 0, Math.PI * 2); ctx.strokeStyle = '#c9a2ff55'; ctx.lineWidth = 1; ctx.stroke(); });
       dot(w, w.radius * scale(), '#6b4fa8', '#c9a2ff');
-    } else if (w.mass < 0) dot(w, 8, '#1a1a24', OWNER_COLORS[w.owner ?? ''] ?? '#fff');
+    } else if (w.mass < 0) {
+      const reach = (state.tuning.reach + w.radius) * scale(), c = toCanvas(w), color = OWNER_COLORS[w.owner ?? ''] ?? '#fff';
+      eachImage((ox, oy) => { ctx.beginPath(); ctx.arc(c.x + ox, c.y + oy, reach, 0, Math.PI * 2); ctx.strokeStyle = `${color}66`; ctx.setLineDash([3, 4]); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); });
+      dot(w, 8, '#1a1a24', color);
+    }
   }
 
   if (state.from && state.allRoutes) {
@@ -225,6 +258,7 @@ bindCheck('ownerAware', v => { state.tuning.ownerAware = v; });
 bindCheck('allRoutes', v => { state.allRoutes = v; });
 bindCheck('field', v => { state.field = v; });
 bindCheck('chord', v => { state.chord = v; });
+bindCheck('shadows', v => { state.shadows = v; });
 $<HTMLSelectElement>('mode').addEventListener('change', e => { state.mode = (e.target as HTMLSelectElement).value as Mode; });
 $<HTMLSelectElement>('antiOwner').addEventListener('change', e => { state.antigravityOwner = (e.target as HTMLSelectElement).value; });
 $('clear').addEventListener('click', () => { state.antigravity = []; state.waypoints = []; state.launchedAt = null; replot(); });

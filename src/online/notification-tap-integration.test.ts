@@ -13,6 +13,7 @@ import { Failure, GameService } from '../../server/service';
 import { createApi } from '../../server/http';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { playerAppearance } from '../game/players';
+import { OPERATION_MOTION_NATIVE, OPERATION_MOTION_PREFERENCE } from '../test-support/operation-motion-host';
 
 const require = createRequire(import.meta.url);
 const React = require('react') as typeof import('react');
@@ -22,7 +23,7 @@ const text = (node: Node | string): string => typeof node === 'string' ? node : 
 const KEY = '__notificationTapIntegration';
 const globals = globalThis as typeof globalThis & Record<string, any>;
 
-// Real App, OnlineOperation, notification hooks, HTTP API, and GameService. Only native IO is replaced:
+// Real App, OnlineOperation, notification hooks, HTTP API, and GameService. Native IO and decorative motion are replaced:
 // secure storage, crypto, and the notification device. This is host evidence, not native tap acceptance.
 const bundles = new Map<boolean, Promise<string>>();
 // The account variant configures Clerk with a host stub; the server decides whether its token is accepted.
@@ -33,6 +34,7 @@ const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(acco
     builder.onResolve({ filter: /^react(?:\/.*)?$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
     const host = (path: string) => ({ path, namespace: 'tap-host' });
     builder.onResolve({ filter: /\/SpaceBackground$/ }, () => host('sky'));
+    builder.onResolve({ filter: /use-ambient-motion$/ }, () => host('motion'));
     builder.onResolve({ filter: /\/audio\/sound$/ }, () => host('audio'));
     builder.onResolve({ filter: /replay\/files$/ }, () => host('replay-files'));
     builder.onResolve({ filter: /\/notification-device$/ }, () => host('notification-device'));
@@ -40,6 +42,7 @@ const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(acco
     const g = `globalThis[${JSON.stringify(KEY)}]`;
     const stubs: Record<string, string> = {
       sky: 'export const SpaceBackground=()=>null;',
+      motion: OPERATION_MOTION_PREFERENCE,
       audio: 'export const playSound=()=>{},useSoundCues=()=>{},useSoundEnabled=()=>false,setSoundEnabled=()=>{};',
       'replay-files': `export const pickSharedReplay=()=>{throw new Error('replay file')},saveSharedReplay=()=>{throw new Error('replay file')};`,
       'notification-device': `export * from ${JSON.stringify(new URL('./notification-device.ts', import.meta.url).pathname)}; export const loadNotificationDevice=async()=>{${g}.loads++;return ${g}.device;};`,
@@ -49,7 +52,8 @@ const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(acco
         export const StyleSheet={create:x=>x,absoluteFillObject:{},hairlineWidth:1},Platform={OS:'ios',select:x=>x.ios??x.native??x.default};
         export const useWindowDimensions=()=>({width:1200,height:800,scale:1,fontScale:1});
         export const Dimensions={get:()=>({width:1200,height:800})},PanResponder={create:x=>({panHandlers:x})},Linking={openURL:async()=>{}};
-        export const AppState={currentState:'background',addEventListener:()=>({remove(){}})},Keyboard={dismiss(){},isVisible:()=>false,addListener:()=>({remove(){}})};`,
+        export const AppState={currentState:'background',addEventListener:()=>({remove(){}})},Keyboard={dismiss(){},isVisible:()=>false,addListener:()=>({remove(){}})};
+        ${OPERATION_MOTION_NATIVE}`,
       'react-native-safe-area-context': `export const SafeAreaProvider='SafeAreaProvider',SafeAreaView='SafeAreaView';`,
       'react-native-svg': `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText',Defs='Defs',RadialGradient='RadialGradient',LinearGradient='LinearGradient',Stop='Stop';`,
       'expo-status-bar': `export const StatusBar='StatusBar';`,

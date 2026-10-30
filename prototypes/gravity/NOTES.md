@@ -24,7 +24,8 @@ Do curved, gravity-bent hauler courses feel good and stay legible on a real char
 - With a long-tailed falloff, every course got faster everywhere, which is just a higher base speed. The compact falloff fixed this: only routes through the reach circle change.
 - v1 used an elastic band pulled toward wells. Max spotted it hugged the giant in an S-wiggle; a real course aims wide and arcs back. Replaced with the ballistic solver.
 - With ballistic arcs, the slingshot is roughly neutral at the defaults (about −1% to −2%), because the wider course offsets the speed gain. That's a tradeoff, not a flat buff.
-- Antigravity shadows are a real emergent mechanic: a well can make sites behind it reachable only with a burn detour.
+- Antigravity shadows are a real emergent mechanic. Repulsion deflects passing courses outward, so the area behind a well that no coasting course can reach fans out with distance. The sandbox shades it. Measured from a site 12u from the well (seed 7): 4% of the chart at mass 0.25, 13% at 1, 21% at 1.5, and 32% at 3. Giants alone shade about 3%, mostly close behind them. Mass 1.5 is too strong for a hero ability; something nearer 0.5 looks right.
+- Shading costs about 2s per selection (2,025 cells, each a full course solve). That's fine for the sandbox, but the engine would need a cheaper reachability check or precomputed shadows.
 
 ## Verdict
 

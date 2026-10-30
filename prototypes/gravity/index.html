@@ -26,7 +26,7 @@
 <canvas id="chart" width="900" height="900"></canvas>
 <aside>
   <p class="note"><strong>Prototype #104.</strong> Click a site, then a destination. Courses are plotted once at launch. The dashed line is the straight chord.</p>
-  <p class="note key">Course speed:<span style="background:#7be08a"></span>faster<span style="background:#ff8a5c"></span>slower<span style="background:#e8e8f0"></span>base</p>
+  <p class="note key">Course speed:<span style="background:#7be08a"></span>faster<span style="background:#ff8a5c"></span>slower<span style="background:#e8e8f0"></span>base<span style="background:rgba(150,110,255,.6);height:10px"></span>shadow</p>
   <pre id="readout"></pre>
   <fieldset>
     <legend>Flight</legend>
@@ -63,6 +63,7 @@
     <label class="check"><input id="allRoutes" type="checkbox"> Show every course from the selected site</label>
     <label class="check"><input id="field" type="checkbox"> Show the speed field</label>
     <label class="check"><input id="chord" type="checkbox" checked> Show the straight chord</label>
+    <label class="check"><input id="shadows" type="checkbox" checked> Shade shadows: places the selected site can't reach without a burn</label>
   </fieldset>
 </aside>
 <script src="dist/app.js"></script>
