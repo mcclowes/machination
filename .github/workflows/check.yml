@@ -25,9 +25,13 @@ jobs:
       - run: npm ci
       - run: npm run check:quality
   behavior:
-    name: Behavior
+    name: Behavior ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     env:
       CI: '1'
     steps:
@@ -37,7 +41,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm test -- --suite-timeout=1800000
+      - run: npm test -- --suite-timeout=1800000 --test-shard=${{ matrix.shard }}/4
   server:
     name: Server packaging
     runs-on: ubuntu-latest
