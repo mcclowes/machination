@@ -51,6 +51,30 @@ export function decodeDatabaseSource(source: Uint8Array): string {
 
 type Candidate = { room: Room; index: number; damaged: boolean };
 
+// Stored game/replay shapes are shallow; reserve ample clone/stringify headroom for database wrappers.
+const MAX_STORED_CONTAINER_DEPTH = 128;
+function assertStoredDepth(value: unknown): void {
+  const pending = [{ value, depth: 0 }];
+  const depths = new WeakMap<object, number>();
+  while (pending.length) {
+    const { value: item, depth } = pending.pop()!;
+    if (typeof item === 'number' && !Number.isFinite(item))
+      throw new Error('Server database contains a non-finite number.');
+    if (!item || typeof item !== 'object') continue;
+    if (depth >= MAX_STORED_CONTAINER_DEPTH)
+      throw new Error('Server database nesting exceeds the supported storage depth.');
+    if ((depths.get(item) ?? -1) >= depth) continue;
+    depths.set(item, depth);
+    const children =
+      item instanceof Map
+        ? [...item.keys(), ...item.values()]
+        : item instanceof Set
+          ? [...item]
+          : Object.values(item);
+    for (const child of children) pending.push({ value: child, depth: depth + 1 });
+  }
+}
+
 function ambiguousRoomIndices(candidates: readonly Candidate[]): Set<number> {
   const references = new Map<string, number[]>();
   for (const { index, room, damaged } of candidates) {
@@ -74,32 +98,38 @@ export function recoverStoredDatabase(
   stored: unknown,
   mode: DatabaseRecoveryMode = 'strict',
 ): { database: Database; rejected: number[] } {
-  const database = structuredClone(
-    stored === undefined ? { version: 1, rooms: [] } : protectReportState(stored),
-  ) as Database;
+  const original = (stored === undefined ? { version: 1, rooms: [] } : stored) as Database;
+  if (
+    !original ||
+    typeof original !== 'object' ||
+    Array.isArray(original) ||
+    original.version !== 1 ||
+    !Array.isArray(original.rooms)
+  )
+    throw new Error('Unsupported server database.');
+  const metadata = protectReportState({ ...original, rooms: [] });
+  assertStoredDepth(metadata);
+  const database = structuredClone(metadata) as Database;
+  JSON.stringify(database);
   const rejected: number[] = [];
   if (stored !== undefined) {
-    if (
-      !database ||
-      typeof database !== 'object' ||
-      Array.isArray(database) ||
-      database.version !== 1 ||
-      !Array.isArray(database.rooms)
-    )
-      throw new Error('Unsupported server database.');
-    validateQuarantine(database);
+    validateQuarantine({ ...database, rooms: original.rooms });
     validateFactions({ ...database, rooms: [] });
     const ids = new Set<string>();
     const candidates: Candidate[] = [];
-    for (const [index, r] of database.rooms.entries()) {
+    for (const [index, raw] of original.rooms.entries()) {
       try {
+        assertStoredDepth(raw);
+        const r = structuredClone(raw);
         validateStoredRoom(r, ids);
         validateFactionMembership(r, database.factions);
+        assertStoredDepth(r);
+        JSON.stringify(r);
         ids.add(r.id);
         candidates.push({ room: r, index, damaged: false });
       } catch (error) {
         if (mode !== 'quarantine') throw error;
-        candidates.push({ room: r, index, damaged: true });
+        candidates.push({ room: raw, index, damaged: true });
       }
     }
     const ambiguous = mode === 'quarantine' ? ambiguousRoomIndices(candidates) : new Set<number>();
@@ -113,7 +143,7 @@ export function recoverStoredDatabase(
   if (rejected.length) {
     database.quarantined = [
       ...(database.quarantined ?? []),
-      ...rejected.map((index) => quarantineIdentity((stored as Database).rooms[index])),
+      ...rejected.map((index) => quarantineIdentity(original.rooms[index])),
     ];
     if (database.notifications !== undefined) {
       const quarantined = new Set(
