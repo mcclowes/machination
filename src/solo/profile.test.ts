@@ -19,9 +19,12 @@ test('profile color persists separately from games, clears, validates, and repor
   assert.deepEqual(await profile.loadProfile(), { preferredColor: 'gold' });
   await assert.rejects(() => profile.saveProfile({ preferredColor: 'invalid' as never }), /known player color/);
   assert.deepEqual(await profile.loadProfile(), { preferredColor: 'gold' });
+  await profile.saveProfile({ preferredColor: 'gold', portrait: 'pilot' });
+  assert.deepEqual(await profile.loadProfile(), { preferredColor: 'gold', portrait: 'pilot' });
+  await assert.rejects(() => profile.saveProfile({ portrait: 'invalid' as never }), /known profile picture/);
   await profile.saveProfile({});
   assert.deepEqual(await profile.loadProfile(), {});
-  for (const invalid of ['null', '[]', '{"preferredColor":"invalid"}', 'broken json']) {
+  for (const invalid of ['null', '[]', '{"preferredColor":"invalid"}', '{"portrait":"invalid"}', 'broken json']) {
     profile.bytes.set('machination.profile.v1', invalid);
     await assert.rejects(() => profile.loadProfile());
     assert.equal(profile.bytes.get('machination.profile.v1'), invalid);

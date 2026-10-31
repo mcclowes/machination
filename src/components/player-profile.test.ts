@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const React = require('react') as typeof import('react');
 const { create, act } = require('react-test-renderer');
 
-test('profile picker loads on demand, saves selections, and restores them on reopen', async t => {
+test('profile picker saves independent selections, updates the home portrait, and restores on reopen', async t => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { value: true, configurable: true });
   t.after(() => { if (previous) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', previous); else Reflect.deleteProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT'); });
@@ -16,6 +16,8 @@ test('profile picker loads on demand, saves selections, and restores them on reo
     stdin: { contents: "export {PlayerProfile} from './src/components/PlayerProfile'; export {loadProfile} from './src/solo/profile';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'esm',
     plugins: [{ name: 'profile-hosts', setup(builder) {
+      builder.onResolve({ filter: /\/(PlayerIdentity|ProfileFaction)$/ }, args => ({ path: args.path, namespace: 'profile-view' }));
+      builder.onLoad({ filter: /.*/, namespace: 'profile-view' }, () => ({ contents: `export const PlayerAvatar='PlayerAvatar', ProfileFaction=()=>null;` }));
       builder.onResolve({ filter: /^react$/ }, () => ({ path: pathToFileURL(require.resolve('react')).href, external: true }));
       builder.onResolve({ filter: /^(react-native|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'profile-host' }));
       builder.onLoad({ filter: /.*/, namespace: 'profile-host' }, args => ({ contents: args.path === 'react-native' ? `
@@ -33,11 +35,19 @@ test('profile picker loads on demand, saves selections, and restores them on reo
   assert.equal(color('Automatic player color').props.accessibilityState.checked, true);
   await act(async () => { await color('gold player color').props.onPress(); });
   assert.equal(color('gold player color').props.accessibilityState.checked, true);
+  assert.equal(color('gold player color').props['aria-checked'], true);
   assert.deepEqual(await loadProfile(), { preferredColor: 'gold' });
+  await act(async () => { await color('Pilot profile picture').props.onPress(); });
+  assert.deepEqual(await loadProfile(), { preferredColor: 'gold', portrait: 'pilot' });
+  assert.equal(color('Pilot profile picture').props['aria-checked'], true);
   await act(async () => { button().at(-1).props.onPress(); });
+  assert.equal(renderer.root.findAll((n: any) => n.type === 'PlayerAvatar')[0].props.character, 'pilot');
   await act(async () => { button()[0].props.onPress(); });
   assert.equal(color('gold player color').props.accessibilityState.checked, true);
+  assert.equal(color('gold player color').props['aria-checked'], true);
   await act(async () => { await color('Automatic player color').props.onPress(); });
+  assert.deepEqual(await loadProfile(), { portrait: 'pilot' });
+  await act(async () => { await color('Automatic profile picture').props.onPress(); });
   assert.deepEqual(await loadProfile(), {});
   await act(async () => { renderer.unmount(); });
 });

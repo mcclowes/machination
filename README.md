@@ -21,7 +21,9 @@ Use `npm run ios` with the iOS Simulator, `npm run android` with an Android emul
 
 ## Play
 
-Open **Player profile** on the start screen to save a preferred color on this device. New solo operations use it independently of the chosen portrait. Multiplayer requests it when creating or joining an operation; if another joined player already has it, the server assigns an available color. Existing operations keep their assigned colors, and players without a preference use an automatic color (teal for the default solo player).
+Open **Player profile** on the start screen to choose a profile picture from the commander portraits and save a preferred color on this device. The profile also contains faction allegiance and standings for your signed-in account or saved multiplayer connection; complete one online operation before choosing a permanent faction.
+
+New solo operations use your preferred color independently of the chosen operation portrait. Multiplayer requests it when creating or joining an operation; if another joined player already has it, the server assigns an available color. Existing operations keep their assigned colors, and players without a preference use an automatic color (teal for the default solo player).
 
 Open **Manual → Specialists cheatsheet** for specialist effects, promotions, recruitment, and combat order. A [Markdown reference](docs/specialists-cheatsheet.md) and [terminology policy](docs/terminology.md) are also available.
 
