@@ -93,6 +93,10 @@ Run `npm run test:visual -- visual-tests/landscape-operations.spec.ts` for local
 
 These are browser interactions with shared React Native styles. Browser viewport resizing doesn't prove native keyboard avoidance, orientation, Dynamic Type, or physical-device behavior.
 
+### Solo camera restoration
+
+Run `npm run test:visual -- visual-tests/solo-camera.spec.ts` to check a fixed seeded save against equal and different initial timestamps. Both cases must frame and inspect the restored core without pressing Focus your territory. The App-level `solo-camera-integration.test.ts` additionally covers same-epoch replacement, failed replacement, and preserving manual pan through commands, automatic ticks, and manual catch-up. Its native and presentation hosts are stubbed; the browser check supplies rendered framing evidence.
+
 ## Screenshot comparisons
 
 `npm run test:visual` runs the production web app in Expo against an isolated

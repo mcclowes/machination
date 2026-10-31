@@ -15,7 +15,7 @@ import { DisruptorControls } from './src/components/DisruptorControls';
 
 import { PulseMoveWarning, PulseControls, PulseLocation } from './src/components/PulseControls';
 import { openingEnabled } from './src/game/opening-clock';
-import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -345,6 +345,7 @@ function Operation({
     setError,
     restartClock,
   } = useLocalOperation(policy, (next) => {
+    resetCamera(next.game);
     setSelected(
       (
         next.game.rocks.find((r) => r.id === practice?.scenario.focus) ??
@@ -372,13 +373,10 @@ function Operation({
   const [mapCamera, setMapCamera] = useState(() => fitPlayerCamera(game, 'you'));
   const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
   const inspectionSequence = useRef(0);
-  const resetCamera = useEffectEvent(() => {
-    setMapCamera(fitPlayerCamera(game, 'you'));
+  function resetCamera(next: Game) {
+    setMapCamera(fitPlayerCamera(next, 'you'));
     setInspectFleet(undefined);
-  });
-  useEffect(() => {
-    resetCamera();
-  }, [game.epoch]);
+  }
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const [resolving, setResolving] = useState(false);
   function inspectTime(hour: number | null) {
@@ -1427,6 +1425,7 @@ function Operation({
                   return;
                 }
                 replace(next);
+                resetCamera(next.game);
                 restartClock();
                 setLoadFailed(false);
                 setError('');

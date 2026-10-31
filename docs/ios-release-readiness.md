@@ -24,6 +24,10 @@ Operation drawers adapt to the available content height. In short layouts, openi
 
 Browser interaction checks cover 844×390, 667×375, 568×320, 320×568, and 1024×768. They require fully unclipped controls through portrait resizing, preserved private drafts and time entries, one accepted transmission with recipient-only delivery, and a successful launch after rotating its manifest into a short layout. These checks don't establish native keyboard avoidance, Dynamic Type, or VoiceOver behavior. See [landscape layout #146](https://github.com/mcclowes/machination/issues/146).
 
+## Saved operation framing
+
+The solo chart fits the adopted map after successful restoration or explicit replacement, including maps with the same creation timestamp. Ordinary commands, clock ticks, and manual catch-up preserve the player's camera. Failed replacement leaves the existing map and framing intact. App-level lifecycle tests cover these boundaries, and browser checks require the restored core to appear without manual refocusing or a clock offset. Native-device framing remains unverified. See [camera adoption #147](https://github.com/mcclowes/machination/issues/147).
+
 ## Delivery order and gates
 
 | Priority | Player outcome | Release gate | Current gap / owner |
