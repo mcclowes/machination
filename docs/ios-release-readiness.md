@@ -8,6 +8,8 @@ The immediate target is a polished, invite-only multiplayer TestFlight release. 
 
 The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build [0.1.0 (4)](native-builds.md#build-4-october-31) is distributed with the HTTP and client-recovery fixes below, plus profile controls, preparing-launch edits, and message-blocking controls, recorded in [#144](https://github.com/mcclowes/machination/issues/144). Physical-device acceptance remains open. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
 
+Build 4 predates the account token binding, short-layout controls, saved-map framing, and gravity observation fixes tracked in [#145](https://github.com/mcclowes/machination/issues/145), [#146](https://github.com/mcclowes/machination/issues/146), [#147](https://github.com/mcclowes/machination/issues/147), and [#149](https://github.com/mcclowes/machination/issues/149). Checkpoint `394c9ab` passes 1,686 behavior tests, 20 server packaging tests, and 90 desktop/touch browser cases with no skips. Its offline iOS Hermes export passes bytecode verification with all 49 assets unchanged. These fixes still need a new native artifact and device acceptance; nothing was deployed or published from this checkpoint.
+
 Code, a passing host test, a simulator session, a signed IPA, and a successful physical-device playtest prove different things. Record the source commit, runtime/device, command or scenario, result, and evidence for each gate. Earlier passing suites don't certify the current source.
 
 ## Client recovery
@@ -27,6 +29,8 @@ Browser interaction checks cover 844×390, 667×375, 568×320, 320×568, and 102
 ## Saved operation framing
 
 The solo chart fits the adopted map after successful restoration or explicit replacement, including maps with the same creation timestamp. Ordinary commands, clock ticks, and manual catch-up preserve the player's camera. Failed replacement leaves the existing map and framing intact. App-level lifecycle tests cover these boundaries, and browser checks require the restored core to appear without manual refocusing or a clock offset. Native-device framing remains unverified. See [camera adoption #147](https://github.com/mcclowes/machination/issues/147).
+
+Live and forecast gravity observations retain the committed curve for position and heading, without exposing hidden contacts or enemy pending orders. Released builds 3 and 4 accept that server data, but their bundled forecast code still drops curves; a service update alone cannot repair their local forecasts. See [gravity observations #149](https://github.com/mcclowes/machination/issues/149).
 
 ## Delivery order and gates
 
