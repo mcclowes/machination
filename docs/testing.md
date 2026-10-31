@@ -71,7 +71,7 @@ Both mining fixtures and domination seed 7 reach the configured quota. Dominatio
 
 Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
 
-Container builds include the same root TypeScript configuration as the host standalone build. Use `scripts/test-server-image.mjs` for the generic image and `scripts/test-railway-image.mjs` for Railway; their mount initialization, process ownership, and data paths intentionally differ. The [current local image checkpoint](railway.md#local-image-checkpoint-october-31) records exact artifacts, copied-backup restoration, and packaging checks against extracted image bytes without rebuilding them. Container checks and host SQL/TLS checks establish separate runtime boundaries.
+Container builds include the same root TypeScript configuration as the host standalone build. Use `scripts/test-server-image.mjs` for the generic image and `scripts/test-railway-image.mjs` for Railway; their mount initialization, process ownership, and data paths intentionally differ. The [current AMD64 image checkpoint](railway.md#local-amd64-checkpoint-october-31) records exact artifacts, copied-backup restoration, and SQL/TLS checks inside both actual service containers under local emulation. The [preceding ARM64 checkpoint](railway.md#local-image-checkpoint-october-31) separately records the complete host packaging suite against extracted image bytes without rebuilding them.
 
 ## Postgres runtime
 

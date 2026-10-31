@@ -17,9 +17,11 @@ Check [current platform status](https://status.railway.com/) before provisioning
 ## Image and local verification
 
 ```sh
-docker build -f Dockerfile.railway -t machination-server:railway .
+docker build --platform linux/amd64 -f Dockerfile.railway -t machination-server:railway .
 node scripts/test-railway-image.mjs
 ```
+
+Select `linux/amd64` explicitly when building on Apple Silicon, as described in [Railway's container guide](https://railway.com/guides/private-container-registry). Local emulation verifies that target's execution, but does not measure hosted capacity.
 
 `Dockerfile.railway` packages the same standalone Node service as the generic Dockerfile. Railway mounts volumes as root, without the ownership initialization Docker provides for ordinary named volumes. The entrypoint requires the expected Railway volume variable, prepares only `/var/lib/machination/state` as UID/GID 1000 with mode 0700, and starts Node through `gosu`. Node replaces the entrypoint as non-root PID 1 and receives SIGTERM directly. The parent volume remains root owned; the game file is private mode 0600. The generic Dockerfile and its runtime user are unchanged. See [Railway volume permissions](https://docs.railway.com/volumes).
 
@@ -35,6 +37,19 @@ Both Docker build stages include the root `tsconfig.json`, so their compiler set
 Both contain the same standalone bundle, SHA-256 `78c2ed2e016391a1e6196ff6ee8b7da5ea149f5a86c5364d870bf5b84e9a902a`. All 277 source-map inputs and every code byte match the full host gate; only 29 generated dependency-path comments differ between installation roots. The general and Railway checks pass separately, including non-root PID 1, read-only runtime, health, graceful stop, and persistence. A separate Railway backup was copied into a fresh volume and restored with identical file bytes and game state, preserving private ownership and permissions.
 
 Without rebuilding it, the exact image-produced bundle passes all 20 packaging checks on host Node 24.14.1 with native PostgreSQL 17/TLS fixtures and zero skips. The container smokes establish actual image execution; the host packaging suite separately establishes those bundle bytes' SQL/TLS behavior. All owned containers and volumes were removed. Evidence is retained in `/private/tmp/machination-155-fixed-images-3_ocbrx9/`. This local checkpoint does not establish a deployment, hosted capacity, or another CPU architecture. See [image verification #155](https://github.com/mcclowes/machination/issues/155).
+
+### Local AMD64 checkpoint, October 31
+
+Source `b25e30d` was frozen as 772 files with manifest SHA-256 `7dfeae124a138e9d221ce013e73b33581cd8ccfa7b3d1f026f9c4dfbf45612a4`. All 280 effective Docker inputs match the preceding checkpoint. Both builds explicitly selected `linux/amd64`:
+
+- Generic local image ID: `sha256:b29a63d087dc350a517e384728559c4a381988837ebe8c05557159567b5d1685`.
+- Railway local image ID: `sha256:c3acd302d203548ad6186b00a98b61b3fd4286115002f22c7ea04fa4a69a22db`.
+
+Both contain the identical 678,802-byte bundle recorded above, SHA-256 `78c2ed2e016391a1e6196ff6ee8b7da5ea149f5a86c5364d870bf5b84e9a902a`. The AMD64 base descriptor is `sha256:e484ae3f1e3c378021c967fd42254f343c302a9263e412280eac32bf5bca7008` from the same pinned base index. Actual service processes report Linux/x64 and Node 24.14.1. Both image checks pass the binary64 runtime guard, non-root PID 1, read-only root, health, graceful shutdown, persistence, and startup refusal cases. A stopped Railway JSON backup was restored into a fresh volume with exact bytes and original game/seat state, preserving private ownership and permissions.
+
+Both actual AMD64 service containers also pass PostgreSQL/TLS checks against an isolated native ARM64 PostgreSQL 17 fixture: required SQL storage, verified custom CA and matching hostname, observed encrypted service connections, persisted writes, and accepted-schedule retry deduplication across restart. An unrelated CA and a hostname mismatch each refuse startup with exit 1 without changing the SQL writer identity. This extends the earlier host-only SQL/TLS check across the actual container boundary. All owned containers, volumes, networks, and temporary private keys were removed.
+
+Execution used local AMD64 emulation on an ARM64 host. It does not establish native AMD64 CI, hosted capacity, deployment, or iOS acceptance. The 21-file evidence index is retained at `/private/tmp/machination-156-amd64-dz8453r3/EVIDENCE.json`, SHA-256 `072235390dff9aaac2989726c5ab4f9c554def604e673465efc2463887d71cb3`. See [deployment-target image verification #156](https://github.com/mcclowes/machination/issues/156).
 
 ## Provisioning
 
