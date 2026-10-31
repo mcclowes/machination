@@ -25,6 +25,17 @@ node scripts/test-railway-image.mjs
 
 The isolated image check rejects a missing volume declaration and exercises a root-owned mount, non-root Node, private directory/file permissions, an authenticated game, graceful shutdown, and state preserved across container replacement. It creates and removes only uniquely named test containers and volumes. This is local container evidence, not Railway runtime evidence.
 
+### Local image checkpoint, October 31
+
+Both Docker build stages include the root `tsconfig.json`, so their compiler settings match the host release gate. Source `1f13fbf` matches the verified 772-file snapshot. Its Linux/arm64 images use Node 24.14.1 and resolved base digest `sha256:b506e7321f176aae77317f99d67a24b272c1f09f1d10f1761f2773447d8da26c`:
+
+- Generic local image ID: `sha256:693f502292075ddd3f7d28de124335dc93b9e97476326452278151af6e51c3cd`.
+- Railway local image ID: `sha256:2fc608f614543146a8088cad80ab87d57b8183a33b73ece1fe6be4d929a679e7`.
+
+Both contain the same standalone bundle, SHA-256 `78c2ed2e016391a1e6196ff6ee8b7da5ea149f5a86c5364d870bf5b84e9a902a`. All 277 source-map inputs and every code byte match the full host gate; only 29 generated dependency-path comments differ between installation roots. The general and Railway checks pass separately, including non-root PID 1, read-only runtime, health, graceful stop, and persistence. A separate Railway backup was copied into a fresh volume and restored with identical file bytes and game state, preserving private ownership and permissions.
+
+Without rebuilding it, the exact image-produced bundle passes all 20 packaging checks on host Node 24.14.1 with native PostgreSQL 17/TLS fixtures and zero skips. The container smokes establish actual image execution; the host packaging suite separately establishes those bundle bytes' SQL/TLS behavior. All owned containers and volumes were removed. Evidence is retained in `/private/tmp/machination-155-fixed-images-3_ocbrx9/`. This local checkpoint does not establish a deployment, hosted capacity, or another CPU architecture. See [image verification #155](https://github.com/mcclowes/machination/issues/155).
+
 ## Provisioning
 
 Use the official CLI (`npx --yes @railway/cli@5.71.0` was inspected for this setup). Authenticate with `railway login`, then run the following from an isolated release directory containing only a committed snapshot. Do not upload the shared working tree while another agent is editing gameplay. Do not copy `.data`, native build trees, local credentials, or synthetic seat files.
