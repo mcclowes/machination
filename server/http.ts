@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { GameService, type AccountCredential } from './service';
 import { Failure } from './failure';
 import { clientAddress, type ClientIpMode } from './client-address';
+import { operatorRequest } from './operator-http';
 import type { NotificationVersion } from './notification-preferences';
 import type { AccountAuthentication } from './auth';
 import type { FundingOrder } from '../src/contracts/protocol';
@@ -49,12 +50,15 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
     return service.join(input.invite, token, input.preferredColor, mechanicsVersion);
   }
-  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications|message-blocks))?$/);
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications|message-blocks|reporting|message-reports))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
   const id = match[1]!, action = match[2];
   switch (req.method) {
     case 'GET':
       switch (action) {
+        case 'reporting':
+          if ([...url.searchParams].length) throw new Failure(400, 'report.validation.query', 'Reporting availability takes no query parameters.');
+          return service.reportingAvailability(id, token);
         case undefined:
           await service.requireClientRules(id, token, mechanicsVersion);
           return service.snapshot(id, token);
@@ -86,9 +90,12 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
       }
     case 'POST': {
       const input = await body(req);
-      if (action !== undefined && !['history', 'replay', 'notifications', 'recover', 'message-blocks'].includes(action))
+      if (action !== undefined && !['history', 'replay', 'notifications', 'recover', 'message-blocks', 'message-reports'].includes(action))
         await service.requireClientRules(id, token, mechanicsVersion);
       switch (action) {
+        case 'message-reports':
+          if ([...url.searchParams].length) throw new Failure(400, 'report.validation.query', 'Message reporting takes no query parameters.');
+          return service.submitMessageReport(id, token, input);
         case 'activity': return service.activity(id, token);
         case 'resign': return service.resign(id, token, input as ResignOrder);
         case 'recovery': return service.setRecovery(id, token, input as RecoverySetup);
@@ -131,7 +138,7 @@ function notificationVersion(url: URL): NotificationVersion {
   if (values.length !== 1 || values[0] !== '2') throw new Failure(400, 'notification.validation.version', 'Only version=2 may be negotiated.');
   return 2;
 }
-export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication, options: { clientIp?: ClientIpMode; clock?: () => number } = {}) {
+export function createApi(service: GameService, origins: string[] = ['http://localhost:8081', 'http://localhost:8082'], authenticate?: AccountAuthentication, options: { clientIp?: ClientIpMode; clock?: () => number; operatorAuthenticate?: AccountAuthentication } = {}) {
   const limits = new Map<string, { count: number; resets: number }>();
   return createServer({ requestTimeout: 10000, headersTimeout: 10000, maxHeaderSize: 8192 }, async (req, res) => {
     const correlationId = randomUUID();
@@ -164,6 +171,10 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         limit = { count: 0, resets: now + 60000 }; limits.set(ip, limit);
       }
       if (++limit.count > 120) { res.setHeader('Retry-After', String(Math.max(1, Math.ceil((limit.resets - now) / 1000)))); throw new Failure(429, 'request.rate_limit.exceeded', 'Too many requests. Try again shortly.'); }
+      if (path.startsWith('/v1/operator/')) {
+        res.end(encode(await operatorRequest(req, url, service, options.operatorAuthenticate, body)));
+        return;
+      }
       const bearer = req.headers.authorization?.match(/^Bearer ([^\s]+)$/)?.[1] ?? '';
       const legacy = /^[a-f0-9]{64}$/.test(bearer);
       const account = authenticate && !legacy ? await authenticate(bearer, origin) : undefined;

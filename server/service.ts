@@ -137,7 +137,22 @@ import { receipt } from './command-receipts';
 import { addGroup, addChannelMessage, addPrivateMessage } from './diplomacy';
 import { isMessageBlocked, messageBlockView, setMessageBlock } from './message-blocks';
 import type { MessageBlockSettings } from '../src/contracts/message-blocks';
+import {
+  reportsAvailable,
+  submitMessageReport,
+  listMessageReports,
+  messageReport,
+  reviewMessageReport,
+} from './message-reports';
+import type {
+  ReportingAvailability,
+  MessageReportReceipt,
+  OperatorMessageReport,
+  MessageReportList,
+  ReportStatus,
+} from '../src/contracts/message-reports';
 export type ServiceOptions = {
+  reportingEnabled?: boolean;
   notifications?: boolean;
   pulse?: PulseConfig;
   databaseRecovery?: DatabaseRecoveryMode;
@@ -158,6 +173,7 @@ export class GameService {
     private initialGame?: typeof createGame,
     private pushAvailable = false,
     private pulseDefaults?: PulseConfig,
+    private reportingEnabled = false,
   ) {}
   static async open(
     source: string | Persistence,
@@ -171,6 +187,7 @@ export class GameService {
       initialGame,
       !!options.notifications,
       options.pulse ? validatePulseConfig(options.pulse) : undefined,
+      !!options.reportingEnabled,
     );
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
@@ -1850,6 +1867,47 @@ export class GameService {
       const room = this.room(db, id);
       return messageBlockView(room, this.seat(room, token));
     });
+  }
+  reportingAvailability(id: string, token: Credential): Promise<ReportingAvailability> {
+    return this.store.read((db) => {
+      const room = this.room(db, id),
+        faction = this.seat(room, token);
+      return {
+        gameId: id,
+        faction,
+        available: this.reportingEnabled && reportsAvailable(db, id, faction),
+      };
+    });
+  }
+  submitMessageReport(
+    id: string,
+    token: Credential,
+    input: unknown,
+  ): Promise<MessageReportReceipt> {
+    return this.transaction((db) => {
+      const room = this.room(db, id),
+        faction = this.seat(room, token);
+      return submitMessageReport(
+        db,
+        room,
+        faction,
+        input,
+        this.now(),
+        this.reportingEnabled,
+        (canonical) => this.identify(room, faction, 'message', canonical),
+      );
+    });
+  }
+  listMessageReports(
+    options: { status?: ReportStatus; after?: string } = {},
+  ): Promise<MessageReportList> {
+    return this.store.read((db) => listMessageReports(db, options));
+  }
+  messageReport(id: string): Promise<OperatorMessageReport> {
+    return this.store.read((db) => messageReport(db, id));
+  }
+  reviewMessageReport(id: string, actor: string, input: unknown): Promise<OperatorMessageReport> {
+    return this.transaction((db) => reviewMessageReport(db, id, actor, input, this.now()));
   }
   setMessageBlock(id: string, token: Credential, input: unknown): Promise<MessageBlockSettings> {
     return this.transaction((db) => {

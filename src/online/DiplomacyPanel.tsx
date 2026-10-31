@@ -16,10 +16,19 @@ import { ReferenceText } from '../components/ReferenceText';
 import { MessageBlockingSettings } from './MessageBlockingSettings';
 import { useMessageBlocks, type MessageBlockSeat } from './useMessageBlocks';
 import { messageBlocksApi, setMessageBlockApi } from './network';
+import { reportingAvailabilityApi, submitMessageReportApi } from './message-reports-network';
+import { useMessageReports } from './useMessageReports';
+import { MessageReportDialog } from './MessageReportDialog';
+import type { ReportTarget } from '../contracts/message-reports';
 
 const MESSAGE_BLOCK_DEPS = {
   read: messageBlocksApi,
   write: setMessageBlockApi,
+  requestId: commandId,
+};
+const MESSAGE_REPORT_DEPS = {
+  read: reportingAvailabilityApi,
+  write: submitMessageReportApi,
   requestId: commandId,
 };
 
@@ -49,6 +58,7 @@ export function useDiplomacyPanel({
   onInspectReference,
 }: Props): React.ReactNode {
   const blocking = useMessageBlocks(seat, MESSAGE_BLOCK_DEPS);
+  const reporting = useMessageReports(seat, MESSAGE_REPORT_DEPS);
   const [thread, setThread] = useState('public');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
@@ -173,6 +183,36 @@ export function useDiplomacyPanel({
         members={snapshot.members}
         faction={snapshot.faction}
       />
+      {reporting.phase === 'loading' && (
+        <Text accessibilityLiveRegion="polite" style={s.detail}>
+          Checking message reporting…
+        </Text>
+      )}
+      {reporting.phase === 'unavailable' && (
+        <Text style={s.detail}>Reporting is unavailable for this operation.</Text>
+      )}
+      {reporting.phase === 'error' && !!reporting.error && (
+        <Text accessibilityRole="alert" style={s.detail}>
+          {reporting.error}
+        </Text>
+      )}
+      {(reporting.phase === 'unavailable' || reporting.phase === 'error') && (
+        <Action
+          text="Check reporting availability"
+          disabled={reporting.working}
+          onPress={reporting.refresh}
+        />
+      )}
+      {!!reporting.selection && !reporting.dialogOpen && (
+        <Action
+          text={reporting.receipt ? 'View report receipt' : 'Resume report'}
+          onPress={reporting.resume}
+        />
+      )}
+      <MessageReportDialog
+        key={JSON.stringify(reporting.selection?.target ?? null)}
+        state={reporting}
+      />
       {!!snapshot.channels && (
         <Action
           text={creating ? 'Cancel group creation' : 'New private group'}
@@ -257,12 +297,32 @@ export function useDiplomacyPanel({
       {messages.length > limit && (
         <Action text="Show earlier messages" onPress={() => setLimit((current) => current + 100)} />
       )}
-      {messages.slice(-limit).map((m) => (
-        <View key={m.id} style={s.message}>
-          <PlayerIdentity faction={m.from} detail={new Date(m.sentAt).toLocaleString()} size={32} />
-          <ReferenceText text={m.text} onInspect={onInspectReference} />
-        </View>
-      ))}
+      {messages.slice(-limit).map((m) => {
+        const target: ReportTarget = recipient
+          ? { kind: 'private', id: m.id as number }
+          : { kind: 'channel', channelId: thread, id: m.id as string };
+        return (
+          <View key={m.id} style={s.message}>
+            <PlayerIdentity
+              faction={m.from}
+              detail={new Date(m.sentAt).toLocaleString()}
+              size={32}
+            />
+            <ReferenceText text={m.text} onInspect={onInspectReference} />
+            {m.from !== snapshot.faction && reporting.available && (
+              <Action
+                text={
+                  reporting.reported(target)
+                    ? 'Report received'
+                    : `Report message from ${FACTIONS[m.from].name}`
+                }
+                disabled={!reporting.canSelect}
+                onPress={() => reporting.select({ target, sender: m.from, text: m.text })}
+              />
+            )}
+          </View>
+        );
+      })}
       {validThread && messages.length === 0 && (
         <Text style={s.detail}>No transmissions in this channel.</Text>
       )}

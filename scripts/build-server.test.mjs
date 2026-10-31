@@ -30,7 +30,7 @@ async function isolatedPostgres(t, databaseUrl = testDatabase, ssl = false) {
 
 async function start(entry, dataFile, configuration = {}) {
   let output = '';
-  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_STORAGE: undefined, DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', MACHINATION_DATABASE_RECOVERY: undefined, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
+  const child = spawn(process.execPath, [entry], { cwd: tmpdir(), env: { ...process.env, NODE_OPTIONS: '', NODE_ENV: 'production', MACHINATION_STORAGE: undefined, DATABASE_URL: '', MACHINATION_DATABASE_TLS: 'verify-full', MACHINATION_DATABASE_CA: '', MACHINATION_DATABASE_RECOVERY: undefined, CLERK_SECRET_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '', MACHINATION_OPERATOR_CLERK_ISSUER: undefined, MACHINATION_OPERATOR_CLERK_JWT_KEY: undefined, MACHINATION_OPERATOR_ACCOUNTS: undefined, MACHINATION_REPORTING_ENABLED: undefined, MACHINATION_PUSH_ENABLED: '0', MACHINATION_CLIENT_IP: 'direct', MACHINATION_HOST: '127.0.0.1', PORT: '0', MACHINATION_DATA: dataFile, ...configuration } });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   child.stderr.on('data', chunk => { output += chunk; });
   let startupTimer;
@@ -186,6 +186,70 @@ test('invalid client IP trust configuration fails explicitly before opening stor
       timeout: 5000, env: { ...process.env, NODE_OPTIONS: '', MACHINATION_STORAGE: undefined, PORT: '0', MACHINATION_CLIENT_IP: mode, MACHINATION_DATA: '/not-a-real-directory/games.json' },
     }), error => error.code === 1 && /MACHINATION_CLIENT_IP must be direct or railway/.test(error.stderr));
   }
+});
+
+test('report collection refuses invalid or missing operator setup before opening storage', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-report-config-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const file = join(directory, 'games.json');
+  const source = 'Operator configuration must be checked before reading this file.';
+  await writeFile(file, source);
+  for (const flag of ['', 'true', 'yes', '1']) {
+    await assert.rejects(() => promisify(execFile)(process.execPath, [fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url))], {
+      timeout: 5000, killSignal: 'SIGKILL', env: { ...process.env, NODE_OPTIONS: '', PORT: '0', MACHINATION_STORAGE: undefined, DATABASE_URL: '', CLERK_ISSUER: '', CLERK_JWT_KEY: '', CLERK_SECRET_KEY: '', MACHINATION_OPERATOR_CLERK_ISSUER: undefined, MACHINATION_OPERATOR_CLERK_JWT_KEY: undefined, MACHINATION_OPERATOR_ACCOUNTS: undefined, MACHINATION_REPORTING_ENABLED: flag, MACHINATION_DATA: file },
+    }), error => error.code === 1 && !error.killed && /MACHINATION_REPORTING_ENABLED|separately configured operator/.test(error.stderr));
+    assert.equal(await readFile(file, 'utf8'), source);
+  }
+});
+
+test('standalone operator authentication reviews reports without changing guest creation or player snapshots', { timeout: 20_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'machination-report-bundle-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const issuer = 'https://operator.clerk.accounts.dev';
+  const configuration = { MACHINATION_REPORTING_ENABLED: '1', MACHINATION_OPERATOR_CLERK_ISSUER: issuer, MACHINATION_OPERATOR_CLERK_JWT_KEY: publicKey.export({ type: 'spki', format: 'pem' }).toString(), MACHINATION_OPERATOR_ACCOUNTS: 'user_operator' };
+  const entry = fileURLToPath(new URL('../dist-server/main.mjs', import.meta.url));
+  const runtime = await start(entry, join(directory, 'games.json'), configuration);
+  t.after(() => runtime.stop());
+  const host = 'a'.repeat(64), guest = 'b'.repeat(64);
+  async function request(token, path, payload) {
+    const response = await fetch(runtime.origin+'/v1/'+path, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/vnd.machination.v2+json, application/json' }, body: payload === undefined ? undefined : JSON.stringify(payload) });
+    assert.equal(response.headers.get('Content-Type'), 'application/vnd.machination.v2+json');
+    return { status: response.status, body: await response.json() };
+  }
+  const room = await request(host, 'games', { options: { playerCount: 2, mode: 'domination' } });
+  assert.equal(room.status, 200);
+  assert.equal((await request(guest, 'join', { invite: room.body.invite })).status, 200);
+  const gamePath = `games/${room.body.id}`;
+  await request(guest, gamePath+'/messages', { requestId: randomUUID(), to: 'you', text: 'Private runtime evidence' });
+  const before = (await request(host, gamePath)).body;
+  assert.equal((await request(host, gamePath+'/reporting')).body.available, true);
+  const report = { requestId: randomUUID(), target: { kind: 'private', id: before.messages[0].id }, reason: 'spam', detail: '' };
+  const accepted = await request(host, gamePath+'/message-reports', report);
+  assert.equal(accepted.status, 200);
+  assert.equal((await request(host, 'operator/message-reports')).status, 401);
+  function session(sub) {
+    const now = Math.floor(Date.now()/1000);
+    const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'fixture' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ iss: issuer, sub, sid: 'sess_operator', iat: now, nbf: now-1, exp: now+120 })).toString('base64url');
+    const content = header+'.'+payload;
+    return content+'.'+sign('RSA-SHA256', Buffer.from(content), privateKey).toString('base64url');
+  }
+  assert.equal((await request(session('user_other'), 'operator/message-reports')).status, 403);
+  const operator = session('user_operator');
+  const path = `operator/message-reports/${accepted.body.caseId}`;
+  const detail = await request(operator, path);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.evidence.text, 'Private runtime evidence');
+  const review = { requestId: randomUUID(), revision: 0, status: 'reviewed', note: 'Runtime review recorded.' };
+  const reviewed = await request(operator, path, review);
+  assert.equal(reviewed.status, 200);
+  assert.equal(reviewed.body.reviews[0].actor, 'user_operator');
+  assert.deepEqual(await request(operator, path, review), reviewed);
+  const after = (await request(host, gamePath)).body;
+  assert.ok(after.serverTime >= before.serverTime);
+  assert.deepEqual({ ...after, serverTime: before.serverTime }, before);
+  assert.deepEqual(await request(host, gamePath+'/message-reports', report), accepted);
 });
 
 test('standalone bundle separates Railway client budgets and keeps health available when throttled', { timeout: 20_000 }, async () => {

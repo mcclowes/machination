@@ -50,6 +50,8 @@ A legacy recovery code can still restore an unlinked seat; link it afterward. Li
 
 ## HTTP authentication
 
+[Operator review](message-reporting.md) has separate issuer, public-key, and allowlist settings. Configuring operators doesn't enable player sign-in or require guest clients to upgrade. Player `CLERK_*` activation remains its own compatible rollout; hosting an operation grants no moderation authority.
+
 When Clerk is configured, new seats require `Authorization: Bearer <Clerk session JWT>`. The same JWT scheme authorizes every linked game, history, replay, and command endpoint. Tokens are fetched afresh for each client request and verified for signature, issuer, expiry, session ID, active session state, and allowed authorized party. Native tokens may omit `azp`; browser requests must have an `azp` matching their allowed `Origin`. See [Clerk token verification](https://clerk.com/docs/reference/backend/verify-token).
 
 | Method | Path | Body | Result |

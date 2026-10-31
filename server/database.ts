@@ -64,6 +64,8 @@ export type Database = {
   factions?: FactionProfile[];
   notifications?: NotificationState;
   quarantined?: QuarantinedOperation[];
+  /** Opaque until reporting reads it; preserve damaged/future evidence without disabling games. */
+  messageReports?: unknown;
 };
 export type DatabaseRecoveryMode = 'strict' | 'quarantine';
 

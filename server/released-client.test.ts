@@ -43,10 +43,10 @@ async function releasedValidators(): Promise<ReleasedValidators> {
   return import(pathToFileURL(file).href);
 }
 
-async function fixture(t: TestContext, now = () => 1000000) {
+async function fixture(t: TestContext, now = () => 1000000, reportingEnabled = false) {
   const directory = await mkdtemp(join(tmpdir(), 'machination-released-client-'));
   const file = join(directory, 'games.json');
-  let service = await GameService.open(file, now);
+  let service = await GameService.open(file, now, undefined, { reportingEnabled });
   let server = createApi(service);
   t.after(async () => {
     if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -60,7 +60,7 @@ async function fixture(t: TestContext, now = () => 1000000) {
     url,
     async restart(authenticate?: AccountAuthentication) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      service = await GameService.open(file, now);
+      service = await GameService.open(file, now, undefined, { reportingEnabled });
       server = createApi(service, undefined, authenticate);
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
       return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -109,6 +109,69 @@ test('a current client’s private block also filters released build 2 snapshots
       error.status === 409 &&
       error.issue === 'message.conflict.blocked',
   );
+});
+
+test('private reports and review never enter actual build 2 snapshots, histories, or shared replays', async (t) => {
+  let now = 1000;
+  const runtime = await fixture(t, () => now, true);
+  let url = runtime.url;
+  const { service } = runtime;
+  const legacy = await releasedValidators();
+  const host = { url, token: 'a'.repeat(64) },
+    guest = { url, token: 'b'.repeat(64) },
+    third = { url, token: 'c'.repeat(64) };
+  const created = (await legacy.releasedApi(host, 'games', {})) as Snapshot;
+  const path = `games/${created.id}`;
+  await legacy.releasedApi(guest, 'join', { invite: created.invite });
+  await legacy.releasedApi(third, 'join', { invite: created.invite });
+  await legacy.releasedApi(guest, path + '/messages', {
+    requestId: 'legacy-report-source-1',
+    to: 'you',
+    text: 'Only this bilateral audience',
+  });
+  await legacy.releasedApi(host, path + '/start', {});
+  now += 2 * 3_600_000;
+  const before = (await legacy.releasedApi(host, path)) as Snapshot;
+  const request = {
+    requestId: 'legacy-report-request-1',
+    target: { kind: 'private' as const, id: before.messages[0]!.id },
+    reason: 'harassment' as const,
+    detail: 'REPORT_ONLY_PRIVATE_DETAIL',
+  };
+  const receipt = await service.submitMessageReport(created.id, host.token, request);
+  await service.reviewMessageReport(receipt.caseId, 'user_operator', {
+    requestId: 'legacy-report-review-1',
+    revision: 0,
+    status: 'reviewed',
+    note: 'PRIVATE_OPERATOR_REVIEW_NOTE',
+  });
+  assert.deepEqual(await legacy.releasedApi(host, path), before);
+  url = await runtime.restart();
+  for (const prior of [host, guest, third]) {
+    const session = { ...prior, url };
+    const snapshot = await legacy.releasedApi(session, path);
+    assert.doesNotMatch(
+      JSON.stringify(snapshot),
+      /REPORT_ONLY_PRIVATE_DETAIL|PRIVATE_OPERATOR_REVIEW_NOTE|messageReports/,
+    );
+    const headers = { Authorization: `Bearer ${session.token}` };
+    const history = await fetch(`${url}/v1/${path}/history?hour=1`, { headers });
+    const historical = await history.json();
+    assert.equal(history.status, 200);
+    legacy.historicalResponse(created.id, 1, historical);
+    assert.doesNotMatch(
+      JSON.stringify(historical),
+      /REPORT_ONLY_PRIVATE_DETAIL|PRIVATE_OPERATOR_REVIEW_NOTE|messageReports/,
+    );
+    const replay = await fetch(`${url}/v1/${path}/replay?from=0&through=1`, { headers });
+    const source = await replay.text();
+    assert.equal(replay.status, 200);
+    legacy.decodeSharedReplay(source);
+    assert.doesNotMatch(
+      source,
+      /REPORT_ONLY_PRIVATE_DETAIL|PRIVATE_OPERATOR_REVIEW_NOTE|Only this bilateral audience|messageReports/,
+    );
+  }
 });
 
 test('released TestFlight build 2 can decode a default HTTP creation response', async (t) => {

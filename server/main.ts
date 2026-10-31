@@ -13,6 +13,7 @@ import { createApi } from './http';
 import { clientIpMode } from './client-address';
 import { databaseRecoveryMode } from './database-recovery';
 import { clerkAuthentication } from './auth';
+import { operatorAuthentication } from './operator-auth';
 import { expoPushProvider, pushConfiguration } from './expo-push';
 import { NotificationWorker } from './push-worker';
 const SHUTDOWN_GRACE_MS = 15_000;
@@ -45,6 +46,12 @@ async function main() {
     },
     origins,
   );
+  const operatorAuthenticate = operatorAuthentication(process.env, origins);
+  const reportingFlag = process.env.MACHINATION_REPORTING_ENABLED;
+  if (reportingFlag !== undefined && reportingFlag !== '0' && reportingFlag !== '1')
+    throw new Error('MACHINATION_REPORTING_ENABLED must be 0 or 1.');
+  if (reportingFlag === '1' && !operatorAuthenticate)
+    throw new Error('Message reporting requires separately configured operator authentication.');
   const storage = databaseUrl
     ? await openPostgres(
         databaseUrl,
@@ -60,6 +67,7 @@ async function main() {
     const service = await GameService.open(storage ?? dataFile, Date.now, undefined, {
       databaseRecovery: recovery,
       notifications: push.enabled,
+      reportingEnabled: reportingFlag === '1',
       ...(process.env.MACHINATION_PULSE_CONFIG
         ? {
             pulse: validatePulseConfig({
@@ -75,7 +83,7 @@ async function main() {
           expoPushProvider({ accessToken: push.accessToken }),
         )
       : undefined;
-    const server = createApi(service, origins, authenticate, { clientIp });
+    const server = createApi(service, origins, authenticate, { clientIp, operatorAuthenticate });
     let closing = false;
     function shutdownFailed(error: unknown) {
       console.error(

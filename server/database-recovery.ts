@@ -14,6 +14,7 @@ import { quarantineIdentity, validateQuarantine } from './operation-quarantine';
 import { validateNotifications, filterRoomNotifications } from './notification-state';
 import { finished, validateFactions, validateFactionMembership } from './factions';
 import { TextDecoder } from 'node:util';
+import { archiveReportState, protectReportState, reportMemberSource } from './report-source';
 
 export function databaseRecoveryMode(value: string | undefined): DatabaseRecoveryMode {
   if (value === undefined) return 'quarantine';
@@ -23,7 +24,18 @@ export function databaseRecoveryMode(value: string | undefined): DatabaseRecover
 
 export function parseStoredDatabase(source: string): unknown {
   try {
-    return JSON.parse(source);
+    const stored: unknown = JSON.parse(source);
+    const reportSource = reportMemberSource(source);
+    if (
+      reportSource !== undefined &&
+      stored &&
+      typeof stored === 'object' &&
+      !Array.isArray(stored)
+    ) {
+      const database = stored as Record<string, unknown>;
+      database.messageReports = archiveReportState(database.messageReports, reportSource);
+    }
+    return stored;
   } catch {
     throw new Error('Damaged server database JSON.');
   }
@@ -63,7 +75,7 @@ export function recoverStoredDatabase(
   mode: DatabaseRecoveryMode = 'strict',
 ): { database: Database; rejected: number[] } {
   const database = structuredClone(
-    stored === undefined ? { version: 1, rooms: [] } : stored,
+    stored === undefined ? { version: 1, rooms: [] } : protectReportState(stored),
   ) as Database;
   const rejected: number[] = [];
   if (stored !== undefined) {

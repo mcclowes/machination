@@ -11,6 +11,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { serializedReportState } from './report-source';
 import type { Database, DatabaseRecoveryMode, Persistence } from './database';
 import {
   decodeDatabaseSource,
@@ -44,7 +45,13 @@ const SCHEMA = [
   `alter table machination_state enable row level security`,
   `alter table machination_quarantine enable row level security`,
 ];
-const STATE_KEYS = ['version', 'factions', 'notifications', 'quarantined'] as const;
+const STATE_KEYS = [
+  'version',
+  'factions',
+  'notifications',
+  'quarantined',
+  'messageReports',
+] as const;
 
 export class WriterReplacedError extends Error {
   constructor() {
@@ -221,7 +228,9 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
         const database: Record<string, unknown> = {
           rooms: roomRows.map((row) => JSON.parse(row.data)),
         };
-        for (const row of stored) database[row.key] = JSON.parse(row.data);
+        for (const row of stored)
+          database[row.key] =
+            row.key === 'messageReports' ? serializedReportState(row.data) : JSON.parse(row.data);
         rooms = new Map(
           roomRows.map((row, i) => [row.id, JSON.stringify((database.rooms as unknown[])[i])]),
         );

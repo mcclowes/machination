@@ -19,7 +19,7 @@ function rejection(data: unknown): { detail: string; issue?: string } {
   return { detail: typeof message?.detail === 'string' ? message.detail : 'Command was not accepted.',
     ...(record(first) && typeof first.issue === 'string' ? { issue: first.issue } : {}) };
 }
-async function request(session: RequestSession, path: string, payload?: unknown, signal?: AbortSignal): Promise<unknown> {
+export async function request(session: RequestSession, path: string, payload?: unknown, signal?: AbortSignal): Promise<unknown> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort);
