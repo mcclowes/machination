@@ -123,6 +123,7 @@ type Props<T extends ChartRock> = {
   player?: Faction;
   onInspectFleet?: () => void;
   onManageFleet?: (id: number) => void;
+  launchOrders?: (fleet: Fleet) => React.ReactNode;
   inspectFleet?: { request: number; id?: number };
   fleetReference?: (fleet: Fleet) => string | undefined;
   combatObservation?: CombatObservation;
@@ -147,6 +148,7 @@ export function BeltMap<T extends ChartRock>({
   player,
   onInspectFleet,
   onManageFleet,
+  launchOrders,
   inspectFleet,
   fleetReference,
   combatObservation,
@@ -995,6 +997,7 @@ export function BeltMap<T extends ChartRock>({
               }}
             />
           </View>
+          {fleet.preparing && fleet.owner === player && launchOrders?.(fleet)}
           {combatObservation && (
             <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />
           )}

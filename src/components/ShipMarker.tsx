@@ -13,6 +13,17 @@ type Props = { color: string; drones: number; heading: number; selected?: boolea
 export function ShipMarker({ color, drones, heading, selected, preparing, enginesDisabled }: Props) {
   const { animate } = useAmbientMotion();
   const [burn] = useState(() => new Animated.Value(1));
+  const [bounce] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    bounce.setValue(0);
+    if (!animate || !preparing) return;
+    const timing = (toValue: number) => Animated.timing(bounce, {
+      toValue, duration: 1000, easing: Easing.inOut(Easing.sin), useNativeDriver: nativeDriver, isInteraction: false,
+    });
+    const motion = Animated.loop(Animated.sequence([timing(-3), timing(0)]));
+    motion.start();
+    return () => motion.stop();
+  }, [animate, preparing, bounce]);
   const flying = !preparing && !enginesDisabled;
   useEffect(() => {
     burn.setValue(1);
@@ -24,7 +35,7 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
     pulse.start();
     return () => pulse.stop();
   }, [animate, flying, selected, burn]);
-  return <View pointerEvents="none" accessible={false} aria-hidden style={styles.marker}>
+  return <Animated.View testID="ship-motion" pointerEvents="none" accessible={false} aria-hidden style={[styles.marker, { transform: [{ translateY: bounce }] }]}>
     {selected && <Animated.View testID="ship-selection-beacon" style={[styles.beacon, {
       borderColor: color,
       opacity: burn.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.35] }),
@@ -66,7 +77,7 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
     <View style={styles.manifest}>
       <Text style={styles.count}>{drones}</Text>
     </View>
-  </View>;
+  </Animated.View>;
 }
 
 const styles = StyleSheet.create({

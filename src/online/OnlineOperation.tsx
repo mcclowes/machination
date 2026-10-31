@@ -1248,6 +1248,26 @@ function ConnectedOperation({
             setSection(null);
           }}
           onManageFleet={() => setSection('orders')}
+          launchOrders={(fleet) => (
+            <HaulerOrders
+              fleets={[fleet]}
+              rocks={game.rocks}
+              hour={game.hour}
+              scheduledAt={forecast ? inspectedHour! : undefined}
+              enabled={
+                !!operational &&
+                (!forecast ||
+                  futureCommandFleets(game, snapshot.game, snapshot.faction).some(
+                    (f) => f.id === fleet.id,
+                  )) &&
+                !game.winner &&
+                !game.draw &&
+                !game.eliminated.includes(snapshot.faction)
+              }
+              title={past ? 'Historical launch order · read-only' : 'Launch order'}
+              onCommand={(change) => siteAction({ type: 'hauler', change })}
+            />
+          )}
           onTransfer={
             operational && !game.winner && !game.draw && navigating === undefined
               ? (from, to) => {

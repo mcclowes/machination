@@ -41,7 +41,7 @@ async function motionHost(platform: string, check: (host: any) => Promise<void>)
               export const StyleSheet={create:x=>x},Platform={OS:${JSON.stringify(platform)}},useWindowDimensions=()=>({width:1200});
               export const AccessibilityInfo={isReduceMotionEnabled:()=>host.motion,addEventListener:host.subscribe};
               export const AppState={currentState:'active',addEventListener:host.subscribe};
-              export const Easing={ease:x=>x,cubic:x=>x,out:x=>x,inOut:x=>x};
+              export const Easing={sin:x=>x,ease:x=>x,cubic:x=>x,out:x=>x,inOut:x=>x};
               const animation=()=>({start(){host.running.add(this)},stop(){host.running.delete(this)}});
               export const Animated={View:'AnimatedView',Value:class{constructor(value){this.value=value}setValue(value){this.value=value}interpolate(){return this}},
                 timing:(value,config)=>{if(config.isInteraction!==false||config.useNativeDriver!==${platform !== 'web'})throw Error('Motion must not block input or use per-frame native JS');return animation()},sequence:animation,loop:animation};` }));
@@ -78,7 +78,16 @@ for (const platform of ['web', 'ios']) test(`hauler animation respects flight st
     await host.resolve(false);
     assert.ok(host.running.size > 0, 'In-flight engines pulse');
     await host.render(host.ShipMarker, { ...props, preparing: true });
-    assert.equal(host.running.size, 0, 'Docked ships have no engine animation');
+    assert.equal(host.running.size, 1, 'Preparing ships gently bounce without engine animation');
+    assert.equal(host.root().findAllByProps({ testID: 'ship-engine-glow' }).length, 0);
+    await host.emit('reduceMotionChanged', true);
+    assert.equal(host.running.size, 0, 'Reduced motion stops the preparation bounce');
+    await host.emit('reduceMotionChanged', false);
+    assert.equal(host.running.size, 1);
+    await host.emit('change', 'background');
+    assert.equal(host.running.size, 0, 'Backgrounding pauses the preparation bounce');
+    await host.emit('change', 'active');
+    assert.equal(host.running.size, 1);
     await host.render(host.ShipMarker, { ...props, enginesDisabled: true });
     assert.equal(host.running.size, 0, 'Disabled engines stay still');
     await host.render(host.ShipMarker, { ...props, enginesDisabled: true, selected: true });

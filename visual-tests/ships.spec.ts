@@ -57,3 +57,25 @@ test('directional ships keep counts and inspection readable', async ({ page }, i
   await page.getByRole('button', { name: 'Close hauler details', exact: true }).click();
   await expect(ship.getByTestId('ship-selection')).toHaveCount(0);
 });
+
+
+test('clicking a preparing ship opens and updates its launch order', async ({ page }, info) => {
+  await page.clock.setFixedTime(new Date(epoch));
+  await page.addInitScript(raw => localStorage.setItem('machination.game.v1', raw), saved);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
+  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
+  await page.getByRole('button', { name: /hauler, preparing launch, 24 drones/ }).filter({ visible: true }).first().click();
+  const inspector = page.getByTestId('hauler-inspector');
+  const manifest = inspector.getByRole('textbox', { name: /Edit launch manifest/ });
+  await expect(manifest).toHaveValue('24');
+  await manifest.fill('12');
+  await inspector.getByRole('button', { name: 'Update manifest', exact: true }).click();
+  await expect(inspector.getByText(/12 drones/).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /hauler, preparing launch, 12 drones/ }).first()).toBeAttached();
+  await page.screenshot({ path: `.fettle/shots/preparing-launch-order-${info.project.name}.png` });
+  await inspector.getByRole('button', { name: 'Cancel launch and return manifest', exact: true }).click();
+  await expect(inspector).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /hauler, preparing launch/ })).toHaveCount(0);
+});

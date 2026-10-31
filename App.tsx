@@ -824,6 +824,24 @@ function Operation({
             player="you"
             onInspectFleet={() => setSection(null)}
             onManageFleet={() => setSection('orders')}
+            launchOrders={(fleet) => (
+              <HaulerOrders
+                fleets={[fleet]}
+                rocks={shown.rocks}
+                hour={shown.hour}
+                scheduledAt={forecast ? inspectedHour! : undefined}
+                enabled={
+                  !!operational &&
+                  (!forecast ||
+                    futureCommandFleets(shown, live, 'you').some((f) => f.id === fleet.id)) &&
+                  !shown.winner &&
+                  !shown.draw &&
+                  !shown.eliminated.includes('you')
+                }
+                title={historical ? 'Historical launch order · read-only' : 'Launch order'}
+                onCommand={(change) => siteAction({ type: 'hauler', change })}
+              />
+            )}
             onTransfer={
               operational && !shown.winner && !shown.draw && navigating === undefined
                 ? prepareTransfer
