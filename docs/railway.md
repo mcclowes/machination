@@ -1,6 +1,6 @@
 # Railway playtest deployment
 
-Deploy one API service with one persistent volume. The mobile client uses its generated HTTPS domain. No separate database or frontend service is required for invited native playtests. Public signup, distribution signing, and push delivery are separate work.
+Run one API service. The mobile client uses its generated HTTPS domain. Authoritative state now lives in Supabase Postgres; the retained Railway volume holds the old import file. See the [migration evidence](postgres-deployment.md). Public signup, distribution signing, and push delivery are separate work.
 
 ## Account and platform status
 
@@ -10,9 +10,9 @@ Project: `61507efc-e9c6-43d4-ac4b-6c1555170576`; service: `591b78ad-6b17-42ed-86
 
 Live acceptance passes HTTPS health, a three-seat host start, an authorized transfer, exact retry deduplication, recipient-only private delivery, anonymous/foreign credential rejection, and rejection of an unapproved browser origin. A controlled Railway restart retains all three seats, the message, the fleet, and its retry receipt. Logs show shutdown draining and a fresh service start; Railway reports deployment success. Readback confirms one replica, sleeping disabled, `/health`, no overlap, 20-second draining, and always-restart. The volume is attached at `/var/lib/machination` and ready.
 
-**Backups remain incomplete.** Railway rejected the daily-backup request because manual backups and schedules require a Pro workspace on this account. No plan upgrade was made. The schedule query returns no enabled schedules. Independent backup download also remains unverified: Railway's file command requires SSH keys, temporary key registration failed without registering a key, and an explicit-identity SSH attempt returned a temporarily unavailable agent path. Runtime UID and permissions are proven by the local container check, not by cloud SSH inspection. Do not claim cloud backup, restore, native remote networking, or automatic client configuration from these HTTP checks.
+**Cloud restore remains unverified.** Railway volume backups were unavailable on the initial plan. A restricted backup was later downloaded and the service migrated to Supabase, where a daily physical backup was observed. The owner declined paid PITR. A local PGlite restore rehearsal passed, but restoring a provider-managed backup into an isolated cloud project is still open. The retained volume is stale after SQL writes; it cannot serve as a current fallback. See the [backup evidence and limits](postgres-deployment.md#backup-evidence-and-limits).
 
-Railway also reports paused new signups and intermittent builds in US East and EU West. Check [current status](https://status.railway.com/) before provisioning. These are platform observations, not evidence that a deployment succeeded.
+Check [current platform status](https://status.railway.com/) before provisioning; availability is separate from evidence that a deployment succeeded.
 
 ## Image and local verification
 
@@ -54,7 +54,7 @@ railway api --file deploy/railway-service-update.graphql --variables @/private/t
 
 The variables object is `{ "serviceId": "...", "environmentId": "...", "input": <settings object> }`. These API settings use the current CLI instead of creating a deprecated `railway.json` or `railway.toml`. Do not send `builder: "DOCKERFILE"`: Docker is detected through the Dockerfile path/variable, but that value is absent from the live API input enum and was rejected. A future IaC import can use `railway config pull`; do not install agent plugins or modify account tooling as part of deploying the service.
 
-Confirm one replica, sleeping off, `/health`, zero overlap, and a 20-second drain. Use the project's selected region for its volume and service. Do not create a second writer against the same snapshot. Railway currently requires Pro for its daily volume backups; a paid Hobby workspace is insufficient. Until that is enabled, establish an independent restricted backup before opening real player operations or replacing/restoring data. Follow the stop-and-backup procedure in [hosting](hosting.md), using `/var/lib/machination/state/games.json` for this image.
+Confirm one replica, sleeping off, `/health`, zero overlap, and a 20-second drain. Do not create a second writer against the same state. The file-storage example above is for a new isolated playtest; do not apply it to the migrated production service. Keep its Postgres requirement and URL. Before replacing or restoring authoritative state, verify the SQL backup and selected recovery point; the old `/var/lib/machination/state/games.json` file no longer contains later accepted writes.
 
 Then deploy and obtain a generated HTTPS domain:
 

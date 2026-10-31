@@ -1,6 +1,6 @@
 # Postgres storage
 
-Set `MACHINATION_STORAGE=postgres` and `DATABASE_URL` together to store game state in Postgres. Supabase is the intended host. Explicit Postgres mode refuses missing, empty, or whitespace-only URLs before opening game state, so a deployment cannot silently return to a stale JSON import file.
+Set `MACHINATION_STORAGE=postgres` and `DATABASE_URL` together to store game state in Postgres. Supabase hosts the deployed state; see the [migration evidence and remaining gates](postgres-deployment.md). Explicit Postgres mode refuses missing, empty, or whitespace-only URLs before opening game state, so a deployment cannot silently return to a stale JSON import file.
 
 Use `MACHINATION_STORAGE=file` for local file storage; that mode refuses a nonempty `DATABASE_URL`. Invalid mode names, including an empty setting, fail startup. Leaving the mode entirely unset preserves the earlier URL-based selection for compatibility: a URL chooses Postgres, and an absent URL chooses the file. That compatibility behavior does not enforce a required backend. Hosted Postgres releases must keep the explicit setting.
 
@@ -27,7 +27,7 @@ On startup, if Postgres has no game state and `MACHINATION_DATA` points to an ex
 ## Supabase setup
 
 1. Create a Pro project in the same region as the Railway service. Free projects pause when idle.
-2. Enable point-in-time recovery.
+2. Confirm the actual backup schedule and recovery point. The current owner declined paid point-in-time recovery; the deployed project showed daily physical backups. Provider-managed isolated restore remains a release gate. See the [recorded backup decision](postgres-deployment.md#backup-evidence-and-limits).
 3. Stage `MACHINATION_STORAGE=postgres` together with a direct or session-pooler **database connection string** in the server's `DATABASE_URL` secret. Replace any prior `file` selection. Use the exact hostname and username from the project's Connect dialog. Don't use the HTTP API URL or an API key, and never expose it through `EXPO_PUBLIC_` settings. Keep the direct/session connection choice from #111; don't substitute transaction mode for this release path.
 4. Keep `MACHINATION_DATABASE_TLS=verify-full`, or leave it unset. Every connection encrypts traffic and verifies the certificate chain and the exact URL hostname. If the endpoint's CA isn't in Node's default trust roots, download the provider root certificate from the project's Database settings and supply its PEM text as the server-only `MACHINATION_DATABASE_CA` secret. This replaces the default trust roots; never put it in `EXPO_PUBLIC_` settings. Follow [Supabase's connection and SSL guidance](https://supabase.com/docs/guides/database/connecting-to-postgres) for the chosen direct or session endpoint, and enable the provider's enforcement of encrypted connections separately.
 5. Stop the old writer, deploy one instance, and check `Game state stored in Postgres.` and the first-boot import line. Verify an authenticated synthetic operation, a retry, private delivery, and preserved access after restart. `/health` is listener liveness, so it can't establish storage readiness.
