@@ -47,7 +47,7 @@ test('isolated haulers and operation drawers animate and honor reduced motion', 
     resolveExtensions: ['.web.ts', '.web.tsx', '.web.js', '.ts', '.tsx', '.js', '.json'],
     plugins: [{ name: 'motion-portrait-context', setup(builder) {
       builder.onResolve({ filter: /\/PlayerIdentity$/ }, () => ({ path: 'portraits', namespace: 'motion-portrait-context' }));
-      builder.onLoad({ filter: /.*/, namespace: 'motion-portrait-context' }, () => ({ contents: `export const PlayerPortraits={Provider:({children})=>children};` }));
+      builder.onLoad({ filter: /.*/, namespace: 'motion-portrait-context' }, () => ({ contents: `export const PlayerRoster=({children})=>children;` }));
     } }],
   });
   page.on('pageerror', error => { throw error; });
