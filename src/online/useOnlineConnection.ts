@@ -99,15 +99,24 @@ export function useOnlineConnection(
   }
   const restoreStored = useEffectEvent(() =>
     run(async () => {
-      const stored = !account
-        ? await restoreSession()
-        : operationId
-          ? ((await restoreSession(account.accountId, operationId)) ?? {
-              ...(await newSession(url)),
-              ...account,
-              id: operationId,
-            })
-          : ((await restoreSession(account.accountId)) ?? (await restoreSession()));
+      let stored: Session | null;
+      if (!account) stored = await restoreSession();
+      else if (!operationId)
+        stored = (await restoreSession(account.accountId)) ?? (await restoreSession());
+      else {
+        stored = await restoreSession(account.accountId, operationId);
+        if (!stored) {
+          const device = await restoreSession();
+          stored =
+            device?.id === operationId
+              ? device
+              : {
+                  ...(await newSession(url)),
+                  ...account,
+                  id: operationId,
+                };
+        }
+      }
       if (!stored) return;
       const saved = stored.accountId && account ? { ...stored, ...account } : stored;
       setUrl(saved.url);

@@ -508,17 +508,17 @@ test('a valid account link with an invalidated legacy seat keeps the terminal se
 
 test('an account cold start with no stored seat waits through a transient restore failure, then opens on retry', async t => {
   const s = await scenario(t, { account: 'valid', linked: true, stored: false });
-  s.failing.session = true;
+  s.failing.game = true;
   s.fake.setLast(s.tapFor(s.current));
   await s.mount();
   assert.match(s.visible(), /Temporarily unavailable/);
   assert.match(s.visible(), /waiting for this operation to reconnect/);
   assert.doesNotMatch(s.visible(), /was not opened/);
   assert.equal(s.fake.calls.cleared, 0, 'the tap is still pending after a failed account restore');
-  s.failing.session = false;
+  s.failing.game = false;
   await s.press('Retry notification');
   assert.ok(s.signalsOpen(), 'the restored account seat confirms its binding and opens Signals');
-  assert.equal(s.requests.filter(r => r === 'GET /v1/account/session').length, 2, 'one automatic restore and one explicit retry');
+  assert.equal(s.requests.filter(r => r === `GET /v1/games/${s.room.id}`).length, 2, 'one automatic restore and one explicit retry');
   assert.deepEqual(s.requests.filter(r => r.startsWith('POST ')), []);
 });
 
@@ -530,5 +530,5 @@ test('an account cold start rejected by the server is terminal for the tap', asy
   assert.match(s.visible(), /was not opened because it does not match/);
   assert.doesNotMatch(s.visible(), /waiting for this operation/);
   assert.equal(s.fake.calls.cleared, 1);
-  assert.equal(s.requests.filter(r => r === 'GET /v1/account/session').length, 1, 'no automatic retry');
+  assert.equal(s.requests.filter(r => r === `GET /v1/games/${s.room.id}`).length, 1, 'no automatic retry');
 });

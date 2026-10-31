@@ -17,7 +17,9 @@ const React = require('react') as typeof import('react');
 const { create, act } = require('react-test-renderer');
 const KEY = '__multiOperationHost';
 const globals = globalThis as typeof globalThis & Record<string, any>;
-type Client = typeof import('./client') & typeof import('./useOnlineConnection') & typeof import('./network');
+type Client = typeof import('./client') &
+  typeof import('./useOnlineConnection') &
+  typeof import('./network');
 type Connection = ReturnType<Client['useOnlineConnection']>;
 
 // Real connection, storage, and HTTP service; only native platform I/O is replaced.
@@ -52,7 +54,10 @@ async function clientBundle(): Promise<Client> {
               'export default {getItem:async()=>null,setItem:async()=>{},removeItem:async()=>{}};',
           };
           builder.onResolve(
-            { filter: /^(react-native|expo-secure-store|expo-crypto|@react-native-async-storage\/async-storage)$/ },
+            {
+              filter:
+                /^(react-native|expo-secure-store|expo-crypto|@react-native-async-storage\/async-storage)$/,
+            },
             (args) => ({ path: args.path, namespace: 'multi-operation-host' }),
           );
           builder.onLoad({ filter: /.*/, namespace: 'multi-operation-host' }, (args) => ({
@@ -62,7 +67,9 @@ async function clientBundle(): Promise<Client> {
       },
     ],
   });
-  return import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
+  return import(
+    `data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`
+  );
 }
 
 test('an account opens, creates, and resumes several operations with separate saved connections', async (t) => {
@@ -89,8 +96,20 @@ test('an account opens, creates, and resumes several operations with separate sa
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const alice = { accountId: 'user_alice' };
   const account = { ...alice, getToken: async () => 'session-alice' };
-  const first = await service.create(alice, undefined, undefined, undefined, 'existing-operation-01');
-  const second = await service.create(alice, undefined, undefined, undefined, 'existing-operation-02');
+  const first = await service.create(
+    alice,
+    undefined,
+    undefined,
+    undefined,
+    'existing-operation-01',
+  );
+  const second = await service.create(
+    alice,
+    undefined,
+    undefined,
+    undefined,
+    'existing-operation-02',
+  );
   const priorServer = process.env.EXPO_PUBLIC_GAME_SERVER;
   process.env.EXPO_PUBLIC_GAME_SERVER = url;
   t.after(() => {
@@ -105,7 +124,11 @@ test('an account opens, creates, and resumes several operations with separate sa
     for (const renderer of renderers.splice(0)) await act(async () => renderer.unmount());
     connection = undefined;
     function Harness() {
-      connection = client.useOnlineConnection(account, { onConnected() {}, onCompleted() {}, onReset() {} }, operationId);
+      connection = client.useOnlineConnection(
+        account,
+        { onConnected() {}, onCompleted() {}, onReset() {} },
+        operationId,
+      );
       return null;
     }
     await act(async () => {
@@ -126,16 +149,38 @@ test('an account opens, creates, and resumes several operations with separate sa
   const legacy: Session = { url, token: 'f'.repeat(64), accountId: alice.accountId, id: first.id };
   native.set('machination.online.v1.user_alice', JSON.stringify(legacy));
   assert.equal((await mount(first.id)).snapshot?.id, first.id);
-  assert.equal(native.has('machination.online.v1.user_alice'), false, 'the old single slot moves to its operation slot');
+  assert.equal(
+    native.has('machination.online.v1.user_alice'),
+    false,
+    'the old single slot moves to its operation slot',
+  );
   assert.equal((await client.restoreSession(alice.accountId, first.id))?.id, first.id);
 
+  const deviceToken = 'd'.repeat(64);
+  const deviceRoom = await service.create(deviceToken);
+  await client.storeSession({ url, token: deviceToken, id: deviceRoom.id });
   const opened = await mount(second.id);
   assert.equal(opened.snapshot?.id, second.id);
+  assert.equal(
+    (await client.restoreSession())?.id,
+    deviceRoom.id,
+    'another operation cannot borrow or replace the saved device seat',
+  );
+  await client.storeSession(null);
   assert.equal((await client.restoreSession(alice.accountId, second.id))?.id, second.id);
-  assert.equal((await client.restoreSession(alice.accountId, first.id))?.id, first.id, 'opening one operation keeps the other');
+  assert.equal(
+    (await client.restoreSession(alice.accountId, first.id))?.id,
+    first.id,
+    'opening one operation keeps the other',
+  );
 
   // A draft creation that is retried returns the same operation instead of starting another.
-  const draft: Session = { url, token: 'e'.repeat(64), accountId: alice.accountId, requestId: 'draft-creation-request' };
+  const draft: Session = {
+    url,
+    token: 'e'.repeat(64),
+    accountId: alice.accountId,
+    requestId: 'draft-creation-request',
+  };
   native.set('machination.online.v1.user_alice', JSON.stringify(draft));
   const created = (await mount()).snapshot!.id;
   native.set('machination.online.v1.user_alice', JSON.stringify(draft));
@@ -144,7 +189,10 @@ test('an account opens, creates, and resumes several operations with separate sa
 
   assert.equal((await mount()).session, null, 'without an operation or draft, setup opens');
   await act(async () => {
-    await connection!.enter(false, false, { invite: '', options: { playerCount: 2, mode: 'mining' } });
+    await connection!.enter(false, false, {
+      invite: '',
+      options: { playerCount: 2, mode: 'mining' },
+    });
   });
   const fresh = connection!;
   assert.ok(fresh.snapshot?.id);

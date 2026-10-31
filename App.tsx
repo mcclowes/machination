@@ -290,7 +290,11 @@ function HomeMenu({ open }: { open: (mode: Mode, operationId?: string) => void }
             </View>
           ))}
           {deviceSeat && (
-            <Button label="Resume multiplayer operation" quiet={!!solo} onPress={() => open('online')} />
+            <Button
+              label="Resume multiplayer operation"
+              quiet={!!solo}
+              onPress={() => open('online')}
+            />
           )}
         </View>
       )}
@@ -298,7 +302,11 @@ function HomeMenu({ open }: { open: (mode: Mode, operationId?: string) => void }
       {!solo && <Button label="Open solo operation" quiet onPress={() => open('solo')} />}
       {!deviceSeat && (
         <Button
-          label={multiplayer.length ? `All multiplayer operations (${multiplayer.length})` : 'Open multiplayer uplink'}
+          label={
+            multiplayer.length
+              ? `All multiplayer operations (${multiplayer.length})`
+              : 'Open multiplayer uplink'
+          }
           quiet
           onPress={() => open('online')}
         />

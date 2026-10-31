@@ -13,7 +13,7 @@ test('client create/join sends the saved preference and reconnect keeps the reco
       builder.onResolve({ filter: /\/network$/ }, () => ({ path: 'network', namespace: 'color-host' }));
       builder.onResolve({ filter: /^(react-native|expo-crypto|expo-secure-store)$/ }, args => ({ path: args.path, namespace: 'color-host' }));
       builder.onLoad({ filter: /.*/, namespace: 'color-host' }, args => ({ contents: {
-        network: `export const requests=[]; export const api=async(session,path,payload)=>{requests.push({path,payload});return {id:'room'};};
+        network: `export const requests=[]; export const api=async(session,path,payload)=>{requests.push({path,payload});return {id:'0123456789abcdef01234567'};};
           export { creationPayload, RejectedCommand } from ${JSON.stringify(pathToFileURL(resolve('src/online/network.ts')).href)};`,
         'react-native': `export const Platform={OS:'ios'},AppState={currentState:'active'};`,
         'expo-crypto': `export const randomUUID=()=>'',getRandomBytesAsync=async()=>new Uint8Array(32);`,
@@ -29,5 +29,5 @@ test('client create/join sends the saved preference and reconnect keeps the reco
   await client.connect({ ...base, invite: 'b'.repeat(24), preferredColor: 'violet' });
   assert.deepEqual(client.requests.at(-1), { path: 'join', payload: { invite: 'b'.repeat(24), preferredColor: 'violet' } });
   await client.connect(host.session);
-  assert.deepEqual(client.requests.at(-1), { path: 'games/room', payload: undefined });
+  assert.deepEqual(client.requests.at(-1), { path: 'games/0123456789abcdef01234567', payload: undefined });
 });

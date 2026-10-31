@@ -125,7 +125,10 @@ type OnlineOperationProps = {
   onNotificationHandled?: (notificationId: string, opened: boolean) => void;
 };
 /** `operationId` opens that operation directly; otherwise account players start at their operation list. */
-export function OnlineOperation({ operationId, ...props }: OnlineOperationProps & { operationId?: string } = {}) {
+export function OnlineOperation({
+  operationId,
+  ...props
+}: OnlineOperationProps & { operationId?: string } = {}) {
   return (
     <MultiplayerAccount>
       {(account) =>
@@ -151,12 +154,18 @@ function AccountOperations({
   const open = (id?: string) => setSelection({ id, instance: ++instances.current });
   const tapped = props.notification?.gameId;
   useEffect(() => {
-    if (tapped && (selection === 'list' || selection.id !== tapped)) open(tapped);
+    if (!tapped) return;
+    const next = { id: tapped, instance: ++instances.current };
+    setSelection((current) => (current !== 'list' && current.id === tapped ? current : next));
   }, [tapped]);
   if (selection === 'list') return <OperationDirectory account={account} onOpen={open} />;
   return (
     <View style={{ flex: 1 }}>
-      <Pressable accessibilityRole="button" onPress={() => setSelection('list')} style={s.backToList}>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setSelection('list')}
+        style={s.backToList}
+      >
         <Text style={s.backToListText}>‹ All operations</Text>
       </Pressable>
       <ConnectedOperation
@@ -164,7 +173,9 @@ function AccountOperations({
         {...props}
         account={account}
         operationId={selection.id}
-        onOpened={(id) => setSelection((current) => (current === 'list' ? current : { ...current, id }))}
+        onOpened={(id) =>
+          setSelection((current) => (current === 'list' ? current : { ...current, id }))
+        }
       />
     </View>
   );
@@ -206,45 +217,49 @@ function ConnectedOperation({
   const [referenceNotice, setReferenceNotice] = useState('');
   const referenceSequence = useRef(0);
   const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
-  const uplink = useOnlineConnection(account, {
-    onConnected: (next) => {
-      onOpened?.(next.id);
-      setSelected(
-        (next.game.rocks.find((r) => r.owner === next.faction) ?? next.game.rocks[0]!).id,
-      );
-    },
-    onReset: () => setInspectedHour(null),
-    onCompleted(pending, next) {
-      if (pending.kind === 'recover') {
+  const uplink = useOnlineConnection(
+    account,
+    {
+      onConnected: (next) => {
+        onOpened?.(next.id);
         setSelected(
           (next.game.rocks.find((r) => r.owner === next.faction) ?? next.game.rocks[0]!).id,
         );
-        setRecoveryInput('');
-      }
-      if (
-        pending.kind === 'messages' ||
-        pending.kind === 'channel-messages' ||
-        pending.kind === 'groups'
-      )
-        setAcknowledged(pending.body.requestId);
-      else if (
-        pending.kind === 'orders' ||
-        pending.kind === 'schedules' ||
-        pending.kind === 'gifts' ||
-        pending.kind === 'intercepts' ||
-        pending.kind === 'recover' ||
-        (pending.kind === 'haulers' && pending.body.action === 'course')
-      ) {
-        setSection(null);
-        setDestination(undefined);
-        setPlanning(false);
-        setCarry(false);
-        setDelay(0);
-        setSelectedUnits([]);
-        setNavigating(undefined);
-      }
+      },
+      onReset: () => setInspectedHour(null),
+      onCompleted(pending, next) {
+        if (pending.kind === 'recover') {
+          setSelected(
+            (next.game.rocks.find((r) => r.owner === next.faction) ?? next.game.rocks[0]!).id,
+          );
+          setRecoveryInput('');
+        }
+        if (
+          pending.kind === 'messages' ||
+          pending.kind === 'channel-messages' ||
+          pending.kind === 'groups'
+        )
+          setAcknowledged(pending.body.requestId);
+        else if (
+          pending.kind === 'orders' ||
+          pending.kind === 'schedules' ||
+          pending.kind === 'gifts' ||
+          pending.kind === 'intercepts' ||
+          pending.kind === 'recover' ||
+          (pending.kind === 'haulers' && pending.body.action === 'course')
+        ) {
+          setSection(null);
+          setDestination(undefined);
+          setPlanning(false);
+          setCarry(false);
+          setDelay(0);
+          setSelectedUnits([]);
+          setNavigating(undefined);
+        }
+      },
     },
-  }, operationId);
+    operationId,
+  );
   const {
     session,
     snapshot,

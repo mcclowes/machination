@@ -49,13 +49,13 @@ test('account changes unmount the previous operation and keep saved seats and pe
   await client.storeSession(base);
   await client.storeSession(alice);
   await client.storeSession(bob);
-  assert.equal((await client.restoreSession('user_alice'))?.pending?.kind, 'resign');
-  assert.equal((await client.restoreSession('user_bob'))?.token, bob.token);
+  assert.equal((await client.restoreSession('user_alice', base.id))?.pending?.kind, 'resign');
+  assert.equal((await client.restoreSession('user_bob', base.id))?.token, bob.token);
   assert.equal((await client.restoreSession())?.token, base.token);
   assert.equal([...bytes.values()].some(value => value.includes('never-persist-this-jwt')), false);
-  await client.storeSession(null, 'user_bob');
-  assert.equal(await client.restoreSession('user_bob'), null);
-  assert.equal((await client.restoreSession('user_alice'))?.id, base.id);
+  await client.storeSession(null, 'user_bob', base.id);
+  assert.equal(await client.restoreSession('user_bob', base.id), null);
+  assert.equal((await client.restoreSession('user_alice', base.id))?.id, base.id);
   bytes.set('machination.online.v1.user_bob', JSON.stringify(alice));
   await assert.rejects(client.restoreSession('user_bob'), /another account/);
 
