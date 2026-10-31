@@ -195,6 +195,32 @@ async function scenario(t: TestContext, options: { token?: string; account?: 'ex
   return { room, seats, service, clock, deviceId, current: current.bindingId!, stale: first.bindingId!, fake, failing, requests, mount, press, settle, signalsOpen, visible, tapFor, stored, tab, hosts };
 }
 
+test('Diplomacy confirms an operation-scoped block and hides already-rendered messages without sending an order', async t => {
+  const s = await scenario(t);
+  await s.service.channelMessage(s.room.id, s.seats[1]!, { requestId: randomUUID(), channelId: 'public', text: 'Unwanted public transmission' });
+  s.fake.setLast(s.tapFor(s.current));
+  await s.mount();
+  assert.ok(s.signalsOpen());
+  assert.match(s.visible(), /Unwanted public transmission/);
+  const before = await s.stored();
+  await s.press('Message blocking');
+  await s.press('Block Vesper');
+  assert.doesNotMatch(s.visible(), /Unwanted public transmission/);
+  assert.match(s.visible(), /Blocked in this operation/);
+  assert.deepEqual((await s.service.messageBlockSettings(s.room.id, s.seats[0]!)).blocked, ['vesper']);
+  await s.press('Private · Vesper');
+  assert.match(s.visible(), /Unblock Vesper to send a direct transmission/);
+  assert.equal(s.hosts('TextInput').find(node => node.props.accessibilityLabel === 'Private transmission')!.props.editable, false);
+  await s.press('Unblock Vesper');
+  await s.press('Public room');
+  assert.match(s.visible(), /Unwanted public transmission/);
+  const after = await s.stored();
+  assert.deepEqual(after.rooms[0].game, before.rooms[0].game);
+  assert.deepEqual(after.rooms[0].replay, before.rooms[0].replay);
+  assert.equal(after.rooms[0].revision, before.rooms[0].revision);
+  assert.deepEqual(s.requests.filter(request => request.startsWith('POST ') && !request.endsWith('/message-blocks')), []);
+});
+
 test('restored online site inspection explains roles at live and forecast times without a command', async t => {
   const s = await scenario(t);
   const before = await s.stored();

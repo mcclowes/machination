@@ -135,6 +135,8 @@ import {
 } from './seat-credentials';
 import { receipt } from './command-receipts';
 import { addGroup, addChannelMessage, addPrivateMessage } from './diplomacy';
+import { isMessageBlocked, messageBlockView, setMessageBlock } from './message-blocks';
+import type { MessageBlockSettings } from '../src/contracts/message-blocks';
 export type ServiceOptions = {
   notifications?: boolean;
   pulse?: PulseConfig;
@@ -504,10 +506,20 @@ export class GameService {
         .filter((g) => g.members.includes(faction))
         .map(({ messages, ...g }) => g),
       channels: [
-        { id: 'public', kind: 'public', messages: room.diplomacy?.publicMessages ?? [] },
+        {
+          id: 'public',
+          kind: 'public',
+          messages: (room.diplomacy?.publicMessages ?? []).filter(
+            (m) => !isMessageBlocked(room, faction, m.from),
+          ),
+        },
         ...(room.diplomacy?.groups ?? [])
           .filter((g) => g.members.includes(faction))
-          .map((g) => ({ id: g.id, kind: 'private' as const, messages: g.messages })),
+          .map((g) => ({
+            id: g.id,
+            kind: 'private' as const,
+            messages: g.messages.filter((m) => !isMessageBlocked(room, faction, m.from)),
+          })),
       ],
       recoveryEnabled: !!room.seats.find((s) => s.faction === faction)!.recoveryHash,
       ...(room.startedAt !== null &&
@@ -532,7 +544,10 @@ export class GameService {
       visibility: 'sensors.v1',
       ...this.observation(room, faction),
       messages: room.messages
-        .filter((m) => m.from === faction || m.to === faction)
+        .filter(
+          (m) =>
+            (m.from === faction || m.to === faction) && !isMessageBlocked(room, faction, m.from),
+        )
         .map((m) => ({ ...m, id: this.identify(room, faction, 'message', m.id) })),
       serverTime: this.now(),
     };
@@ -1830,6 +1845,18 @@ export class GameService {
       return this.view(r, f);
     });
   }
+  messageBlockSettings(id: string, token: Credential): Promise<MessageBlockSettings> {
+    return this.store.read((db) => {
+      const room = this.room(db, id);
+      return messageBlockView(room, this.seat(room, token));
+    });
+  }
+  setMessageBlock(id: string, token: Credential, input: unknown): Promise<MessageBlockSettings> {
+    return this.transaction((db) => {
+      const room = this.room(db, id);
+      return setMessageBlock(db, room, this.seat(room, token), input);
+    });
+  }
   createGroup(id: string, token: Credential, command: CreateGroup): Promise<Snapshot> {
     return this.transaction((db) => {
       const room = this.room(db, id),
@@ -1846,7 +1873,7 @@ export class GameService {
       this.settle(db, room);
       const notification = addChannelMessage(room, faction, command, this.now());
       if (notification) {
-        this.notify(db, room, notification.audience, notification.reference);
+        this.notify(db, room, faction, notification.audience, notification.reference);
         this.touch(room, faction);
       }
       return this.view(room, faction);
@@ -1859,17 +1886,29 @@ export class GameService {
       this.settle(db, room);
       const notification = addPrivateMessage(room, faction, command, this.now());
       if (notification) {
-        this.notify(db, room, notification.audience, notification.reference);
+        this.notify(db, room, faction, notification.audience, notification.reference);
         this.touch(room, faction);
       }
       return this.view(room, faction);
     });
   }
   // Notification enqueue shares the message transaction; any failure skips delivery and keeps the message.
-  private notify(db: Database, room: Room, audience: Faction[], messageRef: string): void {
+  private notify(
+    db: Database,
+    room: Room,
+    sender: Faction,
+    audience: Faction[],
+    messageRef: string,
+  ): void {
     if (!this.pushAvailable) return;
     try {
-      enqueue(db, room, audience, messageRef, this.now());
+      enqueue(
+        db,
+        room,
+        audience.filter((recipient) => !isMessageBlocked(room, recipient, sender)),
+        messageRef,
+        this.now(),
+      );
     } catch (error) {
       console.error('Notification enqueue skipped', (error as Error).name);
     }

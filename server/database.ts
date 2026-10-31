@@ -17,6 +17,7 @@ import type { Group, ChannelMessage, Message } from '../src/contracts/protocol';
 import type { NotificationState } from './notification-state';
 import type { FactionProfile } from './factions';
 import type { Allegiance } from '../src/game/factions';
+import type { StoredMessageBlocks } from './message-blocks';
 import {
   decodeDatabaseSource,
   parseStoredDatabase,
@@ -49,6 +50,7 @@ export type Room = {
     identityHash?: string;
     recoveryHash?: string;
     recoveryReceipt?: { secretHash: string; credentialHash: string };
+    messageBlocks?: StoredMessageBlocks;
   }[];
   messages: Message[];
   receipts: Record<string, string>;

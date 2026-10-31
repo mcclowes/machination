@@ -11,7 +11,7 @@ import type { Snapshot } from '../src/contracts/protocol';
 import { GameService } from './service';
 import { createApi } from './http';
 import type { AccountAuthentication } from './auth';
-import { api as currentApi } from '../src/online/network';
+import { api as currentApi, setMessageBlockApi } from '../src/online/network';
 import { snapshotResponse as currentSnapshotResponse } from '../src/contracts/snapshot';
 
 type ReleasedValidators = {
@@ -67,6 +67,49 @@ async function fixture(t: TestContext, now = () => 1000000) {
     },
   };
 }
+
+test('a current client’s private block also filters released build 2 snapshots without changing their shape', async (t) => {
+  const { url } = await fixture(t);
+  const legacy = await releasedValidators();
+  const host = { url, token: 'a'.repeat(64) };
+  const guest = { url, token: 'b'.repeat(64) };
+  const third = { url, token: 'c'.repeat(64) };
+  const created = (await legacy.releasedApi(host, 'games', {})) as Snapshot;
+  const session = { ...host, id: created.id, faction: created.faction };
+  await legacy.releasedApi(guest, 'join', { invite: created.invite });
+  await legacy.releasedApi(third, 'join', { invite: created.invite });
+  await legacy.releasedApi(guest, `games/${created.id}/channel-messages`, {
+    requestId: 'legacy-block-message-1',
+    channelId: 'public',
+    text: 'Filtered for one seat',
+  });
+  await setMessageBlockApi(session, {
+    requestId: 'legacy-block-request-1',
+    revision: 0,
+    player: 'vesper',
+    blocked: true,
+  });
+  const blocked = (await legacy.releasedApi(host, `games/${created.id}`)) as Snapshot;
+  assert.equal(blocked.game.rules!.mechanicsVersion, 18);
+  assert.equal(blocked.channels![0]!.messages.length, 0);
+  assert.ok(!Object.hasOwn(blocked, 'blocked') && !Object.hasOwn(blocked, 'messageBlocks'));
+  assert.equal(
+    ((await legacy.releasedApi(third, `games/${created.id}`)) as Snapshot).channels![0]!.messages
+      .length,
+    1,
+  );
+  await assert.rejects(
+    legacy.releasedApi(guest, `games/${created.id}/messages`, {
+      requestId: 'legacy-block-message-2',
+      to: 'you',
+      text: 'Refused direct contact',
+    }),
+    (error) =>
+      error instanceof legacy.ReleasedRejectedCommand &&
+      error.status === 409 &&
+      error.issue === 'message.conflict.blocked',
+  );
+});
 
 test('released TestFlight build 2 can decode a default HTTP creation response', async (t) => {
   const { url, file } = await fixture(t);

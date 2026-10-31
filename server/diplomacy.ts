@@ -15,6 +15,7 @@ import {
 import type { Room } from './database';
 import { receipt } from './command-receipts';
 import { requireThat } from './failure';
+import { isMessageBlocked } from './message-blocks';
 
 type Notification = { audience: Faction[]; reference: string };
 const MAX_PRIVATE_MESSAGES = 5000;
@@ -42,6 +43,16 @@ export function addGroup(room: Room, faction: Faction, command: CreateGroup, now
   const members = ALL_PLAYERS.filter((member) => command.members.includes(member));
   if (receipt(room, faction, command.requestId, JSON.stringify(['group', command.name, members])))
     return false;
+  requireThat(
+    members.every(
+      (member) =>
+        member === faction ||
+        (!isMessageBlocked(room, member, faction) && !isMessageBlocked(room, faction, member)),
+    ),
+    409,
+    'group.conflict.blocked',
+    'A selected player is unavailable for a new private group.',
+  );
   const diplomacy = (room.diplomacy ??= { groups: [], publicMessages: [] });
   requireThat(
     members.every(
@@ -135,6 +146,12 @@ export function addPrivateMessage(
     receipt(room, faction, command.requestId, JSON.stringify(['message', command.to, command.text]))
   )
     return;
+  requireThat(
+    !isMessageBlocked(room, command.to, faction) && !isMessageBlocked(room, faction, command.to),
+    409,
+    'message.conflict.blocked',
+    'This direct channel is unavailable.',
+  );
   requireThat(
     room.messages.length < MAX_PRIVATE_MESSAGES,
     409,

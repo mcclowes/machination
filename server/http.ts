@@ -49,7 +49,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
     return service.join(input.invite, token, input.preferredColor, mechanicsVersion);
   }
-  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications|message-blocks))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
   const id = match[1]!, action = match[2];
   switch (req.method) {
@@ -78,11 +78,15 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
           if ([...url.searchParams.keys()].some(key => key !== 'deviceId' && key !== 'version') || url.searchParams.getAll('deviceId').length !== 1) throw new Failure(400, 'notification.validation.device', 'Provide exactly one deviceId and no other query parameters.');
           return service.notificationSettings(id, token, url.searchParams.get('deviceId'), notificationVersion(url));
         }
+        case 'message-blocks': {
+          if (url.search) throw new Failure(400, 'message_block.validation.query', 'Message blocking takes no query parameters.');
+          return service.messageBlockSettings(id, token);
+        }
         default: throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
     case 'POST': {
       const input = await body(req);
-      if (action !== undefined && !['history', 'replay', 'notifications', 'recover'].includes(action))
+      if (action !== undefined && !['history', 'replay', 'notifications', 'recover', 'message-blocks'].includes(action))
         await service.requireClientRules(id, token, mechanicsVersion);
       switch (action) {
         case 'activity': return service.activity(id, token);
@@ -106,6 +110,10 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'groups': return service.createGroup(id, token, input as CreateGroup);
         case 'channel-messages': return service.channelMessage(id, token, input as ChannelTransmission);
         case 'messages': return service.message(id, token, input as Transmission);
+        case 'message-blocks': {
+          if (url.search) throw new Failure(400, 'message_block.validation.query', 'Message blocking takes no query parameters.');
+          return service.setMessageBlock(id, token, input);
+        }
         case 'notifications': {
           if ([...url.searchParams.keys()].some(key => key !== 'version')) throw new Failure(400, 'notification.validation.version', 'Only version=2 may be negotiated.');
           return service.setNotifications(id, token, input, notificationVersion(url));

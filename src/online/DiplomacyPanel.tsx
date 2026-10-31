@@ -13,9 +13,19 @@ import { PlayerIdentity } from '../components/PlayerIdentity';
 import { commandId, type Pending } from './client';
 import { DIPLOMACY_LIMITS, type ObjectReference, type Snapshot } from '../contracts/protocol';
 import { ReferenceText } from '../components/ReferenceText';
+import { MessageBlockingSettings } from './MessageBlockingSettings';
+import { useMessageBlocks, type MessageBlockSeat } from './useMessageBlocks';
+import { messageBlocksApi, setMessageBlockApi } from './network';
+
+const MESSAGE_BLOCK_DEPS = {
+  read: messageBlocksApi,
+  write: setMessageBlockApi,
+  requestId: commandId,
+};
 
 type ChatCommand = Extract<Pending, { kind: 'messages' | 'channel-messages' | 'groups' }>;
 type Props = {
+  seat?: MessageBlockSeat;
   origin?: string;
   onInspectReference?: (reference: ObjectReference, mode: 'observed' | 'now') => void;
   snapshot?: Snapshot;
@@ -29,6 +39,7 @@ type Sent =
 
 // State lives in the operation so closing a drawer never discards a draft.
 export function useDiplomacyPanel({
+  seat,
   snapshot,
   disabled,
   acknowledged,
@@ -37,6 +48,7 @@ export function useDiplomacyPanel({
   origin,
   onInspectReference,
 }: Props): React.ReactNode {
+  const blocking = useMessageBlocks(seat, MESSAGE_BLOCK_DEPS);
   const [thread, setThread] = useState('public');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
@@ -116,9 +128,13 @@ export function useDiplomacyPanel({
   const group = snapshot.groups?.find((g) => g.id === thread);
   const channel = snapshot.channels?.find((c) => c.id === thread);
   const validThread = !!recipient || !!channel;
-  const messages = recipient
-    ? snapshot.messages.filter((m) => m.from === recipient || m.to === recipient)
-    : (channel?.messages ?? []);
+  const blocked = blocking.settings?.blocked ?? [];
+  const directBlocked = recipient !== undefined && blocked.includes(recipient);
+  const messages = (
+    recipient
+      ? snapshot.messages.filter((m) => m.from === recipient || m.to === recipient)
+      : (channel?.messages ?? [])
+  ).filter((message) => !blocked.includes(message.from));
   const draft = drafts[thread] ?? '';
   const audience = recipient ? [snapshot.faction, recipient] : (group?.members ?? snapshot.members);
   function send() {
@@ -152,6 +168,11 @@ export function useDiplomacyPanel({
           </Pressable>
         ))}
       </ScrollView>
+      <MessageBlockingSettings
+        state={blocking}
+        members={snapshot.members}
+        faction={snapshot.faction}
+      />
       {!!snapshot.channels && (
         <Action
           text={creating ? 'Cancel group creation' : 'New private group'}
@@ -180,9 +201,14 @@ export function useDiplomacyPanel({
               accessibilityLabel={`Include ${FACTIONS[f].name} in private group`}
               accessibilityState={{
                 checked: members.includes(f),
-                disabled: disabled || f === snapshot.faction,
+                disabled:
+                  disabled ||
+                  f === snapshot.faction ||
+                  (blocked.includes(f) && !members.includes(f)),
               }}
-              disabled={disabled || f === snapshot.faction}
+              disabled={
+                disabled || f === snapshot.faction || (blocked.includes(f) && !members.includes(f))
+              }
               onPress={() =>
                 setMembers((current) =>
                   current.includes(f) ? current.filter((m) => m !== f) : [...current, f],
@@ -193,12 +219,18 @@ export function useDiplomacyPanel({
               <Text style={s.action}>
                 {members.includes(f) ? '☑' : '☐'} {FACTIONS[f].name}
                 {f === snapshot.faction ? ' · you' : ''}
+                {blocked.includes(f) ? ' · blocked' : ''}
               </Text>
             </Pressable>
           ))}
           <Action
             text="Create private group"
-            disabled={disabled || !name.trim() || members.length < 2}
+            disabled={
+              disabled ||
+              !name.trim() ||
+              members.length < 2 ||
+              members.some((member) => blocked.includes(member))
+            }
             onPress={() => {
               const requestId = commandId();
               sent.current = {
@@ -242,6 +274,11 @@ export function useDiplomacyPanel({
         }}
         style={s.group}
       >
+        {directBlocked && (
+          <Text style={s.detail}>
+            Unblock {FACTIONS[recipient!].name} to send a direct transmission.
+          </Text>
+        )}
         <TextInput
           ref={editor}
           accessibilityLabel={
@@ -255,6 +292,7 @@ export function useDiplomacyPanel({
             if (Keyboard.isVisible()) revealComposer();
           }}
           multiline
+          editable={!directBlocked}
           maxLength={DIPLOMACY_LIMITS.text}
           value={draft}
           onChangeText={(text) => setDrafts((current) => ({ ...current, [thread]: text }))}
@@ -264,7 +302,7 @@ export function useDiplomacyPanel({
         />
         <Action
           text={thread === 'public' ? 'Transmit to public room' : 'Transmit privately'}
-          disabled={disabled || !validThread || !draft.trim()}
+          disabled={disabled || directBlocked || !validThread || !draft.trim()}
           onPress={send}
         />
         <Text style={s.detail}>

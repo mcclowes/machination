@@ -652,6 +652,8 @@ function ConnectedOperation({
         : travelHours(rock, target, carry ? rock.module : undefined, game.version)
       : 0;
   const diplomacy = useDiplomacyPanel({
+    seat:
+      notificationSeat && snapshot ? { ...notificationSeat, faction: snapshot.faction } : undefined,
     snapshot,
     origin: JSON.stringify([session?.url, session?.token]),
     disabled: busy || !!session?.pending,

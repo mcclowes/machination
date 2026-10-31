@@ -24,6 +24,30 @@ function failingArchive(sql: SqlClient, failure: Error): SqlClient {
   } })) };
 }
 
+test('SQL restart preserves private blocks and stale retries cannot restore an older choice', async t => {
+  const engine = new PGlite();
+  t.after(() => engine.close());
+  const sql = pglite(engine);
+  const host = 'a'.repeat(64), guest = 'b'.repeat(64);
+  const service = await GameService.open(postgresPersistence(sql), () => 1000);
+  const room = await service.create(host);
+  await service.join(room.invite, guest);
+  await service.message(room.id, guest, { requestId: 'sql-block-message-1', to: 'you', text: 'Retained private transmission' });
+  const block = { requestId: 'sql-block-request-1', revision: 0, player: 'vesper' as const, blocked: true };
+  await service.setMessageBlock(room.id, host, block);
+  const restarted = await GameService.open(postgresPersistence(sql), () => 1000);
+  assert.deepEqual((await restarted.messageBlockSettings(room.id, host)).blocked, ['vesper']);
+  assert.deepEqual((await restarted.snapshot(room.id, host)).messages, []);
+  assert.equal((await restarted.snapshot(room.id, guest)).messages[0]!.text, 'Retained private transmission');
+  await restarted.setMessageBlock(room.id, host, { ...block, requestId: 'sql-block-request-2', revision: 1, blocked: false });
+  const retried = await restarted.setMessageBlock(room.id, host, block);
+  assert.deepEqual(retried.blocked, []);
+  assert.equal(retried.revision, 2);
+  const again = await GameService.open(postgresPersistence(sql), () => 1000);
+  assert.equal((await again.snapshot(room.id, host)).messages[0]!.text, 'Retained private transmission');
+  assert.deepEqual(await again.messageBlockSettings(room.id, guest), { gameId: room.id, faction: 'vesper', revision: 0, blocked: [] });
+});
+
 test('operations survive a service restart against the same database', async () => {
   const db = pglite(new PGlite());
   const host = 'a'.repeat(64), guest = 'b'.repeat(64);

@@ -8,6 +8,8 @@ import type { HistorySnapshot, OperationListing, Snapshot } from '../contracts/p
 import { operationListingResponse } from '../contracts/operation-listing';
 import { snapshotResponse, historicalResponse } from '../contracts/snapshot';
 import type { MessageNotificationSettings, SetMessageNotifications } from '../contracts/notifications';
+import { ALL_PLAYERS, type Faction } from '../game/players';
+import { isSetMessageBlock, messageBlockSettingsResponse, type MessageBlockSettings, type SetMessageBlock } from '../contracts/message-blocks';
 
 export class RejectedCommand extends Error { constructor(public status: number, message: string, public issue?: string) { super(message); } }
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -72,6 +74,19 @@ export async function factionsApi(session: RequestSession, faction?: Allegiance)
 }
 
 type SeatSession = RequestSession & { id: string };
+type MessageBlockSession = SeatSession & { faction: Faction };
+function requireMessageBlockSession(session: MessageBlockSession): void {
+  if (!/^[a-f0-9]{24}$/.test(session.id) || !ALL_PLAYERS.includes(session.faction)) throw new Error('Invalid message block seat.');
+}
+export async function messageBlocksApi(session: MessageBlockSession): Promise<MessageBlockSettings> {
+  requireMessageBlockSession(session);
+  return messageBlockSettingsResponse(session.id, session.faction, await request(session, `games/${session.id}/message-blocks`));
+}
+export async function setMessageBlockApi(session: MessageBlockSession, body: SetMessageBlock): Promise<MessageBlockSettings> {
+  requireMessageBlockSession(session);
+  if (!isSetMessageBlock(body) || body.player === session.faction) throw new Error('Invalid message block choice.');
+  return messageBlockSettingsResponse(session.id, session.faction, await request(session, `games/${session.id}/message-blocks`, body));
+}
 const DEVICE_ID = /^[a-f0-9]{64}$/;
 export const OPAQUE_ID = /^[\x21-\x7e]{1,200}$/;
 const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[^\]\s]{1,200}\]$/;

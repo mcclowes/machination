@@ -13,6 +13,7 @@ import { decodeReplay } from '../src/game/replay-save';
 import { decodeSave } from '../src/game/save-format';
 import { DIPLOMACY_LIMITS, type ChannelMessage } from '../src/contracts/protocol';
 import type { Room } from './database';
+import { validateStoredMessageBlocks } from './message-blocks';
 
 const isHash = (value: unknown): value is string =>
   typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
@@ -58,6 +59,7 @@ export function validateStoredRoom(r: Room, ids: ReadonlySet<string>): void {
   const accounts = r.seats.flatMap((s) => (s.accountId ? [s.accountId] : []));
   if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
   for (const seat of r.seats) {
+    validateStoredMessageBlocks(r, seat.faction, seat.messageBlocks);
     if (
       seat.accountId !== undefined &&
       (typeof seat.accountId !== 'string' || !/^user_[a-zA-Z0-9]+$/.test(seat.accountId))

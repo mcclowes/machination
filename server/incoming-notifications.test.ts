@@ -70,6 +70,28 @@ async function fixture(t: TestContext, initial: () => Game = world) {
 }
 const incomingJobs = (jobs: Job[]) => jobs.filter(j => j.kind === 'incoming');
 
+test('blocking an attacker clears generic message alerts but preserves observed attacks and their consent', async t => {
+  const f = await fixture(t);
+  const subscription = await f.subscribe(f.host);
+  f.clock.now = 0.05 * HOUR;
+  await f.launch(f.guest, ids.enemy, ids.home, 25);
+  f.clock.now = 0.3 * HOUR;
+  await f.tick();
+  await f.service.channelMessage(f.room.id, f.guest, { requestId: randomUUID(), channelId: 'public', text: 'An unwanted message' });
+  assert.equal((await f.jobs()).length, 2);
+  const before = await f.snap(f.host);
+  await f.service.setMessageBlock(f.room.id, f.host, { requestId: randomUUID(), revision: 0, player: 'vesper', blocked: true });
+  assert.equal((await f.jobs()).length, 1);
+  assert.equal(incomingJobs(await f.jobs()).length, 1);
+  assert.equal((await f.service.notificationSettings(f.room.id, f.host, subscription.deviceId, 2)).incoming, true);
+  const after = await f.snap(f.host);
+  assert.deepEqual(after.game, before.game);
+  const claim = await f.claim();
+  assert.equal(claim.items.length, 1);
+  assert.equal(claim.items[0]!.message.data.kind, INCOMING_NOTIFICATION_KIND);
+  assert.match(claim.items[0]!.message.body, /Incoming attack from Vesper: 25 drones/);
+});
+
 test('a launch at a consenting seat notifies after departure with zero clients, never during preparation or for the sender', async t => {
   const f = await fixture(t);
   const hostSub = await f.subscribe(f.host); await f.subscribe(f.guest);
