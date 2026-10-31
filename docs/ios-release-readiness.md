@@ -6,7 +6,7 @@ The immediate target is a polished, invite-only multiplayer TestFlight release. 
 
 ## Current baseline
 
-The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build [0.1.0 (3)](native-builds.md#build-3-october-31) is distributed with the HTTP and client-recovery fixes below, recorded in [#122](https://github.com/mcclowes/machination/issues/122). Physical-device acceptance remains open. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
+The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build [0.1.0 (4)](native-builds.md#build-4-october-31) is distributed with the HTTP and client-recovery fixes below, plus profile controls, preparing-launch edits, and message-blocking controls, recorded in [#144](https://github.com/mcclowes/machination/issues/144). Physical-device acceptance remains open. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
 
 Code, a passing host test, a simulator session, a signed IPA, and a successful physical-device playtest prove different things. Record the source commit, runtime/device, command or scenario, result, and evidence for each gate. Earlier passing suites don't certify the current source.
 
@@ -52,6 +52,6 @@ Before opening public access, ship and test in-app account deletion where accoun
 
 [Operation-scoped message blocking](message-blocking.md) adds private seat preferences, server filtering, direct/group contact restrictions, and message-alert cancellation without hiding tactical activity. It requires a later client artifact than the prepared build 3. Blocking alone doesn't close the public messaging gate.
 
-[Message reporting and operator review](message-reporting.md) adds private canonical evidence, durable acknowledgements, and separately authenticated operator dispositions. Collection is disabled by default. Its client controls require a later native artifact than build 3; production operator access, actual handling, native acceptance, and retention/deletion policy remain unverified. Neither stored flags nor a host/browser pass proves the full public messaging gate.
+[Message reporting and operator review](message-reporting.md) adds private canonical evidence, durable acknowledgements, and separately authenticated operator dispositions. Collection is disabled by default. Its client controls are bundled in TestFlight build 4; production operator access, actual handling, native acceptance, and retention/deletion policy remain unverified. Neither stored flags nor a host/browser pass proves the full public messaging gate.
 
 These remain release requirements, not claims that the current implementation or store metadata satisfies them. Paid service changes, public distribution, and production configuration should be tied to a concrete tested release.

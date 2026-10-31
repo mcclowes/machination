@@ -55,7 +55,7 @@ The simulator command retains full Xcode diagnostics. A subsequent Xcode 27.1 bu
 
 ## TestFlight
 
-Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration holds version 0.1.0, build 3, the latest upload, with exempt encryption and production APNs entitlements. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload. Push delivery still requires the separate provider setup in [notifications](notifications.md).
+Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration holds version 0.1.0, build 4, the latest upload, with exempt encryption and production APNs entitlements. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload. Push delivery still requires the separate provider setup in [notifications](notifications.md).
 
 Run from a fixed source snapshot with its matching `package-lock.json` dependencies. Preserve concurrent edits in the shared checkout. Check the source before generating its device archive:
 
@@ -106,6 +106,16 @@ The 56,647,338-byte IPA is `release/export/Machination.ipa`, SHA-256 `72fc61881d
 The full behavior gate ran on `3d07357`: quality checks, 1,568 behavior tests, and 18 packaged-server checks passed with zero failures or skips; both container images passed separately. Later commits add recovery documentation and reserve build number 3, without changing application behavior. Expo's resolved configuration and the actual native archive both confirm build 3. See [client compatibility](client-compatibility.md) for the immutable released-client checks.
 
 This client sends versioned Accept headers and creation request IDs, so server support was deployed first. Physical-device gameplay, native production sign-in, push delivery, and provider-managed isolated cloud restore remain unverified. A local signed IPA does not close those gates.
+
+### Build 4, October 31
+
+Version **0.1.0 (4)** is released to the existing Internal testers group. Apple accepted delivery `e3940d9e-496b-4460-8b9f-8291bd59e658` and reports `VALID` and `IN_BETA_TESTING`. The group contains builds 1–4. Testing notes are saved and read back through App Store Connect. This build adds local profile portraits and faction controls, editing preparing launches from the map, and message-blocking controls. Reporting controls are bundled, but production report collection remains disabled.
+
+Frozen source `6f39d9f` passes source quality and 1,632 behavior tests on Node 24.14.1. Seven database behavior checks were initially skipped; a separate disposable Postgres/TLS run passes all ten database checks. All 20 packaged-server checks then pass against the disposable databases with zero skips, including shutdown, connection cleanup, and blocked-write recovery. All 756 tracked source files match the release commit after native generation. A fresh native archive and signed IPA export succeed.
+
+The IPA is `/private/tmp/machination-testflight-build4-20261031-ir4c6wbp/release/export/Machination.ipa` (56,665,935 bytes), SHA-256 `35d386b04b4457370676ec89466d71857cd1525b0b6a6aafc56b87bb4f5da10a`. It passes deep/strict signing, certificate trust and App Store profile membership, production APNs and disabled debugging entitlements, iPhone/iPad support, version/build, exempt encryption, HTTPS service origin, current media type, matching executable/dSYM UUID, and identical archive/export JavaScript checks. That workspace retains the source, logs, Apple responses, and `release.json`.
+
+The active backend was verified as successful deployment `08a75581-ee12-4d1d-b1b6-95ef3516f902` from `464676b`, which includes message-blocking support; HTTPS health is ok after distribution. Native account sign-in and push delivery remain unconfigured. Physical-device gameplay and production reporting remain unverified. No production operator settings were changed. [#144](https://github.com/mcclowes/machination/issues/144) records this release.
 
 ## Verification boundaries
 
