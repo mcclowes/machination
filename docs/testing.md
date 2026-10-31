@@ -106,9 +106,18 @@ the chart. Reduced motion is enabled, the browser clock is fixed, and external
 requests are blocked. Desktop and phone viewports cover the title actions and
 selected-site chart. These web checks do not establish native iOS/Android gestures.
 
-Run on the pinned Node version. Missing baselines fail; capture is pending an
-unrestricted browser run. For an intentional change, run
-`npm run test:visual:update`, review the expected/actual/diff images, and commit
-the references beside `visual-tests/game.spec.ts`. Use the same OS, lockfile
-Chromium, and fonts for recording and comparison. Reports and traces are in
-`playwright-report` and `test-results`. Ordinary comparisons never record images.
+Run on the pinned Node version. Six reviewed [macOS references](../visual-tests/game.spec.ts-snapshots/README.md)
+cover the home screen, selected core, and six-hour forecast in desktop and phone contexts.
+The fixture acknowledges the briefing and identifies the core through its accessible
+name, which remains available when collision suppression omits the visible label.
+Before capture, it requires the chart's projection SVG viewport to match the measured
+chart bounds, including after opening time controls. Pixel stability alone can precede
+delivery of the asynchronous resize notification.
+Missing or changed baselines fail. Other operating systems need their own reviewed references.
+
+For an intentional visual change, run `npm run test:visual:update -- visual-tests/game.spec.ts`,
+review the expected/actual/diff images, update the reference provenance, and commit the
+images beside `visual-tests/game.spec.ts`. Use the same OS, lockfile Chromium, and fonts
+for recording and comparison. Reports and traces are in `playwright-report` and
+`test-results`. Ordinary comparisons never record images. An isolated inverted-render
+control verified rejection of a visual mismatch without changing the references.
