@@ -3,6 +3,7 @@ import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
 import { createArchive } from '../src/game/replay';
 import { encodeOperation } from '../src/game/operation-save';
+import { waitForChartLayout } from './chart-layout';
 
 const epoch = Date.parse('2026-10-30T12:00:00Z');
 const game = createConfiguredGame(DEFAULT_GAME_OPTIONS, epoch, 314159);
@@ -22,6 +23,7 @@ for (const steps of [1, 20]) test(`dragging from a selected solo base plots a ro
   const source = page.getByRole('button', { name: new RegExp(`^${core.name},`) }).filter({ visible: true }).first();
   await source.click();
   await expect(page.getByRole('button', { name: `Close ${core.name}`, exact: true })).toBeVisible();
+  await waitForChartLayout(page);
   const candidates = page.getByTestId('belt-map').getByRole('button').filter({ visible: true });
   const from = (await source.boundingBox())!;
   let to: { x: number; y: number; width: number; height: number } | undefined;

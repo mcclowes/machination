@@ -1,24 +1,14 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
 import { createArchive } from '../src/game/replay';
 import { encodeOperation } from '../src/game/operation-save';
+import { waitForChartLayout } from './chart-layout';
 
 const epoch = Date.parse('2026-10-13T12:00:00Z');
 const game = createConfiguredGame(DEFAULT_GAME_OPTIONS, epoch, 314159);
 const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
 const coreName = game.rocks.find(rock => rock.coreOf === 'you')!.name;
-
-async function waitForChartLayout(page: Page) {
-  await page.evaluate(() => document.fonts.ready);
-  await expect.poll(() => page.getByTestId('belt-map').evaluate(element => {
-    const chart = element as HTMLElement;
-    const svg = chart.querySelector<SVGSVGElement>(':scope > svg[viewBox]');
-    return !!svg && chart.offsetWidth > 0 && chart.offsetHeight > 0 &&
-      Math.abs(svg.viewBox.baseVal.width - chart.offsetWidth) < 1 &&
-      Math.abs(svg.viewBox.baseVal.height - chart.offsetHeight) < 1;
-  })).toBe(true);
-}
 
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date(epoch));

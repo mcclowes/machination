@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { TRAINING_SCENARIOS } from '../src/game/training';
 import { SPECIALISTS } from '../src/game/specialist-catalog';
+import { chartCopy } from './chart-layout';
 
 async function dismissDialogue(page: Page) {
   await page.getByRole('button', { name: 'Skip dialogue', exact: true }).click();
@@ -39,7 +40,7 @@ test('a new recruitment lesson completes through the rendered controls', async (
     await page.getByRole('button', { name: 'Advance +1h', exact: true }).click();
     if (hour === 1) await dismissDialogue(page);
   }
-  await page.getByRole('tab', { name: 'Units', exact: true }).click();
+  await page.getByRole('tab', { name: 'Specialists', exact: true }).click();
   await page.getByRole('button', { name: `Hire 2 ${SPECIALISTS.saboteur.name} for 1 credit and 5 cargo`, exact: true }).click();
   await expect(page.getByText('Exercise complete', { exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Chart', exact: true }).click();
@@ -47,7 +48,8 @@ test('a new recruitment lesson completes through the rendered controls', async (
   await page.getByRole('button', { name: 'Plan transfer ↗', exact: true }).click();
   if (!await page.getByRole('button', { name: 'Fit chart', exact: true }).isVisible()) await page.getByRole('button', { name: 'Map controls', exact: true }).click();
   await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
-  await page.getByRole('button', { name: /^Distant anchor,/ }).filter({ visible: true }).first().click();
+  const destination = await chartCopy(page, page.getByRole('button', { name: /^Distant anchor,/ }).filter({ visible: true }));
+  await destination.click();
   await page.getByRole('checkbox', { name: `Load ${SPECIALISTS.saboteur.name} onto the next hauler`, exact: true }).first().click();
   await page.getByRole('button', { name: 'Prepare launch · 10m', exact: true }).click();
   await page.getByRole('button', { name: 'Resolve orders', exact: true }).click();
