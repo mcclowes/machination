@@ -18,6 +18,12 @@ Four host tests exercise the actual entry-point wiring with synthetic descendant
 
 [React error boundaries](https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary) don't catch native process crashes, module-load failures, ordinary event-handler errors, or arbitrary asynchronous callbacks. Existing expected command, storage, and network failures retain their own handling. Track this containment and its verification in [#126](https://github.com/mcclowes/machination/issues/126).
 
+## Short operation layouts
+
+Operation drawers adapt to the available content height. In short layouts, opening a drawer temporarily hides the time tray; closing the drawer or choosing Chart restores its existing controls and unfinished time entry. Wider phones use a sidebar, and narrower screens use a scrolling sheet. Launch summaries and submission controls scroll with the manifest when space is limited. The destination hint lets taps pass through its text while Cancel selection remains interactive.
+
+Browser interaction checks cover 844×390, 667×375, 568×320, 320×568, and 1024×768. They require fully unclipped controls through portrait resizing, preserved private drafts and time entries, one accepted transmission with recipient-only delivery, and a successful launch after rotating its manifest into a short layout. These checks don't establish native keyboard avoidance, Dynamic Type, or VoiceOver behavior. See [landscape layout #146](https://github.com/mcclowes/machination/issues/146).
+
 ## Delivery order and gates
 
 | Priority | Player outcome | Release gate | Current gap / owner |

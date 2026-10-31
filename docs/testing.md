@@ -87,6 +87,12 @@ The standalone storage-requirement scenario imports a real legacy file, accepts 
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.
 
+### Short-layout interaction checks
+
+Run `npm run test:visual -- visual-tests/landscape-operations.spec.ts` for local multiplayer checks across short phone, narrow portrait, and tablet viewports. Controls must fit fully inside both the viewport and every clipping ancestor, rather than merely exist in the page. The cases retain a private draft and unfinished time entry through resizing, verify exactly one private delivery with an excluded third seat, and submit a launch after rotating its manifest into landscape. Disposable local services and browser storage isolate these checks from production. Screenshots land in `.fettle/shots/`.
+
+These are browser interactions with shared React Native styles. Browser viewport resizing doesn't prove native keyboard avoidance, orientation, Dynamic Type, or physical-device behavior.
+
 ## Screenshot comparisons
 
 `npm run test:visual` runs the production web app in Expo against an isolated

@@ -1317,11 +1317,13 @@ function ConnectedOperation({
       hint={
         (planning && !destination) || navigating !== undefined ? (
           <>
-            <Text style={s.detail}>
-              {navigating !== undefined
-                ? 'Choose a new course destination.'
-                : `From ${rock?.name}: choose a destination.`}
-            </Text>
+            <View pointerEvents="none">
+              <Text style={s.detail}>
+                {navigating !== undefined
+                  ? 'Choose a new course destination.'
+                  : `From ${rock?.name}: choose a destination.`}
+              </Text>
+            </View>
             <Action
               text="Cancel selection"
               onPress={() => {
