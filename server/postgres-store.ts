@@ -53,6 +53,10 @@ const STATE_KEYS = [
   'messageReports',
 ] as const;
 
+function storedStateValue(key: string, source: string): unknown {
+  return key === 'messageReports' ? serializedReportState(source) : JSON.parse(source);
+}
+
 export class WriterReplacedError extends Error {
   constructor() {
     super('Another service instance has taken over the game database.');
@@ -164,7 +168,9 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
               (row) => JSON.stringify(JSON.parse(row.data)) !== rooms.get(row.id),
             ) ||
             originalState.length !== state.size ||
-            originalState.some((row) => JSON.stringify(JSON.parse(row.data)) !== state.get(row.key))
+            originalState.some(
+              (row) => JSON.stringify(storedStateValue(row.key, row.data)) !== state.get(row.key),
+            )
           )
             throw new Error('Database changed during recovery.');
           const archive = {
@@ -228,9 +234,7 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
         const database: Record<string, unknown> = {
           rooms: roomRows.map((row) => JSON.parse(row.data)),
         };
-        for (const row of stored)
-          database[row.key] =
-            row.key === 'messageReports' ? serializedReportState(row.data) : JSON.parse(row.data);
+        for (const row of stored) database[row.key] = storedStateValue(row.key, row.data);
         rooms = new Map(
           roomRows.map((row, i) => [row.id, JSON.stringify((database.rooms as unknown[])[i])]),
         );
