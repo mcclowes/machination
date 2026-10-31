@@ -1,6 +1,6 @@
 # Multiplayer iOS release readiness
 
-Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated October 30, 2026.
+Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated October 31, 2026.
 
 The immediate target is a polished, invite-only multiplayer TestFlight release. Public App Store distribution adds the gates below. “AAA” means a consistent quality bar across play, presentation, reliability, and support; it isn't evidence of readiness or a reason to add more mechanics.
 
@@ -28,7 +28,7 @@ Four host tests exercise the actual entry-point wiring with synthetic descendant
 | 1 | Players receive timely, private alerts | Real APNs/Expo delivery while backgrounded and terminated; permission denial, rotation, withdrawal, retries, and taps respect current seat and consent | [Notifications #74](https://github.com/mcclowes/machination/issues/74), [incoming attacks #80](https://github.com/mcclowes/machination/issues/80). Provider/device delivery remains unverified. |
 | 2 | First-time players understand and control the game | Complete onboarding and first reinforcement without assistance; select crowded assets, edit/cancel orders, inspect forecasts, and understand failures on a phone | Existing practice and UI work provides the foundation. Record observed usability issues before adding features. |
 | 2 | Presentation feels deliberate on every supported screen | No obscured controls or clipped copy on small/large iPhones and iPad, keyboard, largest supported text, VoiceOver, and reduced motion; readable assets, feedback, audio, and foreground/background behavior | Simulator evidence covers selected iPhone flows. Physical devices, iPad, and a complete accessibility matrix remain open. |
-| 2 | The game remains responsive during real play | Measure map interaction, forecast/history, memory, and battery on baseline devices; test a full ten-seat operation and retained history under declared load | [Service measurements](service-capacity.md) are contended host observations, not a capacity promise. Set budgets from measured device and hosted baselines. |
+| 2 | The game remains responsive during real play | Measure map interaction, forecast/history, memory, and battery on baseline devices; test a full ten-seat operation and retained history under declared load | [Ten-seat SQL functional acceptance](service-capacity.md#ten-seat-sql-acceptance-october-31) passes for mixed released/current clients and current gravity rules, including a lost response and restart. Hosted capacity, long histories, device responsiveness, and budgets still need measured baselines. |
 | 3 | A release can be reproduced and recovered | Full current-source gate, native build, signed immutable IPA, staged backend compatibility, healthy deployment, backup, restore, and rollback evidence tied to commits | [Release #122](https://github.com/mcclowes/machination/issues/122), [testing](testing.md), and [native builds](native-builds.md). Keep release work independent of concurrent edits. |
 
 Don't change old mechanics revisions to achieve these gates. Keep speculative mechanics outside the release path. Persisted rules and wire compatibility take precedence over adding features.
