@@ -3,7 +3,7 @@ import type { Game } from './simulation';
 import { createConfiguredGame } from './world';
 
 export function temporalWorld(): Game {
-  const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 19);
+  const game = createConfiguredGame({ playerCount: 2, mode: 'mining', gravity: false }, 0, 19);
   game.hour = 24;
   game.rules!.map = { generator: 'balanced.v1', seed: 19, width: 500, height: 500 };
   for (const [i, rock] of game.rocks.entries()) {

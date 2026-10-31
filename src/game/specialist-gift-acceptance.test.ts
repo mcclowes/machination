@@ -13,7 +13,7 @@ import { workBetween } from './opening-clock';
 // Authority: official Subs/Combat rules and Queen, Princess, and Admiral entries.
 // https://subterfuge-game.com/rulebook/ and https://subterfuge-game.com/rulebook/Specialists.html
 function fixture() {
-  const baseline = createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: false }, 0, 2026);
+  const baseline = createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: false, gravity: false }, 0, 2026);
   const donor = baseline.rocks.filter(r => r.owner === 'you' && !r.coreOf);
   const recipient = baseline.rocks.filter(r => r.owner === 'vesper' && !r.coreOf);
   Object.assign(donor[0]!, { x: 20, y: 20, drones: 60 });

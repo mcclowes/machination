@@ -20,7 +20,7 @@ const loaded = build({
     builder.onLoad({ filter: /.*/, namespace: 'native-host' }, () => ({ contents: `${OPERATION_MOTION_NATIVE}
 export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',Image='Image',StyleSheet={create:x=>x,absoluteFillObject:{position:'absolute',left:0,right:0,top:0,bottom:0}},Platform={OS:'ios'},PanResponder={create:x=>({panHandlers:x})};` }));
     builder.onResolve({ filter: /^react-native-svg$/ }, () => ({ path: 'svg', namespace: 'svg-host' }));
-    builder.onLoad({ filter: /.*/, namespace: 'svg-host' }, () => ({ contents: `export default 'Svg';export const Circle='Circle',G='G',Line='Line',Path='Path',Text='SvgText';` }));
+    builder.onLoad({ filter: /.*/, namespace: 'svg-host' }, () => ({ contents: `export default 'Svg';export const Circle='Circle',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` }));
     builder.onResolve({ filter: /\/(Artwork|SpecialistIcon|PlayerIdentity|SpaceBackground|DriftCourse|CopyObjectReference|HaulerCombat)$/ }, args => ({ path: args.path.split('/').at(-1)!, namespace: 'chart-host' }));
     builder.onLoad({ filter: /.*/, namespace: 'chart-host' }, args => ({ contents: (args.path === 'Artwork' || args.path === 'SpecialistIcon') ? `export const SpecialistIcon='SpecialistIcon',CaptiveLock='CaptiveLock';` : args.path === 'PlayerIdentity' ? `export const PlayerIdentity='PlayerIdentity';export const usePlayerRoster=()=>f=>({name:f,color:'#abc'});` : `export const ${args.path}=()=>null;` }));
   } }],

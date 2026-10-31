@@ -15,7 +15,7 @@ for (const redirected of [false, true]) {
     const file = join(dir, 'world.json');
     let now = 0, a = '', b = '', c = '', d = '';
     const initial = () => {
-      const game = createConfiguredGame({ playerCount: 2, mode: 'mining' }, 0, 2026);
+      const game = createConfiguredGame({ playerCount: 2, mode: 'mining', gravity: false }, 0, 2026);
       for (const site of game.rocks) { site.productionAt = 1000; site.shieldAt = 1000; site.shieldsDisabled = true; }
       const [source, target, other] = game.rocks.filter(site => site.owner === 'you' && !site.coreOf);
       const enemy = game.rocks.find(site => site.owner === 'vesper' && !site.coreOf)!;

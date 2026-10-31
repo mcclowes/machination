@@ -34,7 +34,7 @@ for (const platform of ['web', 'ios', 'android']) test(`chart zoom controls and 
       builder.onLoad({ filter: /.*/, namespace: 'chart-leaves' }, () => ({ contents: 'import React from "react"; export const SpaceBackground=props=>React.createElement("SpaceBackground",props),CopyObjectReference=()=>null,PlayerIdentity=()=>null,usePlayerRoster=()=>()=>({color:"white"});' }));
       builder.onResolve({ filter: /^react-native(?:-svg)?$/ }, args => ({ path: args.path, namespace: 'chart-hosts' }));
       builder.onLoad({ filter: /.*/, namespace: 'chart-hosts' }, args => ({ contents: args.path === 'react-native-svg'
-        ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Text='SvgText';`
+        ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';`
         : `${OPERATION_MOTION_NATIVE}
 export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Text',Image='Image',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Platform={OS:${JSON.stringify(platform)}};` }));
     } }] });

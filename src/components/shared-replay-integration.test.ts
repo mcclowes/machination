@@ -54,7 +54,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
           return React.createElement('View',{...props,ref});
         });
         ${OPERATION_MOTION_NATIVE}
-export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;

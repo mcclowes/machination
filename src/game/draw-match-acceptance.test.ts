@@ -20,9 +20,9 @@ for (const mode of ['mining', 'domination'] as const) {
   test(`configured stationary two-seat ${mode} match draws through recruited Martyr convoy contact`, () => {
     // Seed selection consults only this seat's public offers, never its private deck.
     let seed = 1;
-    while (seed <= 100 && !observe(createConfiguredGame({ playerCount: 2, mode, driftingBases: false }, 0, seed), 'you').recruitment!.you!.offers.includes('martyr')) seed++;
+    while (seed <= 100 && !observe(createConfiguredGame({ playerCount: 2, mode, driftingBases: false, gravity: false }, 0, seed), 'you').recruitment!.you!.offers.includes('martyr')) seed++;
     assert.ok(seed <= 100, 'bounded seed search must find an offered Martyr');
-    const baseline = createConfiguredGame({ playerCount: 2, mode, driftingBases: false }, 0, seed);
+    const baseline = createConfiguredGame({ playerCount: 2, mode, driftingBases: false, gravity: false }, 0, seed);
     const untouched = JSON.stringify(baseline);
     const retained = createArchive(baseline);
     const players = baseline.rules!.players;

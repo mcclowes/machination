@@ -24,7 +24,7 @@ const scenario = { seed: 670, recruitmentSeed: 607, movingDestination: 's', park
 
 for (const mode of ['mining', 'domination'] as const) for (const reverse of [false, true]) {
   test(`nearest moving Princess succeeds a captured Queen: ${mode}, reverse=${reverse}`, () => {
-    const baseline = createConfiguredGame({ playerCount: 2, mode, driftingBases: false }, 0, scenario.seed, { you: scenario.recruitmentSeed });
+    const baseline = createConfiguredGame({ playerCount: 2, mode, driftingBases: false, gravity: false }, 0, scenario.seed, { you: scenario.recruitmentSeed });
     const untouched = JSON.stringify(baseline);
     const retained = createArchive(baseline);
     const core = observe(baseline, 'you').rocks.find(r => r.known && r.specialists?.some(u => u.kind === 'queen' && u.owner === 'you'))!;

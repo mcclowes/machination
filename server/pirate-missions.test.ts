@@ -43,5 +43,5 @@ test('interception return missions survive authoritative retries, forecast, hist
   assert.deepEqual((await service.snapshot(room.id, tokens[0]!)).game, met.game);
   now += 0.05 * 3_600_000;
   assert.equal((await service.snapshot(room.id, tokens[0]!)).game.fleets[0]!.speed, 32);
-  assert.deepEqual((await service.history(room.id, tokens[0]!, rig.arrives)).game, met.game);
+  assert.deepEqual((await service.history(room.id, tokens[0]!, met.game.hour)).game, met.game);
 });
