@@ -6,7 +6,7 @@ The immediate target is a polished, invite-only multiplayer TestFlight release. 
 
 ## Current baseline
 
-The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build 0.1.0 (2) is distributed, recorded in [#122](https://github.com/mcclowes/machination/issues/122). It predates the HTTP and client-recovery fixes below. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
+The game has versioned deterministic rules, an authoritative multiplayer service, sensor-limited observations, retry-safe commands, private diplomacy, recovery codes, optional Clerk integration, opt-in notification workflows, solo rivals, practice missions, audio, and original artwork. Internal TestFlight build 0.1.0 (2) is distributed, recorded in [#122](https://github.com/mcclowes/machination/issues/122). It predates the HTTP and client-recovery fixes below. [Build 3 is locally signed and verified](native-builds.md#build-3-prepared-october-31), awaiting publication and physical-device acceptance. See [native evidence](native-builds.md) for exact artifacts and verification boundaries.
 
 Code, a passing host test, a simulator session, a signed IPA, and a successful physical-device playtest prove different things. Record the source commit, runtime/device, command or scenario, result, and evidence for each gate. Earlier passing suites don't certify the current source.
 

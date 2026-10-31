@@ -95,6 +95,16 @@ The fresh native archive was compiled from `b2910cf`. The release tree differs o
 
 The IPA is `/private/tmp/machination-testflight-build2-20261030/release/export/Machination.ipa` (56,605,232 bytes), SHA-256 `2e87e48579512dc833a8862e8071cd72a1a0fb24c5954254190b20c68ec1822b`. Apple accepted delivery `bb8eea23-80ed-4d61-bb73-6b76a6b9aca6` without errors or warnings. That workspace's `release.json`, Apple status responses, and verification logs retain the evidence. [#122](https://github.com/mcclowes/machination/issues/122) records this release.
 
+### Build 3 prepared, October 31
+
+Version **0.1.0 (3)** was freshly compiled, archived, and exported locally with Xcode. It has not been uploaded or distributed. Application, native, configuration, dependency, and asset inputs match `2702155`; the build folder differs only in two documentation files. Its source, archive, logs, and verification manifest are retained under `/private/tmp/machination-testflight-build3-20261031-15kun1d5/`.
+
+The 56,647,338-byte IPA is `release/export/Machination.ipa`, SHA-256 `72fc61881d030dd87412db5bd8fef65cbf3045410608f536f1600d70ff8d0d46`. Verification passed deep/strict signing, certificate trust against local roots, certificate membership in the unexpired App Store profile, production APNs and disabled debugging entitlements, iPhone/iPad support, version/build, exempt encryption, matching executable/dSYM UUIDs, the bundled HTTPS service origin, and the current multiplayer representation string. The archive and exported IPA contain identical JavaScript bytes.
+
+The full behavior gate ran on `3d07357`: quality checks, 1,568 behavior tests, and 18 packaged-server checks passed with zero failures or skips; both container images passed separately. Later commits add recovery documentation and reserve build number 3, without changing application behavior. Expo's resolved configuration and the actual native archive both confirm build 3. See [client compatibility](client-compatibility.md) for the immutable released-client checks.
+
+Server support must be deployed and verified before distributing this client, which sends versioned Accept headers and creation request IDs. Publication awaits explicit authorization. Apple processing, physical-device gameplay, native production sign-in, push delivery, and provider-managed isolated cloud restore remain unverified. A local signed IPA does not close those gates.
+
 ## Verification boundaries
 
 An Expo JavaScript export proves bundling, not native compilation. A Gradle or Xcode build proves compilation, not installation or gameplay. Before distributing, verify first-launch dismissal, operation save/reload, foreground/background catch-up, map selection, transfers, module combat, invitation joining, private messages, and retry behavior on both native platforms. Include notched screens, the software keyboard, and enlarged text in layout checks.
