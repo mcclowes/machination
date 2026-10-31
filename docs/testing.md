@@ -18,13 +18,15 @@ This prerequisite applies to certified diagnostics. Gameplay and [player replay 
 
 The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, and `scripts`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
 
-Four test files run concurrently, with process isolation between files. Tests within each file run sequentially by default, which protects tests that replace clocks or native adapters. Node's default test timeout is two minutes. A separate deadline kills the test process group on macOS and Linux, including synchronous hangs that Node's test timeout can't interrupt. Plain `npm test` keeps its ten-minute default; `npm run check` and the CI behavior job use a bounded thirty-minute acceptance window. Two October 30 full runs took about 927 seconds each on the shared Mac, exceeding the shorter default while completing the unchanged configuration matrix. The longer acceptance window changes no assertions, scenarios, simulation budgets, or numeric guards. Performance work remains [#52](https://github.com/mcclowes/machination/issues/52). Runner tests verify discovery, failure diagnostics, empty-suite rejection, and synchronous-hang termination using temporary projects.
+Four test files run concurrently, with process isolation between files. Tests within each file run sequentially by default, which protects tests that replace clocks or native adapters. The configuration matrix uses twelve files under `src/game/configuration-invariants`, one for each player-count, victory-mode, and drifting-base combination. Each file retains both rival settings and all three seeds, preserving the original 24 tests and 72 scenarios while allowing the existing four-file pool to distribute their CPU work. The inventory regression runs the real wrappers and registration through default discovery with only the costly scenario body replaced, proving every original name and seeded tuple appears exactly once without running the matrix twice.
+
+Node's default test timeout is two minutes. A separate deadline kills the test process group on macOS and Linux, including synchronous hangs that Node's test timeout can't interrupt. Plain `npm test` keeps its ten-minute default; `npm run check` and the CI behavior job use a bounded thirty-minute acceptance window. Two October 30 full runs took about 927 seconds each on the shared Mac, exceeding the shorter default while completing the unchanged configuration matrix. Partitioning changes no assertions, scenarios, simulation budgets, or numeric guards. Performance work remains [#52](https://github.com/mcclowes/machination/issues/52). Runner tests verify discovery, failure diagnostics, empty-suite rejection, and synchronous-hang termination using temporary projects.
 
 For focused checks:
 
 ```sh
 # Run a single file.
-node --import tsx --test src/game/configuration-invariants.test.ts
+node --import tsx --test src/game/configuration-invariants/10-seat-mining-drifting.test.ts
 
 # Filter the discovered suite; use the equals form for runner options.
 npm test -- --test-name-pattern='catch-up'

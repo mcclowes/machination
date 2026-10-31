@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createConfiguredGame } from './world';
-import { advance, type Game } from './simulation';
-import { applyCommand, createArchive, exportArchive, replayTo, type GameCommand } from './replay';
-import { decodeSave } from './save-format';
-import { decodeReplay } from './replay-save';
-import type { GameOptions } from './rules';
+import { createConfiguredGame } from '../../src/game/world';
+import { advance, type Game } from '../../src/game/simulation';
+import { applyCommand, createArchive, exportArchive, replayTo, type GameCommand } from '../../src/game/replay';
+import { decodeSave } from '../../src/game/save-format';
+import { decodeReplay } from '../../src/game/replay-save';
+import type { GameOptions } from '../../src/game/rules';
 
 function freeze<T>(value: T): T {
   if (value && typeof value === 'object') {
@@ -48,8 +48,9 @@ function exercise(options: GameOptions, seed: number, rivals: boolean) {
   assert.deepEqual(baseline, original);
 }
 
-for (const playerCount of [2, 6, 10]) for (const mode of ['mining', 'domination'] as const)
-  for (const driftingBases of [false, true]) for (const rivals of [false, true]) {
+export function registerConfigurationInvariants(options: GameOptions) {
+  const { playerCount, mode, driftingBases } = options;
+  for (const rivals of [false, true]) {
     test(`${playerCount}-seat ${mode}, drift=${driftingBases}, rivals=${rivals}: catch-up, saved polling, and replay agree`, () => {
       for (const seed of [0, 73, 0xffffffff]) {
         try { exercise({ playerCount, mode, driftingBases }, seed, rivals); }
@@ -57,3 +58,4 @@ for (const playerCount of [2, 6, 10]) for (const mode of ['mining', 'domination'
       }
     });
   }
+}
