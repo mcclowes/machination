@@ -11,6 +11,15 @@ import { createLegacyGame } from '../game/legacy';
 import { commandPulse } from '../game/pulse';
 import { commandTacticalPulse } from '../game/tactical-pulse';
 
+test('current clients advertise a supported representation while accepting older JSON responses', async t => {
+  const frame = testSnapshot('representation');
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get('Accept'), 'application/vnd.machination.v2+json, application/json');
+    return new Response(JSON.stringify(frame), { headers: { 'Content-Type': 'application/json' } });
+  });
+  assert.deepEqual(await api({ url: 'https://example.test', token: 'seat' }, 'games'), frame);
+});
+
 test('rate limits preserve uncertain pending commands while definitive rejections can clear them', async t => {
   const server = createServer((req, res) => {
     const status = req.url?.endsWith('rate-limit') ? 429 : 409;

@@ -11,6 +11,11 @@
  */
 
 import { assignPlayerColor, isPlayerColor } from '../src/game/player-colors';
+import {
+  GRAVITY_CLIENT_MECHANICS_VERSION,
+  type ClientMechanicsVersion,
+} from '../src/contracts/representation';
+import { assertClientRules } from './client-representation';
 import { councilCommand } from './council-command';
 import { factionStandings, finished, profileId } from './factions';
 import { isAllegiance, type FactionStandings } from '../src/game/factions';
@@ -168,6 +173,17 @@ export class GameService {
   }
   private transaction<T>(run: (db: Database) => T): Promise<T> {
     return this.store.transaction(run);
+  }
+  requireClientRules(
+    id: string,
+    token: Credential,
+    supported: ClientMechanicsVersion,
+  ): Promise<void> {
+    return this.store.read((db) => {
+      const room = this.room(db, id);
+      this.seat(room, token);
+      assertClientRules(room.game.rules, supported);
+    });
   }
   private room(db: Database, id: string): Room {
     const room = db.rooms.find((r) => r.id === id);
@@ -557,7 +573,10 @@ export class GameService {
         });
     });
   }
-  accountSession(account: AccountCredential): Promise<Snapshot | null> {
+  accountSession(
+    account: AccountCredential,
+    supported: ClientMechanicsVersion = 19,
+  ): Promise<Snapshot | null> {
     return this.transaction((db) => {
       credentialHash(account);
       const room = [...db.rooms]
@@ -565,11 +584,17 @@ export class GameService {
         .find((r) => r.seats.some((s) => matchesCredential(s, account)));
       if (!room || finished(room)) assertOperationAvailable(db, { credential: account });
       if (!room) return null;
+      assertClientRules(room.game.rules, supported);
       this.settle(db, room);
       return this.view(room, this.seat(room, account));
     });
   }
-  linkAccount(id: string, token: string, account: AccountCredential): Promise<Snapshot> {
+  linkAccount(
+    id: string,
+    token: string,
+    account: AccountCredential,
+    supported: ClientMechanicsVersion = 19,
+  ): Promise<Snapshot> {
     return this.transaction((db) => {
       credentialHash(account);
       const room = this.room(db, id);
@@ -587,6 +612,7 @@ export class GameService {
         'This seat belongs to another account.',
       );
       assertOperationAvailable(db, { credential: account });
+      assertClientRules(room.game.rules, supported);
       if (seat.accountId !== account.accountId) {
         requireThat(
           !room.seats.some((s) => s.accountId === account.accountId),
@@ -610,6 +636,7 @@ export class GameService {
     variant?: unknown,
     preferredColor?: unknown,
     requestId?: unknown,
+    mechanicsVersion: ClientMechanicsVersion = 19,
   ): Promise<Snapshot> {
     if (
       requestId !== undefined &&
@@ -647,13 +674,21 @@ export class GameService {
     return this.transaction((db) => {
       const credential = credentialHash(token);
       const creationKey = requestId === undefined ? undefined : hash(`${credential}:${requestId}`);
+      const retried = creationKey ? db.rooms.find((r) => r.creationKey === creationKey) : undefined;
+      if (retried) assertClientRules(retried.game.rules, mechanicsVersion);
+      if (requested?.gravity)
+        assertClientRules({ mechanicsVersion: GRAVITY_CLIENT_MECHANICS_VERSION }, mechanicsVersion);
       for (const room of db.rooms)
-        if (room.seats.some((s) => matchesCredential(s, token))) this.settle(db, room);
+        if (room.seats.some((s) => matchesCredential(s, token))) {
+          if (!creationKey && !finished(room)) assertClientRules(room.game.rules, mechanicsVersion);
+          this.settle(db, room);
+        }
       // Without a request id, older clients treat any unfinished seat as their retried creation.
       const existing = creationKey
-        ? db.rooms.find((r) => r.creationKey === creationKey)
+        ? retried
         : db.rooms.find((r) => !finished(r) && r.seats.some((s) => matchesCredential(s, token)));
       if (existing) {
+        assertClientRules(existing.game.rules, mechanicsVersion);
         requireThat(
           existing.variant === variant,
           409,
@@ -706,10 +741,17 @@ export class GameService {
                 Object.fromEntries(FACTIONS.map((f) => [f, randomBytes(4).readUInt32BE()])),
               )
             : createConfiguredGame(
-                requested ?? { ...DEFAULT_GAME_OPTIONS, beltCompact: true },
+                requested ?? {
+                  ...DEFAULT_GAME_OPTIONS,
+                  beltCompact: true,
+                  ...(mechanicsVersion < GRAVITY_CLIENT_MECHANICS_VERSION
+                    ? { gravity: false }
+                    : {}),
+                },
                 this.now(),
                 randomBytes(4).readUInt32BE(),
                 Object.fromEntries(FACTIONS.map((f) => [f, randomBytes(4).readUInt32BE()])),
+                mechanicsVersion,
               ),
         seats: [this.newSeat(db, token, 'you', variant)],
         messages: [],
@@ -725,7 +767,12 @@ export class GameService {
       return this.view(room, 'you');
     });
   }
-  join(invite: string, token: Credential, preferredColor?: unknown): Promise<Snapshot> {
+  join(
+    invite: string,
+    token: Credential,
+    preferredColor?: unknown,
+    supported: ClientMechanicsVersion = 19,
+  ): Promise<Snapshot> {
     if (preferredColor !== undefined && !isPlayerColor(preferredColor))
       return Promise.reject(
         new Failure(400, 'player.validation.color', 'Choose a known player color.'),
@@ -735,6 +782,7 @@ export class GameService {
       const room = db.rooms.find((r) => r.invite === invite);
       if (!room) assertOperationAvailable(db, { invite, credential: token });
       requireThat(room, 404, 'game.not_found.invite', 'Invitation not found.');
+      assertClientRules(room.game.rules, supported);
       const existing = room.seats.find((s) => matchesCredential(s, token));
       if (existing) {
         this.settle(db, room);
@@ -821,7 +869,12 @@ export class GameService {
       return this.view(room, faction);
     });
   }
-  recover(id: string, token: Credential, command: RecoverSeat): Promise<Snapshot> {
+  recover(
+    id: string,
+    token: Credential,
+    command: RecoverSeat,
+    supported: ClientMechanicsVersion = 19,
+  ): Promise<Snapshot> {
     return this.transaction((db) => {
       requireThat(
         typeof token === 'string',
@@ -853,6 +906,7 @@ export class GameService {
         'recovery.unauthorized.code',
         'Recovery code is invalid, replaced, or already used.',
       );
+      assertClientRules(room.game.rules, supported);
       if (seat.recoveryReceipt?.secretHash === secretHash && seat.hash === credential) {
         this.settle(db, room);
         return this.view(room, seat.faction);

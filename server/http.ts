@@ -4,6 +4,8 @@
  * ---
  */
 import type { PulseOrder } from '../src/contracts/protocol';
+import type { ClientMechanicsVersion } from '../src/contracts/representation';
+import { clientRepresentation, responseJson } from './client-representation';
 import { createServer, type IncomingMessage } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { GameService, type AccountCredential } from './service';
@@ -27,7 +29,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
     return parsed;
   } catch { throw new Failure(400, 'request.validation.json', 'Send a JSON object.'); }
 }
-async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential): Promise<unknown> {
+async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential, mechanicsVersion: ClientMechanicsVersion): Promise<unknown> {
   if (url.pathname === '/v1/factions') {
     if (req.method === 'GET') return service.factions(token);
     if (req.method === 'POST') {
@@ -40,12 +42,12 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
   if (req.method === 'POST' && url.pathname === '/v1/games') {
     const input = await body(req);
     if (Object.keys(input).some(key => !['options', 'variant', 'preferredColor', 'requestId'].includes(key))) throw new Failure(400, 'game.validation.options', 'Provide game options inside options.');
-    return service.create(token, input.options, input.variant, input.preferredColor, input.requestId);
+    return service.create(token, input.options, input.variant, input.preferredColor, input.requestId, mechanicsVersion);
   }
   if (req.method === 'POST' && url.pathname === '/v1/join') {
     const input = await body(req);
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
-    return service.join(input.invite, token, input.preferredColor);
+    return service.join(input.invite, token, input.preferredColor, mechanicsVersion);
   }
   const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
@@ -53,7 +55,9 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
   switch (req.method) {
     case 'GET':
       switch (action) {
-        case undefined: return service.snapshot(id, token);
+        case undefined:
+          await service.requireClientRules(id, token, mechanicsVersion);
+          return service.snapshot(id, token);
         case 'replay': {
           const bounds = ['from', 'through'].map(key => url.searchParams.get(key));
           if ([...url.searchParams.keys()].some(key => key !== 'from' && key !== 'through')
@@ -61,11 +65,13 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
             || bounds.some(value => !value?.trim() || !Number.isFinite(Number(value)))) {
             throw new Failure(400, 'replay.validation.bounds', 'Provide exactly one finite from and through, with no other query parameters.');
           }
+          await service.requireClientRules(id, token, mechanicsVersion);
           return service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]));
         }
         case 'history': {
           const hour = url.searchParams.get('hour');
           if (!hour?.trim() || url.searchParams.getAll('hour').length !== 1 || !Number.isFinite(Number(hour))) throw new Failure(400, 'history.validation.hour', 'Provide one finite historical hour.');
+          await service.requireClientRules(id, token, mechanicsVersion);
           return service.history(id, token, Number(hour));
         }
         case 'notifications': {
@@ -76,11 +82,13 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
       }
     case 'POST': {
       const input = await body(req);
+      if (action !== undefined && !['history', 'replay', 'notifications', 'recover'].includes(action))
+        await service.requireClientRules(id, token, mechanicsVersion);
       switch (action) {
         case 'activity': return service.activity(id, token);
         case 'resign': return service.resign(id, token, input as ResignOrder);
         case 'recovery': return service.setRecovery(id, token, input as RecoverySetup);
-        case 'recover': return service.recover(id, token, input as RecoverSeat);
+        case 'recover': return service.recover(id, token, input as RecoverSeat, mechanicsVersion);
         case 'start': return service.start(id, token);
         case 'specialists': return service.specialist(id, token, input as SpecialistOrder);
         case 'haulers': return service.hauler(id, token, input as HaulerOrder);
@@ -119,11 +127,13 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
   const limits = new Map<string, { count: number; resets: number }>();
   return createServer({ requestTimeout: 10000, headersTimeout: 10000, maxHeaderSize: 8192 }, async (req, res) => {
     const correlationId = randomUUID();
-    res.setHeader('Content-Type', 'application/json');
+    const representation = clientRepresentation(req.headers.accept);
+    const encode = (payload: unknown) => responseJson(payload, representation);
+    res.setHeader('Content-Type', representation.contentType);
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Correlation-ID', correlationId);
-    res.setHeader('Vary', 'Origin');
+    res.setHeader('Vary', 'Origin, Accept');
     try {
       const origin = req.headers.origin;
       if (origin) {
@@ -136,7 +146,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
       const url = new URL(req.url ?? '/', 'http://localhost');
       const path = url.pathname;
-      if (req.method === 'GET' && path === '/health') { res.end(JSON.stringify({ status: 'ok' })); return; }
+      if (req.method === 'GET' && path === '/health') { res.end(encode({ status: 'ok' })); return; }
       const now = (options.clock ?? Date.now)();
       for (const [key, item] of limits) if (item.resets <= now) limits.delete(key);
       const ip = clientAddress(req, options.clientIp ?? 'direct');
@@ -154,25 +164,25 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         if (!authenticate) throw new Failure(503, 'account.unavailable.configuration', 'Account login is not configured on this server.');
         if (!account) throw new Failure(401, 'account.unauthorized.session', 'Sign in to your Marginal Utility account.');
         if (path === '/v1/account/session' && req.method === 'GET') {
-          res.end(JSON.stringify({ snapshot: await service.accountSession(account) })); return;
+          res.end(encode({ snapshot: await service.accountSession(account, representation.mechanicsVersion) })); return;
         }
         if (path === '/v1/account/operations' && req.method === 'GET') {
-          res.end(JSON.stringify({ operations: await service.accountOperations(account) })); return;
+          res.end(encode({ operations: await service.accountOperations(account) })); return;
         }
         if (path === '/v1/account/link' && req.method === 'POST') {
           const input = await body(req);
           if (typeof input.id !== 'string' || !/^[a-f0-9]{24}$/.test(input.id) || typeof input.token !== 'string' || Object.keys(input).some(key => !['id', 'token'].includes(key))) throw new Failure(400, 'account.validation.seat', 'Provide the existing operation and seat credential.');
-          res.end(JSON.stringify(await service.linkAccount(input.id, input.token, account))); return;
+          res.end(encode(await service.linkAccount(input.id, input.token, account, representation.mechanicsVersion))); return;
         }
         throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
       if (authenticate && !account && req.method === 'POST' && (path === '/v1/games' || path === '/v1/join')) throw new Failure(401, 'account.unauthorized.session', 'Sign in to create or join an operation.');
-      res.end(JSON.stringify(await gameRequest(req, url, service, token)));
+      res.end(encode(await gameRequest(req, url, service, token, representation.mechanicsVersion)));
     } catch (error) {
       const e = error instanceof Failure ? error : new Failure(500, 'server.internal.unavailable', 'The server could not complete this request. Retry with the same command ID.');
       if (!(error instanceof Failure)) console.error('Request failed', correlationId, (error as NodeJS.ErrnoException).code ?? 'internal');
       res.writeHead(e.status);
-      res.end(JSON.stringify({ issues: [{ issue: e.code, severity: 'error', correlationId, dateTime: new Date().toISOString(), message: { title: 'Command not completed', detail: e.message } }] }));
+      res.end(encode({ issues: [{ issue: e.code, severity: 'error', correlationId, dateTime: new Date().toISOString(), message: { title: 'Command not completed', detail: e.message } }] }));
     }
   });
 }

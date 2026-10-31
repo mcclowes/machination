@@ -1,3 +1,4 @@
+import { CURRENT_CLIENT_ACCEPT } from '../src/contracts/representation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
@@ -52,7 +53,7 @@ test('HTTP setup validates options and defaults to a stationary three-player pul
   const address = server.address(); assert.ok(address && typeof address !== 'string');
   const origin = `http://127.0.0.1:${address.port}`;
   async function post(path: string, token: string, body: unknown) {
-    const response = await fetch(`${origin}/v1/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(`${origin}/v1/${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: JSON.stringify(body) });
     return { status: response.status, data: await response.json() };
   }
   const token = randomBytes(32).toString('hex');

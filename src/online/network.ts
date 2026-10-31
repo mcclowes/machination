@@ -1,4 +1,5 @@
 import { isPlayerColor, type PlayerColor } from '../game/player-colors';
+import { CURRENT_CLIENT_ACCEPT } from '../contracts/representation';
 import { authorization, type RequestSession } from './account-auth';
 import { abortable, throwIfAborted } from './request-abort';
 import { validateOptions, type GameOptions } from '../game/rules';
@@ -26,7 +27,7 @@ async function request(session: RequestSession, path: string, payload?: unknown,
     const bearer = session.accountId ? await abortable(() => authorization(session), controller.signal) : `Bearer ${session.token}`;
     throwIfAborted(controller.signal);
     const response = await fetch(`${session.url}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST',
-      headers: { Authorization: bearer, 'Content-Type': 'application/json' },
+      headers: { Authorization: bearer, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT },
       body: payload === undefined ? undefined : JSON.stringify(payload), signal: controller.signal });
     const data: unknown = await response.json();
     if (!response.ok) {

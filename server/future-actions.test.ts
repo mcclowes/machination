@@ -1,3 +1,4 @@
+import { CURRENT_CLIENT_ACCEPT } from '../src/contracts/representation';
 import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -39,7 +40,7 @@ test('HTTP mixed queues beyond twenty orders survive scoped retries, restart, hi
       { action: { type: 'shields' as const, rock: 'c', disabled: i % 2 === 0 } },
     ]) {
       last = { requestId: randomUUID(), revision: current.revision, executeAt: 1, ...order };
-      const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${s.tokens[0]}`, 'Content-Type': 'application/json' }, body: JSON.stringify(last) });
+      const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${s.tokens[0]}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: JSON.stringify(last) });
       assert.equal(response.status, 200);
       current = await response.json() as typeof s.start;
     }
@@ -96,7 +97,7 @@ test('HTTP refuses unknown nested fields and owner injection without consuming r
   const command = { requestId: randomUUID(), revision: s.start.revision, executeAt: 2, action: { type: 'shields', rock: 'c', disabled: true } };
   const port = address.port;
   async function send(body: unknown, token = s.tokens[0]!) {
-    const response = await fetch(`http://127.0.0.1:${port}/v1/games/${s.id}/schedules`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(`http://127.0.0.1:${port}/v1/games/${s.id}/schedules`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: JSON.stringify(body) });
     return { status: response.status, body: await response.json() };
   }
   for (const body of [
@@ -313,7 +314,7 @@ test('HTTP queued gift launch and planned hire aliases survive execution, replay
   const address = server.address(); assert.ok(address && typeof address !== 'string');
   const port = address.port;
   async function send(body: ScheduleOrder) {
-    const response = await fetch(`http://127.0.0.1:${port}/v1/games/${id}/schedules`, { method: 'POST', headers: { Authorization: `Bearer ${tokens[0]}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const response = await fetch(`http://127.0.0.1:${port}/v1/games/${id}/schedules`, { method: 'POST', headers: { Authorization: `Bearer ${tokens[0]}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: JSON.stringify(body) });
     assert.equal(response.status, 200);
     return await response.json() as typeof s.start;
   }

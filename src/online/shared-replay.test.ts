@@ -5,6 +5,13 @@ import { SHARED_REPLAY_LIMITS } from '../replay/timeline';
 import { RejectedCommand } from './network';
 
 const session = { url: 'https://example.test', token: 'a'.repeat(64), id: 'b'.repeat(24) };
+test('replay requests advertise their decoder and preserve an upgrade refusal', async t => {
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get('Accept'), 'application/vnd.machination.v2+json, application/json');
+    return new Response(JSON.stringify({ issues: [{ message: { detail: 'Update Machination.' } }] }), { status: 503 });
+  });
+  await assert.rejects(exportSharedReplay(session, 0, 0), error => error instanceof Error && !(error instanceof RejectedCommand) && error.message === 'Update Machination.');
+});
 test('replay client refuses invalid bounds before fetching', async t => {
   t.mock.method(globalThis, 'fetch', () => { throw new Error('must not fetch'); });
   for (const [from, through] of [[NaN, 0], [0, Infinity], [2, 1], [-1, 0]]) {

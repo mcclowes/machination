@@ -1,3 +1,4 @@
+import { CURRENT_CLIENT_ACCEPT } from '../src/contracts/representation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
@@ -73,7 +74,7 @@ test('HTTP council decoding rejects malformed commands and preserves old operati
   await service.join(room.invite, tokens[1]!); await service.start(room.id, tokens[0]!);
   const origin = `http://127.0.0.1:${address.port}`;
   async function post(command: unknown, token = tokens[0]!) {
-    return fetch(`${origin}/v1/games/${room.id}/council`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(command) });
+    return fetch(`${origin}/v1/games/${room.id}/council`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: JSON.stringify(command) });
   }
   const good = { requestId: randomUUID(), action: 'vote', motionId: 1, choice: 'yes' };
   for (const bad of [{ ...good, choice: 'maybe' }, { ...good, motionId: 0 }, { ...good, owner: 'vesper' }, { ...good, action: 'enforce' }, { requestId: randomUUID(), action: 'nominate', motionId: 1, policy: '__proto__' }]) assert.equal((await post(bad)).status, 400);

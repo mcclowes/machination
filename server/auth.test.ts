@@ -1,3 +1,4 @@
+import { CURRENT_CLIENT_ACCEPT } from '../src/contracts/representation';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
@@ -49,7 +50,7 @@ test('HTTP login restores an account seat with a new session and migrates a lega
   const address = server.address() as import('node:net').AddressInfo;
   const base = `http://127.0.0.1:${address.port}`;
   async function request(path: string, bearer: string, payload?: unknown) {
-    const response = await fetch(`${base}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${bearer}`, Origin: origin, 'Content-Type': 'application/json' }, body: payload === undefined ? undefined : JSON.stringify(payload) });
+    const response = await fetch(`${base}/v1/${path}`, { method: payload === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${bearer}`, Origin: origin, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT }, body: payload === undefined ? undefined : JSON.stringify(payload) });
     return { status: response.status, data: await response.json() as any };
   }
   assert.equal((await fetch(`${base}/health`)).status, 200);

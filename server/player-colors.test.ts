@@ -1,3 +1,4 @@
+import { CURRENT_CLIENT_ACCEPT } from '../src/contracts/representation';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -22,7 +23,7 @@ test('HTTP create and join accept preferences and reject unknown colors', async 
   const port = address.port;
   async function post(path: string, preferredColor: unknown, invite?: string) {
     const response = await fetch(`http://127.0.0.1:${port}/v1/${path}`, {
-      method: 'POST', headers: { Authorization: `Bearer ${randomBytes(32).toString('hex')}`, 'Content-Type': 'application/json' },
+      method: 'POST', headers: { Authorization: `Bearer ${randomBytes(32).toString('hex')}`, 'Content-Type': 'application/json', Accept: CURRENT_CLIENT_ACCEPT },
       body: JSON.stringify({ preferredColor, ...(invite ? { invite } : {}) }),
     });
     return { status: response.status, data: await response.json() };
