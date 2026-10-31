@@ -28,6 +28,14 @@ That real backup was imported into an isolated local PGlite database using commi
 
 Supabase showed a daily physical backup. The account owner declined the paid PITR add-on; PITR remains disabled. Restoring a provider-managed backup into an isolated cloud project remains unverified. The original volume file is retained but is no longer updated by Postgres writes and must not be used as a current fallback.
 
+### Current SQL recovery copy, October 31
+
+A server-enforced `REPEATABLE READ READ ONLY` transaction captured the current game tables at `2026-10-31 00:22:35.634158+00`. The production connection closed before restoration began. No production writer was claimed. The 88,632-byte logical backup contains four operations and one archive, with SHA-256 `4a03ffedfc6e486224496506987a787838ef473316d4696d891329160efc5ed8`. A verified copy and its manifest are retained outside the checkout under `~/Backups/machination/2026-10-31T002235Z-4a03ffed/`, in a `0700` directory with `0600` files. This is on-machine storage, not an off-site backup.
+
+An isolated local PGlite restore passed strict current-source validation and exact comparison of original room bytes, ordinal order, global metadata, and archive bytes. A separate synthetic operation verified participant-only message delivery, identical-command retry deduplication, and persistence across close/reopen. Original room bytes and the backup file remained unchanged. This does not establish restoration of a Supabase-managed backup; see [the detailed recovery evidence](https://github.com/mcclowes/machination/issues/111#issuecomment-6536453374).
+
+The October 31 provider audit listed one completed physical backup, timestamped `2026-10-30T21:41:25.536Z`, before the documented migration deployment. That recovery point cannot establish recovery of later SQL writes without inspecting restored contents. A cloud rehearsal needs a suitable recovery point and a reviewed cost preview. Supabase's [restore-to-new-project flow](https://supabase.com/docs/guides/platform/clone-project) supports daily physical backups on paid projects without requiring PITR, but creates an additional independent project with its own costs.
+
 The migration release selects storage by URL and predates enforcement of the explicit backend requirement in [#131](https://github.com/mcclowes/machination/issues/131). Keep the staged storage settings through subsequent releases, retain `DATABASE_URL`, and do not roll back to file-only images. See the rollback constraints in [Postgres storage](postgres.md).
 
 Tracked in [#111](https://github.com/mcclowes/machination/issues/111).
