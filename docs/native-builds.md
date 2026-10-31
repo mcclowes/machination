@@ -55,7 +55,7 @@ The simulator command retains full Xcode diagnostics. A subsequent Xcode 27.1 bu
 
 ## TestFlight
 
-Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration reserves version 0.1.0, build 5 for local verification; build 4 is the latest recorded upload. Exempt encryption and production APNs configuration remain unchanged. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload, checking its availability before publication. Push delivery still requires the separate provider setup in [notifications](notifications.md).
+Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration records version 0.1.0, build 5, now distributed to internal TestFlight testers. Exempt encryption and production APNs configuration remain unchanged. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload, checking its availability before publication. Push delivery still requires the separate provider setup in [notifications](notifications.md).
 
 Run from a fixed source snapshot with its matching `package-lock.json` dependencies. Preserve concurrent edits in the shared checkout. Check the source before generating its device archive:
 
@@ -117,7 +117,13 @@ The IPA is `/private/tmp/machination-testflight-build4-20261031-ir4c6wbp/release
 
 The active backend was verified as successful deployment `08a75581-ee12-4d1d-b1b6-95ef3516f902` from `464676b`, which includes message-blocking support; HTTPS health is ok after distribution. Native account sign-in and push delivery remain unconfigured. Physical-device gameplay and production reporting remain unverified. No production operator settings were changed. [#144](https://github.com/mcclowes/machination/issues/144) records this release.
 
-### Build 5, local candidate, October 31
+<a id="build-5-local-candidate-october-31"></a>
+
+### Build 5, October 31
+
+Version **0.1.0 (5)** is released to the existing Internal testers group. Apple accepted delivery `5e67612d-29e9-4a4d-9976-02ca131afc4c`; processing is `VALID`, and internal state is `IN_BETA_TESTING`. Group membership confirms builds 1–5. Testing notes were saved and read back. The uploaded IPA matches the verified SHA-256 below. HTTPS health returned `status: ok`. No backend rollout was performed; testing notes identify the pending server-dependent fixes and native acceptance limits. Distribution evidence is retained in `/private/tmp/machination-build5-{status,group,notes-verified}.json` and the artifact workspace’s `release.json`. See [release #159](https://github.com/mcclowes/machination/issues/159).
+
+#### Local preparation evidence
 
 Version **0.1.0 (5)** is freshly archived and exported locally from `89bc7de`, including the account-token, short-layout, saved-camera, and observed-gravity fixes after build 4. All 772 committed source files remain unchanged after native generation and archiving. Resolved Expo configuration and quality checks pass. The application/game/server inputs match checkpoint `394c9ab`, which passes 1,686 behavior tests, 20 packaging tests, and 90 desktop/touch browser cases with no skips; the intervening changes reserve the native build number and update documentation.
 
@@ -125,7 +131,7 @@ The IPA is `/private/tmp/machination-ios-build5-20261031-1aj59fn7/release/export
 
 Archive and exported JavaScript are byte-identical: 5,071,534-byte Hermes 96 bundle, SHA-256 `acda5440f76d299e5c29258ba85ee55e14c735efa18b076a5457c099931a8138`. Its header binds the retained fresh Metro input; footer checksum, installed compiler readback, current source/entry, and Xcode cache-reset evidence pass. This is fresh build provenance, not an independently repeated bundle. All 49 Metro assets match the current reference export and native relative paths. Native/archive/export/dSYM UUIDs match `85F03FD4-67CF-3F6A-A85F-1AC0333F6AB7`. The workspace retains the source manifest, archive, IPA, verification, logs, review notes, and `release.json`.
 
-This session did not upload or distribute the artifact, install it, or deploy its matching service changes. Build 4 remains the latest recorded TestFlight release; check build-number availability before any future upload. Device Hub currently returns `cgWindowNotFound`, so no current native interaction or physical-device acceptance is claimed. Native account sign-in, push delivery, and production reporting remain unconfigured or disabled. See [local artifact #154](https://github.com/mcclowes/machination/issues/154).
+The preparation session did not upload or distribute the artifact, install it, or deploy its matching service changes. The later distribution above supersedes that publication status; installation and matching service rollout remain unverified. Device Hub currently returns `cgWindowNotFound`, so no current native interaction or physical-device acceptance is claimed. Native account sign-in, push delivery, and production reporting remain unconfigured or disabled. See [local artifact #154](https://github.com/mcclowes/machination/issues/154).
 
 ## Verification boundaries
 
