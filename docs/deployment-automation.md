@@ -4,8 +4,8 @@ The Railway `machination-api` service is connected to `mcclowes/machination`, br
 
 ## Release path
 
-1. GitHub's `Check` workflow installs the locked dependencies, generates brand assets, runs game/HTTP/native-plugin tests and TypeScript, tests the standalone service, builds and tests both container images, checks Expo compatibility, and exports iOS, Android, and web bundles.
-2. Railway holds the commit in `WAITING` until the GitHub Actions check suites finish successfully. Keep release checks on every main push. Do not use skip-CI markers for releases or cancel mandatory checks. The check workflow deliberately does not cancel in-progress runs.
+1. GitHub's `Check` workflow installs the locked dependencies, generates brand assets, runs lint, formatting, architecture, and TypeScript checks, runs game/HTTP/native-plugin tests, checks the player guide, runs browser smoke tests, tests the standalone service, builds and tests both container images, checks Expo compatibility, and exports iOS, Android, and web bundles.
+2. Railway holds the commit in `WAITING` until the GitHub Actions check suites finish successfully. Keep release checks on every main push. Do not use skip-CI markers for releases or cancel mandatory checks. The check workflow cancels superseded pull request runs but deliberately never cancels in-progress main runs.
 3. Railway builds `Dockerfile.railway` from that commit and checks `/health` before completing the rollout. Keep one replica, no deployment overlap, sleeping disabled, and a 20-second drain. The persistent volume stays attached, so a release briefly interrupts service rather than starting concurrent JSON writers.
 4. Railway's GitHub deployment-status event triggers `Deployment health`. It checks the fixed public HTTPS endpoint with certificate validation, bounded retries, and a JSON `status: ok` assertion. A failed health run is visible in GitHub Actions. It does not follow an event-supplied URL or need a Railway token.
 
