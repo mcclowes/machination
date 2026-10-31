@@ -20,8 +20,8 @@ test('App practice isolates live lifecycles and awards only actual capture, with
   const key = `__practiceIntegration_${randomUUID().replaceAll('-', '')}`;
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
-  const soloKey = 'machination.game.v1', onlineKey = 'machination.online.v1', progressKey = 'machination.training-progress.v1';
-  const seeded = [[soloKey, 'recognizable solo archive bytes'], [onlineKey, 'recognizable online credentials bytes']] as const;
+  const soloKey = 'machination.game.v1', onlineKey = 'machination.online.v1', progressKey = 'machination.training-progress.v1', profileKey = 'machination.profile.v1';
+  const seeded = [[soloKey, 'recognizable solo archive bytes'], [onlineKey, 'recognizable online credentials bytes'], [profileKey, '{"portrait":"pilot","preferredColor":"rust"}']] as const;
   const bytes = new Map<string, string>([...seeded, ['machination.briefing.v1', '1']]);
   const reads: string[] = [], writes: string[] = [], subscriptions: string[] = [];
   let expectedSoloReads = 1;
@@ -107,14 +107,15 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     const mapSite = (name: string) => hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${name},`))!;
     const quiet = () => {
       assert.equal(mounts, 0); assert.equal(network, 0); assert.equal(intervals, 0); assert.deepEqual(subscriptions, []);
-      assert.ok(reads.every(name => name === soloKey || name === progressKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
+      assert.ok(reads.every(name => name === soloKey || name === progressKey || name === profileKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
       assert.equal(reads.filter(name => name === soloKey).length, expectedSoloReads, 'Only the games menu inspects the saved solo operation; practice and replays never reopen it');
+      assert.equal(reads.filter(name => name === profileKey).length, expectedSoloReads, 'Only the home screen restores the portrait; practice and replays never reopen the profile');
       assert.ok(writes.every(name => name === progressKey), `Unexpected writes: ${writes}`);
       for (const [name, value] of seeded) assert.equal(bytes.get(name), value);
     };
     await flush(() => { renderer = create(React.createElement(App)); });
     assert.ok(hosts('View').some(node => node.props.accessibilityRole === 'header' && node.props.accessibilityLabel === 'Machination'));
-    assert.deepEqual(reads, ['machination.briefing.v1', soloKey]); assert.deepEqual(writes, []);
+    assert.deepEqual(reads, ['machination.briefing.v1', profileKey, soloKey]); assert.deepEqual(writes, []);
     assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel?.startsWith('Foundry,')), false);
     quiet();
     await press('Open shared replay');
