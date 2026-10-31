@@ -31,7 +31,8 @@ import { FactionPanel } from './FactionPanel';
 import { ALLEGIANCES, type Allegiance } from '../game/factions';
 import type { AccountAccess } from './account-auth';
 import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { ResignationControl } from '../components/ResignationControl';
 import { stationCourse } from '../game/drift';
 import { flightDestination } from '../game/flight';
@@ -89,6 +90,7 @@ import { CopyObjectReference } from '../components/CopyObjectReference';
 import { ReplayExport } from '../components/ReplayExport';
 import { exportSharedReplay } from './shared-replay';
 import { playSound, useSoundCues } from '../audio/sound';
+import { incomingTransmissions } from '../audio/sound-cues';
 import { MessageNotificationSettings } from './MessageNotificationSettings';
 import { useMessageNotifications } from './useMessageNotifications';
 import { notificationDeps, useNotificationDevice } from './notification-wiring';
@@ -109,10 +111,7 @@ function Action({
       accessibilityRole="button"
       disabled={disabled}
       accessibilityState={{ disabled }}
-      onPress={() => {
-        playSound('tap');
-        onPress();
-      }}
+      onPress={onPress}
       style={[s.button, disabled && { opacity: 0.35 }]}
     >
       <Text style={s.buttonText}>{text}</Text>
@@ -336,6 +335,14 @@ function ConnectedOperation({
   useEffect(() => {
     if (error) playSound('error');
   }, [error]);
+  const received = snapshot ? incomingTransmissions(snapshot) : 0;
+  const heard = useRef<{ id: string; received: number }>(undefined);
+  useEffect(() => {
+    if (!snapshot) return;
+    if (heard.current?.id === snapshot.id && received > heard.current.received)
+      playSound('message');
+    heard.current = { id: snapshot.id, received };
+  }, [snapshot, received]);
   const [acknowledged, setAcknowledged] = useState<string>();
   const [disconnect, setDisconnect] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');

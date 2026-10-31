@@ -6,7 +6,8 @@
  * ---
  */
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { AccountSignIn } from './AccountSignIn';

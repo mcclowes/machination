@@ -1,7 +1,8 @@
 /** Exercise selection and completion metadata; attempt gameplay stays in the shared operation UI. */
 import React, { useEffect, useState } from 'react';
 import { displaySpecialistNames } from '../game/specialist-catalog';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TRAINING_SCENARIOS, type TrainingId, type TrainingScenario } from '../game/training';
 import { trainingProgressStore } from '../game/training-progress';

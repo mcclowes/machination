@@ -31,16 +31,8 @@ import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
-import {
-  View,
-  Pressable,
-  ScrollView,
-  Text,
-  Image,
-  StyleSheet,
-  PanResponder,
-  Platform,
-} from 'react-native';
+import { View, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
+import { Pressable } from './Pressable';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import type { GestureResponderEvent } from 'react-native';
 import { flightDestination, flightEndpoints, fleetPosition, flightDirection } from '../game/flight';

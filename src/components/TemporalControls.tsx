@@ -1,6 +1,7 @@
 /** Shared docked-specialist actions and visible site clock costs. */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import type { Rock } from '../game/simulation';
 import type { Specialist } from '../game/specialists';
 import { inStasis, temporalEnabled } from '../game/temporal';

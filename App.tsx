@@ -16,16 +16,8 @@ import { DisruptorControls } from './src/components/DisruptorControls';
 import { PulseMoveWarning, PulseControls, PulseLocation } from './src/components/PulseControls';
 import { openingEnabled } from './src/game/opening-clock';
 import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  Modal,
-  TextInput,
-} from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View, Modal, TextInput } from 'react-native';
+import { Pressable } from './src/components/Pressable';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
@@ -144,10 +136,7 @@ function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      onPress={() => {
-        playSound('tap');
-        onPress();
-      }}
+      onPress={onPress}
       style={({ pressed }) => [
         s.button,
         quiet && s.quiet,

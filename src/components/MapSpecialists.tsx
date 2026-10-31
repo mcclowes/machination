@@ -1,6 +1,7 @@
 /** Compact, directly inspectable chart insignia with a complete accessible manifest. */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { CaptiveLock, SpecialistIcon } from './SpecialistIcon';
 import { INSIGNIA_BACKGROUND, INSIGNIA_CAPTIVE_OPACITY } from './specialist-insignia';
 import { usePlayerRoster } from './PlayerIdentity';

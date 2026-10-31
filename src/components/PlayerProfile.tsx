@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { PLAYER_COLORS, PLAYER_COLOR_IDS } from '../game/player-colors';
 import { CHARACTERS, CHARACTER_IDS } from '../game/characters';
 import { PlayerAvatar } from './PlayerIdentity';
