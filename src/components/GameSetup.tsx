@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { gravityOptionEnabled, type GameOptions } from '../game/rules';
 import { ALL_PLAYERS, FACTIONS } from '../game/players';
 import { CHARACTERS, CHARACTER_IDS, DEFAULT_PORTRAITS, type CharacterId } from '../game/characters';

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { councilBallots, waiverActive, type CouncilAction, type CouncilChoice } from '../game/compact';
 import { COMPACT_POLICIES, COMPACT_POLICY_IDS, COUNCIL_WAIVER_HOURS } from '../game/compact-policies';
 import { FACTIONS, type Faction } from '../game/players';

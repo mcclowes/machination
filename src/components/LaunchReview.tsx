@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { type LaunchEdit, type ScheduledLaunch } from '../game/orders';
 import { isActionPlan } from '../game/future-actions';
 import { SPECIALISTS } from '../game/specialist-catalog';

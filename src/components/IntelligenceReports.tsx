@@ -7,7 +7,8 @@ import { resourceName } from '../content/terminology';
  * ---
  */
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { intelligenceReport } from '../game/intelligence';
 import { FACTIONS, type Faction } from '../game/players';
 import { FUNDING_LEAD, FUNDING_OUTPUT, FUNDING_POWER } from '../game/funding';

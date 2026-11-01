@@ -173,7 +173,7 @@ test('solo camera follows adoption, preserving manual pan through commands and c
     await flush(() => {
       renderer = create(React.createElement(App));
     });
-    await press('Solo');
+    await press('Resume solo operation');
     assert.equal(stored().rules.map.seed, 314159);
     assert.ok(
       chart().game.rocks.some((r: any) => r.id === game.rocks.find((r) => r.coreOf === 'you')!.id),

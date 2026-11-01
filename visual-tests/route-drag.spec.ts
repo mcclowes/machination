@@ -17,7 +17,7 @@ for (const steps of [1, 20]) test(`dragging from a selected solo base plots a ro
   }, saved);
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('button', { name: 'Focus your territory', exact: true }).click();
   const core = game.rocks.find(rock => rock.coreOf === 'you')!;
   const source = page.getByRole('button', { name: new RegExp(`^${core.name},`) }).filter({ visible: true }).first();

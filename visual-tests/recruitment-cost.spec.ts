@@ -17,7 +17,7 @@ for (const cargo of [4, 5]) test(`recruitment displays and enforces the five-car
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('tab', { name: 'Specialists', exact: true }).click();
   const hire = page.getByRole('button', { name: /^Hire .* for 1 credit and 5 cargo$/ }).first();
   await expect(hire).toBeVisible();

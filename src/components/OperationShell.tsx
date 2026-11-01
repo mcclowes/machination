@@ -6,7 +6,8 @@
 
 import type { PlayerColor } from '../game/player-colors';
 import React, { useContext, useEffect, useState } from 'react';
-import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable } from './Pressable';
 import type { Faction } from '../game/players';
 import { PlayerRoster } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';

@@ -18,7 +18,7 @@ test('the visible roller supports direct time travel and retains precise control
   }, saved);
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   const wheel = page.getByLabel('Operation timeline', { exact: true });
   await expect(wheel).toBeVisible();
   await expect(page.getByLabel('Go to hours from now', { exact: true })).toHaveCount(0);

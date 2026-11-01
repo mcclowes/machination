@@ -1,6 +1,7 @@
 /** Explicit local import; cancellation keeps the current replay intact. */
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { pickSharedReplay } from '../replay/files';
 import { ReplayFileError } from '../replay/file-errors';
 import { decodeReplayArtifact, type ReplayArtifact } from '../replay/artifact';

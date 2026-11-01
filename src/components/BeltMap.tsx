@@ -31,16 +31,8 @@ import { DriftCourse } from './DriftCourse';
 import { SpaceBackground } from './SpaceBackground';
 import { stationCourse } from '../game/drift';
 import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Pressable,
-  ScrollView,
-  Text,
-  Image,
-  StyleSheet,
-  PanResponder,
-  Platform,
-} from 'react-native';
+import { View, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
+import { Pressable } from './Pressable';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import type { GestureResponderEvent } from 'react-native';
 import { flightDestination, flightEndpoints, fleetPosition, flightDirection } from '../game/flight';
@@ -51,7 +43,13 @@ import { CopyObjectReference } from './CopyObjectReference';
 import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
 import type { Faction, Fleet, Rock } from '../game/simulation';
 
-import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
+import {
+  constrainCamera,
+  fitPlayerCamera,
+  MAX_CHART_SCALE,
+  zoomCamera,
+  type MapCamera,
+} from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import {
@@ -92,7 +90,9 @@ const NEUTRAL_NAME_ZOOM = 2;
 const NEUTRAL_SITE = '#a7b6b9';
 const NEUTRAL_ICON_OPACITY = 0.6;
 function isWebMouseEvent(event: GestureResponderEvent, type: string) {
-  const native = event.nativeEvent as GestureResponderEvent['nativeEvent'] & { type?: string };
+  const native = event.nativeEvent as GestureResponderEvent['nativeEvent'] & {
+    type?: string;
+  };
   return Platform.OS === 'web' && native.type === type;
 }
 function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
@@ -108,7 +108,11 @@ type Props<T extends ChartRock> = {
     hour: number;
     rocks: T[];
     fleets: Fleet[];
-    rules?: { map: MapGeometry; mechanicsVersion?: number; gravity?: GravityConfig };
+    rules?: {
+      map: MapGeometry;
+      mechanicsVersion?: number;
+      gravity?: GravityConfig;
+    };
     coverage?: { x: number; y: number; radius: number }[];
   };
   selected: string;
@@ -389,7 +393,15 @@ export function BeltMap<T extends ChartRock>({
         const centre = from && siteHit(first.x, first.y);
         dragging.current =
           from && centre
-            ? { from, startX: x, startY: y, originX: centre.x, originY: centre.y, x, y }
+            ? {
+                from,
+                startX: x,
+                startY: y,
+                originX: centre.x,
+                originY: centre.y,
+                x,
+                y,
+              }
             : undefined;
         if (!isWebMouseEvent(event, 'mousedown')) setDrag(dragging.current);
         clearTimeout(pending.current.settle);
@@ -473,7 +485,12 @@ export function BeltMap<T extends ChartRock>({
       },
       onPanResponderEnd: (event, gesture) => {
         if (event.nativeEvent.touches.length === 1)
-          start.current = { ...liveCamera(), pinch: 0, dx: gesture.dx, dy: gesture.dy };
+          start.current = {
+            ...liveCamera(),
+            pinch: 0,
+            dx: gesture.dx,
+            dy: gesture.dy,
+          };
       },
       onPanResponderRelease: (event, gesture) => {
         const from = dragging.current?.from;
@@ -527,7 +544,10 @@ export function BeltMap<T extends ChartRock>({
   const sites = offsets
     .flatMap((offset, tile) =>
       game.rocks.map((rock) => {
-        const location = position({ x: rock.x + offset.x, y: rock.y + offset.y });
+        const location = position({
+          x: rock.x + offset.x,
+          y: rock.y + offset.y,
+        });
         const active =
           ((inspecting || !!destination) && selected === rock.id) ||
           destination === rock.id ||
@@ -535,7 +555,10 @@ export function BeltMap<T extends ChartRock>({
           drag?.target?.id === rock.id;
         const shields = mapShields(rock);
         const radius = shields.at(-1)?.radius ?? 18;
-        const point = { x: (location.x / 100) * size.width, y: (location.y / 100) * size.height };
+        const point = {
+          x: (location.x / 100) * size.width,
+          y: (location.y / 100) * size.height,
+        };
         const specialists = mapSpecialistSummary(rock);
         return {
           key: `${tile}-${rock.id}`,
@@ -566,8 +589,14 @@ export function BeltMap<T extends ChartRock>({
         const worldPoint = fleetPosition(game, f);
         const v = flightDirection(game, f);
         const heading = (Math.atan2(v.y, v.x) * 180) / Math.PI;
-        const location = position({ x: worldPoint.x + offset.x, y: worldPoint.y + offset.y });
-        const point = { x: (location.x / 100) * size.width, y: (location.y / 100) * size.height };
+        const location = position({
+          x: worldPoint.x + offset.x,
+          y: worldPoint.y + offset.y,
+        });
+        const point = {
+          x: (location.x / 100) * size.width,
+          y: (location.y / 100) * size.height,
+        };
         const specialists = mapSpecialistSummary(f);
         return {
           key: `contact-${tile}-${f.id}`,
@@ -611,7 +640,12 @@ export function BeltMap<T extends ChartRock>({
         k.state !== 'destroyed' &&
         summary.groups.some((g) => g.kind === 'queen' && !g.captive && g.owner === k.factionId),
     );
-    return king && { text: `King · ${king.state}`, color: identity(king.factionId).color };
+    return (
+      king && {
+        text: `King · ${king.state}`,
+        color: identity(king.factionId).color,
+      }
+    );
   };
   const reference = fleet && fleetReference?.(fleet);
   const revealed = useRef<string | undefined>(undefined);
@@ -693,7 +727,10 @@ export function BeltMap<T extends ChartRock>({
         const layout = event.nativeEvent.layout;
         if (layout.width <= 0 || layout.height <= 0) return;
         // Timeline messages can resize the chart without requesting a zoom.
-        setSize((size) => ({ ...layout, fitScale: size.fitScale ?? chartFit(game, layout) }));
+        setSize((size) => ({
+          ...layout,
+          fitScale: size.fitScale ?? chartFit(game, layout),
+        }));
         measure();
       }}
       {...pan.panHandlers}
@@ -843,7 +880,7 @@ export function BeltMap<T extends ChartRock>({
                 <MapControl
                   label="Zoom in"
                   text="+"
-                  disabled={camera.scale >= 4}
+                  disabled={camera.scale >= MAX_CHART_SCALE}
                   onPress={() => {
                     commit();
                     current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding));
@@ -1031,7 +1068,7 @@ const ChartTile = memo(function ChartTile({
           strokeDasharray="5 4"
         />
       )}
-      <MapBattles events={game.events} hour={game.hour} scale={sx} />
+      <MapBattles events={game.events} hour={game.hour} scale={sx} sites={game.rocks} />
     </>
   );
 });
@@ -1079,7 +1116,10 @@ const SiteGlyph = memo(function SiteGlyph({
           style={[
             styles.stone,
             rock.drift && styles.asteroid,
-            { borderColor: color, backgroundColor: rock.owner ? color : '#16262c' },
+            {
+              borderColor: color,
+              backgroundColor: rock.owner ? color : '#16262c',
+            },
             icon && styles.emblemStone,
             icon && rock.drift && styles.driftingEmblem,
           ]}
@@ -1096,7 +1136,12 @@ const SiteGlyph = memo(function SiteGlyph({
               ]}
             />
           ) : (
-            <Text style={{ color: rock.owner ? '#101d24' : NEUTRAL_SITE, fontSize: 15 }}>
+            <Text
+              style={{
+                color: rock.owner ? '#101d24' : NEUTRAL_SITE,
+                fontSize: 15,
+              }}
+            >
               {rock.destroyed ? '×' : '?'}
             </Text>
           )}
@@ -1207,7 +1252,11 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: '#b8e986' },
   primaryText: { color: '#101e15', fontWeight: '600' },
-  contactHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  contactHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   close: {
     width: 32,
     height: 32,
@@ -1217,11 +1266,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#1d2e24',
   },
   closeText: { color: '#a6b1a0', fontSize: 18, lineHeight: 20 },
-  summary: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 8 },
-  eta: { color: '#e5eadc', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    columnGap: 8,
+  },
+  eta: {
+    color: '#e5eadc',
+    fontSize: 20,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   caveat: { color: '#efbe79', fontSize: 11, lineHeight: 16 },
   contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
-  chart: { width: '100%', height: 480, overflow: 'hidden', backgroundColor: '#101d24' },
+  chart: {
+    width: '100%',
+    height: 480,
+    overflow: 'hidden',
+    backgroundColor: '#101d24',
+  },
   rock: {
     position: 'absolute',
     width: SITE_CONTROL_WIDTH,
@@ -1231,7 +1295,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ring: { width: 38, height: 38, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  ring: {
+    width: 38,
+    height: 38,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stone: {
     width: 26,
     height: 26,
@@ -1247,8 +1317,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 10,
     borderBottomRightRadius: 9,
   },
-  emblemStone: { width: 34, height: 34, borderWidth: 0, backgroundColor: 'transparent' },
-  driftingEmblem: { backgroundColor: '#24343c', borderWidth: 1, borderRadius: 8 },
+  emblemStone: {
+    width: 34,
+    height: 34,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
+  driftingEmblem: {
+    backgroundColor: '#24343c',
+    borderWidth: 1,
+    borderRadius: 8,
+  },
   baseIcon: { width: 34, height: 34 },
   coreBadge: {
     position: 'absolute',

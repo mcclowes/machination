@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { utf8Size } from '../replay/codec';
 import {
   decodeReplayArtifact,
@@ -13,6 +13,7 @@ import {
   replayArtifactRules,
   type ReplayArtifact,
 } from '../replay/artifact';
+import { Pressable } from './Pressable';
 import { saveSharedReplay } from '../replay/files';
 import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 

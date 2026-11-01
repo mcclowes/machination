@@ -4,7 +4,8 @@
  * ---
  */
 import React, { useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { TimeWheel } from './TimeWheel';
 import { scheduledOrderLabel } from './ScheduledOrders';
 import type { ScheduledOrder } from '../game/orders';
