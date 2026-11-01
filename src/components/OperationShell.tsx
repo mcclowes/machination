@@ -5,13 +5,14 @@
  */
 
 import type { PlayerColor } from '../game/player-colors';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Pressable } from './Pressable';
 import type { Faction } from '../game/players';
 import { PlayerRoster } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
 import { nativeDriver, useAmbientMotion } from './use-ambient-motion';
+import { AppChromeContext } from './app-chrome';
 
 export type OperationSection = 'asset' | 'orders' | 'units' | 'signals' | 'intel' | 'settings';
 type Panel = { title: string; content: React.ReactNode; footer?: React.ReactNode };
@@ -34,6 +35,9 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   const wide = width >= 1000;
   const panel = section && panels[section];
   const { animate } = useAmbientMotion();
+  const chrome = useContext(AppChromeContext);
+  const { claim } = chrome;
+  useEffect(() => claim(), [claim]);
   const [entrance] = useState(() => new Animated.Value(1));
   useEffect(() => {
     entrance.setValue(1);
@@ -56,7 +60,13 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
           : { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
       }]}>
         <View style={s.heading}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={({ pressed }) => [s.close, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={s.text}>×</Text></Pressable></View>
-        <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>{panel.content}</ScrollView>
+        <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>
+          {section === 'settings' && chrome.exits.length > 0 && <View style={s.chrome}>
+            {chrome.exits.map(exit => <Pressable key={exit.label} accessibilityRole="button" accessibilityLabel={exit.label} onPress={exit.onPress} style={({ pressed }) => [s.exit, pressed && s.pressed]}><Text style={s.exitText}>{exit.label}</Text></Pressable>)}
+            <View style={{ flex: 1 }} />{chrome.tools}
+          </View>}
+          {panel.content}
+        </ScrollView>
         {panel.footer && <View style={s.footer}>{panel.footer}</View>}
       </Animated.View>}
     </View>
@@ -77,5 +87,7 @@ const s = StyleSheet.create({
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 },
   navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#23363e', backgroundColor: '#101b21' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: 'transparent' }, glyph: { color: '#8c9f85', fontSize: 17 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
   hint: { position: 'absolute', top: 8, left: 10, right: 112, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36', borderRadius: 10 },
+  chrome: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: -6, paddingBottom: 8, borderBottomWidth: 1, borderColor: '#23363e' },
+  exit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }, exitText: { color: '#b4c7ca', fontSize: 14 },
   pressed: { backgroundColor: '#24383c' }, pressScale: { transform: [{ scale: 0.96 }] },
 });
