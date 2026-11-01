@@ -51,7 +51,13 @@ import { CopyObjectReference } from './CopyObjectReference';
 import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
 import type { Faction, Fleet, Rock } from '../game/simulation';
 
-import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
+import {
+  constrainCamera,
+  fitPlayerCamera,
+  MAX_CHART_SCALE,
+  zoomCamera,
+  type MapCamera,
+} from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import {
@@ -900,7 +906,7 @@ export function BeltMap<T extends ChartRock>({
                 <MapControl
                   label="Zoom in"
                   text="+"
-                  disabled={camera.scale >= 4}
+                  disabled={camera.scale >= MAX_CHART_SCALE}
                   onPress={() =>
                     current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding))
                   }

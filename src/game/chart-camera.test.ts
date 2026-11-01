@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { constrainCamera, fitPlayerCamera, zoomCamera } from './chart-camera';
+import { constrainCamera, fitPlayerCamera, MAX_CHART_SCALE, zoomCamera } from './chart-camera';
 import { createConfiguredGame } from './world';
 import { observe } from './visibility';
 import { mapOffsets } from './geometry';
@@ -49,4 +49,11 @@ test('zoom preserves the viewed world center after a seam pan', () => {
   const camera = { scale: 1, x: 40, y: -30 };
   assert.deepEqual(zoomCamera(world, camera, 4), { scale: 4, x: 160, y: -120 });
   assert.deepEqual(zoomCamera(world, zoomCamera(world, camera, 4), 1), camera);
+});
+
+test('manual zoom reaches past Home framing and stops at the closest scale', () => {
+  assert.equal(MAX_CHART_SCALE, 8);
+  assert.equal(zoomCamera({}, { scale: 4, x: 0, y: 0 }, 6).scale, 6, 'manual zoom goes closer than Home');
+  assert.equal(zoomCamera({}, { scale: 4, x: 0, y: 0 }, 20).scale, MAX_CHART_SCALE);
+  assert.equal(constrainCamera({}, { scale: 20, x: 0, y: 0 }).scale, MAX_CHART_SCALE);
 });
