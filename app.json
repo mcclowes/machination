@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mcclowes.machination",
-      "buildNumber": "5",
+      "buildNumber": "7",
       "config": {
         "usesNonExemptEncryption": false
       }
