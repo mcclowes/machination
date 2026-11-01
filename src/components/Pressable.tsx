@@ -22,3 +22,5 @@ export const Pressable = forwardRef<View, SoundPressableProps>(function Pressabl
     />
   );
 });
+// Stable name for devtools and for tests that walk unrendered element trees.
+Pressable.displayName = 'Pressable';
