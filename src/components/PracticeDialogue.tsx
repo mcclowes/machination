@@ -13,7 +13,8 @@ const speakers = {
 };
 const phaseLabels = { briefing: 'Mission briefing', underway: 'Incoming transmission', passed: 'Mission complete', failed: 'Mission debrief' };
 
-export function PracticeDialogue({ scenario, status, hour, playing = false }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number; playing?: boolean }) {
+/** `trigger={false}` keeps the dialogue mounted (so it still opens on its own) without the replay button. */
+export function PracticeDialogue({ scenario, status, hour, playing = false, trigger = true }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number; playing?: boolean; trigger?: boolean }) {
   const { width, height } = useWindowDimensions();
   const compact = width < 600;
   const landscape = height < 500;
@@ -36,7 +37,7 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
   const artHeight = Math.max(64, Math.min(height - (landscape ? 300 : 440), height * 0.45, compact ? 290 : 460));
 
   return <>
-    <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.quiet, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>
+    {trigger && <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.quiet, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>}
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close} statusBarTranslucent>
       {/* Modals mount a new native root, so insets need their own provider. */}
       <SafeAreaProvider><SafeAreaView style={s.overlay} accessibilityViewIsModal>
