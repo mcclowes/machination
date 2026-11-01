@@ -71,6 +71,8 @@ Both mining fixtures and domination seed 7 reach the configured quota. Dominatio
 
 Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
 
+Container builds include the same root TypeScript configuration as the host standalone build. Use `scripts/test-server-image.mjs` for the generic image and `scripts/test-railway-image.mjs` for Railway; their mount initialization, process ownership, and data paths intentionally differ. The [current AMD64 image checkpoint](railway.md#local-amd64-checkpoint-october-31) records exact artifacts, copied-backup restoration, and SQL/TLS checks inside both actual service containers under local emulation. The [preceding ARM64 checkpoint](railway.md#local-image-checkpoint-october-31) separately records the complete host packaging suite against extracted image bytes without rebuilding them.
+
 ## Postgres runtime
 
 The server-packaging workflow supplies a disposable Postgres 17.11 service and sets `MACHINATION_TEST_DATABASE_URL` for both the real-driver test and standalone bundle checks. The bundle scenarios use isolated schemas and explicitly select the adapter's local plaintext mode. They cover accepted writes during shutdown, restart/retry, failed imports, listener failures, and a write held behind a real SQL lock until the shutdown deadline. The deadline case requires a failure exit, rollback of the interrupted write, preservation of prior state, and safe retry after restart.
@@ -87,6 +89,16 @@ The standalone storage-requirement scenario imports a real legacy file, accepts 
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.
 
+### Short-layout interaction checks
+
+Run `npm run test:visual -- visual-tests/landscape-operations.spec.ts` for local multiplayer checks across short phone, narrow portrait, and tablet viewports. Controls must fit fully inside both the viewport and every clipping ancestor, rather than merely exist in the page. The cases retain a private draft and unfinished time entry through resizing, verify exactly one private delivery with an excluded third seat, and submit a launch after rotating its manifest into landscape. Disposable local services and browser storage isolate these checks from production. Screenshots land in `.fettle/shots/`.
+
+These are browser interactions with shared React Native styles. Browser viewport resizing doesn't prove native keyboard avoidance, orientation, Dynamic Type, or physical-device behavior.
+
+### Solo camera restoration
+
+Run `npm run test:visual -- visual-tests/solo-camera.spec.ts` to check a fixed seeded save against equal and different initial timestamps. Both cases must frame and inspect the restored core without pressing Focus your territory. The App-level `solo-camera-integration.test.ts` additionally covers same-epoch replacement, failed replacement, and preserving manual pan through commands, automatic ticks, and manual catch-up. Its native and presentation hosts are stubbed; the browser check supplies rendered framing evidence.
+
 ## Screenshot comparisons
 
 `npm run test:visual` runs the production web app in Expo against an isolated
@@ -96,9 +108,18 @@ the chart. Reduced motion is enabled, the browser clock is fixed, and external
 requests are blocked. Desktop and phone viewports cover the title actions and
 selected-site chart. These web checks do not establish native iOS/Android gestures.
 
-Run on the pinned Node version. Missing baselines fail; capture is pending an
-unrestricted browser run. For an intentional change, run
-`npm run test:visual:update`, review the expected/actual/diff images, and commit
-the references beside `visual-tests/game.spec.ts`. Use the same OS, lockfile
-Chromium, and fonts for recording and comparison. Reports and traces are in
-`playwright-report` and `test-results`. Ordinary comparisons never record images.
+Run on the pinned Node version. Six reviewed [macOS references](../visual-tests/game.spec.ts-snapshots/README.md)
+cover the home screen, selected core, and six-hour forecast in desktop and phone contexts.
+The fixture acknowledges the briefing and identifies the core through its accessible
+name, which remains available when collision suppression omits the visible label.
+Before capture, it requires the chart's projection SVG viewport to match the measured
+chart bounds, including after opening time controls. Pixel stability alone can precede
+delivery of the asynchronous resize notification.
+Missing or changed baselines fail. Other operating systems need their own reviewed references.
+
+For an intentional visual change, run `npm run test:visual:update -- visual-tests/game.spec.ts`,
+review the expected/actual/diff images, update the reference provenance, and commit the
+images beside `visual-tests/game.spec.ts`. Use the same OS, lockfile Chromium, and fonts
+for recording and comparison. Reports and traces are in `playwright-report` and
+`test-results`. Ordinary comparisons never record images. An isolated inverted-render
+control verified rejection of a visual mismatch without changing the references.

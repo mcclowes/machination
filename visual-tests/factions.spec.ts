@@ -62,6 +62,8 @@ for (const completed of [false, true]) test(`faction progression ${completed ? '
       await service.resign(nextId, guest, { requestId: randomUUID(), revision: other.revision });
       await page.getByRole('tab', { name: 'Setup', exact: true }).click();
       await page.getByRole('button', { name: 'Reconnect / refresh', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Factions and next operation', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Refresh faction standings', exact: true })).toBeEnabled();
       await expect(page.getByText('1 win', { exact: true })).toBeVisible();
       await expect(page.getByText('0 wins', { exact: true })).toHaveCount(2);
       await page.getByText('3. Null collective', { exact: true }).scrollIntoViewIfNeeded();

@@ -19,13 +19,8 @@ import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 import { SpecialistManifest } from './SpecialistManifest';
 import { mapSpecialistSummary } from './map-specialists';
 import { MODULES } from '../game/modules';
-import {
-  nextReplayStep,
-  previousReplayStep,
-  seekReplay,
-  type ReplayPosition,
-} from '../replay/playback';
-import type { SharedReplay } from '../replay/timeline';
+import { nextReplayStep, previousReplayStep, type ReplayPosition } from '../replay/playback';
+import { seekReplayArtifact, type ReplayArtifact } from '../replay/artifact';
 import { gameClock } from '../game/time-machine';
 import { playerAppearance } from '../game/players';
 
@@ -33,7 +28,7 @@ export function SharedReplayViewer({
   replay,
   onExit,
 }: {
-  replay: SharedReplay;
+  replay: ReplayArtifact;
   onExit: () => void;
 }) {
   const [position, setPosition] = useState<ReplayPosition>({ hour: replay.through });
@@ -46,7 +41,7 @@ export function SharedReplayViewer({
   const [hourText, setHourText] = useState(String(replay.through));
   const [options, setOptions] = useState(false);
   const scene = useMemo(
-    () => seekReplay(replay, position.hour, position.ordinal),
+    () => seekReplayArtifact(replay, position.hour, position.ordinal),
     [replay, position],
   );
   const current = useRef(position);

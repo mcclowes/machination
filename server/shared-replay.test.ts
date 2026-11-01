@@ -9,6 +9,7 @@ import { GameService, Failure } from './service';
 import { createApi } from './http';
 import { createGame } from '../src/game/simulation';
 import { decodeSharedReplay } from '../src/replay/codec';
+import { seekReplayArtifact } from '../src/replay/artifact';
 import { SHARED_REPLAY_LIMITS } from '../src/replay/timeline';
 import { exportSharedReplay } from '../src/online/shared-replay';
 
@@ -65,7 +66,18 @@ test('authenticated exports preserve canonical order, private archives, presence
     const body = await response.json(); assert.equal(body.issues[0].issue, 'replay.validation.bounds');
   }
   assert.equal(await readFile(file, 'utf8'), unchanged, 'malformed queries never issue commands or alter history');
-  assert.deepEqual(await exportSharedReplay({ url, id: room.id, token: tokens[0]! }, 0, 1), replay);
+  const packed = await exportSharedReplay({ url, id: room.id, token: tokens[0]! }, 0, 1);
+  assert.equal(packed.schemaVersion, 3);
+  assert.deepEqual(packed.groups.map(g => [g.hour, g.states.length]), replay.groups.map(g => [g.hour, g.states.length]));
+  for (const group of replay.groups) for (let ordinal = 0; ordinal < group.states.length; ordinal++)
+    assert.deepEqual(seekReplayArtifact(packed, group.hour, ordinal), seekReplayArtifact(replay, group.hour, ordinal));
+  for (const span of replay.spans) {
+    const hour = span.from + (span.through - span.from) / 2;
+    assert.deepEqual(seekReplayArtifact(packed, hour), seekReplayArtifact(replay, hour));
+  }
+  for (const secret of [room.id, room.invite, ...tokens, 'PRIVATE_CHAT_SENTINEL', 'requestId', 'receipts', 'baseline', 'entries']) assert.ok(!JSON.stringify(packed).includes(secret));
+  // An older server can ignore the capability parameter and return its supported legacy representation.
+  const oldResponse = await get('from=0&through=1'); decodeSharedReplay(await oldResponse.text());
   const post = await fetch(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${tokens[0]}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ command: 'launch', from: 'c', to: 'b', drones: 10 }) });
   assert.equal(post.status, 405);
   assert.deepEqual(JSON.parse(await readFile(file, 'utf8')).rooms[0].replay, settled.replay);

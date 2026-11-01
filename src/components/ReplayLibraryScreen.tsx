@@ -4,12 +4,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Pressable } from './Pressable';
 import { pickSharedReplay } from '../replay/files';
 import { ReplayFileError } from '../replay/file-errors';
-import { decodeSharedReplay } from '../replay/codec';
-import type { SharedReplay } from '../replay/timeline';
+import { decodeReplayArtifact, type ReplayArtifact } from '../replay/artifact';
 import { SharedReplayViewer } from './SharedReplayViewer';
 
 export function ReplayLibraryScreen({ onExit }: { onExit: () => void }) {
-  const [replay, setReplay] = useState<SharedReplay>();
+  const [replay, setReplay] = useState<ReplayArtifact>();
   const [viewing, setViewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -21,7 +20,7 @@ export function ReplayLibraryScreen({ onExit }: { onExit: () => void }) {
     try {
       const raw = await pickSharedReplay();
       if (raw === null || !mounted.current) return;
-      const imported = decodeSharedReplay(raw);
+      const imported = decodeReplayArtifact(raw);
       setReplay(imported); setError(''); setViewing(true);
     } catch (failure) {
       if (mounted.current) setError(failure instanceof ReplayFileError ? failure.message : 'This file is not a supported shared replay.');

@@ -27,6 +27,9 @@ import type { PulseOrder } from '../src/contracts/protocol';
 import { generateSharedReplay, SharedReplayCapacityError } from '../src/replay/generate';
 import { UnsupportedVisibilityNumericError } from '../src/replay/numeric-support';
 import type { SharedReplay } from '../src/replay/timeline';
+import { generatePackedReplay } from '../src/replay/generate-packed';
+import type { PackedReplay } from '../src/replay/packed';
+import type { ReplayArtifact } from '../src/replay/artifact';
 import { createHmac, randomBytes } from 'node:crypto';
 import {
   DatabaseStore,
@@ -972,7 +975,29 @@ export class GameService {
     token: Credential,
     from: number,
     through: number,
-  ): Promise<SharedReplay> {
+    packed?: false,
+  ): Promise<SharedReplay>;
+  async sharedReplay(
+    id: string,
+    token: Credential,
+    from: number,
+    through: number,
+    packed: true,
+  ): Promise<PackedReplay>;
+  async sharedReplay(
+    id: string,
+    token: Credential,
+    from: number,
+    through: number,
+    packed: boolean,
+  ): Promise<ReplayArtifact>;
+  async sharedReplay(
+    id: string,
+    token: Credential,
+    from: number,
+    through: number,
+    packed = false,
+  ): Promise<ReplayArtifact> {
     requireThat(
       Number.isFinite(from) && Number.isFinite(through) && from >= 0 && through >= from,
       400,
@@ -1000,7 +1025,7 @@ export class GameService {
       'Choose an interval within the available operation history.',
     );
     try {
-      return generateSharedReplay(
+      return (packed ? generatePackedReplay : generateSharedReplay)(
         { game: frozen.game, archive: restoreArchive(frozen.replay) },
         frozen.perspective,
         from,

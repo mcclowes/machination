@@ -89,7 +89,7 @@ import { PracticeStatus } from './src/components/PracticeStatus';
 import { canResolveTrainingOrders } from './src/game/training';
 import { ReplayLibraryScreen } from './src/components/ReplayLibraryScreen';
 import { ReplayExport } from './src/components/ReplayExport';
-import { generateSharedReplay } from './src/replay/generate';
+import { generatePackedReplay } from './src/replay/generate-packed';
 import { StartScreen } from './src/components/StartScreen';
 import { useOngoingOperations } from './src/components/useOngoingOperations';
 import { describeListing, describeSolo } from './src/online/operation-labels';
@@ -354,6 +354,7 @@ function Operation({
     setError,
     restartClock,
   } = useLocalOperation(policy, (next) => {
+    resetCamera(next.game);
     setSelected(
       (
         next.game.rocks.find((r) => r.id === practice?.scenario.focus) ??
@@ -381,13 +382,10 @@ function Operation({
   const [mapCamera, setMapCamera] = useState(() => fitPlayerCamera(game, 'you'));
   const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
   const inspectionSequence = useRef(0);
-  const resetCamera = useEffectEvent(() => {
-    setMapCamera(fitPlayerCamera(game, 'you'));
+  function resetCamera(next: Game) {
+    setMapCamera(fitPlayerCamera(next, 'you'));
     setInspectFleet(undefined);
-  });
-  useEffect(() => {
-    resetCamera();
-  }, [game.epoch]);
+  }
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const [resolving, setResolving] = useState(false);
   function inspectTime(hour: number | null) {
@@ -1369,7 +1367,7 @@ function Operation({
                     hour={game.hour}
                     disabled={!ready || loadFailed}
                     createReplay={(from, through) =>
-                      generateSharedReplay(current.current, 'you', from, through)
+                      generatePackedReplay(current.current, 'you', from, through)
                     }
                   />
                 )}
@@ -1436,6 +1434,7 @@ function Operation({
                   return;
                 }
                 replace(next);
+                resetCamera(next.game);
                 restartClock();
                 setLoadFailed(false);
                 setError('');

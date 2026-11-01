@@ -61,7 +61,7 @@ const bundleFor = (account: boolean) => bundles.get(account) ?? bundles.set(acco
       'expo-secure-store': `export const getItemAsync=async k=>${g}.secure.get(k)??null,setItemAsync=async(k,v)=>{${g}.secure.set(k,v)},deleteItemAsync=async k=>{${g}.secure.delete(k)};`,
       'expo-clipboard': `export const setStringAsync=async()=>true;`,
       '@react-native-async-storage/async-storage': `export default {getItem:async k=>${g}.async.get(k)??null,setItem:async(k,v)=>{${g}.async.set(k,v)},removeItem:async k=>{${g}.async.delete(k)}};`,
-      '@clerk/expo': `export const ClerkProvider=({children})=>children,useAuth=()=>${g}.auth??(()=>{throw new Error('Clerk is not configured in this test')})();`,
+      '@clerk/expo': `const auth=()=>${g}.auth??(()=>{throw new Error('Clerk is not configured in this test')})(); export const ClerkProvider=({children})=>children,useAuth=auth,useSession=()=>{const current=auth();return {isLoaded:current.isLoaded,session:current.userId?{user:{id:current.userId},getToken:current.getToken}:null};};`,
     };
     builder.onLoad({ filter: /.*/, namespace: 'tap-host' }, args => {
       const contents = stubs[args.path] ?? (args.path.startsWith('@clerk/expo/') ? 'export const tokenCache={},useHostedAuth=()=>({}),SignInButton=()=>null;' : undefined);

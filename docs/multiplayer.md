@@ -102,7 +102,7 @@ Queues are persisted with the world and settled at the exact simulated launch ti
 
 `target` is the requesting seat's opaque hauler ID. Raw simulation IDs and another seat's IDs are rejected. Current visibility, ownership, payload, module, and reachability are checked authoritatively. Accepted requests use durable retry receipts before target validation on replay, so a retry remains harmless after combat or restart.
 
-Visible fleets include explicit route geometry for interception and return legs, and the full frozen course points of gravity-bent flights. An interception's target reference is included only while that target is visible and uses the same seat-scoped ID mapping. The forecast sets `interceptionUncertain: true` when a projected rendezvous has no observed target; it invents neither a combat result nor a return payload. Refreshing the authoritative view resolves the actual outcome.
+Visible fleets include explicit route geometry for interception and return legs, including the committed gravity curve's coordinates and normalized work times. Live positions, headings, and observation-based forecasts follow that curve. Observation copies expose only these course fields; enemy pending course changes and contact logs remain private. An interception's target reference is included only while that target is visible and uses the same seat-scoped ID mapping. The forecast sets `interceptionUncertain: true` when a projected rendezvous has no observed target; it invents neither a combat result nor a return payload. Refreshing the authoritative view resolves the actual outcome.
 
 ## Offline seat recovery
 

@@ -17,7 +17,7 @@ test('daily council votes, public nominations, and convention lore work beside c
   const room = await service.create(tokens[0]!, { playerCount: 3, mode: 'mining', beltCompact: true });
   for (const token of tokens.slice(1)) await service.join(room.invite, token);
   await service.start(room.id, tokens[0]!);
-  const server = createApi(service, ['http://127.0.0.1:3094']);
+  const server = createApi(service, [String(info.project.use.baseURL)]);
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('Missing test server address.');
   try {
