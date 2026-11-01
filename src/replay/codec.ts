@@ -187,7 +187,7 @@ export function validateReplayScene(v: unknown) : asserts v is ReplayScene {
   optional(v, 'discoveries', discoveries => { need(v.rules?.mechanicsVersion >= 18); array(discoveries, 80); for (const d of discoveries) { object(d, ['hour', 'discoveredAt', 'message']); num(d.hour, 0, v.hour); num(d.discoveredAt, d.hour, v.hour); text(d.message); } });
   array(v.eliminated, factions.length); v.eliminated.forEach(member); unique(v.eliminated); if (v.winner !== null) member(v.winner);
 }
-function validate(value: unknown): asserts value is SharedReplay {
+export function validateSharedReplay(value: unknown): asserts value is SharedReplay {
   inspectReplayData(value);
   object(value, ['kind', 'schemaVersion', 'presentationVersion', 'history', 'perspective', 'from', 'through', 'groups', 'spans']);
   one(value.kind, ['machination.observed-timeline']); one(value.schemaVersion, [1, 2]); one(value.presentationVersion, [1]); one(value.history, ['canonical-events']); faction(value.perspective);
@@ -218,7 +218,7 @@ function validate(value: unknown): asserts value is SharedReplay {
 }
 
 export function encodeSharedReplay(value: SharedReplay): string {
-  validate(value);
+  validateSharedReplay(value);
   const raw = JSON.stringify(value); need(utf8Size(raw) <= L.bytes); return raw;
 }
 export function parseReplayJson(raw: string): unknown {
@@ -236,5 +236,5 @@ export function parseReplayJson(raw: string): unknown {
 }
 
 export function decodeSharedReplay(raw: string): SharedReplay {
-  const value = parseReplayJson(raw); validate(value); return value;
+  const value = parseReplayJson(raw); validateSharedReplay(value); return value;
 }

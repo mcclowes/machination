@@ -96,7 +96,7 @@ import { PracticeStatus } from './src/components/PracticeStatus';
 import { canResolveTrainingOrders } from './src/game/training';
 import { ReplayLibraryScreen } from './src/components/ReplayLibraryScreen';
 import { ReplayExport } from './src/components/ReplayExport';
-import { generateSharedReplay } from './src/replay/generate';
+import { generatePackedReplay } from './src/replay/generate-packed';
 import { StartScreen } from './src/components/StartScreen';
 import { useOngoingOperations } from './src/components/useOngoingOperations';
 import { describeListing, describeSolo } from './src/online/operation-labels';
@@ -1358,7 +1358,7 @@ function Operation({
                     hour={game.hour}
                     disabled={!ready || loadFailed}
                     createReplay={(from, through) =>
-                      generateSharedReplay(current.current, 'you', from, through)
+                      generatePackedReplay(current.current, 'you', from, through)
                     }
                   />
                 )}

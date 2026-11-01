@@ -4,4 +4,5 @@ export const CURRENT_CLIENT_MECHANICS_VERSION = 19;
 export const GRAVITY_CLIENT_MECHANICS_VERSION = 19;
 export const CURRENT_CLIENT_MEDIA_TYPE = 'application/vnd.machination.v2+json';
 export const CURRENT_CLIENT_ACCEPT = `${CURRENT_CLIENT_MEDIA_TYPE}, application/json`;
+export const PACKED_REPLAY_ACCEPT = `${CURRENT_CLIENT_MEDIA_TYPE}; replay=3, application/json`;
 export type ClientMechanicsVersion = 18 | 19;

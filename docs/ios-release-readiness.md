@@ -1,6 +1,6 @@
 # Multiplayer iOS release readiness
 
-Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated October 31, 2026.
+Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated November 1, 2026.
 
 The immediate target is a polished, invite-only multiplayer TestFlight release. Public App Store distribution adds the gates below. “AAA” means a consistent quality bar across play, presentation, reliability, and support; it isn't evidence of readiness or a reason to add more mechanics.
 
@@ -13,6 +13,12 @@ Build 4 predates the account token binding, short-layout controls, saved-map fra
 Read-only deployment metadata at `2026-10-31T19:40:54Z` reports successful production source `464676b`; the later `9a396f7` deployment was skipped. HTTPS health returned HTTP 200 with `status: ok`. The current fixes remain local, with [AMD64 image verification](railway.md#local-amd64-checkpoint-october-31) and a [fresh backup and current-source restore](postgres-deployment.md#release-candidate-postgresql-recovery-october-31) complete. This observation does not refresh account, push, or ingress configuration status.
 
 Code, a passing host test, a simulator session, a signed IPA, and a successful physical-device playtest prove different things. Record the source commit, runtime/device, command or scenario, result, and evidence for each gate. Earlier passing suites don't certify the current source.
+
+## Replay export capacity
+
+The local [schema-3 integration](replay-schema-3.md) exports a reproduced natural ten-seat pulse ending within the unchanged storage limits. Current clients generate packed files, explicitly negotiate them online, and import/play both packed and legacy files. Released clients keep their existing format; older services can return legacy files to updated clients. Fresh loopback HTTP/file-persistence acceptance verifies a natural ten-seat ending, a two-seat simultaneous draw, and a delayed-fire winner, each with complete final-eight-hour export, restart, and unchanged output after a fire retry. Desktop and phone browser checks verify real file-picker import and offline playback for both formats. This does not close [#158](https://github.com/mcclowes/machination/issues/158) or replace the full HTTP/SQL scenarios in [#157](https://github.com/mcclowes/machination/issues/157). A fresh native candidate and device profiling remain required; distributed build 5 lacks this decoder. The drift-service fixture now distinguishes known arrivals from unresolved hidden destinations, with a deterministic regression tracked in [#169](https://github.com/mcclowes/machination/issues/169).
+
+The integrated replay checkpoint passes the current-source full gate: 1,711 behavior and 13 server-build tests, zero failures, with 14 SQL/TLS checks explicitly skipped because Docker is unavailable. Four desktop/phone replay browser checks and the web export pass. See the [exact verification scope](replay-schema-3.md).
 
 ## Client recovery
 

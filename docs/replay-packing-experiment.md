@@ -41,4 +41,4 @@ This baseline is not the failing terminal scenario. The private capture and pack
 
 The experiment does not implement schema 3, change export behavior, raise limits, or certify release readiness.
 
-The subsequent [schema 3 codec](replay-schema-3.md) implements bounded dictionary validation, selected-frame playback, and signed-zero JSON serialization. The experiment remains an offline measurement tool. Incremental export generation and client/service integration are still outstanding.
+The subsequent [schema 3 codec](replay-schema-3.md) implements bounded dictionary validation, selected-frame playback, and signed-zero JSON serialization. The experiment remains an offline measurement tool. Incremental export generation and client/service integration are now implemented locally; see that document for negotiation, endgame evidence, and remaining release gates.

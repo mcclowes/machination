@@ -26,10 +26,10 @@ function object(value: unknown, required: string[], optional: string[] = []): as
 function array(value: unknown, max: number = L.records): asserts value is any[] { need(Array.isArray(value) && value.length <= max); }
 function hour(value: unknown): asserts value is number { need(typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER); }
 
-function identity(value: unknown): string {
+export function exactReplayIdentity(value: unknown): string {
   if (typeof value === 'number' && Object.is(value, -0)) return '-0';
-  if (Array.isArray(value)) return `[${value.map(identity).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${identity((value as Obj)[k])}`).join(',')}}`;
+  if (Array.isArray(value)) return `[${value.map(exactReplayIdentity).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${exactReplayIdentity((value as Obj)[k])}`).join(',')}}`;
   return JSON.stringify(value);
 }
 
@@ -37,7 +37,7 @@ function frame(replay: PackedReplay, scene: PackedScene): ReplayScene {
   return { ...scene, rocks: scene.rocks.map(id => replay.siteDictionary[id]!), ...(replay.rules ? { rules: replay.rules } : {}) };
 }
 
-function validate(value: unknown): asserts value is PackedReplay {
+export function validatePackedReplay(value: unknown): asserts value is PackedReplay {
   inspectReplayData(value);
   object(value, ['kind', 'schemaVersion', 'geometryVersion', 'presentationVersion', 'history', 'perspective', 'from', 'through', 'siteDictionary', 'groups', 'spans'], ['rules']);
   need(value.kind === 'machination.observed-timeline' && value.schemaVersion === 3 && [1, 2].includes(value.geometryVersion));
@@ -82,7 +82,7 @@ function validate(value: unknown): asserts value is PackedReplay {
     validateReplayScene(expanded);
     need((replay.geometryVersion === 2) === expanded.rocks.some(r => !!r.drift));
     if (expanded.rules) need(expanded.rules.players.includes(replay.perspective));
-    const next = new Map(expanded.rocks.map(r => [r.id, identity({ name: r.name, ...(r.drift ? { drift: r.drift } : { x: r.x, y: r.y }) })]));
+    const next = new Map(expanded.rocks.map(r => [r.id, exactReplayIdentity({ name: r.name, ...(r.drift ? { drift: r.drift } : { x: r.x, y: r.y }) })]));
     if (!chart) chart = next;
     else need(chart.size === next.size && [...next].every(([id, key]) => chart!.get(id) === key));
   }
@@ -95,12 +95,12 @@ export function packSharedReplay(replay: SharedReplay): PackedReplay {
   encodeSharedReplay(replay);
   const dictionary: ReplayRock[] = [], keys = new Map<string, number>();
   const publicRules = replay.groups[0]!.states[0]!.rules;
-  const rulesKey = identity(publicRules ?? null);
+  const rulesKey = exactReplayIdentity(publicRules ?? null);
   function pack(scene: ReplayScene): PackedScene {
-    need(identity(scene.rules ?? null) === rulesKey);
+    need(exactReplayIdentity(scene.rules ?? null) === rulesKey);
     const { rocks, rules: _rules, ...rest } = scene;
     return { ...rest, rocks: rocks.map(rock => {
-      const key = identity(rock);
+      const key = exactReplayIdentity(rock);
       let id = keys.get(key);
       if (id === undefined) { id = dictionary.length; keys.set(key, id); dictionary.push(rock); }
       return id;
@@ -111,7 +111,7 @@ export function packSharedReplay(replay: SharedReplay): PackedReplay {
     ...(publicRules ? { rules: publicRules } : {}),
     groups: groups.map(g => ({ hour: g.hour, states: g.states.map(pack) })),
     spans: spans.map(s => ({ from: s.from, through: s.through, scene: pack(s.scene) })) };
-  validate(result);
+  validatePackedReplay(result);
   return clone(result);
 }
 
@@ -130,7 +130,7 @@ export function seekPackedReplay(replay: PackedReplay, atHour: number, ordinal?:
 }
 
 export function encodePackedReplay(replay: PackedReplay): string {
-  validate(replay);
+  validatePackedReplay(replay);
   const raw = serialize(replay); need(utf8Size(raw) <= L.bytes); return raw;
 }
 
@@ -143,5 +143,5 @@ function serialize(value: unknown): string {
 }
 
 export function decodePackedReplay(raw: string): PackedReplay {
-  const value = parseReplayJson(raw); validate(value); return value;
+  const value = parseReplayJson(raw); validatePackedReplay(value); return value;
 }
