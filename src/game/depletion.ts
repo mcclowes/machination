@@ -10,8 +10,10 @@ export const LOW_RESERVES = 24;
 export const SUPPLY_CYCLE = 8;
 export const SUPPLY_RESERVES = 6;
 
+/** Solo operations use revision 20 (hourly Foresight); multiplayer keeps the revision its clients negotiate. */
+export const SOLO_MECHANICS_REVISION = 20;
 export function createSoloGame(options: GameOptions, epoch: number, seed: number): Game {
-  const game = createConfiguredGame(options, epoch, seed);
+  const game = createConfiguredGame(options, epoch, seed, undefined, SOLO_MECHANICS_REVISION);
   game.rocks = game.rocks.map(r => ({ ...r, reserves: PLANET_RESERVES, ...(r.kind === 'generator' ? { supplyAt: SUPPLY_CYCLE } : {}) }));
   game.events = recentEvents([{ hour: 0, audience: game.rules!.players, message: 'Finite reserves: production and extraction consume resources. Generators spend six reserves every eight hours. Exhausted sites stop industry and power supply; expand toward fresh reserves.' }, ...game.events]);
   return game;
