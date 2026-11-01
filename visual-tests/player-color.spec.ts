@@ -50,6 +50,7 @@ test('profile color persists and colors a new solo operation without recoloring 
   const core = page.getByRole('button', { name: /, core site, Mnemosyne,/ }).filter({ visible: true }).first();
   await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#e3ba5e');
   await page.screenshot({ path: `.fettle/shots/solo-preferred-color-${info.project.name}.png` });
+  await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await page.getByRole('button', { name: '‹ Games', exact: true }).click();
   await page.getByRole('button', { name: 'Player profile', exact: true }).click();
   await page.getByRole('radio', { name: 'violet player color', exact: true }).click();
