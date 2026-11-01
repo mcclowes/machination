@@ -35,6 +35,25 @@ npm test -- --test-name-pattern='catch-up'
 npm test -- --suite-timeout=900000
 ```
 
+
+### Endgame failure evidence
+
+The ordinary ten-seat HTTP/file acceptance in `server/shared-replay-endgame.test.ts` retains callback failures before cleaning up its temporary operation. It writes the exact saved `rooms.json` and `failure.json` beneath `.data/endgame-failures/case-*`, then rethrows the original exception. Metadata includes the error stack, client rejection status when available, elapsed time, Node/V8 executable identity, and state SHA-256. The directory is private (`0700`) and both files use `0600`; only its path is reported in test diagnostics. Captures contain private synthetic operation state and remain local and ignored by Git.
+
+Successful checks produce no failure artifact. Capture or diagnostic errors preserve the original exception. Three focused checks verify cleanup survival, file privacy, the success path, and error identity; a deliberate private entrypoint fault verifies the normal wiring. Process termination and test-runner interruption can prevent capture, so missing evidence does not establish a pass.
+
+[Endgame diagnosis #181](https://github.com/mcclowes/machination/issues/181) remains open. Sixteen fresh ordinary operations pass the unchanged acceptance assertions: fifteen isolated cases and one alongside three configuration workers. Their 32 client export calls take about 1.87–2.58 seconds locally; this is not a hosted capacity or latency budget. The three load workers are stopped after the endgame completes, and no configuration pass is claimed from that load experiment.
+
+The subsequent full gate captures an actual `AbortError` on Node 24.14.1 before cleanup. The saved game is already finished at hour 402.5673841421317, with Prism winning and nine eliminations. The source state SHA-256 is `d7d0734dbe8864ba03c0ab60993bb5a564120d559c6dd27703972c40d9320f17`. Remaining owned configuration workers are stopped to isolate that case; no full-gate pass is claimed.
+
+The captured replay is valid and within existing limits: 1,154,571 bytes, 106,530 records, 159 groups, and 158 spans. Its public terminal cargo/rules and outcome match the observed game. Profiled generation takes about 10.74 seconds, versus 0.33 seconds encoding and 0.42 seconds decoding. A full trace carries 7,019 snapshot payloads, including 4,518 before the chosen eight-hour interval. The same saved case takes 14.67 seconds through the real HTTP client in isolation and aborts before response headers alongside three configuration workers. The client deadline remains 15 seconds. This establishes insufficient export headroom for that valid case; no performance fix is claimed yet.
+
+HTTP reproduction uses a private copy with only the host credential hash rebound to a new synthetic token, because the saved store contains hashes rather than the original token. Original capture bytes are immutable; all game, archive, rule, outcome, and other source bytes remain unchanged. Its valid exported artifact SHA-256 is `80e06739fff381737c1107582c6f42538d0a7993994bad6519733c67a950f611`.
+
+Private investigation records are under `.data/acceptance/issue-181/`; the captured failure is under `.data/endgame-failures/case-as2SMe/`. The deliberate sentinel is archived separately. The first four reproduction records have an invalid `elapsedMs` field from an observer-name collision; use their parent process wall times instead. Their export timings and assertions are unaffected, and the raw records are unchanged. Initial pure probes incorrectly compared public output with private cargo/rules; the corrected oracle uses the player's observation. The earlier uncaptured failure cannot be identified retrospectively.
+
+The targeted normal entrypoint and all three retention checks pass; source quality passes. The full behavior run exposes the captured failure above and is intentionally stopped afterward. All 22 original acceptance assertions remain unchanged. No gameplay rule, replay limit, client deadline, or acceptance assertion is altered to obtain a pass.
+
 ### Message notifications
 
 At `2d368b2`, an isolated committed-source snapshot passes `npm run check` on Node 24.14.1: 946 regular tests, TypeScript, and three production server bundle checks. The notification subset comprises 23 service/worker/transport tests and 34 client tests, including twelve real App/OnlineOperation/HTTP tap cases. The shared tree also passes 947 regular tests; that extra case belongs to concurrent map work and is excluded from this committed-source count. Logs are `/tmp/machination-notification-retries-final-check.log` and `/tmp/machination-notification-retries-check.log`.
