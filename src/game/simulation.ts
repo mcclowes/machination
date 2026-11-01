@@ -23,7 +23,7 @@ import { afterWork } from './opening-clock';
 import { settleCourseChanges } from './specialist-navigation';
 import { positionSites, stationCourse, type Drift } from './drift';
 import { mechanicsVersion } from './rules';
-import { tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
+import { traceIncludes, tracePoint, traceSnapshot, type SimulationTraceSink } from './simulation-trace';
 import { wrappedBounds, worldDistance, type GeometryWorld } from './geometry';
 import { resolveSpecialistInterceptions } from './specialist-interception';
 import { reconcileFunding, type Funding } from './funding';
@@ -162,7 +162,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     const commandHour = Math.min(...(game.scheduled ?? []).map(p => p.executeAt));
     const next = game.pulse && commandHour <= targetHour && Math.abs(commandHour - candidate) < 1e-9 ? commandHour : candidate;
     const elapsed = next - game.hour;
-    const spanFrom = trace ? traceSnapshot(game) : undefined;
+    const spanFrom = traceIncludes(trace, game.hour, next) ? traceSnapshot(game) : undefined;
     if (game.version === 1) for (const rock of game.rocks) {
       if (!rock.owner) continue;
       if (rock.kind === 'mine') {

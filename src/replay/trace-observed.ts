@@ -24,7 +24,7 @@ export function traceObservedReplay(operation: LocalOperation, perspective: Fact
     advancePulseTime(projected, hour); projected.hour = hour;
     return presentObservation(observe(projected, perspective), aliases);
   };
-  traceReplayTo(archive, operation.game.hour, { rivals: data.rivals, knownThrough: operation.game.hour }, record => {
+  traceReplayTo(archive, operation.game.hour, { rivals: data.rivals, knownThrough: operation.game.hour, traceWindow: { from, through } }, record => {
     if (record.type === 'point') {
       if (record.game.hour >= from && record.game.hour <= through) sink.point(project(record.game));
       return;
