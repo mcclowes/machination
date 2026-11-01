@@ -263,7 +263,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
     assert.equal(hosts('TextInput').some(node => node.props.accessibilityLabel === 'Drones to dispatch'), false, 'A stationary second finger cancels before any pinch movement');
     await flush(() => chart.props.onPanResponderGrant(pinchStart, gesture));
-    await flush(() => chart.props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: from.x, pageY: from.y }, { pageX: from.x + 150, pageY: from.y }] } }, gesture));
+    await flush(() => chart.props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: from.x, pageY: from.y }, { pageX: from.x + 55, pageY: from.y }] } }, gesture));
     const scale = () => { const a = point('Foundry'), b = point('Quiet landing'); return Math.hypot(a.x - b.x, a.y - b.y); };
     const pinchedScale = scale();
     await flush(() => chart.props.onPanResponderEnd(touch, gesture));
