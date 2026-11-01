@@ -81,6 +81,7 @@ import { LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
 import { minesAllowed, droneInventory, mineCost, powerCapacity } from './src/game/economy';
 import { OperationShell, type OperationSection } from './src/components/OperationShell';
+import { AppChromeContext, useChromeHost } from './src/components/app-chrome';
 import { IntelligenceReports } from './src/components/IntelligenceReports';
 import { TimeMachine } from './src/components/TimeMachine';
 import {
@@ -169,6 +170,29 @@ export default function App() {
     setOnlineOperation(operationId);
     setModeState(next);
   };
+  const gamesExit = useMemo(
+    () => [
+      {
+        label: '‹ Games',
+        onPress: () => {
+          setOnlineOperation(undefined);
+          setModeState(null);
+        },
+      },
+    ],
+    [],
+  );
+  // An open operation shell owns the screen; its Setup tab carries these exits instead.
+  const chromeTools = useMemo(
+    () => (
+      <>
+        <SoundToggle compact />
+        <FieldManual compact />
+      </>
+    ),
+    [],
+  );
+  const chrome = useChromeHost(gamesExit, chromeTools);
   const launch = useNotificationLaunch(launchDeps);
   // A tap opens multiplayer from the start screen, but never abandons a solo, practice, or replay session.
   const autoOpened = useRef<string>(undefined);
@@ -209,48 +233,51 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar style="light" />
-        <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
-          {mode ? (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="‹ Games"
-                onPress={() => setMode(null)}
-                style={{ minHeight: 44, minWidth: 64, justifyContent: 'center' }}
-              >
-                <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
-              </Pressable>
-              <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
-                {mode === 'solo'
-                  ? 'Solo operation'
-                  : mode === 'online'
-                    ? 'Multiplayer'
-                    : 'Tactical practice'}
-              </Text>
-            </>
-          ) : (
-            // The home menu below already offers every mode; the bar keeps only global controls.
-            <View style={{ flex: 1 }} />
-          )}
-          <SoundToggle compact={!!mode} />
-          <FieldManual compact={!!mode} />
-        </View>
-        {transmission}
-        {mode === 'solo' ? (
-          <Operation onOpenReplays={() => setMode('replays')} />
-        ) : mode === 'online' ? (
-          <OnlineOperation
-            key={onlineOperation}
-            operationId={onlineOperation}
-            onOpenReplays={() => setMode('replays')}
-            notification={launch.request}
-            onNotificationHandled={launch.consume}
-          />
-        ) : mode === 'practice' ? (
-          <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice>
-        ) : (
-          <HomeMenu open={setMode} />
+        {!(mode && chrome.claimed) && (
+          <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
+            {mode ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="‹ Games"
+                  onPress={() => setMode(null)}
+                  style={{ minHeight: 44, minWidth: 64, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
+                </Pressable>
+                <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
+                  {mode === 'solo'
+                    ? 'Solo operation'
+                    : mode === 'online'
+                      ? 'Multiplayer'
+                      : 'Tactical practice'}
+                </Text>
+              </>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
+            <SoundToggle compact={!!mode} />
+            <FieldManual compact={!!mode} />
+          </View>
         )}
+        {transmission}
+        <AppChromeContext.Provider value={chrome.value}>
+          {mode === 'solo' ? (
+            <Operation onOpenReplays={() => setMode('replays')} />
+          ) : mode === 'online' ? (
+            <OnlineOperation
+              key={onlineOperation}
+              operationId={onlineOperation}
+              onOpenReplays={() => setMode('replays')}
+              notification={launch.request}
+              onNotificationHandled={launch.consume}
+            />
+          ) : mode === 'practice' ? (
+            <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice>
+          ) : (
+            <HomeMenu open={setMode} />
+          )}
+        </AppChromeContext.Provider>
       </SafeAreaView>
     </SafeAreaProvider>
   );
