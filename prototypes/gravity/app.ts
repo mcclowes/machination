@@ -19,7 +19,7 @@ const canvas = $<HTMLCanvasElement>('chart');
 const ctx = canvas.getContext('2d')!;
 
 const state = {
-  seed: 7, players: 3, giants: 3, giantMass: 1, giantRadius: 3.5, siteMass: 0, antigravityMass: 1.5,
+  seed: 7, players: 3, giants: 3, giantMass: 1, giantRadius: 3.5, planetEvery: 5, planetMass: 0.5, planetReach: 6, antigravityMass: 1.5,
   tuning: { ...DEFAULT_TUNING } as Tuning,
   mode: 'select' as Mode, antigravityOwner: 'you',
   sites: [] as Site[], width: 100, height: 100,
@@ -40,9 +40,10 @@ function rebuildWorld(): void {
 
 function wells(excluding: readonly string[] = []): Well[] {
   const giants = placeGiants(state, state.sites, state.giants).map((p, i): Well => ({ id: `giant-${i}`, ...p, mass: state.giantMass, radius: state.giantRadius }));
-  const sites = state.siteMass > 0 ? state.sites.filter(s => !excluding.includes(s.id)).map((s): Well => ({ id: s.id, x: s.x, y: s.y, mass: state.siteMass * (s.kind === 'core' ? 2 : 1), radius: 1 })) : [];
+  // Planetary sites: every Nth public site (the order is already shuffled). Their own well never acts on their courses.
+  const planets = state.planetEvery > 0 ? state.sites.filter((s, i) => i % state.planetEvery === 0 && !excluding.includes(s.id)).map((s): Well => ({ id: `planet-${s.id}`, x: s.x, y: s.y, mass: state.planetMass, radius: 0.6, reach: state.planetReach })) : [];
   const anti = state.antigravity.map(w => ({ ...w, mass: -state.antigravityMass }));
-  return [...giants, ...sites, ...anti];
+  return [...giants, ...planets, ...anti];
 }
 
 function course(from: Site, to: Site, waypoints: readonly Point[] = []): Course {
@@ -215,6 +216,9 @@ function render(): void {
       const c = toCanvas(w);
       eachImage((ox, oy) => { ctx.beginPath(); ctx.arc(c.x + ox, c.y + oy, reach, 0, Math.PI * 2); ctx.strokeStyle = '#c9a2ff55'; ctx.lineWidth = 1; ctx.stroke(); });
       dot(w, w.radius * scale(), '#6b4fa8', '#c9a2ff');
+    } else if (w.id.startsWith('planet')) {
+      const reach = ((w.reach ?? state.tuning.reach) + w.radius) * scale(), c = toCanvas(w);
+      eachImage((ox, oy) => { ctx.beginPath(); ctx.arc(c.x + ox, c.y + oy, reach, 0, Math.PI * 2); ctx.strokeStyle = '#8fd3c955'; ctx.setLineDash([2, 3]); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); });
     } else if (w.mass < 0) {
       const reach = (state.tuning.reach + w.radius) * scale(), c = toCanvas(w), color = OWNER_COLORS[w.owner ?? ''] ?? '#fff';
       eachImage((ox, oy) => { ctx.beginPath(); ctx.arc(c.x + ox, c.y + oy, reach, 0, Math.PI * 2); ctx.strokeStyle = `${color}66`; ctx.setLineDash([3, 4]); ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([]); });
@@ -316,7 +320,9 @@ bindNumber('players', v => { state.players = v; }, true);
 bindNumber('giants', v => { state.giants = v; });
 bindNumber('giantMass', v => { state.giantMass = v; });
 bindNumber('giantRadius', v => { state.giantRadius = v; });
-bindNumber('siteMass', v => { state.siteMass = v; });
+bindNumber('planetEvery', v => { state.planetEvery = v; });
+bindNumber('planetMass', v => { state.planetMass = v; });
+bindNumber('planetReach', v => { state.planetReach = v; });
 bindNumber('antigravityMass', v => { state.antigravityMass = v; });
 bindNumber('bend', v => { state.tuning.bend = v; });
 bindNumber('speedGain', v => { state.tuning.speedGain = v; });
