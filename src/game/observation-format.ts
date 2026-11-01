@@ -28,6 +28,7 @@ const count = (value: unknown): value is number => nonnegative(value) && Number.
 const fleetId = (value: unknown): value is number => count(value) && value > 0;
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const point = (value: unknown) => record(value) && finite(value.x) && finite(value.y);
+const battle = (value: unknown) => point(value) && optional(value as ObjectValue, 'site', text) && optional(value as ObjectValue, 'toward', point);
 const list = (value: unknown, check: (item: unknown) => boolean) => Array.isArray(value) && value.every(check);
 const optional = (value: ObjectValue, key: string, check: (item: unknown) => boolean) => value[key] === undefined || check(value[key]);
 const player = (value: unknown, world: World): value is Faction => isFaction(value) && world.players.includes(value);
@@ -110,7 +111,7 @@ export function validObservation(value: unknown): value is GameView {
     || new Set(value.fleets.map(item => item.id)).size !== value.fleets.length || !list(value.scheduled, item => plan(item, world, sites))) return false;
   const unitIds = [...value.rocks, ...value.fleets].flatMap(asset => asset.specialists?.map(unit => unit.id) ?? []);
   if (new Set(unitIds).size !== unitIds.length) return false;
-  if (!list(value.events, event => record(event) && nonnegative(event.hour) && typeof event.message === 'string' && optional(event, 'battle', point) && optional(event, 'discoveredAt', at => nonnegative(at) && at >= (event.hour as number) && at <= (value.hour as number)))
+  if (!list(value.events, event => record(event) && nonnegative(event.hour) && typeof event.message === 'string' && optional(event, 'battle', battle) && optional(event, 'discoveredAt', at => nonnegative(at) && at >= (event.hour as number) && at <= (value.hour as number)))
     || !list(value.coverage, sensor => record(sensor) && point(sensor) && nonnegative(sensor.radius) && optional(sensor, 'drift', drift => validDrift(drift, world)))
     || !list(value.uncertain, text) || typeof value.interceptionUncertain !== 'boolean'
     || !playerValues(value.cargo, world, nonnegative) || !Array.isArray(value.eliminated) || !value.eliminated.every(owner => player(owner, world))

@@ -33,7 +33,6 @@ import { stationCourse } from '../game/drift';
 import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
   View,
-  Pressable,
   ScrollView,
   Text,
   Image,
@@ -41,6 +40,7 @@ import {
   PanResponder,
   Platform,
 } from 'react-native';
+import { Pressable } from './Pressable';
 import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import type { GestureResponderEvent } from 'react-native';
 import { flightDestination, flightEndpoints, fleetPosition, flightDirection } from '../game/flight';
@@ -51,7 +51,13 @@ import { CopyObjectReference } from './CopyObjectReference';
 import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
 import type { Faction, Fleet, Rock } from '../game/simulation';
 
-import { constrainCamera, fitPlayerCamera, zoomCamera, type MapCamera } from '../game/chart-camera';
+import {
+  constrainCamera,
+  fitPlayerCamera,
+  MAX_CHART_SCALE,
+  zoomCamera,
+  type MapCamera,
+} from '../game/chart-camera';
 
 import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import {
@@ -843,7 +849,7 @@ export function BeltMap<T extends ChartRock>({
                 <MapControl
                   label="Zoom in"
                   text="+"
-                  disabled={camera.scale >= 4}
+                  disabled={camera.scale >= MAX_CHART_SCALE}
                   onPress={() => {
                     commit();
                     current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding));
@@ -1031,7 +1037,7 @@ const ChartTile = memo(function ChartTile({
           strokeDasharray="5 4"
         />
       )}
-      <MapBattles events={game.events} hour={game.hour} scale={sx} />
+      <MapBattles events={game.events} hour={game.hour} scale={sx} sites={game.rocks} />
     </>
   );
 });

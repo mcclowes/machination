@@ -28,7 +28,7 @@ for (const completed of [false, true]) test(`faction progression ${completed ? '
     await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
     await page.goto('/');
     await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-    await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+    await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
     await page.getByRole('button', { name: completed ? 'Factions and next operation' : 'Faction leaderboard', exact: true }).click();
     await expect(page.getByText('Faction allegiance', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Faction leaderboard', exact: true })).toBeVisible();

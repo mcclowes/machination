@@ -6,7 +6,8 @@
 import { allied, type TeamWorld } from '../game/teams';
 import { gameClock } from '../game/time-machine';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { FACTIONS, type Faction, type Fleet, type Rock } from '../game/simulation';
 import { flightDestination, interceptionCourse, type FlightWorld } from '../game/flight';
 type Props = { game: FlightWorld & TeamWorld & { version?: 1 | 2; fleets: Fleet[]; rocks: (FlightWorld['rocks'][number] & { name: string })[] }; source: Rock; owner: Faction; drones: number; specialists?: string[]; disabled: boolean; scheduledAt?: number; targetIds?: readonly number[]; onIntercept: (target: number) => void };

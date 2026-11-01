@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { useHostedAuth } from '@clerk/expo/hosted-auth';
 
 export function AccountSignIn() {

@@ -1,6 +1,7 @@
 /** Thumb-operated cargo selection, with exact entry and accessible adjustments. */
 import React, { useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PanResponder, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from './Pressable';
 
 export function DroneManifest({ value, available, onChange, disabled = false, compact = false, label = 'Drones to dispatch' }: { value: string; available: number; onChange: (value: string) => void; disabled?: boolean; compact?: boolean; label?: string }) {
   const maximum = Math.max(0, Math.floor(available));

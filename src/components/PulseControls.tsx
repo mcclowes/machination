@@ -1,6 +1,7 @@
 import { tacticalConfig, tacticalStrength } from '../game/tactical-pulse';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { pulseConfig, pulseRate, type PulseAction } from '../game/pulse';
 import { worldDistance } from '../game/geometry';
 import { playersIn, type Faction } from '../game/players';

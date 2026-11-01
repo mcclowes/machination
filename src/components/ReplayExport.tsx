@@ -5,7 +5,8 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { decodeSharedReplay, encodeSharedReplay, utf8Size } from '../replay/codec';
 import { saveSharedReplay } from '../replay/files';
 import type { SharedReplay } from '../replay/timeline';

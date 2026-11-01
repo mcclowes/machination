@@ -74,7 +74,7 @@ for (const width of [320, 1024])
         } else await route.continue();
       });
       await page.goto('/');
-      await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+      await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
       await page.getByRole('tab', { name: 'Signals', exact: true }).click();
       const report = page.getByRole('button', { name: 'Report message from Vesper', exact: true });
       await expect(report).toBeEnabled();
@@ -155,7 +155,7 @@ test('servers without reporting expose no active report action', async ({ page, 
         : route.abort(),
     );
     await page.goto('/');
-    await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+    await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
     await page.getByRole('tab', { name: 'Signals', exact: true }).click();
     await expect(
       page.getByText('Reporting is unavailable for this operation.', { exact: true }),

@@ -41,10 +41,25 @@ const sounds = {
   victory: render(1.6, mix(tone(392, 0, 1.5, { gain: 0.2 }), tone(494, 0.15, 1.35, { gain: 0.2 }), tone(587, 0.3, 1.2, { gain: 0.2 }), tone(784, 0.45, 1.1, { gain: 0.16 }))),
   defeat: render(1.8, mix(tone(147, 0, 1.7, { gain: 0.3, glide: -30 }), tone(175, 0.1, 1.6, { gain: 0.22, glide: -30 }), burst(0, 1.2, 0.15, 0.03))),
   error: render(0.22, mix(tone(150, 0, 0.09, { gain: 0.35, harmonic: 0.8 }), tone(150, 0.11, 0.09, { gain: 0.35, harmonic: 0.8 }))),
+  // Controls: short, quiet, and distinguishable by contour rather than volume.
+  select: render(0.06, mix(tone(2350, 0, 0.045, { gain: 0.2, harmonic: 0 }), burst(0, 0.012, 0.08, 0.7))),
+  back: render(0.12, mix(tone(1320, 0, 0.05, { gain: 0.2, harmonic: 0.1 }), tone(880, 0.055, 0.06, { gain: 0.2, harmonic: 0.1 }))),
+  confirm: render(0.15, mix(tone(990, 0, 0.055, { gain: 0.2, harmonic: 0.15 }), tone(1480, 0.06, 0.08, { gain: 0.22, harmonic: 0.15 }))),
+  time: render(0.12, mix(burst(0, 0.015, 0.2, 0.9), tone(3100, 0, 0.02, { gain: 0.1, harmonic: 0 }), burst(0.07, 0.015, 0.16, 0.9), tone(2600, 0.07, 0.02, { gain: 0.08, harmonic: 0 }))),
+  // Outcomes: each names what happened in the belt.
+  cancel: render(0.32, mix(tone(660, 0, 0.13, { gain: 0.28, harmonic: 0.3 }), tone(440, 0.14, 0.16, { gain: 0.28, harmonic: 0.3 }))),
+  build: render(0.55, mix(burst(0, 0.08, 0.4, 0.25), tone(196, 0, 0.18, { gain: 0.35, harmonic: 0.6 }), burst(0.2, 0.08, 0.35, 0.25), tone(294, 0.2, 0.3, { gain: 0.3, harmonic: 0.6 }))),
+  recruit: render(0.55, mix(tone(523, 0, 0.16, { gain: 0.25 }), tone(659, 0.12, 0.16, { gain: 0.25 }), tone(784, 0.24, 0.3, { gain: 0.25 }))),
+  shield: render(0.65, mix(tone(320, 0, 0.6, { gain: 0.25, harmonic: 0.4, glide: 520 }), tone(640, 0.05, 0.55, { gain: 0.08, harmonic: 0, glide: 900 }))),
+  pulse: render(0.9, mix(tone(880, 0, 0.85, { gain: 0.3, harmonic: 0.5, glide: -720 }), burst(0, 0.6, 0.18, 0.05))),
+  council: render(1.1, mix(tone(523, 0, 1.0, { gain: 0.2, harmonic: 0.35 }), tone(784, 0.02, 0.95, { gain: 0.16, harmonic: 0.35 }), tone(1046, 0.04, 0.6, { gain: 0.08, harmonic: 0 }))),
+  intel: render(0.36, mix(tone(1500, 0, 0.06, { gain: 0.22, harmonic: 0 }), tone(1800, 0.1, 0.06, { gain: 0.22, harmonic: 0 }), tone(1500, 0.2, 0.12, { gain: 0.22, harmonic: 0 }))),
+  gift: render(0.5, mix(tone(784, 0, 0.2, { gain: 0.22, harmonic: 0.2 }), tone(1046, 0.1, 0.25, { gain: 0.22, harmonic: 0.2 }), tone(1568, 0.2, 0.28, { gain: 0.1, harmonic: 0 }))),
+  message: render(0.32, mix(tone(988, 0, 0.1, { gain: 0.25, harmonic: 0.1 }), tone(1319, 0.12, 0.18, { gain: 0.25, harmonic: 0.1 }))),
 };
 
 // Peak level per sound, so quiet UI ticks stay quieter than outcomes.
-const levels = { tap: 0.3, schedule: 0.55, error: 0.55 };
+const levels = { tap: 0.3, select: 0.28, back: 0.3, confirm: 0.35, time: 0.3, schedule: 0.55, cancel: 0.5, error: 0.55, intel: 0.5, message: 0.6, gift: 0.6, recruit: 0.65 };
 
 function wav(samples, level) {
   const peak = samples.reduce((max, s) => Math.max(max, Math.abs(s)), 1e-9);

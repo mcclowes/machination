@@ -16,7 +16,11 @@ test('site battles disclose their exact location only to the event audience', ()
   const battle = end.events.find(event => event.battle);
   assert.ok(battle, 'Combat has map telemetry');
   const site = end.rocks.find(rock => rock.id === 'f')!;
-  assert.deepEqual(battle.battle, { x: site.x, y: site.y });
+  const home = end.rocks.find(rock => rock.id === 'c')!;
+  const { toward, ...centre } = battle.battle!;
+  assert.deepEqual(centre, { x: site.x, y: site.y, site: 'f' });
+  const length = Math.hypot(home.x - site.x, home.y - site.y);
+  assert.ok(Math.abs(toward!.x - (home.x - site.x) / length) < 1e-9 && Math.abs(toward!.y - (home.y - site.y) / length) < 1e-9, 'bearing points back toward the attacker');
   for (const player of ['you', 'vesper', 'null'] as const) {
     assert.equal(observe(end, player).events.some(event => event.battle), battle.audience!.includes(player));
   }
@@ -70,7 +74,7 @@ test('battle coordinates round-trip through saves and reject malformed observati
   assert.deepEqual(decodeSave(JSON.stringify({ game, savedAt: 0 })).game, game);
   const view = observe(game, 'you');
   assert.equal(validObservation(view), true);
-  for (const battle of [null, {}, { x: '5', y: 8 }, { x: Infinity, y: 5 }]) {
+  for (const battle of [null, {}, { x: '5', y: 8 }, { x: Infinity, y: 5 }, { x: 5, y: 5, site: 7 }, { x: 5, y: 5, toward: { x: NaN, y: 0 } }]) {
     const invalid = { ...view, events: [{ hour: game.hour, message: 'Battle', battle }] };
     assert.equal(validObservation(invalid), false);
     assert.throws(() => decodeSave(JSON.stringify({ savedAt: 0, game: { ...game, events: [{ hour: game.hour, message: 'Battle', battle }] } })));

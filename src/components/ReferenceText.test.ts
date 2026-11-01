@@ -32,8 +32,13 @@ type Element = {
 function elements(value: unknown): Element[] {
   if (Array.isArray(value)) return value.flatMap(elements);
   if (!value || typeof value !== 'object' || !('props' in value)) return [];
-  const element = value as Element;
-  return [element, ...elements(element.props.children)];
+  const element = value as Element & { type: unknown };
+  // The sounding Pressable wrapper is a forwardRef object; name it like the host it renders.
+  const type =
+    typeof element.type === 'string'
+      ? element.type
+      : ((element.type as { displayName?: string }).displayName ?? '');
+  return [{ ...element, type }, ...elements(element.props.children)];
 }
 
 const reference: ObjectReference = {

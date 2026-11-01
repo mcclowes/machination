@@ -22,7 +22,7 @@ async function openSolo(page: Page, game: Game) {
   await localOnly(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('tab', { name: 'Intel', exact: true }).click();
 }
 
@@ -85,7 +85,7 @@ test('online intelligence uses public scores and preserves fog of war', async ({
     await localOnly(page);
     await page.goto('/');
     await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-    await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+    await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
     await page.getByRole('tab', { name: 'Intel', exact: true }).click();
     const board = page.getByTestId('intelligence-reports');
     await expect(board.getByRole('heading', { name: 'Intelligence reports' })).toBeVisible();
