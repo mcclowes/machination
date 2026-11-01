@@ -20,6 +20,8 @@ The local [schema-3 integration](replay-schema-3.md) exports a reproduced natura
 
 The integrated replay checkpoint passes the current-source full gate: 1,711 behavior and 13 server-build tests, zero failures, with 14 SQL/TLS checks explicitly skipped because Docker is unavailable. Four desktop/phone replay browser checks and the web export pass. See the [exact verification scope](replay-schema-3.md).
 
+The later `b1ccbd2` checkpoint fixes the captured export timeout by avoiding snapshots outside the selected interval, while retaining identical replay bytes and the original simulation schedule. Its full gate passes 1,716 behavior and 13 packaged-server checks; 14 database checks skip without fixtures. Two captured-case HTTP checks pass under three-worker load with the unchanged deadline. See [failure evidence and timing limits](testing.md#endgame-failure-evidence). A [current-source simulator QA runtime](native-builds.md#current-source-simulator-qa-november-1) now launches and renders its welcome screen, but reuses the historical native binary. A fresh distribution archive, native replay interaction, and physical-device acceptance remain open.
+
 ## Client recovery
 
 The root React boundary contains descendant render and lifecycle errors, including account-provider rendering, and offers a safe-area-aware retry screen. Retry remounts the application without clearing saves, seat credentials, or notification settings. It makes no persistence or network writes itself. Unsaved input can be lost when the failed screen unmounts. A persistent failure leaves retry available rather than automatically looping or resetting progress.
