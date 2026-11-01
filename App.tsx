@@ -229,15 +229,8 @@ export default function App() {
               </Text>
             </>
           ) : (
-            (['solo', 'online', 'practice'] as const).map((m) => (
-              <View key={m} style={{ flex: 1 }}>
-                <Button
-                  label={m === 'solo' ? 'Solo' : m === 'online' ? 'Multiplayer' : 'Practice'}
-                  quiet={mode !== m}
-                  onPress={() => setMode(m)}
-                />
-              </View>
-            ))
+            // The home menu below already offers every mode; the bar keeps only global controls.
+            <View style={{ flex: 1 }} />
           )}
           <SoundToggle compact={!!mode} />
           <FieldManual compact={!!mode} />

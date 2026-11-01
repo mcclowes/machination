@@ -29,7 +29,7 @@ test('directional ships keep counts and inspection readable', async ({ page }, i
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
   const ship = page.getByRole('button', { name: /hauler, 1234 drones/ }).filter({ visible: true }).first();
   await expect(ship.getByTestId('ship-hull')).toBeAttached();
@@ -64,7 +64,7 @@ test('clicking a preparing ship opens and updates its launch order', async ({ pa
   await page.addInitScript(raw => localStorage.setItem('machination.game.v1', raw), saved);
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
   await page.getByRole('button', { name: /hauler, preparing launch, 24 drones/ }).filter({ visible: true }).first().click();
   const inspector = page.getByTestId('hauler-inspector');

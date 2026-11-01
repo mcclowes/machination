@@ -21,7 +21,7 @@ test('solo player bases use teal while unclaimed sites stay neutral', async ({ p
   );
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   const core = page.getByTestId('map-site').filter({ hasText: coreName, visible: true }).first();
   await expect(core).toBeVisible();
   await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#58d6c7');
@@ -46,7 +46,7 @@ test('profile color persists and colors a new solo operation without recoloring 
   await page.getByRole('button', { name: 'Player profile', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'gold player color', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Close player profile' }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   const core = page.getByRole('button', { name: /, core site, Mnemosyne,/ }).filter({ visible: true }).first();
   await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#e3ba5e');
   await page.screenshot({ path: `.fettle/shots/solo-preferred-color-${info.project.name}.png` });
@@ -55,6 +55,6 @@ test('profile color persists and colors a new solo operation without recoloring 
   await page.getByRole('radio', { name: 'violet player color', exact: true }).click();
   await expect(page.getByRole('radio', { name: 'violet player color', exact: true })).toBeChecked();
   await page.getByRole('button', { name: 'Close player profile' }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await expect(core.locator('feFlood').first()).toHaveAttribute('flood-color', '#e3ba5e');
 });

@@ -30,7 +30,7 @@ test('start screen retains its primary actions', async ({ page }) => {
 
 test('fixed solo chart and selected site remain readable', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   const core = page.getByRole('button', { name: /intelligence core/ }).filter({ visible: true, hasText: coreName }).first();
   await expect(core).toBeVisible();
   await core.click();
@@ -40,7 +40,7 @@ test('fixed solo chart and selected site remain readable', async ({ page }) => {
 
 test('forecast retains the chart and future-order context', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await expect(page.getByRole('button', { name: /intelligence core/ }).filter({ visible: true, hasText: coreName }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Time Machine', exact: true }).click();
   await page.getByRole('button', { name: '+6h', exact: true }).click();
