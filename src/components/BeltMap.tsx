@@ -716,7 +716,7 @@ export function BeltMap<T extends ChartRock>({
                     />
                   );
                 })()}
-              <MapBattles events={game.events} hour={game.hour} scale={sx} />
+              <MapBattles events={game.events} hour={game.hour} scale={sx} sites={game.rocks} />
             </G>
           ))}
         </G>
