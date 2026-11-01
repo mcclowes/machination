@@ -65,6 +65,7 @@ import { minesAllowed, mineCost } from '../game/economy';
 import { useDiplomacyPanel } from './DiplomacyPanel';
 import { IntelligenceReports } from '../components/IntelligenceReports';
 import { OperationShell, type OperationSection } from '../components/OperationShell';
+import { AppChromeContext, useChromeHost } from '../components/app-chrome';
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionMode, inspectionOffset, orderHour } from '../game/time-machine';
 import { forecastObservation } from '../game/visibility';
@@ -158,26 +159,35 @@ function AccountOperations({
     const next = { id: tapped, instance: ++instances.current };
     setSelection((current) => (current !== 'list' && current.id === tapped ? current : next));
   }, [tapped]);
+  const listExit = useMemo(
+    () => [{ label: '‹ All operations', onPress: () => setSelection('list') }],
+    [],
+  );
+  const chrome = useChromeHost(listExit);
   if (selection === 'list') return <OperationDirectory account={account} onOpen={open} />;
   return (
-    <View style={{ flex: 1 }}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setSelection('list')}
-        style={s.backToList}
-      >
-        <Text style={s.backToListText}>‹ All operations</Text>
-      </Pressable>
-      <ConnectedOperation
-        key={selection.instance}
-        {...props}
-        account={account}
-        operationId={selection.id}
-        onOpened={(id) =>
-          setSelection((current) => (current === 'list' ? current : { ...current, id }))
-        }
-      />
-    </View>
+    <AppChromeContext.Provider value={chrome.value}>
+      <View style={{ flex: 1 }}>
+        {!chrome.claimed && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setSelection('list')}
+            style={s.backToList}
+          >
+            <Text style={s.backToListText}>‹ All operations</Text>
+          </Pressable>
+        )}
+        <ConnectedOperation
+          key={selection.instance}
+          {...props}
+          account={account}
+          operationId={selection.id}
+          onOpened={(id) =>
+            setSelection((current) => (current === 'list' ? current : { ...current, id }))
+          }
+        />
+      </View>
+    </AppChromeContext.Provider>
   );
 }
 function ConnectedOperation({
