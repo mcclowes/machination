@@ -54,7 +54,7 @@ export function utf8Size(text: string): number {
 }
 
 // Inspect descriptors before reading values so serialization cannot invoke getters or hooks.
-function inspect(value: unknown) {
+export function inspectReplayData(value: unknown): number {
   let records = 0, bytes = 0;
   const active = new Set<object>();
   function visit(v: unknown, depth: number) {
@@ -79,6 +79,7 @@ function inspect(value: unknown) {
     active.delete(v);
   }
   visit(value, 1);
+  return records;
 }
 
 function rules(v: unknown) {
@@ -99,7 +100,7 @@ function rules(v: unknown) {
   object(v.map, ['generator', 'width', 'height'], ['topology']); one(v.map.generator, ['balanced.v1', 'balanced.v2']);
   num(v.map.width, Number.MIN_VALUE, L.coordinate); num(v.map.height, Number.MIN_VALUE, L.coordinate); optional(v.map, 'topology', t => one(t, ['torus']));
 }
-function scene(v: unknown) : asserts v is ReplayScene {
+export function validateReplayScene(v: unknown) : asserts v is ReplayScene {
   object(v, ['hour', 'rocks', 'fleets', 'coverage', 'cargo', 'eliminated', 'winner'], ['pulse', 'version', 'standings', 'draw', 'rules', 'compact', 'foresight', 'discoveries']);
   num(v.hour); optional(v, 'version', n => one(n, [1, 2])); optional(v, 'draw', n => one(n, [true])); optional(v, 'rules', rules);
   const roster: string[] = v.rules?.players ?? factions;
@@ -187,7 +188,7 @@ function scene(v: unknown) : asserts v is ReplayScene {
   array(v.eliminated, factions.length); v.eliminated.forEach(member); unique(v.eliminated); if (v.winner !== null) member(v.winner);
 }
 function validate(value: unknown): asserts value is SharedReplay {
-  inspect(value);
+  inspectReplayData(value);
   object(value, ['kind', 'schemaVersion', 'presentationVersion', 'history', 'perspective', 'from', 'through', 'groups', 'spans']);
   one(value.kind, ['machination.observed-timeline']); one(value.schemaVersion, [1, 2]); one(value.presentationVersion, [1]); one(value.history, ['canonical-events']); faction(value.perspective);
   num(value.from); num(value.through); need(value.through >= value.from);
@@ -196,7 +197,7 @@ function validate(value: unknown): asserts value is SharedReplay {
   const schemaVersion = value.schemaVersion;
   let chart: string | undefined, publicRules: string | undefined;
   function frame(s: unknown, hour: number) {
-    scene(s); need(s.hour === hour);
+    validateReplayScene(s); need(s.hour === hour);
     need((schemaVersion === 2) === s.rocks.some(r => !!r.drift));
     const nextChart = fingerprint(s.rocks.map(r => ({ id: r.id, name: r.name, ...(r.drift ? { drift: r.drift } : { x: r.x, y: r.y }) })).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     const nextRules = fingerprint(s.rules ?? null);
@@ -220,7 +221,7 @@ export function encodeSharedReplay(value: SharedReplay): string {
   validate(value);
   const raw = JSON.stringify(value); need(utf8Size(raw) <= L.bytes); return raw;
 }
-export function decodeSharedReplay(raw: string): SharedReplay {
+export function parseReplayJson(raw: string): unknown {
   need(typeof raw === 'string' && raw.length <= L.bytes && utf8Size(raw) <= L.bytes);
   let depth = 0, quoted = false, escaped = false;
   for (let i = 0; i < raw.length; i++) {
@@ -231,5 +232,9 @@ export function decodeSharedReplay(raw: string): SharedReplay {
     else if (c === '}' || c === ']') need(--depth >= 0);
   }
   need(depth === 0 && !quoted);
-  const value: unknown = JSON.parse(raw); validate(value); return value;
+  return JSON.parse(raw);
+}
+
+export function decodeSharedReplay(raw: string): SharedReplay {
+  const value = parseReplayJson(raw); validate(value); return value;
 }
