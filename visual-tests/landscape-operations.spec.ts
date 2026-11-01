@@ -8,12 +8,14 @@ import type { AddressInfo } from 'node:net';
 import { GameService } from '../server/service';
 import { createApi } from '../server/http';
 import { createLegacyGame } from '../src/game/legacy';
+import { waitForChartLayout } from './chart-layout';
 
 async function fullyVisible(control: Locator) {
   await expect
     .poll(async () => {
       try {
         await control.scrollIntoViewIfNeeded({ timeout: 1000 });
+        await control.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
       } catch (error) {
         if (String(error).includes('not attached to the DOM')) return false;
         throw error;
@@ -140,6 +142,8 @@ for (const [width, height] of [
       });
       await fullyVisible(choose);
       await choose.click();
+      await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
+      await waitForChartLayout(page);
       await page
         .getByRole('button', { name: /^Suture,/ })
         .filter({ visible: true })

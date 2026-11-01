@@ -28,7 +28,7 @@ const navigation = [
   [null, 'Chart', '◎'], ['orders', 'Orders', '↗'], ['units', 'Specialists', '◈'],
   ['signals', 'Signals', '≋'], ['intel', 'Intel', '▥'], ['settings', 'Setup', '⋯'],
 ] as const;
-const COMPACT_OPERATION_HEIGHT = 360;
+const COMPACT_OPERATION_HEIGHT = 400;
 const COMPACT_SIDEBAR_WIDTH = 640;
 const MIN_SHEET_HEIGHT = 148;
 const MIN_DRAWER_BODY_HEIGHT = 96;
