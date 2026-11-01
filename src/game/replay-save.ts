@@ -12,7 +12,7 @@ import { advance, FACTIONS, type Game } from './simulation';
 import { decodeSave } from './save-format';
 import { isModule } from './modules';
 import { isSpecialistKind } from './specialist-catalog';
-import { replayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
+import { replaySlices, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
 export const MAX_REPLAY_COMMANDS = 10_000;
 export const MAX_REPLAY_CHARACTERS = 16 * 1024 * 1024;
 const MAX_INACTIVITY_COMMANDS = Object.keys(FACTIONS).length;
@@ -76,7 +76,8 @@ function canonical(value: Game): string {
   // Map annotations added after a save don't change its recorded simulation.
   return JSON.stringify(normalize({ ...value, events: value.events.map(({ battle: _battle, ...event }) => event) }));
 }
-export function decodeReplay(input: unknown, live: Game, rivals: boolean): ReplayArchive {
+/** Validate saved history in one-hour slices; callers may yield to the interface between slices. */
+export function* decodeReplaySlices(input: unknown, live: Game, rivals: boolean): Generator<unknown, ReplayArchive> {
   try {
     if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals']) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
     const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
@@ -88,8 +89,15 @@ export function decodeReplay(input: unknown, live: Game, rivals: boolean): Repla
     }
     const data = { version: 1, rules: 1, baseline, entries: input.entries, rivals } as ReplayData;
     const archive = restoreArchive(data);
-    const reconstructed = replayTo(archive, live.hour, { rivals, knownThrough: live.hour });
+    const reconstructed = yield* replaySlices(archive, live.hour, { rivals, knownThrough: live.hour });
     if (canonical(advance(reconstructed, reconstructed.hour, { rivals })) !== canonical(advance(live, live.hour, { rivals }))) throw new Error();
     return archive;
   } catch { throw new Error('Saved history is damaged or does not match this operation.'); }
+}
+export function decodeReplay(input: unknown, live: Game, rivals: boolean): ReplayArchive {
+  return finishSlices(decodeReplaySlices(input, live, rivals));
+}
+/** Run sliced work to completion synchronously. */
+export function finishSlices<T>(slices: Generator<unknown, T>): T {
+  for (;;) { const step = slices.next(); if (step.done) return step.value; }
 }

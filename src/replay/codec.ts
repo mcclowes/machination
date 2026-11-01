@@ -87,10 +87,10 @@ function rules(v: unknown) {
   array(v.players, factions.length); need(v.players.length >= 2); v.players.forEach(faction); unique(v.players);
   one(v.mode, ['pulse', 'mining', 'domination']); num(v.victoryTarget, Number.MIN_VALUE);
   optional(v, 'pulse', validatePulseConfig);
-  need(v.mode !== 'pulse' || v.pulse && [15, 16, 17, 18, 19].includes(v.mechanicsVersion));
+  need(v.mode !== 'pulse' || v.pulse && [15, 16, 17, 18, 19, 20].includes(v.mechanicsVersion));
   optional(v, 'tacticalPulse', validateTacticalPulseConfig);
   need(v.mode === 'pulse' && (v.mechanicsVersion ?? 1) >= 16 ? !!v.tacticalPulse : !v.tacticalPulse);
-  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]));
+  optional(v, 'mechanicsVersion', n => one(n, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]));
   optional(v, 'teams', t => { need((v.mechanicsVersion ?? 1) >= 17 && v.mode !== 'pulse'); validateTeams(t, v.players); });
   need((v.mechanicsVersion ?? 1) >= 7 ? typeof v.driftingBases === 'boolean' : v.driftingBases === undefined);
   optional(v, 'gravity', g => need(v.mechanicsVersion >= 19 && !v.driftingBases && validGravity(g, { rules: v as any }, v.players)));

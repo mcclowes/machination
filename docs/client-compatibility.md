@@ -11,6 +11,8 @@ The distributed TestFlight 0.1.0 (2) client uses strict rule decoders from `e93f
 
 Current clients send `Accept: application/vnd.machination.v2+json, application/json` from both the ordinary API and replay request paths. The server respects positive quality values and prefers the explicitly supported current representation when its quality is at least that of JSON. A wildcard alone does not advertise a newer decoder. Responses vary on `Origin` and `Accept` and remain `no-store`.
 
+Mechanics revision 20 (hourly Foresight refresh) applies only to new local solo operations. The server still creates multiplayer operations at the negotiated revision 18 or 19, so released clients keep working. Shared replay files from revision-20 solo operations need a client that decodes revision 20. Raising multiplayer to revision 20 needs a new representation, like the one revision 19 received.
+
 An older server can ignore this Accept value and return ordinary JSON, which current decoders still accept. That fallback does not add support for newer command fields to the older server. Stage compatible server support before exposing new features in a client.
 
 ## Recorded state and access

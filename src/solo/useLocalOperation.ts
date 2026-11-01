@@ -62,18 +62,33 @@ export function useLocalOperation(
   }, [operation, ready, loadFailed, policy]);
   useEffect(() => {
     if (!ready || loadFailed || !policy.automaticClock) return;
-    const tick = () => {
-      const now = Date.now(),
-        delta = Math.max(0, now - lastTick.current) / HOUR_MS;
-      lastTick.current = now;
+    // Returning after hours away is caught up one game hour per slice so the interface keeps responding.
+    let pending = 0,
+      slice: ReturnType<typeof setTimeout> | undefined;
+    const step = () => {
+      slice = undefined;
       const op = current.current;
-      if (!op.game.winner && !op.game.draw)
-        replace(policy.advance(op, op.game.hour + delta, 'clock'));
+      if (pending <= 0 || op.game.winner || op.game.draw) {
+        pending = 0;
+        return;
+      }
+      const hours = Math.min(pending, 1);
+      pending -= hours;
+      replace(policy.advance(op, op.game.hour + hours, 'clock'));
+      if (pending > 0) slice = setTimeout(step, 0);
+    };
+    const tick = () => {
+      const now = Date.now();
+      pending += Math.max(0, now - lastTick.current) / HOUR_MS;
+      lastTick.current = now;
+      if (slice === undefined) step();
     };
     const timer = setInterval(tick, 15_000);
     const subscription = AppState.addEventListener('change', tick);
     return () => {
       clearInterval(timer);
+      if (slice !== undefined) clearTimeout(slice);
+      lastTick.current -= pending * HOUR_MS; // Unapplied time resumes with the next clock.
       subscription.remove();
     };
   }, [ready, loadFailed, policy, replace]);

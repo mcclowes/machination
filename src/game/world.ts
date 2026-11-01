@@ -58,7 +58,7 @@ export function createGame(epoch = Date.now(), seeds?: Partial<Record<Faction, n
   };
 }
 
-export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>, revision: 14 | 16 | 17 | 18 | 19 = 19): Game {
+export function createConfiguredGame(options: GameOptions, epoch: number, mapSeed: number, seeds?: Partial<Record<Faction, number>>, revision: 14 | 16 | 17 | 18 | 19 | 20 = 20): Game {
   const settings = validateOptions(options);
   const gravity = gravityOptionEnabled(settings, revision);
   if (settings.gravity && revision < 19) throw new Error('Gravity requires current operation rules.');
