@@ -114,20 +114,22 @@ test('revision 20 expires passed predictions between hourly refreshes and keeps 
   assert.doesNotThrow(() => decodeSave(JSON.stringify({ savedAt: 0, game: after })));
 });
 
+const warningCount = (game: Game): number => game.temporalIntel?.warnings.length ?? 0;
+
 test('revision 20 skips foresight for automated rivals; revision 19 and human rivals keep it', () => {
   const rival = threatenedWorld('vesper');
   assert.equal(rival.temporalIntel?.warnings.length, 1, 'human-controlled rivals still receive warnings');
   delete rival.temporalIntel;
   refreshForesight(rival, true);
-  assert.equal(rival.temporalIntel?.warnings.length ?? 0, 0);
+  assert.equal(warningCount(rival), 0);
 
   const legacy = threatenedWorld('vesper', 19);
   delete legacy.temporalIntel;
   refreshForesight(legacy, true);
-  assert.equal(legacy.temporalIntel?.warnings.length, 1);
+  assert.equal(warningCount(legacy), 1);
 
   const player = threatenedWorld('you');
   delete player.temporalIntel;
   refreshForesight(player, true);
-  assert.equal(player.temporalIntel?.warnings.length, 1);
+  assert.equal(warningCount(player), 1);
 });
