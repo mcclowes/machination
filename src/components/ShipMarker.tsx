@@ -3,14 +3,14 @@
  * purpose: Directional industrial hauler silhouette with upright drone counts and visible flight states.
  * ---
  */
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
 import { nativeDriver, useAmbientMotion } from './use-ambient-motion';
 
 type Props = { color: string; drones: number; heading: number; selected?: boolean; preparing?: boolean; enginesDisabled?: boolean };
 
-export function ShipMarker({ color, drones, heading, selected, preparing, enginesDisabled }: Props) {
+export const ShipMarker = memo(function ShipMarker({ color, drones, heading, selected, preparing, enginesDisabled }: Props) {
   const { animate } = useAmbientMotion();
   const [burn] = useState(() => new Animated.Value(1));
   const [bounce] = useState(() => new Animated.Value(0));
@@ -78,7 +78,7 @@ export function ShipMarker({ color, drones, heading, selected, preparing, engine
       <Text style={styles.count}>{drones}</Text>
     </View>
   </Animated.View>;
-}
+});
 
 const styles = StyleSheet.create({
   marker: { width: 44, height: 56, alignItems: 'center' },

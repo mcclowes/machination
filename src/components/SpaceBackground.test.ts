@@ -67,11 +67,18 @@ for (const platform of ['web', 'ios']) test(`space sky spaces out shooting stars
     assert.notDeepEqual(shootingPosition(), firstPosition, 'Each pass gets a fresh origin');
     const sky = renderer.root.findByProps({ testID: 'space-background' });
     await flush(() => sky.props.onLayout({ nativeEvent: { layout: { width: 400, height: 480 } } }));
-    const star = (index: number) => renderer.root.findByProps({ testID: `space-star-${index}` }).props.style;
+    // Visible position as a percentage of the sky: the star's place in its layer plus the layer's shift.
+    const star = (index: number) => {
+      const layer = renderer.root.findByProps({ testID: index < 54 ? 'space-stars-distant' : `space-stars-near-${Math.floor((index - 54) / 12)}` }).props.style;
+      const shift = Object.assign({}, ...layer.transform);
+      const { left, top } = renderer.root.findByProps({ testID: `space-star-${index}` }).props.style;
+      const at = (percent: string, translate: number, extent: number) => `${(((parseFloat(percent) * 2 - 100 + translate / extent * 100) % 100) + 100) % 100}%`;
+      return { left: at(left, shift.translateX, 400), top: at(top, shift.translateY, 480) };
+    };
     const original = [star(0), star(54)];
     await flush(() => renderer.update(React.createElement(SpaceBackground, { pan: { x: 40, y: 20 }, panPeriod: { x: 400, y: 480 } })));
     const moved = [star(0), star(54)];
-    const displacement = (index: number) => parseFloat(moved[index].left) - parseFloat(original[index].left);
+    const displacement = (index: number) => parseFloat(moved[index]!.left) - parseFloat(original[index]!.left);
     assert.ok(displacement(0) > 0 && displacement(0) < 10, 'Distant stars follow panning more slowly than the map');
     assert.ok(displacement(1) > displacement(0) && displacement(1) < 10, 'Nearer stars move faster than distant stars');
     await flush(() => renderer.update(React.createElement(SpaceBackground, { pan: { x: -156, y: 20 }, panPeriod: { x: 400, y: 480 } })));
