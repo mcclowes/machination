@@ -122,7 +122,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Exit replay library');
     expectedSoloReads = 2;
     quiet();
-    await press('Practice');
+    await press('Start tactical practice');
     await press('Start: Open a foothold');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[0]!.text));
     assert.equal(hosts('Modal').length, 1);
