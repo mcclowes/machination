@@ -13,6 +13,11 @@ const { create, act } = require('react-test-renderer');
 test('measured hauler inspection reveals, allows manual pan, resizes, and releases legacy bounds', async () => {
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { configurable: true, value: true });
+  const globals = globalThis as typeof globalThis & Record<string, any>;
+  const frames: ((time: number) => void)[] = [];
+  globals.requestAnimationFrame = (callback: (time: number) => void) => frames.push(callback);
+  globals.cancelAnimationFrame = () => {};
+  const paint = () => frames.splice(0).forEach(callback => callback(0));
   let renderer: any;
   try {
     const bundle = await build({ entryPoints: [new URL('./BeltMap.tsx', import.meta.url).pathname], bundle: true, write: false,
@@ -55,6 +60,8 @@ export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollV
       const y = visibleY()[0];
       await flush(() => host('belt-map').props.onPanResponderGrant({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] } }, { x0: 0, y0: 0, dx: 0, dy: 0 }));
       await flush(() => host('belt-map').props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: 0, pageY: 40 }] } }, { dx: 0, dy: 40, moveX: 0, moveY: 40 }));
+      await flush(paint);
+      await flush(() => host('belt-map').props.onPanResponderRelease({ nativeEvent: { touches: [], changedTouches: [{ pageX: 0, pageY: 40 }] } }, { dx: 0, dy: 40, moveX: 0, moveY: 40 }));
       assert.ok(Math.abs(visibleY()[0] - y - 40) < 1e-6, 'manual pan remains in effect');
       const afterPan = changes;
       await flush(() => card().props.onLayout(layout(330)));
@@ -70,11 +77,15 @@ export const View='View',Text='Text',Image='Image',Pressable='Pressable',ScrollV
       const grant = host('belt-map').props.onPanResponderGrant;
       await flush(() => grant({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] } }, { x0: 0, y0: 0, dx: 0, dy: 0 }));
       await flush(() => host('belt-map').props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] } }, { dx: 0, dy: 0, moveX: 0, moveY: 0 }));
+      await flush(paint);
+      await flush(() => host('belt-map').props.onPanResponderRelease({ nativeEvent: { touches: [], changedTouches: [{ pageX: 0, pageY: 0 }] } }, { dx: 0, dy: 0, moveX: 0, moveY: 0 }));
       assert.deepEqual(camera, constrainCamera(game, beforeCloseClamp), 'closing releases the temporary legacy pan allowance');
       await flush(() => renderer.unmount()); renderer = undefined;
     }
   } finally {
     if (renderer) await act(async () => renderer.unmount());
+    Reflect.deleteProperty(globals, 'requestAnimationFrame');
+    Reflect.deleteProperty(globals, 'cancelAnimationFrame');
     if (priorAct) Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', priorAct);
     else delete (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT;
   }
