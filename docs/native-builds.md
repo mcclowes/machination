@@ -133,6 +133,15 @@ Archive and exported JavaScript are byte-identical: 5,071,534-byte Hermes 96 bun
 
 The preparation session did not upload or distribute the artifact, install it, or deploy its matching service changes. The later distribution above supersedes that publication status; installation and matching service rollout remain unverified. Device Hub currently returns `cgWindowNotFound`, so no current native interaction or physical-device acceptance is claimed. Native account sign-in, push delivery, and production reporting remain unconfigured or disabled. See [local artifact #154](https://github.com/mcclowes/machination/issues/154).
 
+
+### Recovered packed replay QA, November 1
+
+The earlier local build 6 source is retained in Git (`0999ff4`, with preparation notes through `2139507` on `codex/native-packed-20261101`). Its temporary archive/IPA/evidence directory is no longer present here. Historical temporary paths in this document must be checked before reuse; a recorded passing build is not proof that its artifact remains available.
+
+The installed simulator QA package was recovered without launching it from the shutdown iPhone 18 Pro / iOS 27.0 simulator. The recovered copy is `.data/acceptance/issue-179-recovered/Machination Replay QA.app`, identity `com.mcclowes.machination.packedqa`, version 0.1.0 (6). Deep/strict ad-hoc signature verification passes. Its 5,088,822-byte JavaScript bundle matches the originally recorded SHA-256 `d9c4b888fcfd7e8d2e7a2fcbb59b687b4b65f1a37bcba046ea74d86049bda50e`; `recovery.json` records source, destination, and identity. The workspace copy is ignored by Git.
+
+This is a historical simulator runtime. It lacks the later map work and the [current compact-height correction](chart-acceptance.md), so a new native candidate is required before publication. No current native import/playback, networking-disabled execution, physical-device behavior, archive/IPA recovery, upload, or distribution follows from recovering it. Device Hub's failed window binding remains separate from app correctness. See [native acceptance #179](https://github.com/mcclowes/machination/issues/179).
+
 ## Verification boundaries
 
 An Expo JavaScript export proves bundling, not native compilation. A Gradle or Xcode build proves compilation, not installation or gameplay. Before distributing, verify first-launch dismissal, operation save/reload, foreground/background catch-up, map selection, transfers, module combat, invitation joining, private messages, and retry behavior on both native platforms. Include notched screens, the software keyboard, and enlarged text in layout checks.
