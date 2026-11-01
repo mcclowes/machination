@@ -5,20 +5,20 @@
  *
  * @format
  */
-import { MapFlightRoute } from "./MapFlightRoute";
-import { MapGravity } from "./MapGravity";
-import type { GravityConfig } from "../game/gravity";
-import type { FlightRoute } from "../game/flight-route";
+import { MapFlightRoute } from './MapFlightRoute';
+import { MapGravity } from './MapGravity';
+import type { GravityConfig } from '../game/gravity';
+import type { FlightRoute } from '../game/flight-route';
 
-import { siteKindLabel } from "../content/terminology";
+import { siteKindLabel } from '../content/terminology';
 
-import { MapBattles } from "./MapBattles";
-import { MapPulses } from "./MapPulses";
-import { ShipMarker } from "./ShipMarker";
-import type { GameView } from "../game/visibility";
-import { HaulerCombat, type CombatObservation } from "./HaulerCombat";
-import { MapSpecialists } from "./MapSpecialists";
-import { SpecialistManifest } from "./SpecialistManifest";
+import { MapBattles } from './MapBattles';
+import { MapPulses } from './MapPulses';
+import { ShipMarker } from './ShipMarker';
+import type { GameView } from '../game/visibility';
+import { HaulerCombat, type CombatObservation } from './HaulerCombat';
+import { MapSpecialists } from './MapSpecialists';
+import { SpecialistManifest } from './SpecialistManifest';
 import {
   mapSpecialistSummary,
   specialistManifestDescription,
@@ -26,42 +26,22 @@ import {
   SPECIALIST_BADGE_SIZE,
   SPECIALIST_BADGE_OFFSET,
   SPECIALIST_BADGE_HIT_SLOP,
-} from "./map-specialists";
-import { DriftCourse } from "./DriftCourse";
-import { SpaceBackground } from "./SpaceBackground";
-import { stationCourse } from "../game/drift";
-import React, {
-  memo,
-  useEffect,
-  useEffectEvent,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  View,
-  ScrollView,
-  Text,
-  Image,
-  StyleSheet,
-  PanResponder,
-  Platform,
-} from "react-native";
-import { Pressable } from "./Pressable";
-import Svg, { Circle, G, Line, Path } from "react-native-svg";
-import type { GestureResponderEvent } from "react-native";
-import {
-  flightDestination,
-  flightEndpoints,
-  fleetPosition,
-  flightDirection,
-} from "../game/flight";
-import { MODULES } from "../game/modules";
-import { arrivalAtRisk, arrivalInspection } from "../game/time-machine";
-import { remoteSiteDescription } from "./site-observation";
-import { CopyObjectReference } from "./CopyObjectReference";
-import { PlayerIdentity, usePlayerRoster } from "./PlayerIdentity";
-import type { Faction, Fleet, Rock } from "../game/simulation";
+} from './map-specialists';
+import { DriftCourse } from './DriftCourse';
+import { SpaceBackground } from './SpaceBackground';
+import { stationCourse } from '../game/drift';
+import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { View, ScrollView, Text, Image, StyleSheet, PanResponder, Platform } from 'react-native';
+import { Pressable } from './Pressable';
+import Svg, { Circle, G, Line, Path } from 'react-native-svg';
+import type { GestureResponderEvent } from 'react-native';
+import { flightDestination, flightEndpoints, fleetPosition, flightDirection } from '../game/flight';
+import { MODULES } from '../game/modules';
+import { arrivalAtRisk, arrivalInspection } from '../game/time-machine';
+import { remoteSiteDescription } from './site-observation';
+import { CopyObjectReference } from './CopyObjectReference';
+import { PlayerIdentity, usePlayerRoster } from './PlayerIdentity';
+import type { Faction, Fleet, Rock } from '../game/simulation';
 
 import {
   constrainCamera,
@@ -69,9 +49,9 @@ import {
   MAX_CHART_SCALE,
   zoomCamera,
   type MapCamera,
-} from "../game/chart-camera";
+} from '../game/chart-camera';
 
-import { wrappedBounds, type MapGeometry, type Point } from "../game/geometry";
+import { wrappedBounds, type MapGeometry, type Point } from '../game/geometry';
 import {
   chartFit,
   chartOffsets,
@@ -83,52 +63,47 @@ import {
   revealSiteCamera,
   siteCameraPadding,
   type ChartViewport,
-} from "../game/chart-projection";
+} from '../game/chart-projection';
 import {
   layoutSiteNames,
   MAP_DRONE_COUNT_OFFSET,
   MAP_DRONE_COUNT_PADDING,
   MAP_DRONE_COUNT_SIZE,
-} from "./map-labels";
-import { mapShields } from "./map-shields";
+} from './map-labels';
+import { mapShields } from './map-shields';
 
-type ChartRock = Omit<Rock, "owner" | "drones" | "kind"> & {
-  kind: Rock["kind"] | "unknown";
+type ChartRock = Omit<Rock, 'owner' | 'drones' | 'kind'> & {
+  kind: Rock['kind'] | 'unknown';
   owner?: Faction | null;
   drones?: number;
   known?: boolean;
 };
-export type { MapCamera } from "../game/chart-camera";
+export type { MapCamera } from '../game/chart-camera';
 const baseIcons = {
-  factory: require("../../assets/bases/factory.png"),
-  generator: require("../../assets/bases/generator.png"),
-  mine: require("../../assets/bases/mine.png"),
+  factory: require('../../assets/bases/factory.png'),
+  generator: require('../../assets/bases/generator.png'),
+  mine: require('../../assets/bases/mine.png'),
 };
 const INSPECTOR_CHART_SPACE = 44 + 20;
 const SITE_CONTROL_WIDTH = 64;
 const NEUTRAL_NAME_ZOOM = 2;
-const NEUTRAL_SITE = "#a7b6b9";
+const NEUTRAL_SITE = '#a7b6b9';
 const NEUTRAL_ICON_OPACITY = 0.6;
 function isWebMouseEvent(event: GestureResponderEvent, type: string) {
-  const native = event.nativeEvent as GestureResponderEvent["nativeEvent"] & {
+  const native = event.nativeEvent as GestureResponderEvent['nativeEvent'] & {
     type?: string;
   };
-  return Platform.OS === "web" && native.type === type;
+  return Platform.OS === 'web' && native.type === type;
 }
-function siteIcon(rock: Pick<ChartRock, "destroyed" | "kind">) {
-  if (rock.destroyed || rock.kind === "unknown") return undefined;
-  const kind =
-    rock.kind === "core"
-      ? "factory"
-      : rock.kind === "reactor"
-        ? "generator"
-        : rock.kind;
+function siteIcon(rock: Pick<ChartRock, 'destroyed' | 'kind'>) {
+  if (rock.destroyed || rock.kind === 'unknown') return undefined;
+  const kind = rock.kind === 'core' ? 'factory' : rock.kind === 'reactor' ? 'generator' : rock.kind;
   return baseIcons[kind];
 }
 type Props<T extends ChartRock> = {
   game: {
-    events?: GameView["events"];
-    pulse?: GameView["pulse"];
+    events?: GameView['events'];
+    pulse?: GameView['pulse'];
     epoch?: number;
     hour: number;
     rocks: T[];
@@ -185,22 +160,19 @@ export function BeltMap<T extends ChartRock>({
 }: Props<T>) {
   const identity = usePlayerRoster();
   const [localCamera, setLocalCamera] = useState<MapCamera>(() =>
-    fitPlayerCamera(game, player ?? "you"),
+    fitPlayerCamera(game, player ?? 'you'),
   );
   const resetLocalCamera = useEffectEvent(() => {
-    if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? "you"));
+    if (!viewport) setLocalCamera(fitPlayerCamera(game, player ?? 'you'));
   });
   useEffect(() => {
     resetLocalCamera();
   }, [game.epoch, player]);
   const [size, setSize] = useState<ChartViewport>({ width: 400, height: 480 });
-  const refit = () =>
-    setSize((size) => ({ ...size, fitScale: chartFit(game, size) }));
+  const refit = () => setSize((size) => ({ ...size, fitScale: chartFit(game, size) }));
   const resetFit = useEffectEvent(() => {
     setSize((size) =>
-      size.fitScale === undefined
-        ? size
-        : { ...size, fitScale: chartFit(game, size) },
+      size.fitScale === undefined ? size : { ...size, fitScale: chartFit(game, size) },
     );
   });
   useEffect(() => {
@@ -216,8 +188,7 @@ export function BeltMap<T extends ChartRock>({
   const fleet = game.fleets.find((f) => f.id === contact);
   const inspectedSpecialists = fleet && mapSpecialistSummary(fleet);
   const haulerRadius = (hauler: Fleet) => {
-    const source =
-      hauler.preparing && game.rocks.find((rock) => rock.id === hauler.from);
+    const source = hauler.preparing && game.rocks.find((rock) => rock.id === hauler.from);
     return Math.max(
       styles.hauler.height / 2,
       source ? (mapShields(source).at(-1)?.radius ?? 0) : 0,
@@ -238,7 +209,7 @@ export function BeltMap<T extends ChartRock>({
     card && card.id === fleet?.id
       ? overlayLift(game, size, card.height + styles.inspector.bottom)
       : 0;
-  const [mapTools, setMapTools] = useState(Platform.OS === "web");
+  const [mapTools, setMapTools] = useState(Platform.OS === 'web');
   useEffect(() => setContact(undefined), [game.epoch, player]);
   const inspectRequestedFleet = useEffectEvent(() => {
     if (inspectFleet) setContact(inspectFleet.id);
@@ -262,10 +233,8 @@ export function BeltMap<T extends ChartRock>({
     target?: T;
   };
   const [drag, setDrag] = useState<Drag>();
-  const inspectedSite =
-    inspecting && game.rocks.find((rock) => rock.id === selected);
-  const siteToReveal =
-    !fleet && !destination && !transferRoute && !drag && inspectedSite;
+  const inspectedSite = inspecting && game.rocks.find((rock) => rock.id === selected);
+  const siteToReveal = !fleet && !destination && !transferRoute && !drag && inspectedSite;
   const padding =
     inspectedSite && !fleet
       ? siteCameraPadding(game, size, coveredBottom, SITE_CONTROL_WIDTH / 2)
@@ -273,21 +242,14 @@ export function BeltMap<T extends ChartRock>({
   // Gestures preview the camera here and commit to the owner once, so the screen around the chart
   // does not re-render on every pointer event.
   const [gestureCamera, setGestureCamera] = useState<MapCamera>();
-  const camera = constrainCamera(
-    game,
-    gestureCamera ?? viewport?.camera ?? localCamera,
-    padding,
-  );
+  const camera = constrainCamera(game, gestureCamera ?? viewport?.camera ?? localCamera, padding);
   const dragging = useRef<Drag | undefined>(undefined);
   const commands = useRef({ game, player, onTransfer, inspectSite });
   commands.current = { game, player, onTransfer, inspectSite };
   function siteAt(pageX: number, pageY: number): T | undefined {
     return siteHit(pageX, pageY)?.rock;
   }
-  function siteHit(
-    pageX: number,
-    pageY: number,
-  ): { rock: T; x: number; y: number } | undefined {
+  function siteHit(pageX: number, pageY: number): { rock: T; x: number; y: number } | undefined {
     const state = current.current;
     const local = { x: pageX - origin.current.x, y: pageY - origin.current.y };
     let nearest: { rock: T; x: number; y: number } | undefined,
@@ -364,12 +326,11 @@ export function BeltMap<T extends ChartRock>({
     const state = pending;
     return () => {
       clearTimeout(state.current.settle);
-      if (state.current.frame !== undefined)
-        cancelAnimationFrame(state.current.frame);
+      if (state.current.frame !== undefined) cancelAnimationFrame(state.current.frame);
     };
   }, []);
   useEffect(() => {
-    if (Platform.OS !== "web") return;
+    if (Platform.OS !== 'web') return;
     const element = map.current as unknown as HTMLElement | null;
     if (!element) return;
     const wheel = (event: WheelEvent) => {
@@ -377,44 +338,26 @@ export function BeltMap<T extends ChartRock>({
       if (
         !event.deltaY ||
         dragging.current ||
-        target?.closest(
-          '[data-testid="hauler-inspector"], [data-testid="map-controls"]',
-        )
+        target?.closest('[data-testid="hauler-inspector"], [data-testid="map-controls"]')
       )
         return;
       event.preventDefault();
       const state = current.current;
-      const units =
-        event.deltaMode === 1
-          ? 16
-          : event.deltaMode === 2
-            ? state.size.height
-            : 1;
+      const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? state.size.height : 1;
       const delta = Math.max(-120, Math.min(120, event.deltaY * units));
       const from = liveCamera();
-      preview(
-        zoomCamera(
-          state.world,
-          from,
-          from.scale * Math.exp(-delta * 0.002),
-          state.padding,
-        ),
-      );
+      preview(zoomCamera(state.world, from, from.scale * Math.exp(-delta * 0.002), state.padding));
       clearTimeout(pending.current.settle);
       pending.current.settle = setTimeout(commit, 160);
     };
-    element.addEventListener("wheel", wheel, { passive: false });
-    return () => element.removeEventListener("wheel", wheel);
+    element.addEventListener('wheel', wheel, { passive: false });
+    return () => element.removeEventListener('wheel', wheel);
   }, []);
   const start = useRef({ ...camera, pinch: 0, dx: 0, dy: 0 });
   function move(scale: number, x: number, y: number) {
     commit();
     current.current.onChange(
-      constrainCamera(
-        current.current.world,
-        { scale, x, y },
-        current.current.padding,
-      ),
+      constrainCamera(current.current.world, { scale, x, y }, current.current.padding),
     );
   }
   const pan = useRef(
@@ -424,11 +367,10 @@ export function BeltMap<T extends ChartRock>({
         if (event.nativeEvent.touches.length === 1 && touch)
           touchStart.current = { x: touch.pageX, y: touch.pageY };
         // Web responder negotiation can miss a mouse move that leaves the pressed base.
-        if (isWebMouseEvent(event, "mousedown") && touch) {
+        if (isWebMouseEvent(event, 'mousedown') && touch) {
           const target = event.nativeEvent.target as unknown as Element | null;
           return (
-            !!target?.closest('[data-testid="map-site"]') &&
-            !!sourceAt(touch.pageX, touch.pageY)
+            !!target?.closest('[data-testid="map-site"]') && !!sourceAt(touch.pageX, touch.pageY)
           );
         }
         return false;
@@ -445,9 +387,7 @@ export function BeltMap<T extends ChartRock>({
       onPanResponderGrant: (event, gesture) => {
         const first = touchStart.current ?? { x: gesture.x0, y: gesture.y0 };
         const from =
-          event.nativeEvent.touches.length === 1
-            ? sourceAt(first.x, first.y)
-            : undefined;
+          event.nativeEvent.touches.length === 1 ? sourceAt(first.x, first.y) : undefined;
         const x = first.x - origin.current.x,
           y = first.y - origin.current.y;
         const centre = from && siteHit(first.x, first.y);
@@ -463,7 +403,7 @@ export function BeltMap<T extends ChartRock>({
                 y,
               }
             : undefined;
-        if (!isWebMouseEvent(event, "mousedown")) setDrag(dragging.current);
+        if (!isWebMouseEvent(event, 'mousedown')) setDrag(dragging.current);
         clearTimeout(pending.current.settle);
         const [a, b] = event.nativeEvent.touches;
         start.current = {
@@ -509,7 +449,7 @@ export function BeltMap<T extends ChartRock>({
           );
         } else if (dragging.current) {
           if (
-            isWebMouseEvent(event, "mousemove") &&
+            isWebMouseEvent(event, 'mousemove') &&
             Math.hypot(
               gesture.moveX - origin.current.x - dragging.current.startX,
               gesture.moveY - origin.current.y - dragging.current.startY,
@@ -526,11 +466,7 @@ export function BeltMap<T extends ChartRock>({
           setDrag(next);
         } else {
           const state = current.current;
-          const base = chartTransform(
-            state.world,
-            { scale: 1, x: 0, y: 0 },
-            state.size,
-          );
+          const base = chartTransform(state.world, { scale: 1, x: 0, y: 0 }, state.size);
           const width = state.world.rules?.map.width ?? 100,
             height = state.world.rules?.map.height ?? 100;
           preview(
@@ -538,14 +474,9 @@ export function BeltMap<T extends ChartRock>({
               state.world,
               {
                 scale: start.current.scale,
-                x:
-                  start.current.x +
-                  ((gesture.dx - start.current.dx) / (width * base.scale)) *
-                    100,
+                x: start.current.x + ((gesture.dx - start.current.dx) / (width * base.scale)) * 100,
                 y:
-                  start.current.y +
-                  ((gesture.dy - start.current.dy) / (height * base.scale)) *
-                    100,
+                  start.current.y + ((gesture.dy - start.current.dy) / (height * base.scale)) * 100,
               },
               state.padding,
             ),
@@ -569,12 +500,9 @@ export function BeltMap<T extends ChartRock>({
         };
         const to = siteAt(last.pageX, last.pageY);
         const clicked =
-          isWebMouseEvent(event, "mouseup") &&
+          isWebMouseEvent(event, 'mouseup') &&
           touchStart.current &&
-          Math.hypot(
-            last.pageX - touchStart.current.x,
-            last.pageY - touchStart.current.y,
-          ) <= 8;
+          Math.hypot(last.pageX - touchStart.current.x, last.pageY - touchStart.current.y) <= 8;
         dragging.current = undefined;
         setDrag(undefined);
         commit();
@@ -605,16 +533,12 @@ export function BeltMap<T extends ChartRock>({
   const sx = projection.scale,
     sy = projection.scale;
   const offsets = chartOffsets(game, camera, size);
-  const position = (point: { x: number; y: number }) =>
-    chartPosition(game, camera, point, size);
+  const position = (point: { x: number; y: number }) => chartPosition(game, camera, point, size);
   const markerViewport = {
     ...size,
     height:
       fleet && card?.id === fleet.id
-        ? Math.max(
-            0,
-            size.height - (card?.height ?? 0) - styles.inspector.bottom,
-          )
+        ? Math.max(0, size.height - (card?.height ?? 0) - styles.inspector.bottom)
         : size.height,
   };
   const sites = offsets
@@ -648,13 +572,7 @@ export function BeltMap<T extends ChartRock>({
           drones: rock.known === false ? undefined : rock.drones,
           controlWidth: styles.rock.width,
           controlHeight: styles.rock.height,
-          priority: active
-            ? 1000
-            : rock.owner === player
-              ? 100
-              : rock.owner
-                ? 50
-                : 0,
+          priority: active ? 1000 : rock.owner === player ? 100 : rock.owner ? 50 : 0,
         };
       }),
     )
@@ -701,10 +619,7 @@ export function BeltMap<T extends ChartRock>({
         hauler.location.y >= -10 &&
         hauler.location.y <= 110,
     );
-  const specialistMarkers = layoutSpecialistMarkers(
-    [...sites, ...haulers],
-    markerViewport,
-  );
+  const specialistMarkers = layoutSpecialistMarkers([...sites, ...haulers], markerViewport);
   const markerObstacles = [...specialistMarkers.values()].map((marker) => ({
     x: marker.left,
     y: marker.top,
@@ -713,10 +628,7 @@ export function BeltMap<T extends ChartRock>({
   }));
   const names = layoutSiteNames(
     sites
-      .filter(
-        (site) =>
-          site.active || site.rock.owner || camera.scale >= NEUTRAL_NAME_ZOOM,
-      )
+      .filter((site) => site.active || site.rock.owner || camera.scale >= NEUTRAL_NAME_ZOOM)
       .map((site) => ({ ...site, flexible: site.active })),
     size,
     markerObstacles,
@@ -724,11 +636,9 @@ export function BeltMap<T extends ChartRock>({
   const kingCaption = (summary: ReturnType<typeof mapSpecialistSummary>) => {
     const king = game.pulse?.kings.find(
       (k) =>
-        k.state !== "idle" &&
-        k.state !== "destroyed" &&
-        summary.groups.some(
-          (g) => g.kind === "queen" && !g.captive && g.owner === k.factionId,
-        ),
+        k.state !== 'idle' &&
+        k.state !== 'destroyed' &&
+        summary.groups.some((g) => g.kind === 'queen' && !g.captive && g.owner === k.factionId),
     );
     return (
       king && {
@@ -751,10 +661,7 @@ export function BeltMap<T extends ChartRock>({
     const next = revealRouteCamera(
       state.world,
       state.camera,
-      [
-        fleetPosition(state.world, fleet),
-        flightEndpoints(state.world, fleet).to,
-      ],
+      [fleetPosition(state.world, fleet), flightEndpoints(state.world, fleet).to],
       state.size,
       card.height + styles.inspector.bottom,
     );
@@ -766,13 +673,8 @@ export function BeltMap<T extends ChartRock>({
   const arrival =
     fleet &&
     timeInspection &&
-    (timeInspection.historyEnd === undefined ||
-      fleet.arrives <= timeInspection.historyEnd)
-      ? arrivalInspection(
-          timeInspection.liveHour,
-          timeInspection.historyStart,
-          fleet.arrives,
-        )
+    (timeInspection.historyEnd === undefined || fleet.arrives <= timeInspection.historyEnd)
+      ? arrivalInspection(timeInspection.liveHour, timeInspection.historyStart, fleet.arrives)
       : undefined;
   const revealedSite = useRef<string | undefined>(undefined);
   const revealSiteCard = useEffectEvent(() => {
@@ -819,7 +721,7 @@ export function BeltMap<T extends ChartRock>({
     <View
       ref={map}
       testID="belt-map"
-      style={[styles.chart, fill && { flex: 1, height: "100%" }]}
+      style={[styles.chart, fill && { flex: 1, height: '100%' }]}
       onTouchStart={measure}
       onLayout={(event) => {
         const layout = event.nativeEvent.layout;
@@ -835,16 +737,8 @@ export function BeltMap<T extends ChartRock>({
     >
       <SpaceBackground
         pan={{
-          x:
-            ((camera.x / 100) *
-              (game.rules?.map.width ?? 100) *
-              projection.scale) /
-            camera.scale,
-          y:
-            ((camera.y / 100) *
-              (game.rules?.map.height ?? 100) *
-              projection.scale) /
-            camera.scale,
+          x: ((camera.x / 100) * (game.rules?.map.width ?? 100) * projection.scale) / camera.scale,
+          y: ((camera.y / 100) * (game.rules?.map.height ?? 100) * projection.scale) / camera.scale,
         }}
         panPeriod={
           wrappedBounds(game)
@@ -864,10 +758,7 @@ export function BeltMap<T extends ChartRock>({
       >
         <G transform={`translate(${projection.x}, ${projection.y})`}>
           {offsets.map((offset, tile) => (
-            <G
-              key={tile}
-              transform={`translate(${offset.x * sx}, ${offset.y * sy})`}
-            >
+            <G key={tile} transform={`translate(${offset.x * sx}, ${offset.y * sy})`}>
               <ChartTile
                 game={game}
                 scale={sx}
@@ -895,7 +786,7 @@ export function BeltMap<T extends ChartRock>({
             y1={drag.originY}
             x2={drag.x}
             y2={drag.y}
-            stroke={identity(player ?? "you").color}
+            stroke={identity(player ?? 'you').color}
             strokeWidth="2"
             strokeDasharray="5 3"
           />
@@ -908,23 +799,16 @@ export function BeltMap<T extends ChartRock>({
             key={key}
             testID="map-site"
             accessibilityRole="button"
-            accessibilityLabel={`${rock.name}, ${rock.drift ? "drifting asteroid base, 12 chart units per day, " : ""}${rock.destroyed ? "destroyed site" : siteKindLabel(rock.kind).toLowerCase()}${rock.coreOf ? ", intelligence core" : ""}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? identity(rock.owner).name : "unclaimed"}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? (rock.shieldsDisabled ? ", shields disabled" : `, shield charge ${Math.floor(rock.shield ?? 0)}`) : ""}${destination === rock.id ? ", transfer destination" : active && selected === rock.id ? ", selected site" : ""}${rock.module ? `, ${MODULES[rock.module].name}` : ""}${specialists.total ? `, ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}` : ""}`}
+            accessibilityLabel={`${rock.name}, ${rock.drift ? 'drifting asteroid base, 12 chart units per day, ' : ''}${rock.destroyed ? 'destroyed site' : siteKindLabel(rock.kind).toLowerCase()}${rock.coreOf ? ', intelligence core' : ''}, ${rock.known === false ? remoteSiteDescription(rock) : `${rock.owner ? identity(rock.owner).name : 'unclaimed'}, ${Math.floor(rock.drones ?? 0)} drones`}${rock.known !== false && rock.shieldMax !== undefined ? (rock.shieldsDisabled ? ', shields disabled' : `, shield charge ${Math.floor(rock.shield ?? 0)}`) : ''}${destination === rock.id ? ', transfer destination' : active && selected === rock.id ? ', selected site' : ''}${rock.module ? `, ${MODULES[rock.module].name}` : ''}${specialists.total ? `, ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}` : ''}`}
             accessibilityState={{ selected: active }}
             onPress={() => inspectSite(rock)}
-            style={[
-              styles.rock,
-              { left: `${location.x}%`, top: `${location.y}%` },
-            ]}
+            style={[styles.rock, { left: `${location.x}%`, top: `${location.y}%` }]}
           >
             <SiteGlyph
               rock={rock}
               active={active}
               radius={radius}
-              name={
-                !!namePlacement && (!destination || active)
-                  ? namePlacement
-                  : undefined
-              }
+              name={!!namePlacement && (!destination || active) ? namePlacement : undefined}
             />
           </Pressable>
         );
@@ -934,15 +818,12 @@ export function BeltMap<T extends ChartRock>({
           key={key}
           accessibilityRole="button"
           aria-selected={contact === f.id}
-          accessibilityLabel={`${identity(f.owner).name} hauler${f.preparing ? ", preparing launch" : ""}${(f.enginesDisabledUntil ?? 0) > game.hour ? ", engines disabled" : ""}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours${specialists.total ? `, ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}` : ""}`}
+          accessibilityLabel={`${identity(f.owner).name} hauler${f.preparing ? ', preparing launch' : ''}${(f.enginesDisabledUntil ?? 0) > game.hour ? ', engines disabled' : ''}, ${f.drones} drones, ${flightDestination(game.rocks, f)}, arrives in ${(f.arrives - game.hour).toFixed(1)} hours${specialists.total ? `, ${specialistManifestDescription(specialists, (owner) => identity(owner).name)}` : ''}`}
           onPress={() => {
             setContact(f.id);
             onInspectFleet?.();
           }}
-          style={[
-            styles.hauler,
-            { left: `${location.x}%`, top: `${location.y}%` },
-          ]}
+          style={[styles.hauler, { left: `${location.x}%`, top: `${location.y}%` }]}
         >
           <ShipMarker
             color={identity(f.owner).color}
@@ -979,13 +860,13 @@ export function BeltMap<T extends ChartRock>({
       ))}
       <View testID="map-controls" style={styles.zoom}>
         <MapControl
-          label={mapTools ? "Close map controls" : "Map controls"}
-          text={mapTools ? "×" : "⌖"}
+          label={mapTools ? 'Close map controls' : 'Map controls'}
+          text={mapTools ? '×' : '⌖'}
           onPress={() => setMapTools(!mapTools)}
         />
         {mapTools && (
           <>
-            {Platform.OS !== "ios" && (
+            {Platform.OS !== 'ios' && (
               <>
                 <MapControl
                   label="Zoom out"
@@ -993,9 +874,7 @@ export function BeltMap<T extends ChartRock>({
                   disabled={camera.scale <= 1}
                   onPress={() => {
                     commit();
-                    current.current.onChange(
-                      zoomCamera(game, camera, camera.scale - 0.5, padding),
-                    );
+                    current.current.onChange(zoomCamera(game, camera, camera.scale - 0.5, padding));
                   }}
                 />
                 <MapControl
@@ -1004,9 +883,7 @@ export function BeltMap<T extends ChartRock>({
                   disabled={camera.scale >= MAX_CHART_SCALE}
                   onPress={() => {
                     commit();
-                    current.current.onChange(
-                      zoomCamera(game, camera, camera.scale + 0.5, padding),
-                    );
+                    current.current.onChange(zoomCamera(game, camera, camera.scale + 0.5, padding));
                   }}
                 />
               </>
@@ -1016,7 +893,7 @@ export function BeltMap<T extends ChartRock>({
               text="⌂"
               onPress={() => {
                 refit();
-                const home = fitPlayerCamera(game, player ?? "you");
+                const home = fitPlayerCamera(game, player ?? 'you');
                 move(home.scale, home.x, home.y);
               }}
             />
@@ -1034,14 +911,9 @@ export function BeltMap<T extends ChartRock>({
       {fleet && (
         <ScrollView
           testID="hauler-inspector"
-          style={[
-            styles.inspector,
-            { maxHeight: Math.max(44, size.height - inspectorChartSpace) },
-          ]}
+          style={[styles.inspector, { maxHeight: Math.max(44, size.height - inspectorChartSpace) }]}
           contentContainerStyle={styles.inspectorContent}
-          onLayout={(event) =>
-            setCard({ id: fleet.id, height: event.nativeEvent.layout.height })
-          }
+          onLayout={(event) => setCard({ id: fleet.id, height: event.nativeEvent.layout.height })}
         >
           <View style={styles.contactHeading}>
             <PlayerIdentity faction={fleet.owner} detail="Hauler" size={36} />
@@ -1056,28 +928,20 @@ export function BeltMap<T extends ChartRock>({
             </Pressable>
           </View>
           <View style={styles.summary}>
-            <Text style={styles.eta}>
-              {arrivalCountdown(fleet.arrives - game.hour)}
-            </Text>
+            <Text style={styles.eta}>{arrivalCountdown(fleet.arrives - game.hour)}</Text>
             <Text style={styles.contactText}>
-              {fleet.intercept ? "to interception" : "to arrival"} ·{" "}
-              {game.rocks.find((r) => r.id === fleet.from)?.name} →{" "}
+              {fleet.intercept ? 'to interception' : 'to arrival'} ·{' '}
+              {game.rocks.find((r) => r.id === fleet.from)?.name} →{' '}
               {flightDestination(game.rocks, fleet)} · {fleet.drones} drones
-              {fleet.module ? ` · ${MODULES[fleet.module].name}` : ""}
+              {fleet.module ? ` · ${MODULES[fleet.module].name}` : ''}
             </Text>
           </View>
           {timeInspection && arrival === undefined && (
-            <Text style={styles.caveat}>
-              Arrival is outside the available time range.
-            </Text>
+            <Text style={styles.caveat}>Arrival is outside the available time range.</Text>
           )}
-          {timeInspection &&
-            arrival !== undefined &&
-            arrivalAtRisk(game.fleets, fleet) && (
-              <Text style={styles.caveat}>
-                Rival haulers act first. This arrival can change.
-              </Text>
-            )}
+          {timeInspection && arrival !== undefined && arrivalAtRisk(game.fleets, fleet) && (
+            <Text style={styles.caveat}>Rival haulers act first. This arrival can change.</Text>
+          )}
           <View style={styles.actions}>
             {fleet.owner === player && onManageFleet && (
               <MapControl
@@ -1091,17 +955,10 @@ export function BeltMap<T extends ChartRock>({
               />
             )}
             {timeInspection &&
-              (timeInspection.historyEnd === undefined ||
-                arrival !== undefined) && (
+              (timeInspection.historyEnd === undefined || arrival !== undefined) && (
                 <MapControl
-                  label={
-                    fleet.intercept
-                      ? "Jump to interception"
-                      : "Jump to hauler arrival"
-                  }
-                  text={
-                    fleet.intercept ? "Jump to interception" : "Jump to arrival"
-                  }
+                  label={fleet.intercept ? 'Jump to interception' : 'Jump to hauler arrival'}
+                  text={fleet.intercept ? 'Jump to interception' : 'Jump to arrival'}
                   disabled={arrival === undefined}
                   onPress={() => {
                     if (arrival !== undefined) {
@@ -1123,33 +980,22 @@ export function BeltMap<T extends ChartRock>({
           </View>
           {fleet.preparing && fleet.owner === player && launchOrders?.(fleet)}
           {combatObservation && (
-            <HaulerCombat
-              key={fleet.id}
-              observation={combatObservation}
-              fleetId={fleet.id}
-            />
+            <HaulerCombat key={fleet.id} observation={combatObservation} fleetId={fleet.id} />
           )}
-          {reference && (
-            <CopyObjectReference
-              value={reference}
-              label="Copy hauler reference"
-            />
-          )}
+          {reference && <CopyObjectReference value={reference} label="Copy hauler reference" />}
           <SpecialistManifest summary={inspectedSpecialists} />
         </ScrollView>
       )}
       {drag && (
         <View pointerEvents="none" style={styles.coordinates}>
-          <Text style={styles.coord}>
-            Release at {drag.target?.name ?? "a destination"}
-          </Text>
+          <Text style={styles.coord}>Release at {drag.target?.name ?? 'a destination'}</Text>
         </View>
       )}
     </View>
   );
 }
 type TileProps = {
-  game: Props<ChartRock>["game"];
+  game: Props<ChartRock>['game'];
   scale: number;
   selected: string;
   inspecting: boolean;
@@ -1178,9 +1024,7 @@ const ChartTile = memo(function ChartTile({
       {game.pulse && <MapPulses pulse={game.pulse} sx={sx} sy={sy} />}
       {game.coverage?.map((sensor, i) => {
         const focused =
-          inspecting &&
-          site &&
-          Math.hypot(site.x - sensor.x, site.y - sensor.y) < 0.01;
+          inspecting && site && Math.hypot(site.x - sensor.x, site.y - sensor.y) < 0.01;
         return (
           <Circle
             key={`sensor-${i}`}
@@ -1189,7 +1033,7 @@ const ChartTile = memo(function ChartTile({
             r={sensor.radius * scale}
             fill="#58777e"
             fillOpacity="0.045"
-            stroke={focused ? "#809c9e" : "none"}
+            stroke={focused ? '#809c9e' : 'none'}
             strokeOpacity="0.3"
             strokeWidth="0.8"
           />
@@ -1198,18 +1042,10 @@ const ChartTile = memo(function ChartTile({
       {game.rocks
         .filter(
           (r) =>
-            r.drift &&
-            (inspecting || !!destination) &&
-            (r.id === selected || r.id === destination),
+            r.drift && (inspecting || !!destination) && (r.id === selected || r.id === destination),
         )
         .map((site) => (
-          <DriftCourse
-            key={`drift-${site.id}`}
-            site={site}
-            sx={sx}
-            sy={sy}
-            selected
-          />
+          <DriftCourse key={`drift-${site.id}`} site={site} sx={sx} sy={sy} selected />
         ))}
       <MapGravity gravity={game.rules?.gravity} sx={sx} sy={sy} />
       {game.fleets.map((f) => (
@@ -1228,16 +1064,11 @@ const ChartTile = memo(function ChartTile({
           route={plannedRoute}
           sx={sx}
           sy={sy}
-          stroke={identity(player ?? "you").color}
+          stroke={identity(player ?? 'you').color}
           strokeDasharray="5 4"
         />
       )}
-      <MapBattles
-        events={game.events}
-        hour={game.hour}
-        scale={sx}
-        sites={game.rocks}
-      />
+      <MapBattles events={game.events} hour={game.hour} scale={sx} sites={game.rocks} />
     </>
   );
 });
@@ -1264,7 +1095,7 @@ const SiteGlyph = memo(function SiteGlyph({
   rock: ChartRock;
   active: boolean;
   radius: number;
-  name?: "above" | "below";
+  name?: 'above' | 'below';
 }) {
   const identity = usePlayerRoster();
   const color = rock.owner ? identity(rock.owner).color : NEUTRAL_SITE;
@@ -1275,13 +1106,9 @@ const SiteGlyph = memo(function SiteGlyph({
         style={[
           styles.ring,
           {
-            borderColor: active
-              ? "#dce7e5"
-              : rock.owner
-                ? `${color}b3`
-                : "transparent",
+            borderColor: active ? '#dce7e5' : rock.owner ? `${color}b3` : 'transparent',
             borderWidth: 1.5,
-            backgroundColor: rock.owner ? `${color}40` : "transparent",
+            backgroundColor: rock.owner ? `${color}40` : 'transparent',
           },
         ]}
       >
@@ -1291,7 +1118,7 @@ const SiteGlyph = memo(function SiteGlyph({
             rock.drift && styles.asteroid,
             {
               borderColor: color,
-              backgroundColor: rock.owner ? color : "#16262c",
+              backgroundColor: rock.owner ? color : '#16262c',
             },
             icon && styles.emblemStone,
             icon && rock.drift && styles.driftingEmblem,
@@ -1311,14 +1138,14 @@ const SiteGlyph = memo(function SiteGlyph({
           ) : (
             <Text
               style={{
-                color: rock.owner ? "#101d24" : NEUTRAL_SITE,
+                color: rock.owner ? '#101d24' : NEUTRAL_SITE,
                 fontSize: 15,
               }}
             >
-              {rock.destroyed ? "×" : "?"}
+              {rock.destroyed ? '×' : '?'}
             </Text>
           )}
-          {icon && (rock.coreOf || rock.kind === "core") && (
+          {icon && (rock.coreOf || rock.kind === 'core') && (
             <Text accessible={false} style={[styles.coreBadge, { color }]}>
               ◈
             </Text>
@@ -1330,8 +1157,8 @@ const SiteGlyph = memo(function SiteGlyph({
           numberOfLines={1}
           style={[
             styles.name,
-            { top: name === "above" ? 6 - radius : 24 + radius },
-            active && { color: "#e1e8e7" },
+            { top: name === 'above' ? 6 - radius : 24 + radius },
+            active && { color: '#e1e8e7' },
           ]}
         >
           {rock.name}
@@ -1343,8 +1170,8 @@ const SiteGlyph = memo(function SiteGlyph({
           style={[
             styles.count,
             rock.owner
-              ? { backgroundColor: color, color: "#101d24" }
-              : { backgroundColor: "#26363d", color: "#e4edeb" },
+              ? { backgroundColor: color, color: '#101d24' }
+              : { backgroundColor: '#26363d', color: '#e4edeb' },
           ]}
         >
           {Math.floor(rock.drones ?? 0)}
@@ -1355,9 +1182,7 @@ const SiteGlyph = memo(function SiteGlyph({
 });
 function arrivalCountdown(hours: number) {
   const minutes = Math.max(0, Math.round(hours * 60));
-  return minutes < 60
-    ? `${minutes}m`
-    : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 function MapControl({
   label,
@@ -1379,27 +1204,21 @@ function MapControl({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
-        styles.mapControl,
-        primary && styles.primary,
-        disabled && { opacity: 0.35 },
-      ]}
+      style={[styles.mapControl, primary && styles.primary, disabled && { opacity: 0.35 }]}
     >
-      <Text style={[styles.contactText, primary && styles.primaryText]}>
-        {text}
-      </Text>
+      <Text style={[styles.contactText, primary && styles.primaryText]}>{text}</Text>
     </Pressable>
   );
 }
 const styles = StyleSheet.create({
   inspectorContent: { padding: 12, gap: 6 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zoom: {
-    position: "absolute",
+    position: 'absolute',
     right: 10,
     top: 10,
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     width: 44,
     gap: 4,
   },
@@ -1407,89 +1226,89 @@ const styles = StyleSheet.create({
     minWidth: 44,
     minHeight: 44,
     paddingHorizontal: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#15262de8",
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#15262de8',
     borderRadius: 22,
   },
   hauler: {
-    position: "absolute",
+    position: 'absolute',
     width: 44,
     height: 56,
     marginLeft: -22,
     marginTop: -28,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   inspector: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 10,
     left: 10,
     right: 10,
-    backgroundColor: "#101e15f2",
+    backgroundColor: '#101e15f2',
     borderWidth: 1,
-    borderColor: "#2c3d31",
+    borderColor: '#2c3d31',
     borderRadius: 16,
   },
-  primary: { backgroundColor: "#b8e986" },
-  primaryText: { color: "#101e15", fontWeight: "600" },
+  primary: { backgroundColor: '#b8e986' },
+  primaryText: { color: '#101e15', fontWeight: '600' },
   contactHeading: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   close: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1d2e24",
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1d2e24',
   },
-  closeText: { color: "#a6b1a0", fontSize: 18, lineHeight: 20 },
+  closeText: { color: '#a6b1a0', fontSize: 18, lineHeight: 20 },
   summary: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
     columnGap: 8,
   },
   eta: {
-    color: "#e5eadc",
+    color: '#e5eadc',
     fontSize: 20,
-    fontWeight: "600",
-    fontVariant: ["tabular-nums"],
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
-  caveat: { color: "#efbe79", fontSize: 11, lineHeight: 16 },
-  contactText: { color: "#d6e2cd", fontSize: 12, lineHeight: 18 },
+  caveat: { color: '#efbe79', fontSize: 11, lineHeight: 16 },
+  contactText: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   chart: {
-    width: "100%",
+    width: '100%',
     height: 480,
-    overflow: "hidden",
-    backgroundColor: "#101d24",
+    overflow: 'hidden',
+    backgroundColor: '#101d24',
   },
   rock: {
-    position: "absolute",
+    position: 'absolute',
     width: SITE_CONTROL_WIDTH,
     height: 44,
     marginLeft: -SITE_CONTROL_WIDTH / 2,
     marginTop: -22,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ring: {
     width: 38,
     height: 38,
     borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stone: {
     width: 26,
     height: 26,
     borderRadius: 13,
     borderWidth: 1.5,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   asteroid: {
     width: 22,
@@ -1502,46 +1321,46 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderWidth: 0,
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   driftingEmblem: {
-    backgroundColor: "#24343c",
+    backgroundColor: '#24343c',
     borderWidth: 1,
     borderRadius: 8,
   },
   baseIcon: { width: 34, height: 34 },
   coreBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: -3,
     right: -3,
     width: 13,
     height: 13,
     lineHeight: 13,
     fontSize: 12,
-    textAlign: "center",
-    backgroundColor: "#101d24",
+    textAlign: 'center',
+    backgroundColor: '#101d24',
     borderRadius: 7,
   },
   name: {
-    position: "absolute",
+    position: 'absolute',
     left: -12,
     width: 88,
     fontSize: 10,
-    textAlign: "center",
-    color: "#82979d",
+    textAlign: 'center',
+    color: '#82979d',
   },
   count: {
-    position: "absolute",
+    position: 'absolute',
     left: SITE_CONTROL_WIDTH / 2 + MAP_DRONE_COUNT_OFFSET,
     top: 26,
     paddingHorizontal: MAP_DRONE_COUNT_PADDING,
     borderRadius: 7,
-    overflow: "hidden",
+    overflow: 'hidden',
     lineHeight: 15,
     fontSize: MAP_DRONE_COUNT_SIZE,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
   },
-  coordinates: { position: "absolute", bottom: 12, left: 12, gap: 4 },
-  coord: { fontSize: 11, color: "#a0af9e" },
+  coordinates: { position: 'absolute', bottom: 12, left: 12, gap: 4 },
+  coord: { fontSize: 11, color: '#a0af9e' },
 });
