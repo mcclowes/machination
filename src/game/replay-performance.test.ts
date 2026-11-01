@@ -85,9 +85,9 @@ test('sliced loading counts the time spent loading', () => {
   assert.equal(step.value.game.hour, live.hour + (now - savedAt) / 3_600_000);
 });
 
-function threatenedWorld(owner: 'you' | 'vesper', revision?: 19): Game {
+function threatenedWorld(owner: 'you' | 'vesper', revision: 19 | 20 = HOURLY_FORESIGHT_REVISION): Game {
   let game = temporalWorld();
-  if (revision) game.rules!.mechanicsVersion = revision;
+  game.rules!.mechanicsVersion = revision;
   const [own, enemy] = owner === 'you' ? [0, 10] : [10, 0];
   const victim = owner === 'you' ? 1 : 2;
   game.rocks[own]!.specialists!.push({ id: 'seer', kind: 'foresight', owner });
