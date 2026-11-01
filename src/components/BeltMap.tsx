@@ -216,7 +216,18 @@ export function BeltMap<T extends ChartRock>({
   const map = useRef<View>(null);
   const origin = useRef({ x: 0, y: 0 });
   const touchStart = useRef<{ x: number; y: number } | undefined>(undefined);
-  type Drag = { from: T; startX: number; startY: number; x: number; y: number; target?: T };
+  type Drag = {
+    from: T;
+    /** Where the touch began, for the mouse drag threshold. */
+    startX: number;
+    startY: number;
+    /** Centre of the source site, where the planned route is drawn from. */
+    originX: number;
+    originY: number;
+    x: number;
+    y: number;
+    target?: T;
+  };
   const [drag, setDrag] = useState<Drag>();
   const inspectedSite = inspecting && game.rocks.find((rock) => rock.id === selected);
   const siteToReveal = !fleet && !destination && !transferRoute && !drag && inspectedSite;
@@ -232,9 +243,12 @@ export function BeltMap<T extends ChartRock>({
   const commands = useRef({ game, player, onTransfer, inspectSite });
   commands.current = { game, player, onTransfer, inspectSite };
   function siteAt(pageX: number, pageY: number): T | undefined {
+    return siteHit(pageX, pageY)?.rock;
+  }
+  function siteHit(pageX: number, pageY: number): { rock: T; x: number; y: number } | undefined {
     const state = current.current;
     const local = { x: pageX - origin.current.x, y: pageY - origin.current.y };
-    let nearest: T | undefined,
+    let nearest: { rock: T; x: number; y: number } | undefined,
       distance = 30;
     for (const offset of chartOffsets(state.world, state.camera, state.size))
       for (const rock of commands.current.game.rocks) {
@@ -244,12 +258,11 @@ export function BeltMap<T extends ChartRock>({
           { x: rock.x + offset.x, y: rock.y + offset.y },
           state.size,
         );
-        const delta = Math.hypot(
-          (point.x / 100) * state.size.width - local.x,
-          (point.y / 100) * state.size.height - local.y,
-        );
+        const x = (point.x / 100) * state.size.width,
+          y = (point.y / 100) * state.size.height;
+        const delta = Math.hypot(x - local.x, y - local.y);
         if (delta < distance) {
-          nearest = rock;
+          nearest = { rock, x, y };
           distance = delta;
         }
       }
@@ -373,7 +386,11 @@ export function BeltMap<T extends ChartRock>({
           event.nativeEvent.touches.length === 1 ? sourceAt(first.x, first.y) : undefined;
         const x = first.x - origin.current.x,
           y = first.y - origin.current.y;
-        dragging.current = from ? { from, startX: x, startY: y, x, y } : undefined;
+        const centre = from && siteHit(first.x, first.y);
+        dragging.current =
+          from && centre
+            ? { from, startX: x, startY: y, originX: centre.x, originY: centre.y, x, y }
+            : undefined;
         if (!isWebMouseEvent(event, 'mousedown')) setDrag(dragging.current);
         clearTimeout(pending.current.settle);
         const [a, b] = event.nativeEvent.touches;
@@ -728,8 +745,8 @@ export function BeltMap<T extends ChartRock>({
         )}
         {drag && (
           <Line
-            x1={drag.startX}
-            y1={drag.startY}
+            x1={drag.originX}
+            y1={drag.originY}
             x2={drag.x}
             y2={drag.y}
             stroke={identity(player ?? 'you').color}
