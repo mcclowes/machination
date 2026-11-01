@@ -137,12 +137,13 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     }
     await press('Take command');
     assert.equal(hosts('Modal').length, 0);
+    await press('Show instructions');
     await press('Replay briefing');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[0]!.text));
     await press('Skip dialogue');
     assert.equal(hosts('Modal').length, 0);
     assert.match(visible(), /Launch drones from Foundry/);
-    assert.equal(hosts('Pressable').find(node => text(node) === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
+    assert.equal(hosts('Pressable').find(node => node.props.accessibilityLabel === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
     await press(/^Quiet landing,/);
     await press('Specialists');
@@ -311,7 +312,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.match(visible(), /Exercise complete/);
     assert.doesNotMatch(visible(), /Forecast/, 'Resolving returns to the actual outcome');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /Mnemosyne, 2 drones/);
-    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false, 'Completed attempts cannot resolve twice');
+    assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Resolve orders'), false, 'Completed attempts cannot resolve twice');
     if (hosts('Modal').length) await press('Skip dialogue');
     await press('All exercises');
     assert.match(visible(), /1\. Open a foothold · completed/);
@@ -341,7 +342,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await finishPlayback();
     assert.match(visible(), /Try another plan/);
     assert.match(visible(), /D01 · 06:00/, 'An unsuccessful plan resolves to the deadline');
-    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false);
+    assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Resolve orders'), false);
     assert.deepEqual(writes, [progressKey], 'Resolving an unsuccessful plan never awards completion');
     quiet();
     await press('Skip dialogue');
@@ -354,6 +355,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Prepare launch · 10m');
     await press('Resolve orders');
     await frame(); await frame();
+    await press('Show instructions');
     await press('Retry exercise');
     assert.equal(frames.size, 0, 'Retry cancels the previous attempt animation');
     await press('Skip dialogue');
