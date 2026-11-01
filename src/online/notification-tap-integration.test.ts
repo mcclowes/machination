@@ -349,7 +349,7 @@ test('each incoming tap confirms fresh consent even when the binding ID has not 
 test('incoming alerts wait through unreadable settings and preserve solo, practice, and replay sessions', async t => {
   const s = await scenario(t, { incoming: true });
   await s.mount();
-  for (const [open, marker] of [['Open solo operation', /Solo operation/], ['Start tactical practice', /Tactical practice/], ['Open shared replay', /Shared replays/]] as const) {
+  for (const [open, marker] of [['Open solo operation', /⋯Setup/], ['Start tactical practice', /Tactical practice/], ['Open shared replay', /Shared replays/]] as const) {
     await s.press(open);
     const requests = s.requests.length;
     await act(async () => s.fake.tap(s.tapFor(s.current, { kind: 'machination.incoming' })));
@@ -358,6 +358,7 @@ test('incoming alerts wait through unreadable settings and preserve solo, practi
     assert.match(s.visible(), /Incoming attack alert\./);
     assert.equal(s.requests.length, requests);
     await s.press('Dismiss');
+    if (open === 'Open solo operation') await s.press('Setup');
     await s.press(open === 'Open shared replay' ? 'Exit replay library' : '‹ Games');
   }
   await s.press('Resume solo operation');
@@ -396,7 +397,7 @@ test('stale bindings and foreign operations are consumed without opening Signals
 test('solo, practice, and replay sessions are not replaced by a tap', async t => {
   const s = await scenario(t);
   await s.mount();
-  for (const [open, marker] of [['Open solo operation', /Solo operation/], ['Start tactical practice', /Tactical practice/], ['Open shared replay', /Shared replays/]] as const) {
+  for (const [open, marker] of [['Open solo operation', /⋯Setup/], ['Start tactical practice', /Tactical practice/], ['Open shared replay', /Shared replays/]] as const) {
     await s.press(open);
     assert.match(s.visible(), marker);
     const requests = s.requests.length;
@@ -407,6 +408,7 @@ test('solo, practice, and replay sessions are not replaced by a tap', async t =>
     assert.equal(s.requests.length, requests, 'multiplayer is not mounted behind the current session');
     await s.press('Dismiss');
     assert.doesNotMatch(s.visible(), /New transmission received\./);
+    if (open === 'Open solo operation') await s.press('Setup');
     await s.press(open === 'Open shared replay' ? 'Exit replay library' : '‹ Games');
   }
   await act(async () => { s.fake.tap(s.tapFor(s.current)); });
