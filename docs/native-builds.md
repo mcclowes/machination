@@ -55,7 +55,7 @@ The simulator command retains full Xcode diagnostics. A subsequent Xcode 27.1 bu
 
 ## TestFlight
 
-Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. The source configuration records version 0.1.0, build 5, now distributed to internal TestFlight testers. Exempt encryption and production APNs configuration remain unchanged. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload, checking its availability before publication. Push delivery still requires the separate provider setup in [notifications](notifications.md).
+Use the Node version in `.nvmrc`, Xcode, CocoaPods, an installed Apple Distribution identity, and an App Store provisioning profile for `com.mcclowes.machination`. Version **0.1.0 (8)** from frozen source `89cada6` is distributed to the existing Internal testers group; see [build 8](testflight-build-8.md). Exempt encryption and production APNs configuration remain unchanged. The distributed builds are recorded below. Increment `expo.ios.buildNumber` in `app.json` for each upload, checking its availability before publication. Push delivery still requires the separate provider setup in [notifications](notifications.md).
 
 Run from a fixed source snapshot with its matching `package-lock.json` dependencies. Preserve concurrent edits in the shared checkout. Check the source before generating its device archive:
 
