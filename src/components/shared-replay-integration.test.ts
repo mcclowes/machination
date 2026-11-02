@@ -1,7 +1,9 @@
 import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
+import { pathToFileURL, URL } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import type { ReplayScene } from '../replay/presentation';
@@ -202,6 +204,15 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     assert.match(visible(), /Captive · abilities inactive/);
     assert.equal(hosts('Pressable').some(node => /^(Load |Hire |Promote |Release captive)/.test(node.props.accessibilityLabel ?? '')), false, 'Public role inspection remains read-only');
     assert.equal(forbidden, 0);
+    await press('Exit replay');
+    picked = gunzipSync(await readFile(new URL('../../native-tests/fixtures/01-packed-endgame.json.gz', import.meta.url))).toString('utf8');
+    await press('Open replay');
+    await press('Playback options');
+    assert.equal(hosts('TextInput')[0]!.props.value, '402.5673841421317');
+    await press('Close playback options'); await press('Exit replay');
+    assert.equal(text(button('View imported replay')), 'Unverified replay · D17 · 10:34 – D17 · 18:34');
+    await press('View imported replay'); await press('Playback options');
+    assert.equal(hosts('TextInput')[0]!.props.value, '402.5673841421317', 'The display clock never rounds the retained replay endpoint');
   } finally {
     if (renderer) await act(async () => renderer.unmount());
     globalThis.setInterval = originals.interval; globalThis.clearInterval = originals.clear; globalThis.fetch = originals.fetch; Date.now = originals.now;

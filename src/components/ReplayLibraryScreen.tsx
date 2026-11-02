@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { pickSharedReplay } from '../replay/files';
 import { ReplayFileError } from '../replay/file-errors';
 import { decodeReplayArtifact, type ReplayArtifact } from '../replay/artifact';
+import { gameClock } from '../game/time-machine';
 import { SharedReplayViewer } from './SharedReplayViewer';
 
 export function ReplayLibraryScreen({ onExit }: { onExit: () => void }) {
@@ -32,7 +33,7 @@ export function ReplayLibraryScreen({ onExit }: { onExit: () => void }) {
   return <View style={s.screen}><Text style={s.title}>Shared replays</Text><Text style={s.text}>Open a local replay to inspect its recorded perspective.</Text>
     <Pressable accessibilityRole="button" accessibilityLabel="Open replay" accessibilityState={{ disabled: busy }} disabled={busy} onPress={open} style={s.button}><Text style={s.text}>{busy ? 'Opening…' : 'Open replay'}</Text></Pressable>
     {!!error && <Text accessibilityRole="alert" style={s.text}>{error}</Text>}
-    {replay && <Pressable accessibilityRole="button" accessibilityLabel="View imported replay" onPress={() => setViewing(true)} style={s.button}><Text style={s.text}>Unverified replay · Hours {replay.from}–{replay.through}</Text></Pressable>}
+    {replay && <Pressable accessibilityRole="button" accessibilityLabel="View imported replay" onPress={() => setViewing(true)} style={s.button}><Text style={s.text}>Unverified replay · {gameClock(replay.from)} – {gameClock(replay.through)}</Text></Pressable>}
     <Pressable accessibilityRole="button" accessibilityLabel="Exit replay library" onPress={onExit} style={s.button}><Text style={s.text}>Back</Text></Pressable>
   </View>;
 }
