@@ -62,7 +62,7 @@ Live and forecast gravity observations retain the committed curve for position a
 
 ## Solo responsiveness
 
-The [frozen-source solo baseline](solo-performance.md) finds a costly ten-player mining catch-up and history path: 25 to 34 seconds for six simulated hours on Node/M5. Foresight death prediction dominates the profile; observed-information forecasts are much cheaper. [Fix #200](https://github.com/mcclowes/machination/issues/200) tracks an optimization that preserves warnings, AI decisions, recorded rules, and replay parity. These measurements identify an engine bottleneck; native input latency and physical-device performance remain unverified.
+The [frozen-source solo baseline and candidate](solo-performance.md) identify repeated Foresight prediction as a costly ten-player mining path. The combined candidate advances six hours in 2.01–2.23 seconds on Node/M5, retaining the original complete state hash. [Fix #200](https://github.com/mcclowes/machination/issues/200) preserves warnings, AI decisions, recorded rules, and replay parity. Both retained [export-headroom failures](testing.md#november-2-export-headroom-recurrence) pass under configuration load; the final full gate passes 1,755 behavior and 20 packaged-server tests, while native input latency and physical-device performance remain unverified.
 
 ## Delivery order and gates
 

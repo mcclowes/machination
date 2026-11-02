@@ -1,6 +1,6 @@
 # Solo responsiveness baseline
 
-Measured November 2, 2026 for [#198](https://github.com/mcclowes/machination/issues/198). The next fix is [#200](https://github.com/mcclowes/machination/issues/200).
+Measured November 2, 2026 for [#198](https://github.com/mcclowes/machination/issues/198). The optimization is tracked in [#200](https://github.com/mcclowes/machination/issues/200).
 
 ## Scope
 
@@ -102,3 +102,13 @@ The threat probe exposes two requirements beyond endpoint equality:
 - A transfer queued for hour 49 becomes a warning only when its death enters the 24-hour window. The probe checks horizon entry at the recorded binary64 values and 1e-8 hours to either side. Extending a cached forecast must inspect the new interval and preserve exact endpoint inclusion.
 
 A prospective rolling predictor needs bounded, per-advance ownership; exact validation that the current state still follows its committed trajectory; invalidation after divergent orders or specialist changes; and current-state warning derivation. It must retain the original fresh-prediction fallback. No cache is implemented or shipped by these probes, and no speedup is established. Raw scripts and outputs are under `.data/acceptance/issue-200/` (`rolling-probe` and `threat-probe`).
+
+## Combined candidate
+
+The candidate now owns one rolling death forecast per `advance` call. It validates the current committed trajectory exactly before reuse, extends its horizon, and starts fresh after divergence. It derives warning sources from the current state and keeps the original warning cadence, 24-hour horizon, and recorded rules. No cache is stored in a saved game or shared between operations.
+
+A matched control preserves the concurrent bot changes and removes only the forecast optimization. Under the full-gate load, its six-hour advance takes 81.39 seconds elapsed / 41.35 seconds CPU, versus 10.40 / 8.17 for the rolling candidate. Both return the original complete state hash above. Those are individual contended-host measurements, not device latency budgets.
+
+The subsequent export work also makes the forecast's private snapshot copies cheaper. Two cold-process advances of the frozen combined candidate take 2.01 and 2.23 seconds elapsed, using 2.75 and 2.94 seconds CPU. Both preserve the original input and complete state hashes. These later measurements have different host load from the control; do not turn them into a matched speedup percentage. Their 830-file source manifest SHA-256 is `36ccb661a4cdc93ba93bf3b2af6288386cec9e983316dbcabddecdf9ffcf55e1`.
+
+Four forecast regressions cover warning-source changes on launch, exact horizon entry, cancellation/specialist divergence, and the complete ten-player six-hour result. Fourteen additional comparisons against the original implementation include revisions 18/19, queued attacks, curved routes, and Dilation. The preceding integrated full gate passes its configured-operation matrix but fails an HTTP endgame export; [testing](testing.md#november-2-export-headroom-recurrence) records the separate fix and loaded reproduction. The next combined gate retains a second natural-ending export timeout; both retained cases subsequently pass the real client under configuration load after further allocation reductions. The final integrated full gate passes 1,755 behavior and 20 packaged-server tests with zero failures or skips, including the unchanged configuration matrix and ordinary HTTP natural ending/restart/export case. PostgreSQL plaintext/TLS fixtures are stopped afterward. Native input latency and physical-device performance remain unverified.

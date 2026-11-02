@@ -6,6 +6,7 @@
  * ---
  */
 import type { FlightRoute } from './flight-route';
+import { CommittedDeathForecast } from './committed-death-forecast';
 import { gravityCourse } from './gravity';
 
 import { cloneTemporalIntelligence, recordTemporalAction, recordTemporalCommand, settleHindsight, nextHindsightEvent, refreshForesight, type TemporalIntelligence } from './temporal-intelligence';
@@ -135,6 +136,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     cargo: { ...input.cargo }, eliminated: [...input.eliminated], events: input.events.map(e => ({ ...e })),
   };
   const trace = options.trace;
+  const foresight = options.temporalForecast ? undefined : new CommittedDeathForecast();
   tracePoint(trace, 'advance:initial', game);
   if (game.winner || game.draw) { tracePoint(trace, 'advance:final', game); return game; }
   reconcileFunding(game); tracePoint(trace, 'funding', game);
@@ -144,7 +146,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
   if (game.version === 2) { applyStationPassives(game, trace); refreshUnitEffects(game, preserveDueClocks); tracePoint(trace, 'effects', game); }
   if (mechanicsVersion(game) >= 10) { const before = game; game = settleCourseChanges(game); if (game !== before) tracePoint(trace, 'course-change', game); }
   settlePulseHazards(game); evaluatePulseVictory(game);
-  if (!options.temporalForecast && temporalEnabled(game) && Number.isInteger(game.hour)) { refreshForesight(game); tracePoint(trace, 'temporal-intelligence', game); }
+  if (!options.temporalForecast && temporalEnabled(game) && Number.isInteger(game.hour)) { refreshForesight(game, foresight); tracePoint(trace, 'temporal-intelligence', game); }
   if (game.pulse) tracePoint(trace, 'pulse', game);
   while (game.hour < targetHour && !game.winner && !game.draw && !options.stopWhen?.(game)) {
     const nextArrival = Math.min(...game.fleets.map(f => f.arrives));
@@ -281,7 +283,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     tracePoint(trace, 'victory', game);
     if (!game.pulse && !game.winner && !game.draw) game = executeScheduled(game, trace);
     if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy ? actStrategicRivals(game, trace) : actRivals(game, trace);
-    if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary)) refreshForesight(game);
+    if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary)) refreshForesight(game, foresight);
     game.events = recentEvents(game.events);
     tracePoint(trace, 'retention', game);
   }

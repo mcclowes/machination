@@ -4,7 +4,8 @@
  * ---
  */
 import { allied } from './teams';
-import { advance, type Faction, type Game } from './simulation';
+import type { Faction, Game } from './simulation';
+import { CommittedDeathForecast } from './committed-death-forecast';
 import type { GameCommand } from './replay';
 import type { EncounterReport } from './combat-report';
 import { TEMPORAL, temporalEnabled, inStasis } from './temporal';
@@ -78,31 +79,26 @@ function warningSource(game: Game, report: EncounterReport | undefined, owner: F
   }
   return report?.site ? `enemy action at ${game.rocks.find(r => r.id === report.site)?.name ?? report.site}` : 'committed enemy activity';
 }
-export function predictSpecialistDeaths(game: Game): DeathWarning[] {
+export function predictSpecialistDeaths(game: Game, forecast = new CommittedDeathForecast()): DeathWarning[] {
   if (!temporalEnabled(game) || game.winner || game.draw) return [];
-  const owners = new Set(activeUnits(game).filter(u => u.kind === 'foresight').map(u => u.owner));
+  const units = activeUnits(game);
+  const owners = new Set(units.filter(u => u.kind === 'foresight').map(u => u.owner));
   if (!owners.size) return [];
-  const protectedUnits = activeUnits(game).filter(u => owners.has(u.owner));
+  const protectedUnits = units.filter(u => owners.has(u.owner));
   const warnings: DeathWarning[] = [], warned = new Set<string>();
-  const reports = new Map<string, EncounterReport>();
-  const inspect = (state: Readonly<Game>): boolean => {
-    const present = new Set([...state.rocks, ...state.fleets].flatMap(a => a.specialists ?? []).map(u => u.id));
-    for (const unit of protectedUnits) if (!present.has(unit.id) && !warned.has(unit.id)) {
+  const deaths = forecast.predict(game);
+  for (const hour of new Set(deaths.map(death => death.hour))) for (const unit of protectedUnits) {
+    const death = deaths.find(death => death.hour === hour && death.specialistId === unit.id);
+    if (death && !warned.has(unit.id)) {
       warned.add(unit.id);
-      warnings.push({ owner: unit.owner, specialistId: unit.id, deathAt: state.hour, source: warningSource(game, reports.get(unit.id)?.hour === state.hour ? reports.get(unit.id) : undefined, unit.owner) });
+      warnings.push({ owner: unit.owner, specialistId: unit.id, deathAt: death.hour, source: warningSource(game, death.report, unit.owner) });
     }
-    return false;
-  };
-  const predicted = advance(game, game.hour + TEMPORAL.foresightHorizon, { rivals: false, temporalForecast: true, encounters: report => {
-    const involved = [...report.before.flatMap(a => a.specialists), ...(report.reinforcement?.haulers.flatMap(a => a.specialists) ?? [])];
-    for (const unit of involved) reports.set(unit.id, report);
-  }, stopWhen: inspect });
-  inspect(predicted);
+  }
   return warnings;
 }
-export function refreshForesight(game: Game): void {
+export function refreshForesight(game: Game, forecast?: CommittedDeathForecast): void {
   if (!temporalEnabled(game)) return;
-  const warnings = predictSpecialistDeaths(game), previous = game.temporalIntel?.warnings ?? [];
+  const warnings = predictSpecialistDeaths(game, forecast), previous = game.temporalIntel?.warnings ?? [];
   if (!warnings.length && !previous.length) return;
   const changed = warnings.filter(w => !previous.some(p => p.owner === w.owner && p.specialistId === w.specialistId && Math.abs(p.deathAt - w.deathAt) < 1e-7 && p.source === w.source));
   game.temporalIntel = { pending: game.temporalIntel?.pending ?? [], warnings };
