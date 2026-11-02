@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { BeltMap } from './BeltMap';
@@ -31,6 +32,8 @@ export function SharedReplayViewer({
   replay: ReplayArtifact;
   onExit: () => void;
 }) {
+  const { fontScale } = useWindowDimensions();
+  const expandedText = fontScale >= 2;
   const [position, setPosition] = useState<ReplayPosition>({ hour: replay.through });
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -96,6 +99,7 @@ export function SharedReplayViewer({
   const previous = previousReplayStep(replay, position),
     next = nextReplayStep(replay, position);
   const rock = scene.rocks.find((item) => item.id === selected);
+  const focusedPanel = expandedText && (options || !!rock);
   const group = replay.groups.find((item) => item.hour === position.hour);
   const ordinal = position.ordinal ?? (group ? group.states.length - 1 : undefined);
   const ratio =
@@ -114,39 +118,43 @@ export function SharedReplayViewer({
         style={s.screen}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={s.header}>
-          <View style={s.between}>
-            <PlayerIdentity
-              faction={replay.perspective}
-              size={32}
-              detail="Unverified replay · recorded perspective"
-            />
-            <Control
-              label="Exit replay"
-              text="×"
-              onPress={() => {
-                setPlaying(false);
-                onExit();
-              }}
-            />
+        {!focusedPanel && (
+          <View style={s.header}>
+            <View style={s.between}>
+              <PlayerIdentity
+                faction={replay.perspective}
+                size={32}
+                detail={
+                  expandedText ? 'Unverified replay' : 'Unverified replay · recorded perspective'
+                }
+              />
+              <Control
+                label="Exit replay"
+                text="×"
+                onPress={() => {
+                  setPlaying(false);
+                  onExit();
+                }}
+              />
+            </View>
+            {scene.winner && (
+              <Text style={s.text}>
+                Winner · {playerAppearance(scene.winner, scene.rules?.portraits).name}
+              </Text>
+            )}
+            {scene.foresight?.map((w) => (
+              <Text key={w.specialistId} style={s.text}>
+                Foresight: death predicted at {gameClock(w.deathAt)} from {w.source}.
+              </Text>
+            ))}
+            {scene.discoveries?.slice(0, 2).map((d, i) => (
+              <Text key={i} style={s.text}>
+                {d.message}
+              </Text>
+            ))}
+            {scene.draw && <Text style={s.text}>Draw</Text>}
           </View>
-          {scene.winner && (
-            <Text style={s.text}>
-              Winner · {playerAppearance(scene.winner, scene.rules?.portraits).name}
-            </Text>
-          )}
-          {scene.foresight?.map((w) => (
-            <Text key={w.specialistId} style={s.text}>
-              Foresight: death predicted at {gameClock(w.deathAt)} from {w.source}.
-            </Text>
-          ))}
-          {scene.discoveries?.slice(0, 2).map((d, i) => (
-            <Text key={i} style={s.text}>
-              {d.message}
-            </Text>
-          ))}
-          {scene.draw && <Text style={s.text}>Draw</Text>}
-        </View>
+        )}
         <View style={s.stage} onLayout={(event) => setStageHeight(event.nativeEvent.layout.height)}>
           <BeltMap
             fill
@@ -185,10 +193,13 @@ export function SharedReplayViewer({
                 />
               </View>
               <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.details}>
-                <Text style={s.text}>
-                  Clip {gameClock(replay.from)} — {gameClock(replay.through)}
-                </Text>
-                <Text style={s.text}>Seek to an exact hour</Text>
+                {expandedText && <Text style={s.text}>{gameClock(position.hour)}</Text>}
+                {!expandedText && (
+                  <Text style={s.text}>
+                    Clip {gameClock(replay.from)} — {gameClock(replay.through)}
+                  </Text>
+                )}
+                {!expandedText && <Text style={s.text}>Seek to an exact hour</Text>}
                 <View style={s.row}>
                   <TextInput
                     style={s.input}
@@ -200,6 +211,19 @@ export function SharedReplayViewer({
                   />
                   <Control label="Seek hour" onPress={seekHour} />
                 </View>
+                {expandedText && (
+                  <>
+                    <Control
+                      label="Beginning"
+                      disabled={!previous}
+                      onPress={() => seek({ hour: replay.from, ordinal: 0 })}
+                    />
+                    <Text style={s.text}>Unverified replay · recorded perspective</Text>
+                    <Text style={s.text}>
+                      Clip {gameClock(replay.from)} — {gameClock(replay.through)}
+                    </Text>
+                  </>
+                )}
                 <View style={s.row}>
                   {[0.25, 1, 4, 16].map((value) => (
                     <Control
@@ -266,93 +290,101 @@ export function SharedReplayViewer({
             </View>
           )}
         </View>
-        <View style={s.controls}>
-          <View style={s.between}>
-            <Text style={[s.text, s.clock]}>
-              {gameClock(position.hour)}
-              {group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}
-            </Text>
-            <Control
-              label="Playback options"
-              text={`${speed}× · Options`}
-              selected={options}
-              onPress={() => {
-                setPlaying(false);
-                setOptions((value) => !value);
-                setSelected('');
-                setInspection((value) => ({ request: value.request + 1, id: undefined }));
+        {!focusedPanel && (
+          <View style={s.controls}>
+            <View style={[s.between, expandedText && s.expandedBetween]}>
+              <Text style={[s.text, expandedText ? s.expandedClock : s.clock]}>
+                {gameClock(position.hour)}
+                {group
+                  ? `${expandedText ? '\n' : ' · '}State ${ordinal! + 1} of ${group.states.length}`
+                  : ''}
+              </Text>
+              <Control
+                label="Playback options"
+                text={`${speed}× · Options`}
+                selected={options}
+                onPress={() => {
+                  setPlaying(false);
+                  setOptions((value) => !value);
+                  setSelected('');
+                  setInspection((value) => ({ request: value.request + 1, id: undefined }));
+                }}
+              />
+            </View>
+            <View
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel="Replay timeline"
+              accessibilityState={{ disabled: !next && !previous }}
+              accessibilityValue={{
+                min: 0,
+                max: 1,
+                now: ratio,
+                text: `${gameClock(position.hour)}${group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}`,
               }}
-            />
-          </View>
-          <View
-            accessible
-            accessibilityRole="adjustable"
-            accessibilityLabel="Replay timeline"
-            accessibilityState={{ disabled: !next && !previous }}
-            accessibilityValue={{
-              min: 0,
-              max: 1,
-              now: ratio,
-              text: `${gameClock(position.hour)}${group ? ` · State ${ordinal! + 1} of ${group.states.length}` : ''}`,
-            }}
-            accessibilityActions={[
-              { name: 'increment', label: 'Next state' },
-              { name: 'decrement', label: 'Previous state' },
-            ]}
-            onAccessibilityAction={(event) => {
-              const target = event.nativeEvent.actionName === 'increment' ? next : previous;
-              if (target) seek(target);
-            }}
-            onLayout={(event) => setWidth(Math.max(1, event.nativeEvent.layout.width))}
-            onStartShouldSetResponder={() => true}
-            onResponderGrant={(event) => scrub(event.nativeEvent.locationX)}
-            onResponderMove={(event) => scrub(event.nativeEvent.locationX)}
-            style={s.timeline}
-          >
-            <View style={[s.progress, { width: `${ratio * 100}%` }]} />
-          </View>
-          <View style={s.transport}>
-            <Control
-              compact
-              label="Beginning"
-              text="|‹"
-              onPress={() => seek({ hour: replay.from, ordinal: 0 })}
-              disabled={!previous}
-            />
-            <Control
-              compact
-              label="Previous state"
-              text="‹"
-              disabled={!previous}
-              onPress={() => previous && seek(previous)}
-            />
-            <Control
-              compact
-              label={playing ? 'Pause' : 'Play'}
-              disabled={!playing && !next}
-              onPress={() => {
-                setOptions(false);
-                if (playing) setPlaying(false);
-                else if (position.hour === replay.through && next) seek(next);
-                else setPlaying(true);
+              accessibilityActions={[
+                { name: 'increment', label: 'Next state' },
+                { name: 'decrement', label: 'Previous state' },
+              ]}
+              onAccessibilityAction={(event) => {
+                const target = event.nativeEvent.actionName === 'increment' ? next : previous;
+                if (target) seek(target);
               }}
-            />
-            <Control
-              compact
-              label="Next state"
-              text="›"
-              disabled={!next}
-              onPress={() => next && seek(next)}
-            />
-            <Control
-              compact
-              label="End"
-              text="›|"
-              disabled={!next}
-              onPress={() => seek({ hour: replay.through })}
-            />
+              onLayout={(event) => setWidth(Math.max(1, event.nativeEvent.layout.width))}
+              onStartShouldSetResponder={() => true}
+              onResponderGrant={(event) => scrub(event.nativeEvent.locationX)}
+              onResponderMove={(event) => scrub(event.nativeEvent.locationX)}
+              style={s.timeline}
+            >
+              <View style={[s.progress, { width: `${ratio * 100}%` }]} />
+            </View>
+            <ScrollView
+              horizontal={expandedText}
+              contentContainerStyle={s.transport}
+              style={s.transportScroll}
+            >
+              <Control
+                compact={!expandedText}
+                label="Beginning"
+                text="|‹"
+                onPress={() => seek({ hour: replay.from, ordinal: 0 })}
+                disabled={!previous}
+              />
+              <Control
+                compact={!expandedText}
+                label="Previous state"
+                text="‹"
+                disabled={!previous}
+                onPress={() => previous && seek(previous)}
+              />
+              <Control
+                compact={!expandedText}
+                label={playing ? 'Pause' : 'Play'}
+                disabled={!playing && !next}
+                onPress={() => {
+                  setOptions(false);
+                  if (playing) setPlaying(false);
+                  else if (position.hour === replay.through && next) seek(next);
+                  else setPlaying(true);
+                }}
+              />
+              <Control
+                compact={!expandedText}
+                label="Next state"
+                text="›"
+                disabled={!next}
+                onPress={() => next && seek(next)}
+              />
+              <Control
+                compact={!expandedText}
+                label="End"
+                text="›|"
+                disabled={!next}
+                onPress={() => seek({ hour: replay.through })}
+              />
+            </ScrollView>
           </View>
-        </View>
+        )}
       </KeyboardAvoidingView>
     </PlayerRoster>
   );
@@ -402,6 +434,8 @@ const s = StyleSheet.create({
   title: { color: '#eff4e9', fontSize: 16, flexShrink: 1 },
   text: { color: '#d6e2cd', fontSize: 12, lineHeight: 18 },
   clock: { flex: 1 },
+  expandedClock: { alignSelf: 'stretch' },
+  expandedBetween: { flexDirection: 'column', alignItems: 'stretch' },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' },
   drawer: {
@@ -431,6 +465,7 @@ const s = StyleSheet.create({
   },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   transport: { flexDirection: 'row', gap: 6 },
+  transportScroll: { flexGrow: 0 },
   button: {
     minWidth: 44,
     minHeight: 44,

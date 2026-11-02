@@ -37,7 +37,7 @@ for (const format of ['legacy', 'packed']) for (const platform of ['web', 'ios']
   const key = '__sharedReplayIntegration';
   const globals = globalThis as typeof globalThis & Record<string, any>;
   let picked: string | null | Error = null, picks = 0, forbidden = 0, now = 1000, timer: (() => void) | undefined, starts = 0, dismissals = 0;
-  globals[key] = { dismiss: () => { dismissals++; }, pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
+  globals[key] = { fontScale: 1, dismiss: () => { dismissals++; }, pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   const originals = { interval: globalThis.setInterval, clear: globalThis.clearInterval, fetch: globalThis.fetch, now: Date.now };
@@ -57,7 +57,7 @@ for (const format of ['legacy', 'packed']) for (const platform of ['web', 'ios']
           return React.createElement('View',{...props,ref});
         });
         ${OPERATION_MOTION_NATIVE}
-export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+export const useWindowDimensions=()=>({width:390,height:844,scale:3,fontScale:globalThis.${key}.fontScale}); export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
@@ -75,6 +75,25 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     assert.equal(picks, 0); assert.equal(starts, 0);
     picked = encode(fixture()); await press('Open replay');
     assert.match(visible(), /D01 · 02:00/); assert.match(visible(), /Winner/); assert.equal(starts, 0);
+    const mountedChart = hosts('View').find(node => node.props.testID === 'belt-map');
+    globals[key].fontScale = 3;
+    await flush(() => renderer.update(React.createElement(ReplayLibraryScreen, { onExit() {} })));
+    await press('Playback options');
+    assert.equal(button('Exit replay'), undefined, 'Expanded-text editing lends header space to the panel');
+    assert.equal(button('Play'), undefined, 'Expanded-text editing lends transport space to the panel');
+    assert.ok(hosts('TextInput')[0]);
+    assert.match(visible(), /Unverified replay · recorded perspective/);
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), mountedChart);
+    await press('Close playback options');
+    assert.ok(button('Exit replay')); assert.ok(button('Play'));
+    await press(firstAlphaLabel.replace('1 drones', '9 drones'));
+    assert.equal(button('Exit replay'), undefined);
+    await press('Close site details');
+    assert.ok(button('Exit replay'));
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), mountedChart);
+    globals[key].fontScale = 1;
+    await flush(() => renderer.update(React.createElement(ReplayLibraryScreen, { onExit() {} })));
+
     await press(`Inspect specialists at Alpha: ${coreManifest}`);
     assert.ok(visible().includes(SPECIALISTS.queen.description));
     await press('Close site details');
