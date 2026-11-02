@@ -2,6 +2,8 @@
 import React, { useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+const SCRUB_SLOP = 6;
+
 export function DroneManifest({ value, available, onChange, disabled = false, compact = false, label = 'Drones to dispatch' }: { value: string; available: number; onChange: (value: string) => void; disabled?: boolean; compact?: boolean; label?: string }) {
   const maximum = Math.max(0, Math.floor(available));
   const count = Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -9,14 +11,15 @@ export function DroneManifest({ value, available, onChange, disabled = false, co
   const current = useRef({ maximum, width, disabled, onChange });
   current.current = { maximum, width, disabled, onChange };
   const origin = useRef(0);
+  const scrubbing = useRef(false);
   function scrub(x: number) {
     const state = current.current;
     if (!state.disabled) state.onChange(String(Math.round(Math.max(0, Math.min(1, x / state.width)) * state.maximum)));
   }
   const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => !current.current.disabled,
-    onMoveShouldSetPanResponder: () => !current.current.disabled,
-    onPanResponderGrant: event => { origin.current = event.nativeEvent.locationX; scrub(origin.current); },
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_event, gesture) => !current.current.disabled && Math.abs(gesture.dx) > SCRUB_SLOP && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderGrant: (event, gesture) => { scrubbing.current = true; origin.current = event.nativeEvent.locationX - gesture.dx; scrub(event.nativeEvent.locationX); },
     onPanResponderMove: (_event, gesture) => scrub(origin.current + gesture.dx),
   })).current;
   const change = (next: number) => onChange(String(Math.max(0, Math.min(maximum, next))));
@@ -32,7 +35,9 @@ export function DroneManifest({ value, available, onChange, disabled = false, co
       {button('All', 'Send all drones', () => change(maximum))}
     </View>
     <View accessible accessibilityRole="adjustable" accessibilityLabel="Drone cargo" accessibilityState={{ disabled }} accessibilityValue={{ min: 0, max: maximum, now: Math.max(0, Math.min(maximum, count)), text: `${value} drones` }} accessibilityActions={[{ name: 'increment', label: 'One more drone' }, { name: 'decrement', label: 'One fewer drone' }]} onAccessibilityAction={event => { if (!disabled) change(count + (event.nativeEvent.actionName === 'increment' ? 1 : -1)); }} onLayout={event => setWidth(event.nativeEvent.layout.width)} {...pan.panHandlers} style={s.track}>
-      <View pointerEvents="none" style={s.rail}><View style={[s.fill, { width: `${percentage}%` }]} /><View style={[s.thumb, { left: `${percentage}%` }]} /></View>
+      <Pressable accessible={false} focusable={false} disabled={disabled} onPressIn={event => { scrubbing.current = false; origin.current = event.nativeEvent.locationX; }} onPress={() => { if (!scrubbing.current) scrub(origin.current); scrubbing.current = false; }} style={s.trackPress}>
+        <View pointerEvents="none" style={s.rail}><View style={[s.fill, { width: `${percentage}%` }]} /><View style={[s.thumb, { left: `${percentage}%` }]} /></View>
+      </Pressable>
     </View>
   </View>;
 }
@@ -41,4 +46,5 @@ const s = StyleSheet.create({
   button: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 8, backgroundColor: '#243522' },
   input: { flex: 1, minWidth: 48, minHeight: 44, color: '#e5eadc', fontSize: 22, textAlign: 'center', fontVariant: ['tabular-nums'], borderBottomWidth: 1, borderColor: '#58714c' },
   track: { height: 44, justifyContent: 'center', marginHorizontal: 14 }, rail: { height: 5, backgroundColor: '#344730', borderRadius: 3 }, fill: { height: 5, borderRadius: 3, backgroundColor: '#b8e986' }, thumb: { position: 'absolute', top: -11, marginLeft: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: '#e5eadc', borderWidth: 3, borderColor: '#b8e986' },
+  trackPress: { flex: 1, justifyContent: 'center' },
 });

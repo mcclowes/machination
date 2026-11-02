@@ -294,4 +294,67 @@
   [app.buttons[@"End"] tap]; [self hour:@"2" app:app];
   [self shot:@"Schema2 drifting replay" app:app];
 }
+- (void)testFirstReinforcement {
+  self.continueAfterFailure = NO;
+  [XCUIDevice sharedDevice].orientation = UIDeviceOrientationPortrait;
+  XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:NSProcessInfo.processInfo.environment[@"QA_BUNDLE_ID"]];
+  [app launch];
+  if ([app.buttons[@"Close field manual"] waitForExistenceWithTimeout:5]) [app.buttons[@"Close field manual"] tap];
+  XCTAssertFalse(app.buttons[@"Resume multiplayer operation"].exists);
+  XCUIElement *practice = app.buttons[@"Start tactical practice"];
+  XCTAssertTrue([practice waitForExistenceWithTimeout:20]);
+  for (int i=0; i<4 && !practice.hittable; i++) [app swipeUp];
+  [self waitForStable:practice app:app]; [practice tap];
+  XCUIElement *start = app.buttons[@"Start: Open a foothold"];
+  [self waitForStable:start app:app]; [start tap];
+  XCTAssertTrue([app.staticTexts[@"Mission briefing"] waitForExistenceWithTimeout:10]);
+  [self shot:@"First exercise briefing" app:app];
+  for (int i=0; i<8 && app.buttons[@"Continue dialogue"].exists; i++) [app.buttons[@"Continue dialogue"] tap];
+  [self waitForStable:app.buttons[@"Take command"] app:app]; [app.buttons[@"Take command"] tap];
+  XCUIElement *foundry = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Foundry,"]].firstMatch;
+  [self waitForStable:foundry app:app]; [foundry tap];
+  XCUIElement *drones = app.textFields[@"Drones to dispatch"];
+  [self waitForStable:drones app:app]; [drones tap];
+  NSString *previous = (NSString *)drones.value;
+  for (NSUInteger i=0; i<previous.length; i++) [drones typeText:XCUIKeyboardKeyDelete];
+  XCUIElement *keyboard = [self visibleNumericKeyboard:app];
+  XCTAssertTrue(keyboard.keys[@"6"].hittable); [keyboard.keys[@"6"] tap];
+  XCTAssertEqualObjects(drones.value,@"6");
+  [self shot:@"First reinforcement manifest" app:app];
+  XCUIElement *plan = app.buttons[@"Plan transfer ↗"];
+  XCUIElement *drawerScroll = app.otherElements[@"operation-drawer"].scrollViews.firstMatch;
+  for (int i=0; i<6 && !plan.hittable; i++) {
+    [self waitForStable:drawerScroll app:app];
+    if (CGRectGetMinY(plan.frame) < CGRectGetMinY(drawerScroll.frame)) [drawerScroll swipeDown];
+    else [drawerScroll swipeUp];
+    [self waitForStable:drawerScroll app:app];
+  }
+  [self shot:@"First reinforcement action after scrolling" app:app];
+  XCTAssertEqualObjects(drones.value,@"6",@"Scrolling the drawer must preserve the exact drone manifest.");
+  [self waitForStable:plan app:app]; [plan tap];
+  XCUIElement *landing = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Quiet landing,"]].firstMatch;
+  [self waitForStable:landing app:app]; [landing tap];
+  XCUIElement *prepare = app.buttons[@"Prepare launch · 10m"];
+  [self waitForStable:prepare app:app]; [prepare tap];
+  XCUIElement *hauler = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS %@", @"hauler, preparing launch, 6 drones"]].firstMatch;
+  XCTAssertTrue([hauler waitForExistenceWithTimeout:10]);
+  [self shot:@"First reinforcement prepared" app:app];
+  XCUIElement *resolve = app.buttons[@"Resolve orders"];
+  [self waitForStable:resolve app:app]; XCTAssertTrue(resolve.enabled); [resolve tap];
+  XCTAssertTrue([app.staticTexts[@"Mission complete"] waitForExistenceWithTimeout:60]);
+  [self shot:@"First exercise complete" app:app];
+  for (int i=0; i<8 && app.buttons[@"Continue dialogue"].exists; i++) [app.buttons[@"Continue dialogue"] tap];
+  [self waitForStable:app.buttons[@"Return to chart"] app:app]; [app.buttons[@"Return to chart"] tap];
+  XCTAssertTrue(app.staticTexts[@"Exercise complete"].exists);
+  XCTAssertTrue([landing.label containsString:@"Mnemosyne, 2 drones"],@"The six-drone order must capture the four-drone garrison with two survivors.");
+  [app.buttons[@"All exercises"] tap];
+  XCTAssertTrue([app.staticTexts[@"1. Open a foothold · completed"] waitForExistenceWithTimeout:10]);
+  [app terminate]; [app launch];
+  practice = app.buttons[@"Start tactical practice"];
+  XCTAssertTrue([practice waitForExistenceWithTimeout:20]);
+  for (int i=0; i<4 && !practice.hittable; i++) [app swipeUp];
+  [self waitForStable:practice app:app]; [practice tap];
+  XCTAssertTrue([app.staticTexts[@"1. Open a foothold · completed"] waitForExistenceWithTimeout:10]);
+  [self shot:@"First exercise progress after relaunch" app:app];
+}
 @end

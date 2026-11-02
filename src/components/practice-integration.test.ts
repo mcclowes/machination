@@ -277,7 +277,10 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
     const cargo = hosts('View').find(node => node.props.accessibilityLabel === 'Drone cargo')!;
     await flush(() => cargo.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
-    await flush(() => cargo.props.onPanResponderGrant({ nativeEvent: { locationX: 40 } }));
+    assert.equal(cargo.props.onStartShouldSetPanResponder(), false, 'Touching the cargo track does not claim a vertical scroll');
+    assert.equal(cargo.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 20 }), false);
+    assert.equal(cargo.props.onMoveShouldSetPanResponder({}, { dx: 20, dy: 0 }), true);
+    await flush(() => cargo.props.onPanResponderGrant({ nativeEvent: { locationX: 40 } }, { dx: 20, dy: 0 }));
     assert.equal(hosts('TextInput').find(node => node.props.accessibilityLabel === 'Drones to dispatch')!.props.value, '6');
     await press('Prepare launch · 10m');
     assert.ok(hosts('Pressable').some(node => /hauler, preparing launch, 6 drones/.test(node.props.accessibilityLabel ?? '')), 'The drag-based command submits the adjusted manifest');

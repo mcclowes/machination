@@ -18,6 +18,14 @@ npm run test:native-replay -- --app '/path/to/simulator-QA.app' --device-type co
 
 Append `--content-size accessibility-extra-extra-extra-large` to exercise the largest accessibility text category. The default is explicitly `large`. The runner sets the category on its own fresh simulator before installing the app, reads it back, and verifies it remains applied after the cases. Each run records the category in `acceptance.json`. This exercises the existing picker, transport, keyboard, and inspection flows at that category; it does not enable VoiceOver or certify all text, screens, or accessibility behavior.
 
+The first-player flow exercises a fresh tactical practice attempt on the smaller iPhone target:
+
+```sh
+npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow first-player --device-type com.apple.CoreSimulator.SimDeviceType.iPhone-17e
+```
+
+This flow currently supports portrait only. It advances the briefing, selects Foundry, enters six drones through the visible software keypad, plans a transfer to Quiet landing, prepares the launch, resolves the actual exercise, and verifies completion survives app relaunch. Drawer gestures wait for stable geometry and follow the target frame across keyboard dismissal. This flow requires one passing case with no skips; the default replay flow retains its three cases and unchanged deadlines. It proves scripted simulator interaction, not unaided human usability or physical-device behavior.
+
 The app must use a separate `com.mcclowes.machination.*qa` identity, expose its Documents folder through `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, and contain a simulator executable. Device archives, IPAs, and the regular Machination identity are rejected. See [native builds](../docs/native-builds.md) for the current prepared QA artifact and its exact source/runtime boundaries.
 
 The runner verifies the app signature and JavaScript hash, validates each decompressed fixture with the current decoder, installs only the QA identity, and seeds its Documents folder. It builds the standalone XCTest target before running any cases. Three host regression tests cover fast process completion, failed commands, and missing executables; they run through ordinary test discovery without Xcode. Three cases must pass with no skips:
