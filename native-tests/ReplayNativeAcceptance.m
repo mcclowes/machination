@@ -435,4 +435,63 @@
   [self reveal:[app.staticTexts matchingIdentifier:@"1. Open a foothold · completed"].firstMatch inScrollView:app.scrollViews.firstMatch app:app];
   [self shot:@"First exercise progress after relaunch" app:app];
 }
+- (void)role:(XCUIElement *)element expected:(XCUIElementType)expected stage:(NSString *)stage {
+  XCTAssertTrue([element waitForExistenceWithTimeout:20]);
+  NSString *report = [NSString stringWithFormat:@"Stage: %@\nLabel: %@\nType: %lu\nExpected: %lu\nValue: %@\n%@",stage,element.label,(unsigned long)element.elementType,(unsigned long)expected,element.value,element.debugDescription];
+  NSLog(@"QA_AX_ROLE %@",report);
+  XCTAttachment *attachment = [XCTAttachment attachmentWithString:report];
+  attachment.name = [NSString stringWithFormat:@"Native AX role %@ %@",stage,element.label];
+  attachment.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:attachment];
+  XCTAssertEqual(element.elementType,expected,@"Independent XCTest role must match the declared control role: %@",report);
+}
+- (void)closeOperationDrawer:(XCUIApplication *)app {
+  XCUIElement *close = [app.otherElements[@"operation-drawer"].buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@",@"Close "]].firstMatch;
+  if (close.exists) { [self waitForStable:close app:app]; [close tap]; }
+}
+- (void)testSecureEditorTransitions {
+  XCUIApplication *app = [self library];
+  [app.buttons[@"Exit replay library"] tap];
+  for (int cycle=0; cycle<2; cycle++) {
+    XCUIElement *online = app.buttons[@"Open multiplayer uplink"];
+    XCTAssertTrue([online waitForExistenceWithTimeout:20]);
+    for (int i=0; i<4 && !online.hittable; i++) [app swipeUp];
+    [self waitForStable:online app:app]; [online tap];
+    XCUIElement *url = [self element:@"Game server URL" app:app];
+    [self role:url expected:XCUIElementTypeTextField stage:@"multiplayer ordinary server editor"];
+    XCUIElement *recovery = [self element:@"Recovery code" app:app];
+    [self reveal:recovery inScrollView:app.scrollViews.firstMatch app:app];
+    [self role:recovery expected:XCUIElementTypeSecureTextField stage:@"recovery before input"];
+    [self waitForStable:recovery app:app]; [recovery tap];
+    [recovery typeText:@"qa-sample"];
+    [self role:recovery expected:XCUIElementTypeSecureTextField stage:@"recovery with synthetic input"];
+    NSString *masked = (NSString *)recovery.value;
+    XCTAssertTrue(masked.length > 0);
+    XCTAssertFalse([masked containsString:@"qa"]);
+    XCTAssertFalse([masked containsString:@"sample"]);
+    XCTAssertFalse(app.textFields[@"Recovery code"].exists);
+    [self shot:[NSString stringWithFormat:@"Secure recovery cycle %d",cycle+1] app:app];
+    [self waitForStable:app.buttons[@"‹ Games"] app:app]; [app.buttons[@"‹ Games"] tap];
+    XCUIElement *solo = app.buttons[cycle ? @"Resume solo operation" : @"Open solo operation"];
+    XCTAssertTrue([solo waitForExistenceWithTimeout:20]);
+    for (int i=0; i<4 && !solo.hittable; i++) [app swipeUp];
+    [self waitForStable:solo app:app]; [solo tap];
+    XCUIElement *site = [[app descendantsMatchingType:XCUIElementTypeAny] matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label CONTAINS %@",@"map-site",@"Mnemosyne,"]].firstMatch;
+    [self role:site expected:XCUIElementTypeButton stage:@"solo after secure editor"];
+    [self waitForStable:site app:app]; [site tap];
+    XCUIElement *cargo = [self element:@"Drones to dispatch" app:app];
+    [self role:cargo expected:XCUIElementTypeTextField stage:@"solo cargo after secure editor"];
+    XCTAssertFalse(app.secureTextFields[@"Drones to dispatch"].exists);
+    [self waitForStable:cargo app:app]; [cargo tap];
+    NSString *old = (NSString *)cargo.value;
+    for (NSUInteger i=0; i<old.length; i++) [cargo typeText:XCUIKeyboardKeyDelete];
+    XCUIElement *keyboard = [self visibleNumericKeyboard:app];
+    XCTAssertTrue(keyboard.keys[@"2"].hittable); [keyboard.keys[@"2"] tap];
+    XCTAssertEqualObjects(cargo.value,@"2");
+    [self shot:[NSString stringWithFormat:@"Ordinary cargo cycle %d",cycle+1] app:app];
+    [self closeOperationDrawer:app];
+    XCUIElement *setup = app.buttons[@"Setup"];
+    [self revealNavigationTab:setup app:app]; [setup tap];
+    [self waitForStable:app.buttons[@"‹ Games"] app:app]; [app.buttons[@"‹ Games"] tap];
+  }
+}
 @end

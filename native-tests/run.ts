@@ -1,4 +1,4 @@
-/** Run real iOS replay or first-player flows in a new simulator; never reuse a player's container. */
+/** Run real iOS replay, first-player, or secure-editor flows in a new simulator; never reuse a player's container. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
@@ -23,7 +23,7 @@ const { values } = parseArgs({ options: {
 
 async function main() {
   if (values.help) {
-    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
+    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player|secure-editors] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
     return;
   }
   assert.equal(process.platform, 'darwin', 'Native replay acceptance requires macOS and Xcode.');
@@ -31,11 +31,14 @@ async function main() {
   assert.ok(values.app, 'Provide a separately identified simulator QA app with --app.');
   assert.ok(values.orientation === 'portrait' || values.orientation === 'landscape', 'Choose portrait or landscape orientation.');
   assert.ok(values['content-size'] === 'large' || values['content-size'] === 'accessibility-extra-extra-extra-large', 'Choose large or accessibility-extra-extra-extra-large content size.');
-  assert.ok(values.flow === 'replay' || values.flow === 'first-player', 'Choose replay or first-player flow.');
-  assert.ok(values.flow !== 'first-player' || values.orientation === 'portrait', 'First-player acceptance currently supports portrait only.');
+  assert.ok(values.flow === 'replay' || values.flow === 'first-player' || values.flow === 'secure-editors', 'Choose replay, first-player, or secure-editors flow.');
+  assert.ok(values.flow === 'replay' || values.orientation === 'portrait', 'First-player and secure-editor acceptance currently support portrait only.');
+  const prefix = '-only-testing:ReplayUITests/ReplayNativeAcceptance/';
   const flow = values.flow === 'first-player'
-    ? { count: 1, selector: '-only-testing:ReplayUITests/ReplayNativeAcceptance/testFirstReinforcement', scope: 'Simulator first-player practice interaction and retained progress only.' }
-    : { count: 3, selector: '-skip-testing:ReplayUITests/ReplayNativeAcceptance/testFirstReinforcement', scope: 'Simulator file-picker/replay interaction only.' };
+    ? { count: 1, selectors: [prefix + 'testFirstReinforcement'], scope: 'Simulator first-player practice interaction and retained progress only.' }
+    : values.flow === 'secure-editors'
+      ? { count: 1, selectors: [prefix + 'testSecureEditorTransitions'], scope: 'Simulator secure/plain editor transitions using synthetic input only; no recovery submission or account acceptance.' }
+      : { count: 3, selectors: [prefix + 'testPackedReplayRecovery', prefix + 'testLegacyReplayControls', prefix + 'testDriftingLegacyReplay'], scope: 'Simulator file-picker/replay interaction only.' };
   const app = resolve(values.app);
   const parent = join(root, '.data/native-replay-acceptance');
   await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -141,7 +144,7 @@ async function main() {
     await run('qa-orientation', ['/usr/libexec/PlistBuddy', '-c', `Add :ReplayUITests:EnvironmentVariables:QA_ORIENTATION string ${values.orientation}`, runfile]);
     assert.equal(await run('qa-name-check', ['/usr/libexec/PlistBuddy', '-c', 'Print :ReplayUITests:EnvironmentVariables:QA_DOCUMENTS_NAME', runfile]), name);
     console.log(`Native cases running on owned simulator ${device}. Evidence: ${out}`);
-    await run('tests', ['xcodebuild', 'test-without-building', '-xctestrun', runfile, '-destination', `platform=iOS Simulator,id=${device}`, flow.selector, '-parallel-testing-enabled', 'NO', '-resultBundlePath', join(out, 'tests.xcresult')], 360_000);
+    await run('tests', ['xcodebuild', 'test-without-building', '-xctestrun', runfile, '-destination', `platform=iOS Simulator,id=${device}`, ...flow.selectors, '-parallel-testing-enabled', 'NO', '-resultBundlePath', join(out, 'tests.xcresult')], 360_000);
     const summary = JSON.parse(await run('summary', ['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', join(out, 'tests.xcresult')]));
     assert.equal(summary.totalTestCount, flow.count); assert.equal(summary.passedTests, flow.count); assert.equal(summary.failedTests, 0); assert.equal(summary.skippedTests, 0);
     for (const [file, raw] of payloads) assert.equal(hash(await readFile(join(documents, file))), hash(raw), `Original fixture changed: ${file}`);
