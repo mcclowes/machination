@@ -91,3 +91,14 @@ PY
 ```
 
 Raw evidence is retained under `.data/acceptance/issue-198/`: frozen source and manifest, `runs.json`, `extended-runs.json`, phase logs, `ten-mining-six.cpuprofile`, `profile-summary.json`, and `measurement-summary.json`. Initial probes are archived as `probe-initial.ts`; extended probes record their script hash. A timed-out process is retained as an incomplete measurement, not a passing case. No gameplay code changes are made by this investigation.
+
+## Rolling prediction feasibility
+
+Follow-up probes for #200 compare a fresh committed prediction with continuation of the previous prediction endpoint, using the same frozen source. Ten-player mining at hour 3 matches complete state at hours 3.137, 4, and 5.999 plus the 24-hour horizon. Seven additional comparisons in a fixed two-player chart match complete state with a queued assassin transfer, including points just before, at, and after the threatened specialist enters the horizon. These ten matching examples support investigating reuse; they do not prove a cache is correct for every mechanic.
+
+The threat probe exposes two requirements beyond endpoint equality:
+
+- At hour 24.137, a transfer queued for hour 25 produces a warning naming the queued transfer. At hour 25, the same predicted death names an enemy hauler. Reusing the warning text would be wrong even when the death time is unchanged. Derive its source from the current committed state and the responsible encounter.
+- A transfer queued for hour 49 becomes a warning only when its death enters the 24-hour window. The probe checks horizon entry at the recorded binary64 values and 1e-8 hours to either side. Extending a cached forecast must inspect the new interval and preserve exact endpoint inclusion.
+
+A prospective rolling predictor needs bounded, per-advance ownership; exact validation that the current state still follows its committed trajectory; invalidation after divergent orders or specialist changes; and current-state warning derivation. It must retain the original fresh-prediction fallback. No cache is implemented or shipped by these probes, and no speedup is established. Raw scripts and outputs are under `.data/acceptance/issue-200/` (`rolling-probe` and `threat-probe`).
