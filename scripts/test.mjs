@@ -16,7 +16,7 @@ async function discover(directory) {
   return files.flat();
 }
 
-const files = (await Promise.all(['src', 'server', 'plugins', 'scripts'].map(discover))).flat().sort();
+const files = (await Promise.all(['src', 'server', 'plugins', 'scripts', 'native-tests'].map(discover))).flat().sort();
 const args = process.argv.slice(2);
 const deadline = args.find(arg => arg.startsWith('--suite-timeout='));
 const timeout = deadline ? Number(deadline.slice('--suite-timeout='.length)) : 600_000;

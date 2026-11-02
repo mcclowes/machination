@@ -25,13 +25,14 @@ async function fixture(t, files) {
   });
 }
 
-test('default discovery runs nested TypeScript, TSX, plugin, and script tests, including paths with spaces', async t => {
+test('default discovery runs nested TypeScript, TSX, plugin, script, and native-runner tests, including paths with spaces', async t => {
   const run = await fixture(t, {
     'src/new feature/deep/nested.test.ts': "import { test } from 'node:test'; const name: string = 'nested TypeScript'; test(name, () => {});",
     'src/new feature/view.test.tsx': "/** @jsx h */ import { test } from 'node:test'; const h = (type: string) => ({ type }); test('nested TSX', () => { const view = <div />; if (view.type !== 'div') throw Error('JSX failed'); });",
     'server/deep/server.test.ts': "import { test } from 'node:test'; test('nested server', () => {});",
     'plugins/deep/plugin.test.cjs': "require('node:test')('nested plugin', () => {});",
     'scripts/deep/script.test.mjs': "import { test } from 'node:test'; test('nested script', () => {});",
+    'native-tests/deep/process.test.mjs': "import { test } from 'node:test'; test('native runner', () => {});",
     'scripts/build-server.test.mjs': "throw Error('Production bundle tests need their separate build prerequisite');",
     'src/helper.ts': "throw Error('Non-test helper must not run');",
     'node_modules/dependency.test.js': "throw Error('Dependency tests must not run');",
@@ -40,8 +41,8 @@ test('default discovery runs nested TypeScript, TSX, plugin, and script tests, i
     'dist/bundle.test.js': "throw Error('Build output must not run');",
   });
   const { stdout } = await run();
-  for (const name of ['nested TypeScript', 'nested TSX', 'nested server', 'nested plugin', 'nested script']) assert.match(stdout, new RegExp(`ok \\d+ - ${name}`));
-  assert.match(stdout, /# tests 5\b/);
+  for (const name of ['nested TypeScript', 'nested TSX', 'nested server', 'nested plugin', 'nested script', 'native runner']) assert.match(stdout, new RegExp(`ok \\d+ - ${name}`));
+  assert.match(stdout, /# tests 6\b/);
 });
 
 test('a failing assertion makes the command fail and retains its diagnostic', async t => {

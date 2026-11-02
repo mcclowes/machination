@@ -16,7 +16,7 @@ This prerequisite applies to certified diagnostics. Gameplay and [player replay 
 
 ## Behavior tests
 
-The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, and `scripts`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
+The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, `scripts`, and `native-tests`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
 
 Four test files run concurrently, with process isolation between files. Tests within each file run sequentially by default, which protects tests that replace clocks or native adapters. The configuration matrix uses twelve files under `src/game/configuration-invariants`, one for each player-count, victory-mode, and drifting-base combination. Each file retains both rival settings and all three seeds, preserving the original 24 tests and 72 scenarios while allowing the existing four-file pool to distribute their CPU work. The inventory regression runs the real wrappers and registration through default discovery with only the costly scenario body replaced, proving every original name and seeded tuple appears exactly once without running the matrix twice.
 
@@ -35,6 +35,10 @@ npm test -- --test-name-pattern='catch-up'
 npm test -- --suite-timeout=900000
 ```
 
+
+### Native replay files
+
+`npm run test:native-replay -- --app /path/to/simulator-QA.app` runs the real iOS picker and viewer in a fresh owned simulator. The [native acceptance guide](../native-tests/README.md) records prerequisites, fixture provenance, protected app identities, cleanup, and evidence. Schema-1, schema-2, and packed schema-3 cases cover their distinct file paths and controls; cancellation and malformed imports must preserve the previous replay. This is a separate gate from the ordinary host suite and requires an explicitly prepared simulator QA app. Three process-runner regression tests run in the ordinary host suite without Xcode.
 
 ### Endgame failure evidence
 
