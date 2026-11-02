@@ -60,6 +60,10 @@ The solo chart fits the adopted map after successful restoration or explicit rep
 
 Live and forecast gravity observations retain the committed curve for position and heading, without exposing hidden contacts or enemy pending orders. Released builds 3 and 4 accept that server data, but their bundled forecast code still drops curves; a service update alone cannot repair their local forecasts. See [gravity observations #149](https://github.com/mcclowes/machination/issues/149).
 
+## Solo responsiveness
+
+The [frozen-source solo baseline](solo-performance.md) finds a costly ten-player mining catch-up and history path: 25 to 34 seconds for six simulated hours on Node/M5. Foresight death prediction dominates the profile; observed-information forecasts are much cheaper. [Fix #200](https://github.com/mcclowes/machination/issues/200) tracks an optimization that preserves warnings, AI decisions, recorded rules, and replay parity. These measurements identify an engine bottleneck; native input latency and physical-device performance remain unverified.
+
 ## Delivery order and gates
 
 | Priority | Player outcome | Release gate | Current gap / owner |
