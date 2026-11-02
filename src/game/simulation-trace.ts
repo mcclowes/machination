@@ -16,7 +16,15 @@ export function traceIncludes(sink: SimulationTraceSink | undefined, from: numbe
 // Engine state is plain data; retain undefined and non-finite numeric sentinels.
 export function traceSnapshot<T>(value: T): T {
   if (Array.isArray(value)) return value.map(traceSnapshot) as T;
-  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, traceSnapshot(item)])) as T;
+  if (value !== null && typeof value === 'object') {
+    const snapshot: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+      const item = traceSnapshot((value as Record<string, unknown>)[key]);
+      if (key === '__proto__') Object.defineProperty(snapshot, key, { value: item, enumerable: true, writable: true, configurable: true });
+      else snapshot[key] = item;
+    }
+    return snapshot as T;
+  }
   return value;
 }
 export function tracePoint(sink: SimulationTraceSink | undefined, phase: string, game: Game): void {

@@ -12,7 +12,8 @@ import { advance, FACTIONS, type Game } from './simulation';
 import { decodeSave } from './save-format';
 import { isModule } from './modules';
 import { isSpecialistKind } from './specialist-catalog';
-import { replayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
+import { replayTo, traceReplayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
+import type { SimulationTraceSink } from './simulation-trace';
 export const MAX_REPLAY_COMMANDS = 10_000;
 export const MAX_REPLAY_CHARACTERS = 16 * 1024 * 1024;
 const MAX_INACTIVITY_COMMANDS = Object.keys(FACTIONS).length;
@@ -77,6 +78,20 @@ function canonical(value: Game): string {
   return JSON.stringify(normalize({ ...value, events: value.events.map(({ battle: _battle, ...event }) => event) }));
 }
 export function decodeReplay(input: unknown, live: Game, rivals: boolean): ReplayArchive {
+  return validateReplay(input, live, rivals);
+}
+
+/** Callbacks are provisional. Recorders must publish nothing until frontier validation returns successfully. */
+export function traceValidatedReplay(input: unknown, live: Game, rivals: boolean, window: { from: number; through: number }, sink: SimulationTraceSink): ReplayArchive {
+  return validateReplay(input, live, rivals, { window, sink });
+}
+
+function validateReplay(input: unknown, live: Game, rivals: boolean, trace?: { window: { from: number; through: number }; sink: SimulationTraceSink }): ReplayArchive {
+  let callbackFailure: { error: unknown } | undefined;
+  const sink: SimulationTraceSink | undefined = trace && (record => {
+    try { trace.sink(record); }
+    catch (error) { callbackFailure = { error }; throw error; }
+  });
   try {
     if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals']) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
     const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
@@ -88,8 +103,13 @@ export function decodeReplay(input: unknown, live: Game, rivals: boolean): Repla
     }
     const data = { version: 1, rules: 1, baseline, entries: input.entries, rivals } as ReplayData;
     const archive = restoreArchive(data);
-    const reconstructed = replayTo(archive, live.hour, { rivals, knownThrough: live.hour });
+    const reconstructed = trace && sink
+      ? traceReplayTo(archive, live.hour, { rivals, knownThrough: live.hour, traceWindow: trace.window }, sink)
+      : replayTo(archive, live.hour, { rivals, knownThrough: live.hour });
     if (canonical(advance(reconstructed, reconstructed.hour, { rivals })) !== canonical(advance(live, live.hour, { rivals }))) throw new Error();
     return archive;
-  } catch { throw new Error('Saved history is damaged or does not match this operation.'); }
+  } catch {
+    if (callbackFailure) throw callbackFailure.error;
+    throw new Error('Saved history is damaged or does not match this operation.');
+  }
 }

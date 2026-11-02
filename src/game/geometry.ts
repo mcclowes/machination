@@ -9,9 +9,13 @@ export type GeometryWorld = { rules?: { map: MapGeometry; mechanicsVersion?: num
 export function wrappedBounds(world: GeometryWorld): MapGeometry | undefined {
   return world.rules?.map.topology === 'torus' ? world.rules.map : undefined;
 }
+function shortest(delta: number, size: number): number {
+  const value = delta % size;
+  return value > size / 2 ? value - size : value < -size / 2 ? value + size : value;
+}
+function wrap(value: number, size: number): number { return ((value % size) + size) % size; }
 export function displacement(world: GeometryWorld, from: Point, to: Point): Point {
   const map = wrappedBounds(world);
-  const shortest = (delta: number, size: number) => { const value = delta % size; return value > size / 2 ? value - size : value < -size / 2 ? value + size : value; };
   return map ? { x: shortest(to.x - from.x, map.width), y: shortest(to.y - from.y, map.height) } : { x: to.x - from.x, y: to.y - from.y };
 }
 export function worldDistance(world: GeometryWorld, from: Point, to: Point): number {
@@ -25,7 +29,6 @@ export function nearestImage(world: GeometryWorld, from: Point, to: Point): Poin
 }
 export function wrapPoint(world: GeometryWorld, point: Point): Point {
   const map = wrappedBounds(world);
-  const wrap = (value: number, size: number) => ((value % size) + size) % size;
   return map ? { x: wrap(point.x, map.width), y: wrap(point.y, map.height) } : { x: point.x, y: point.y };
 }
 export function mapOffsets(world: GeometryWorld): Point[] {

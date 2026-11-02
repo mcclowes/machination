@@ -5,7 +5,8 @@ import { applyCommand, createArchive, exportArchive, replayTo, traceReplayTo } f
 import { createLegacyGame } from './legacy';
 import { decodeOperation } from './operation-save';
 import { readFile } from 'node:fs/promises';
-import type { SimulationTrace } from './simulation-trace';
+import { tracePoint, traceSnapshot, type SimulationTrace } from './simulation-trace';
+import { temporalWorld } from './temporal-test-world';
 
 test('tracing preserves default physics and detaches every callback', () => {
   const base = createGame(0);
@@ -314,4 +315,44 @@ test('bounded replay traces retain exact intersecting records and command orderi
   for (const [from, through] of ([[-1, 2], [2, 1], [0, 13], [NaN, 2], [0, Infinity]] as const)) {
     assert.throws(() => traceReplayTo(archive, 12, { ...options, traceWindow: { from, through } }, () => {}), /trace window/);
   }
+});
+
+test('trace snapshots preserve binary64 sentinels, undefined fields, and sparse arrays', () => {
+  const sparse: unknown[] = new Array(3);
+  sparse[0] = 1; sparse[2] = { value: undefined };
+  const source = { negativeZero: -0, nan: NaN, positive: Infinity, negative: -Infinity,
+    omitted: undefined, sparse, nested: { value: 3 } };
+  const copy = traceSnapshot(source);
+  assert.deepEqual(copy, source);
+  assert.equal(Object.hasOwn(copy, 'omitted'), true);
+  assert.equal(Object.hasOwn(copy.sparse, 1), false);
+  assert.equal(Object.is(copy.negativeZero, -0), true);
+  copy.nested.value = 9;
+  assert.equal(source.nested.value, 3);
+});
+
+test('trace snapshots retain own prototype-named data without changing the clone prototype', () => {
+  const source = Object.create({ inherited: 'excluded' }) as Record<string, unknown>;
+  Object.defineProperty(source, '__proto__', { value: { private: 'data' }, enumerable: true });
+  Object.defineProperty(source, 'constructor', { value: 'recorded', enumerable: true });
+  const copy = traceSnapshot(source);
+  assert.equal(Object.getPrototypeOf(copy), Object.prototype);
+  assert.equal(Object.hasOwn(copy, 'inherited'), false);
+  assert.equal(Object.hasOwn(copy, '__proto__'), true);
+  assert.deepEqual(copy.__proto__, { private: 'data' });
+  assert.equal(copy.constructor, 'recorded');
+  assert.notEqual(copy.__proto__, source.__proto__);
+});
+
+test('trace point records remain independent of later engine and consumer mutations', () => {
+  const game = temporalWorld(), records: SimulationTrace[] = [];
+  tracePoint(record => records.push(record), 'first', game);
+  tracePoint(record => records.push(record), 'second', game);
+  assert.equal(records[0]!.type, 'point');
+  assert.equal(records[1]!.type, 'point');
+  if (records[0]!.type !== 'point' || records[1]!.type !== 'point') assert.fail('point records required');
+  game.rocks[0]!.drones = 91;
+  records[0]!.game.rocks[0]!.drones = 73;
+  assert.equal(records[1]!.game.rocks[0]!.drones, 40);
+  assert.equal(game.rocks[0]!.drones, 91);
 });
