@@ -1,5 +1,6 @@
 #import <XCTest/XCTest.h>
 #import <UIKit/UIKit.h>
+#import <Vision/Vision.h>
 @interface ReplayNativeAcceptance : XCTestCase
 @end
 @implementation ReplayNativeAcceptance
@@ -496,5 +497,57 @@
     [self revealNavigationTab:setup app:app]; [setup tap];
     [self waitForStable:app.buttons[@"‹ Games"] app:app]; [app.buttons[@"‹ Games"] tap];
   }
+}
+
+- (void)visibleHeader:(NSString *)title app:(XCUIApplication *)app {
+  XCUIElement *heading = [self element:title app:app];
+  [self waitForStable:heading app:app];
+  XCTAssertLessThanOrEqual(CGRectGetMaxY(heading.frame),CGRectGetMinY(app.scrollViews.firstMatch.frame)+0.5,@"Inspect the shared header, not a matching heading inside the page.");
+  XCUIScreenshot *screen = XCUIScreen.mainScreen.screenshot;
+  CGFloat scale = CGImageGetWidth(screen.image.CGImage) / app.frame.size.width;
+  CGRect frame = CGRectOffset(heading.frame,-app.frame.origin.x,-app.frame.origin.y);
+  CGRect pixels = CGRectMake(frame.origin.x*scale,frame.origin.y*scale,frame.size.width*scale,frame.size.height*scale);
+  CGImageRef crop = CGImageCreateWithImageInRect(screen.image.CGImage,CGRectIntegral(pixels));
+  XCTAssertTrue(crop != NULL);
+  if (!crop) return;
+  XCTAttachment *image = [XCTAttachment attachmentWithImage:[UIImage imageWithCGImage:crop]];
+  image.name = [@"Visible header " stringByAppendingString:title]; image.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:image];
+  VNRecognizeTextRequest *request = [[VNRecognizeTextRequest alloc] init];
+  request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
+  request.recognitionLanguages = @[@"en-US"]; request.usesLanguageCorrection = NO;
+  VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCGImage:crop options:@{}];
+  NSError *error = nil; BOOL read = [handler performRequests:@[request] error:&error]; CGImageRelease(crop);
+  XCTAssertTrue(read,@"Read only the visible title crop: %@",error);
+  NSArray<VNRecognizedTextObservation *> *lines = [request.results sortedArrayUsingComparator:^NSComparisonResult(VNRecognizedTextObservation *a,VNRecognizedTextObservation *b) {
+    if (a.boundingBox.origin.y > b.boundingBox.origin.y) return NSOrderedAscending;
+    if (a.boundingBox.origin.y < b.boundingBox.origin.y) return NSOrderedDescending;
+    return NSOrderedSame;
+  }];
+  NSMutableArray *words = [NSMutableArray array];
+  for (VNRecognizedTextObservation *line in lines) { VNRecognizedText *text = [line topCandidates:1].firstObject; if (text) [words addObject:text.string]; }
+  NSString *visible = [words componentsJoinedByString:@" "];
+  NSLog(@"QA_VISIBLE_HEADER expected=%@ recognized=%@ frame=%@",title,visible,NSStringFromCGRect(heading.frame));
+  XCTAssertEqualObjects(visible.lowercaseString,title.lowercaseString,@"The pixels must contain the full title, not just its accessibility label.");
+  [self waitForStable:app.buttons[@"‹ Games"] app:app];
+  [self waitForStable:[self element:@"Sound" app:app] app:app];
+  [self waitForStable:app.buttons[@"Open field manual"] app:app];
+  [self shot:[@"Shared header " stringByAppendingString:title] app:app];
+}
+- (void)testSharedHeader {
+  XCUIApplication *app = [self library]; [app.buttons[@"Exit replay library"] tap];
+  for (NSString *entry in @[@"Open multiplayer uplink",@"Start tactical practice"]) {
+    XCUIElement *open = app.buttons[entry]; XCTAssertTrue([open waitForExistenceWithTimeout:20]);
+    [self reveal:open inScrollView:app.scrollViews.firstMatch app:app];
+    [self waitForStable:open app:app]; [open tap];
+    NSString *title = [entry isEqualToString:@"Open multiplayer uplink"] ? @"Multiplayer" : @"Tactical practice";
+    [self visibleHeader:title app:app];
+    XCUIElement *sound = [self element:@"Sound" app:app]; id original = sound.value;
+    [sound tap]; XCTAssertNotEqualObjects(sound.value,original); [sound tap]; XCTAssertEqualObjects(sound.value,original);
+    [app.buttons[@"Open field manual"] tap];
+    XCTAssertTrue([app.buttons[@"Close field manual"] waitForExistenceWithTimeout:10]); [app.buttons[@"Close field manual"] tap];
+    [self waitForStable:[self element:title app:app] app:app];
+    [app.buttons[@"‹ Games"] tap];
+  }
+  XCTAssertTrue([app.buttons[@"Open solo operation"] waitForExistenceWithTimeout:20]);
 }
 @end

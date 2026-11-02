@@ -1149,7 +1149,6 @@ function ConnectedOperation({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={s.page}
       >
-        <Text style={s.title}>Machination / uplink</Text>
         {!!notificationNotice && (
           <Text accessibilityLiveRegion="polite" style={s.detail}>
             {notificationNotice}

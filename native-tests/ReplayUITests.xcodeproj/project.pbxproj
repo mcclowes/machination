@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		CDC897C71813BCB3257F3A6F /* ReplayNativeAcceptance.m in Sources */ = {isa = PBXBuildFile; fileRef = 495947BA308F467339FAB566 /* ReplayNativeAcceptance.m */; };
 		D7A7F568C485A395B63996C2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D51DDB694D7CC90289C3E9AD /* Foundation.framework */; };
+		E5C4403C44C64DCA9254A202 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B202D5005F2A482D99C0A202 /* Vision.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2132686D37BD3F0DFEA17A92 /* ReplayUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReplayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		495947BA308F467339FAB566 /* ReplayNativeAcceptance.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; path = ReplayNativeAcceptance.m; sourceTree = "<group>"; };
 		D51DDB694D7CC90289C3E9AD /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		B202D5005F2A482D99C0A202 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -23,6 +25,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D7A7F568C485A395B63996C2 /* Foundation.framework in Frameworks */,
+				E5C4403C44C64DCA9254A202 /* Vision.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -50,6 +53,7 @@
 			isa = PBXGroup;
 			children = (
 				D51DDB694D7CC90289C3E9AD /* Foundation.framework */,
+				B202D5005F2A482D99C0A202 /* Vision.framework */,
 			);
 			name = iOS;
 			sourceTree = "<group>";

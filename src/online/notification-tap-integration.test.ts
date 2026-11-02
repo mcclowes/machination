@@ -527,7 +527,7 @@ test('a valid account link with an invalidated legacy seat keeps the terminal se
   await s.press('Link seat to my account');
   assert.doesNotMatch(s.visible(), /could not link this seat/, 'a rejected seat token is not reported as an account problem');
   assert.match(s.visible(), /existing seat credential is required/);
-  assert.match(s.visible(), /Machination \/ uplink/, 'the snapshot is cleared as for any lost seat');
+  assert.match(s.visible(), /Reconnect \/ refresh/, 'the snapshot is cleared and the retained connection can reconnect');
   assert.match(s.visible(), /was not opened because it does not match/, 'the pending tap is terminally ignored');
   assert.equal(s.fake.calls.cleared, 1);
   assert.equal(s.requests.filter(r => r === 'POST /v1/account/link').length, 1);

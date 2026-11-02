@@ -98,6 +98,7 @@ import { observe, forecastObservation, type ObservedRock } from './src/game/visi
 import { SignalLog } from './src/components/SignalLog';
 import { playSound, useSoundCues } from './src/audio/sound';
 import { SoundToggle } from './src/components/SoundToggle';
+import { AppHeader } from './src/components/AppHeader';
 import { useNotificationLaunch } from './src/online/useNotificationLaunch';
 import { launchDeps } from './src/online/notification-wiring';
 import { INCOMING_NOTIFICATION_KIND } from './src/contracts/notifications';
@@ -223,31 +224,10 @@ export default function App() {
       <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar style="light" />
         {!(mode && chrome.claimed) && (
-          <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
-            {mode ? (
-              <>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="‹ Games"
-                  onPress={() => setMode(null)}
-                  style={{ minHeight: 44, minWidth: 64, justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
-                </Pressable>
-                <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
-                  {mode === 'solo'
-                    ? 'Solo operation'
-                    : mode === 'online'
-                      ? 'Multiplayer'
-                      : 'Tactical practice'}
-                </Text>
-              </>
-            ) : (
-              <View style={{ flex: 1 }} />
-            )}
+          <AppHeader title={mode ? modeTitles[mode] : undefined} onExit={() => setMode(null)}>
             <SoundToggle compact={!!mode} />
             <FieldManual compact={!!mode} />
-          </View>
+          </AppHeader>
         )}
         {transmission}
         <AppChromeContext.Provider value={chrome.value}>
@@ -272,6 +252,12 @@ export default function App() {
   );
 }
 type Mode = 'solo' | 'online' | 'practice' | 'replays';
+const modeTitles: Record<Mode, string> = {
+  solo: 'Solo operation',
+  online: 'Multiplayer',
+  practice: 'Tactical practice',
+  replays: 'Shared replays',
+};
 const HOME_OPERATION_LIMIT = 3;
 function HomeMenu({ open }: { open: (mode: Mode, operationId?: string) => void }) {
   const { solo, multiplayer, deviceSeat } = useOngoingOperations();
@@ -1470,7 +1456,6 @@ const s = StyleSheet.create({
   mapHintText: { color: green, fontSize: 11 },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   small: { color: '#7f9180', fontSize: 11, lineHeight: 18 },
-  screenTitle: { flex: 1, color: '#e5eadc', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   identity: { padding: 20, borderWidth: 1, borderColor: '#34432e', backgroundColor: '#121c12' },
   online: { color: green, fontSize: 8, letterSpacing: 1 },
   identityName: { fontSize: 24, color: ink, marginTop: 14, marginBottom: 6 },

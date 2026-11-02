@@ -23,7 +23,7 @@ const { values } = parseArgs({ options: {
 
 async function main() {
   if (values.help) {
-    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player|secure-editors] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
+    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player|secure-editors|shared-header] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
     return;
   }
   assert.equal(process.platform, 'darwin', 'Native replay acceptance requires macOS and Xcode.');
@@ -31,14 +31,16 @@ async function main() {
   assert.ok(values.app, 'Provide a separately identified simulator QA app with --app.');
   assert.ok(values.orientation === 'portrait' || values.orientation === 'landscape', 'Choose portrait or landscape orientation.');
   assert.ok(values['content-size'] === 'large' || values['content-size'] === 'accessibility-extra-extra-extra-large', 'Choose large or accessibility-extra-extra-extra-large content size.');
-  assert.ok(values.flow === 'replay' || values.flow === 'first-player' || values.flow === 'secure-editors', 'Choose replay, first-player, or secure-editors flow.');
-  assert.ok(values.flow === 'replay' || values.orientation === 'portrait', 'First-player and secure-editor acceptance currently support portrait only.');
+  assert.ok(values.flow === 'replay' || values.flow === 'first-player' || values.flow === 'secure-editors' || values.flow === 'shared-header', 'Choose replay, first-player, secure-editors, or shared-header flow.');
+  assert.ok(values.flow === 'replay' || values.orientation === 'portrait', 'First-player, secure-editor, and shared-header acceptance currently support portrait only.');
   const prefix = '-only-testing:ReplayUITests/ReplayNativeAcceptance/';
   const flow = values.flow === 'first-player'
     ? { count: 1, selectors: [prefix + 'testFirstReinforcement'], scope: 'Simulator first-player practice interaction and retained progress only.' }
     : values.flow === 'secure-editors'
       ? { count: 1, selectors: [prefix + 'testSecureEditorTransitions'], scope: 'Simulator secure/plain editor transitions using synthetic input only; no recovery submission or account acceptance.' }
-      : { count: 3, selectors: [prefix + 'testPackedReplayRecovery', prefix + 'testLegacyReplayControls', prefix + 'testDriftingLegacyReplay'], scope: 'Simulator file-picker/replay interaction only.' };
+      : values.flow === 'shared-header'
+        ? { count: 1, selectors: [prefix + 'testSharedHeader'], scope: 'Simulator shared-header visible text and Games/sound/manual interaction only.' }
+        : { count: 3, selectors: [prefix + 'testPackedReplayRecovery', prefix + 'testLegacyReplayControls', prefix + 'testDriftingLegacyReplay'], scope: 'Simulator file-picker/replay interaction only.' };
   const app = resolve(values.app);
   const parent = join(root, '.data/native-replay-acceptance');
   await mkdir(parent, { recursive: true, mode: 0o700 });

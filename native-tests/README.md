@@ -34,6 +34,14 @@ npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow secure-ed
 
 It requires portrait and supports the same content-size option. Recovery code must remain a native SecureTextField before and after entering the synthetic `qa-sample`, with a masked accessibility value and no ordinary recovery TextField. The following fresh or resumed Solo cargo field must remain an ordinary TextField, reject a secure classification, and accept `2` through the visible numeric keyboard. Server URL and site roles are also checked. No recovery request, online connection, or real credential is submitted. One case must pass without skips; the default replay flow still selects exactly its three replay cases, and first-player retains its separate case. Build and UI deadlines are unchanged. This verifies selected simulator input transitions, not seat restoration, VoiceOver, or physical-device behavior.
 
+The shared-header flow checks visible titles and the global controls:
+
+```sh
+npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow shared-header
+```
+
+It supports portrait and the same content-size option. Apple Vision reads only the screenshot crop inside the shared heading's native frame; the complete title must be visible in pixels, since its accessibility label can remain complete while the rendered text truncates. Multiplayer entry and the practice list both require the Games, Sound, and Manual controls inside the app frame. Sound must toggle and restore its original state, Manual must open and close, and Games must return home. One case must pass without skips under the unchanged build and UI deadlines. This doesn't certify every manual page, operation navigation, or physical-device layout.
+
 The app must use a separate `com.mcclowes.machination.*qa` identity, expose its Documents folder through `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, and contain a simulator executable. Device archives, IPAs, and the regular Machination identity are rejected. See [native builds](../docs/native-builds.md) for the current prepared QA artifact and its exact source/runtime boundaries.
 
 The runner verifies the app signature and JavaScript hash, validates each decompressed fixture with the current decoder, installs only the QA identity, and seeds its Documents folder. It builds the standalone XCTest target before running any cases. Three host regression tests cover fast process completion, failed commands, and missing executables; they run through ordinary test discovery without Xcode. The default replay flow requires three passing cases with no skips:
