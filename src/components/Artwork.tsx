@@ -1,6 +1,7 @@
 /** Project scenes and the complete in-game art archive. */
 import React, { useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { ARTWORK, type ArtworkId } from './artwork-catalog';
 
 export function ArtworkImage({ id }: { id: ArtworkId }) {

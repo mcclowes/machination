@@ -7,7 +7,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Pressable } from './Pressable';
 import { BeltMap } from './BeltMap';
 import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 import { SpecialistManifest } from './SpecialistManifest';

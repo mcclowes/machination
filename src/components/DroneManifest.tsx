@@ -1,6 +1,7 @@
 /** Thumb-operated cargo selection, with exact entry and accessible adjustments. */
 import React, { useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PanResponder, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from './Pressable';
 
 const SCRUB_SLOP = 6;
 

@@ -1,7 +1,8 @@
 /** Practice radio overlay and attempt-local playback. The exercise clock stays under player control. */
 import React, { useState } from 'react';
 import { displaySpecialistNames } from '../game/specialist-catalog';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Modal, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable } from './Pressable';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { TrainingScenario } from '../game/training';
 import { TRAINING_DIALOGUE, trainingDialoguePhase, type DialoguePhase, type DialogueSpeaker } from '../game/training-dialogue';

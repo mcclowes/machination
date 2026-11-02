@@ -127,9 +127,9 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
       await wheel(-6.25, 1);
       assert.equal(camera.scale, zoomed, 'line and pixel wheel events have consistent sensitivity');
       for (let i = 0; i < 20; i++) await wheel(-100, 2);
-      assert.equal(camera.scale, 4);
+      assert.equal(camera.scale, 8);
       assert.equal(button('Zoom in').props.disabled, true);
-      for (let i = 0; i < 20; i++) await wheel(100);
+      for (let i = 0; i < 30; i++) await wheel(100);
       assert.equal(camera.scale, 1);
       assert.equal(button('Zoom out').props.disabled, true);
       await flush(() => button('Zoom in').props.onPress());

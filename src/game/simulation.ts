@@ -37,7 +37,7 @@ import { nextRouteEncounter, routeCandidates, resolveRouteEncounters } from './r
 import { LAUNCH_PREPARATION, completePreparations } from './transport';
 import { nextEconomyEvent, settleEconomy } from './economy';
 import { resolveInterceptions } from './interception';
-import { transferDuration, nextFlightVertex, type Point } from './flight';
+import { approachBearing, transferDuration, nextFlightVertex, type Point } from './flight';
 import { isActionPlan, actionEventLabel, executeScheduledAction } from './future-actions';
 import type { ScheduledOrder } from './orders';
 import { recentEvents, type GameEvent } from './events';
@@ -211,6 +211,8 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
           continue;
         }
         const audience = [...new Set([fleet.owner, ...(rock.owner ? [rock.owner] : []), ...observers(game, rock)])];
+        const toward = approachBearing(game, fleet);
+        const battle = { x: rock.x, y: rock.y, site: rock.id, ...(toward ? { toward } : {}) };
         if (rock.owner === fleet.owner) {
           rock.drones += fleet.drones;
           if (fleet.module && !rock.module) rock.module = fleet.module;
@@ -220,26 +222,26 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
         if (fleet.module === 'charge') {
           const damage = Math.min(rock.drones, fleet.drones * BLAST_MULTIPLIER);
           rock.drones -= damage;
-          game.events.unshift({ hour: next, audience, battle: { x: rock.x, y: rock.y }, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
+          game.events.unshift({ hour: next, audience, battle, message: `${rock.name}: self-destruct charge consumed its hauler and destroyed ${Math.floor(damage)} defending drones.` });
           continue;
         }
         if (fleet.module === 'virus') {
           const converted = Math.min(CONVERSION_LIMIT, Math.floor(rock.drones * CONVERSION_FRACTION));
           rock.drones -= converted; fleet.drones += converted;
-          game.events.unshift({ hour: next, audience, battle: { x: rock.x, y: rock.y }, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
+          game.events.unshift({ hour: next, audience, battle, message: `${rock.name}: conversion virus assimilated ${converted} defending drones.` });
         }
         if (fleet.drones <= rock.drones) {
           rock.drones -= fleet.drones;
-          game.events.unshift({ hour: next, audience, battle: { x: rock.x, y: rock.y }, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
+          game.events.unshift({ hour: next, audience, battle, message: `${rock.name}: ${FACTIONS[fleet.owner].name} transfer neutralized.` });
         } else {
           const defeated = rock.coreOf;
           const recovered = fleet.module === 'scavenger' ? Math.floor(rock.drones * SALVAGE_FRACTION) : 0;
           rock.drones = fleet.drones - rock.drones + recovered;
-          if (recovered) game.events.unshift({ hour: next, audience, battle: { x: rock.x, y: rock.y }, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
+          if (recovered) game.events.unshift({ hour: next, audience, battle, message: `${rock.name}: scavenger rig recovered ${recovered} drones.` });
           rock.owner = fleet.owner;
           delete rock.module;
           if (fleet.module) rock.module = fleet.module;
-          game.events.unshift({ hour: next, audience, battle: { x: rock.x, y: rock.y }, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
+          game.events.unshift({ hour: next, audience, battle, message: `${rock.name} acquired by ${FACTIONS[fleet.owner].name}.` });
           if (defeated && !game.eliminated.includes(defeated)) {
             game.eliminated.push(defeated);
             for (const asset of game.rocks) if (asset.owner === defeated) asset.owner = null;

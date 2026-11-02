@@ -1,6 +1,7 @@
 /** Explicit device consent for message notifications and detailed incoming-attack alerts. */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import type { MessageNotificationState } from './useMessageNotifications';
 
 function Action({ text, onPress, disabled }: { text: string; onPress: () => void; disabled: boolean }) {

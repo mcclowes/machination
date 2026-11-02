@@ -1,7 +1,8 @@
 /** Objective and actual-clock controls for a paused tactical attempt. Collapsed to one row by default. */
 import React, { useState } from 'react';
 import { displaySpecialistNames } from '../game/specialist-catalog';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { gameClock } from '../game/time-machine';
 import type { PracticeAttempt } from './Practice';
 import { PracticeDialogue } from './PracticeDialogue';
