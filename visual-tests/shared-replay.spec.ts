@@ -30,6 +30,18 @@ for (const format of ['legacy', 'packed'] as const) test(`local ${format} replay
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const viewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 1133, height: 371 });
+  await page.getByRole('button', { name: 'Playback options', exact: true }).click();
+  const closeOptions = page.getByRole('button', { name: 'Close playback options', exact: true });
+  await expect(closeOptions).toBeInViewport({ ratio: 1 });
+  await page.getByRole('textbox', { name: 'Replay hour', exact: true }).fill('0.5');
+  await page.getByRole('button', { name: 'Seek hour', exact: true }).click();
+  await expect(page.getByText('D01 · 00:30', { exact: true })).toBeVisible();
+  await expect(closeOptions).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: `.fettle/shots/replay-${format}-${info.project.name}-compact-options.png` });
+  await closeOptions.click();
+  await page.setViewportSize(viewport);
   await page.getByRole('button', { name: 'End', exact: true }).click();
   await expect(page.getByText(/^D01 · 08:00(?: · State \d+ of \d+)?$/).first()).toBeVisible();
   expect(errors).toEqual([]);

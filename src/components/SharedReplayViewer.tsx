@@ -38,6 +38,7 @@ export function SharedReplayViewer({
   const [siteCard, setSiteCard] = useState<{ id: string; height: number }>();
   const [inspection, setInspection] = useState({ request: 0, id: undefined as number | undefined });
   const [width, setWidth] = useState(1);
+  const [stageHeight, setStageHeight] = useState(0);
   const [hourText, setHourText] = useState(String(replay.through));
   const [options, setOptions] = useState(false);
   const scene = useMemo(
@@ -146,7 +147,7 @@ export function SharedReplayViewer({
           ))}
           {scene.draw && <Text style={s.text}>Draw</Text>}
         </View>
-        <View style={s.stage}>
+        <View style={s.stage} onLayout={(event) => setStageHeight(event.nativeEvent.layout.height)}>
           <BeltMap
             fill
             inspecting={!!selected}
@@ -174,7 +175,7 @@ export function SharedReplayViewer({
             }}
           />
           {options && (
-            <View style={s.drawer}>
+            <View style={[s.drawer, { maxHeight: Math.max(0, stageHeight - 2 * s.drawer.bottom) }]}>
               <View style={s.drawerHeading}>
                 <Text style={s.title}>Playback options</Text>
                 <Control
@@ -183,11 +184,7 @@ export function SharedReplayViewer({
                   onPress={() => setOptions(false)}
                 />
               </View>
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets
-                contentContainerStyle={s.details}
-              >
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={s.details}>
                 <Text style={s.text}>
                   Clip {gameClock(replay.from)} — {gameClock(replay.through)}
                 </Text>
@@ -221,7 +218,7 @@ export function SharedReplayViewer({
             <View
               key={rock.id}
               testID="replay-site-inspector"
-              style={s.drawer}
+              style={[s.drawer, { maxHeight: stageHeight * 0.65 }]}
               onLayout={(event) =>
                 setSiteCard({ id: rock.id, height: event.nativeEvent.layout.height })
               }
@@ -412,12 +409,12 @@ const s = StyleSheet.create({
     bottom: 8,
     left: 8,
     right: 8,
-    maxHeight: '65%',
     backgroundColor: '#101e15',
     borderWidth: 1,
     borderColor: '#40563a',
   },
   drawerHeading: {
+    flexShrink: 0,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
