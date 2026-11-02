@@ -68,6 +68,8 @@ Live and forecast gravity observations retain the committed curve for position a
 
 The [frozen-source solo baseline and candidate](solo-performance.md) identify repeated Foresight prediction as a costly ten-player mining path. The combined candidate advances six hours in 2.01–2.23 seconds on Node/M5, retaining the original complete state hash. [Fix #200](https://github.com/mcclowes/machination/issues/200) preserves warnings, AI decisions, recorded rules, and replay parity. Both retained [export-headroom failures](testing.md#november-2-export-headroom-recurrence) pass under configuration load; the final full gate passes 1,755 behavior and 20 packaged-server tests, while native input latency and physical-device performance remain unverified.
 
+The [native calibration](solo-performance.md#native-calibration) records one default three-player six-hour advance at 220.91 ms in Hermes, with an exact complete-state match against the frozen Node engine. JavaScript frame callbacks and XCTest clock observation are recorded separately. The combined ten-player/forecast flow remains open in [#203](https://github.com/mcclowes/machination/issues/203); corrected-driver attempts time out before UI execution. This is a partial simulator measurement, not a physical-device responsiveness gate.
+
 ## Delivery order and gates
 
 | Priority | Player outcome | Release gate | Current gap / owner |
