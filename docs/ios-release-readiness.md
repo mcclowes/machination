@@ -1,6 +1,6 @@
 # Multiplayer iOS release readiness
 
-Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated November 1, 2026.
+Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated November 2, 2026.
 
 The immediate target is a polished, invite-only multiplayer TestFlight release. Public App Store distribution adds the gates below. “AAA” means a consistent quality bar across play, presentation, reliability, and support; it isn't evidence of readiness or a reason to add more mechanics.
 
@@ -27,6 +27,8 @@ The [fresh build-6 local candidate](native-builds.md#build-6-local-candidate-nov
 The [native replay file gate](native-builds.md#native-replay-file-acceptance-november-1) now passes actual packed and both legacy imports, playback advancement/pause, same-hour states, exact seeking, scrubbing, site inspection, real sheet dismissal, and malformed-file recovery on the isolated simulator QA runtime. Original files and replay bytes survive unchanged; cache copies are removed. The full source gate passes 1,726 behavior and 20 packaged-server cases with zero skips. Network-denied playback, physical devices, full accessibility/layout coverage, performance, and rollout remain open; this does not certify the device IPA's runtime behavior.
 
 Later replay acceptance now passes nine native cases across iPad mini portrait/landscape and iPhone 18 Pro portrait on iOS 27.0, including entry through visible floating and docked keyboards. Playback options now remain reachable with the iPad landscape keyboard. The [keyboard fix and complete matrix](native-builds.md#replay-editing-with-the-keyboard-november-2) record exact source/runtime boundaries. Four browser cases covering compact layouts and offline playback, plus the full source gate with 1,726 behavior and 20 server-bundle tests, pass without failures or skips. These later UI fixes are in a separate QA runtime and are absent from the prepared device IPA; physical devices, native offline playback, complete accessibility, performance, and distribution remain unverified.
+
+The subsequent [enlarged-text matrix](native-builds.md#replay-with-enlarged-text-november-2) passes twelve native cases with one QA bundle and XCTest source: the largest accessibility category on iPhone and both iPad orientations, plus default-size iPhone regression. The layout retains text scaling, gives open panels more room, and restores the header and transport when they close. All original fixtures, state/playback assertions, and deadlines remain; originals, cache cleanup, and owned-device deletion pass. Source `38be644` passes the full gate with 1,726 behavior and 20 server-bundle checks, and all four browser replay cases pass. Complete accessibility remains open, including a newly observed [large-text map-symbol defect #190](https://github.com/mcclowes/machination/issues/190). The prepared device IPA still lacks these UI fixes.
 
 ## Client recovery
 
