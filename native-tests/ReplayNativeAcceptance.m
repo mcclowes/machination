@@ -88,6 +88,7 @@
   XCTWaiterResult result = [XCTWaiter waitForExpectations:@[ready] timeout:10];
   BOOL hittable = result == XCTWaiterResultCompleted && element.hittable;
   if (!hittable) {
+    [self shot:@"Native control readiness" app:app];
     XCTAttachment *state = [XCTAttachment attachmentWithString:[NSString stringWithFormat:@"App bounds %@\n%@", NSStringFromCGRect(bounds), element.debugDescription]];
     state.name = @"Replay control readiness"; state.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:state];
   }
@@ -99,6 +100,22 @@
   XCTNSPredicateExpectation *closed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:close];
   XCTAssertEqual([XCTWaiter waitForExpectations:@[closed] timeout:10], XCTWaiterResultCompleted);
   [self waitForStable:app.buttons[@"Playback options"] app:app];
+}
+- (void)reveal:(XCUIElement *)element inScrollView:(XCUIElement *)scroll app:(XCUIApplication *)app {
+  XCTAssertTrue([element waitForExistenceWithTimeout:10]);
+  for (int i=0; i<6; i++) {
+    [self waitForStable:scroll app:app];
+    CGRect visible = CGRectIntersection(scroll.frame,app.frame);
+    if (CGRectContainsRect(visible,element.frame)) return;
+    CGFloat delta = CGRectGetMinY(element.frame) < CGRectGetMinY(visible)
+      ? MIN(visible.size.height*0.4,CGRectGetMinY(visible)-CGRectGetMinY(element.frame)+12)
+      : -MIN(visible.size.height*0.4,CGRectGetMaxY(element.frame)-CGRectGetMaxY(visible)+12);
+    NSLog(@"QA_REVEAL %@ TARGET %@ CLIP %@ DELTA %.1f",element.label,NSStringFromCGRect(element.frame),NSStringFromCGRect(visible),delta);
+    XCUICoordinate *from = [scroll coordinateWithNormalizedOffset:CGVectorMake(0.5,0.5)];
+    [from pressForDuration:0.05 thenDragToCoordinate:[from coordinateWithOffset:CGVectorMake(0,delta)] withVelocity:200 thenHoldForDuration:0.2];
+  }
+  [self shot:@"Practice scroll readiness" app:app];
+  XCTAssertTrue(CGRectContainsRect(CGRectIntersection(scroll.frame,app.frame),element.frame),@"The control must be visible within its scroller.");
 }
 - (void)destroyedStatus:(XCUIApplication *)app {
   XCUIElementQuery *copies = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Jasper, destroyed site, Mnemosyne,"]];
@@ -299,6 +316,7 @@
   [XCUIDevice sharedDevice].orientation = UIDeviceOrientationPortrait;
   XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:NSProcessInfo.processInfo.environment[@"QA_BUNDLE_ID"]];
   [app launch];
+  XCTAssertGreaterThan(app.frame.size.height,app.frame.size.width);
   if ([app.buttons[@"Close field manual"] waitForExistenceWithTimeout:5]) [app.buttons[@"Close field manual"] tap];
   XCTAssertFalse(app.buttons[@"Resume multiplayer operation"].exists);
   XCUIElement *practice = app.buttons[@"Start tactical practice"];
@@ -306,9 +324,19 @@
   for (int i=0; i<4 && !practice.hittable; i++) [app swipeUp];
   [self waitForStable:practice app:app]; [practice tap];
   XCUIElement *start = app.buttons[@"Start: Open a foothold"];
+  [self reveal:start inScrollView:app.scrollViews.firstMatch app:app];
   [self waitForStable:start app:app]; [start tap];
   XCTAssertTrue([app.staticTexts[@"Mission briefing"] waitForExistenceWithTimeout:10]);
   [self shot:@"First exercise briefing" app:app];
+  XCUIElement *briefing = [app.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"Welcome to the quiet belt, Captain."]].firstMatch;
+  XCTAssertTrue([briefing waitForExistenceWithTimeout:10]);
+  XCUIElement *briefingScroll = [app.scrollViews containingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"Welcome to the quiet belt, Captain."]].firstMatch;
+  [self waitForStable:briefingScroll app:app];
+  for (int i=0; i<4 && CGRectGetMaxY(briefing.frame) > CGRectGetMaxY(briefingScroll.frame); i++) [briefingScroll swipeUp];
+  XCTAssertLessThanOrEqual(CGRectGetMaxY(briefing.frame),CGRectGetMaxY(briefingScroll.frame));
+  XCTAssertGreaterThan(CGRectGetMaxY(briefing.frame),CGRectGetMinY(briefingScroll.frame));
+  [self waitForStable:app.buttons[@"Continue dialogue"] app:app];
+  [self shot:@"Briefing end and visible actions" app:app];
   for (int i=0; i<8 && app.buttons[@"Continue dialogue"].exists; i++) [app.buttons[@"Continue dialogue"] tap];
   [self waitForStable:app.buttons[@"Take command"] app:app]; [app.buttons[@"Take command"] tap];
   XCUIElement *foundry = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Foundry,"]].firstMatch;
@@ -318,6 +346,10 @@
   NSString *previous = (NSString *)drones.value;
   for (NSUInteger i=0; i<previous.length; i++) [drones typeText:XCUIKeyboardKeyDelete];
   XCUIElement *keyboard = [self visibleNumericKeyboard:app];
+  XCUIElement *manifestScroll = app.otherElements[@"operation-drawer"].scrollViews.firstMatch;
+  [self waitForStable:manifestScroll app:app];
+  [self shot:@"Manifest viewport with keypad" app:app];
+  XCTAssertTrue(CGRectContainsRect(manifestScroll.frame,drones.frame),@"The exact cargo field %@ must be fully visible within %@ while the keypad %@ is open.",NSStringFromCGRect(drones.frame),NSStringFromCGRect(manifestScroll.frame),NSStringFromCGRect(keyboard.frame));
   XCTAssertTrue(keyboard.keys[@"6"].hittable); [keyboard.keys[@"6"] tap];
   XCTAssertEqualObjects(drones.value,@"6");
   [self shot:@"First reinforcement manifest" app:app];
@@ -335,6 +367,9 @@
   XCUIElement *landing = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Quiet landing,"]].firstMatch;
   [self waitForStable:landing app:app]; [landing tap];
   XCUIElement *prepare = app.buttons[@"Prepare launch · 10m"];
+  if (!prepare.hittable || !CGRectContainsRect(app.frame,prepare.frame)) {
+    [self reveal:prepare inScrollView:app.otherElements[@"operation-drawer"].scrollViews.firstMatch app:app];
+  }
   [self waitForStable:prepare app:app]; [prepare tap];
   XCUIElement *hauler = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS %@", @"hauler, preparing launch, 6 drones"]].firstMatch;
   XCTAssertTrue([hauler waitForExistenceWithTimeout:10]);
@@ -355,6 +390,7 @@
   for (int i=0; i<4 && !practice.hittable; i++) [app swipeUp];
   [self waitForStable:practice app:app]; [practice tap];
   XCTAssertTrue([app.staticTexts[@"1. Open a foothold · completed"] waitForExistenceWithTimeout:10]);
+  [self reveal:[app.staticTexts matchingIdentifier:@"1. Open a foothold · completed"].firstMatch inScrollView:app.scrollViews.firstMatch app:app];
   [self shot:@"First exercise progress after relaunch" app:app];
 }
 @end

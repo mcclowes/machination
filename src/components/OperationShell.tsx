@@ -35,16 +35,17 @@ const MIN_DRAWER_BODY_HEIGHT = 96;
 const PANEL_CONTENT_PADDING = 14;
 
 export function OperationShell({ chart, timeline, status, player = 'you', portraits, colors, section, onSection, panels, hint, panelScrollRef, onPanelResize }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
   const [availableHeight, setAvailableHeight] = useState<number>();
   const [stageHeight, setStageHeight] = useState<number>();
   const [headingHeight, setHeadingHeight] = useState(44);
   const [footerHeight, setFooterHeight] = useState<number>();
   const compact = (availableHeight ?? height) < COMPACT_OPERATION_HEIGHT;
+  const enlarged = fontScale > 1;
   const wide = width >= 1000 || (compact && width >= COMPACT_SIDEBAR_WIDTH);
-  const sheetHeight = stageHeight === undefined ? undefined : Math.min(stageHeight, Math.max(MIN_SHEET_HEIGHT, stageHeight * (section === 'intel' ? 0.9 : 0.55)));
+  const sheetHeight = stageHeight === undefined ? undefined : enlarged ? stageHeight : Math.min(stageHeight, Math.max(MIN_SHEET_HEIGHT, stageHeight * (section === 'intel' ? 0.9 : 0.55)));
   const panel = section && panels[section];
-  const hideTimeline = compact && !!panel;
+  const hideTimeline = (compact || enlarged) && !!panel;
   const drawerHeight = wide ? stageHeight : sheetHeight;
   const scrollFooter = compact || footerHeight === undefined || drawerHeight === undefined || Math.max(0, drawerHeight - headingHeight - footerHeight) < MIN_DRAWER_BODY_HEIGHT;
   const footer = panel && panel.footer && <View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)} style={[s.footer, scrollFooter && s.scrolledFooter]}>{panel.footer}</View>;
@@ -75,7 +76,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
           : { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
       }]}>
         <View style={s.heading} onLayout={event => setHeadingHeight(event.nativeEvent.layout.height)}><Text accessibilityRole="header" style={s.title}>{panel.title}</Text><Pressable accessibilityRole="button" accessibilityLabel={`Close ${panel.title}`} onPress={() => onSection(null)} style={({ pressed }) => [s.close, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={s.text}>×</Text></Pressable></View>
-        <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>
+        <ScrollView key={section} ref={panelScrollRef} automaticallyAdjustKeyboardInsets={!enlarged} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" onContentSizeChange={onPanelResize} contentContainerStyle={s.content}>
           {section === 'settings' && chrome.exits.length > 0 && <View style={s.chrome}>
             {chrome.exits.map(exit => <Pressable key={exit.label} accessibilityRole="button" accessibilityLabel={exit.label} onPress={exit.onPress} style={({ pressed }) => [s.exit, pressed && s.pressed]}><Text style={s.exitText}>{exit.label}</Text></Pressable>)}
             <View style={{ flex: 1 }} />{chrome.tools}
