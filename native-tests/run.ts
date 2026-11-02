@@ -17,17 +17,19 @@ const { values } = parseArgs({ options: {
   app: { type: 'string' }, runtime: { type: 'string', default: 'com.apple.CoreSimulator.SimRuntime.iOS-27-0' },
   'device-type': { type: 'string', default: 'com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro' }, help: { type: 'boolean' },
   orientation: { type: 'string', default: 'portrait' },
+  'content-size': { type: 'string', default: 'large' },
 } });
 
 async function main() {
   if (values.help) {
-    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape]');
+    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
     return;
   }
   assert.equal(process.platform, 'darwin', 'Native replay acceptance requires macOS and Xcode.');
   assert.equal(process.version, `v${(await readFile(join(root, '.nvmrc'), 'utf8')).trim()}`, 'Use the pinned Node version.');
   assert.ok(values.app, 'Provide a separately identified simulator QA app with --app.');
   assert.ok(values.orientation === 'portrait' || values.orientation === 'landscape', 'Choose portrait or landscape orientation.');
+  assert.ok(values['content-size'] === 'large' || values['content-size'] === 'accessibility-extra-extra-extra-large', 'Choose large or accessibility-extra-extra-extra-large content size.');
   const app = resolve(values.app);
   const parent = join(root, '.data/native-replay-acceptance');
   await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -114,6 +116,8 @@ async function main() {
     device = await sim('create-device', 'create', 'Machination isolated replay acceptance', values['device-type']!, values.runtime!);
     assert.match(device, /^[A-F0-9-]{36}$/);
     await sim('boot', 'boot', device); await sim('boot-ready', 'bootstatus', device, '-b');
+    await sim('content-size-set', 'ui', device, 'content_size', values['content-size']!);
+    assert.equal(await sim('content-size-read', 'ui', device, 'content_size'), values['content-size'], 'Simulator must apply the requested text size.');
     await sim('install', 'install', device, app);
     const installed = await sim('installed-app', 'get_app_container', device, id, 'app');
     assert.equal(hash(await readFile(join(installed, 'main.jsbundle'))), bundle);
@@ -139,7 +143,8 @@ async function main() {
     assert.deepEqual(await readdir(cache).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return []; throw error; }), [], 'Picker cache copies must be cleaned.');
     assert.equal(hash(await readFile(join(app, 'main.jsbundle'))), bundle, 'Input app changed.');
     await run('screenshots', ['xcrun', 'xcresulttool', 'export', 'attachments', '--path', join(out, 'tests.xcresult'), '--output-path', join(out, 'attachments')]);
-    await writeFile(join(out, 'acceptance.json'), JSON.stringify({ bundleSha256: bundle, testSourceSha256: sourceHash, device, deviceType: values['device-type'], orientation: values.orientation, runtime: values.runtime, qaIdentity: id, summary, originalFilesPreserved: true, pickerCacheEmpty: true, scope: 'Simulator file-picker/replay interaction only. Network-denied, physical-device, complete accessibility, and performance acceptance remain separate.' }, null, 2));
+    assert.equal(await sim('content-size-final', 'ui', device, 'content_size'), values['content-size'], 'Text size must remain applied throughout acceptance.');
+    await writeFile(join(out, 'acceptance.json'), JSON.stringify({ bundleSha256: bundle, testSourceSha256: sourceHash, device, deviceType: values['device-type'], orientation: values.orientation, contentSize: values['content-size'], runtime: values.runtime, qaIdentity: id, summary, originalFilesPreserved: true, pickerCacheEmpty: true, scope: 'Simulator file-picker/replay interaction only. Network-denied, physical-device, complete accessibility, and performance acceptance remain separate.' }, null, 2));
     succeeded = true;
   } finally {
     if (device) await run('shutdown', ['xcrun', 'simctl', 'shutdown', device], 60_000, true).catch(async error => {

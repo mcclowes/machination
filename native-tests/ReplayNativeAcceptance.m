@@ -30,34 +30,81 @@
 - (void)choose:(NSString *)name app:(XCUIApplication *)app {
   [app.buttons[@"Open replay"] tap];
   XCUIElement *file = [[app descendantsMatchingType:XCUIElementTypeAny] matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", name]].firstMatch;
-  if (![file waitForExistenceWithTimeout:2]) {
+  XCUIElement *knownFile = [app.cells matchingPredicate:[NSPredicate predicateWithFormat:@"label MATCHES %@", @"0[1-4]-.*"]].firstMatch;
+  if (![file waitForExistenceWithTimeout:2] && !knownFile.exists) {
     XCUIElement *local = [[app descendantsMatchingType:XCUIElementTypeAny] matchingPredicate:[NSPredicate predicateWithFormat:@"label IN %@", @[@"On My iPhone", @"On My iPad"]]].firstMatch;
     NSPredicate *navigationReady = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
-      return local.exists || app.buttons[@"Browse"].exists || file.exists;
+      return local.exists || app.buttons[@"Browse"].exists || file.exists || knownFile.exists;
     }];
     XCTNSPredicateExpectation *navigation = [[XCTNSPredicateExpectation alloc] initWithPredicate:navigationReady object:app];
     XCTAssertEqual([XCTWaiter waitForExpectations:@[navigation] timeout:15], XCTWaiterResultCompleted);
-    if (!file.exists && !local.exists) {
+    if (!file.exists && !knownFile.exists && !local.exists) {
       XCTAssertTrue([app.buttons[@"Browse"] waitForExistenceWithTimeout:15]); [app.buttons[@"Browse"] tap];
     }
-    if (![file waitForExistenceWithTimeout:2]) {
+    if (![file waitForExistenceWithTimeout:2] && !knownFile.exists) {
       XCTAssertTrue([local waitForExistenceWithTimeout:15]); [local tap];
       XCUIElement *folder = [self element:NSProcessInfo.processInfo.environment[@"QA_DOCUMENTS_NAME"] app:app];
       XCTAssertTrue([folder waitForExistenceWithTimeout:15]); [folder tap];
     }
   }
-  XCTAssertTrue([file waitForExistenceWithTimeout:15]); [file tap];
+  XCUIElement *grid = app.collectionViews[@"File View"];
+  XCTAssertTrue([grid waitForExistenceWithTimeout:15]);
+  for (int i=0; i<3 && (!file.exists || CGRectGetMinY(file.frame) < CGRectGetMinY(grid.frame)); i++) [grid swipeDown];
+  XCUIElement *thumbnail = file.images.firstMatch;
+  for (int i=0; i<5 && (!thumbnail.exists || !file.hittable || !CGRectContainsRect(grid.frame, thumbnail.frame)); i++) {
+    [grid swipeUp];
+  }
+  __block CGRect previousFrame = CGRectNull;
+  __block NSTimeInterval unchangedSince = 0;
+  NSPredicate *settled = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+    if (!thumbnail.exists || !file.hittable) return NO;
+    CGRect frame = thumbnail.frame;
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+    if (!CGRectEqualToRect(frame, previousFrame)) { previousFrame = frame; unchangedSince = now; }
+    return CGRectContainsRect(grid.frame, frame) && now - unchangedSince >= 0.5;
+  }];
+  XCTNSPredicateExpectation *stableFile = [[XCTNSPredicateExpectation alloc] initWithPredicate:settled object:thumbnail];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[stableFile] timeout:10], XCTWaiterResultCompleted);
+  // The thumbnail is decorative; its visible center lies inside the interactive file cell.
+  [[thumbnail coordinateWithNormalizedOffset:CGVectorMake(0.5,0.5)] tap];
 }
 - (void)shot:(NSString *)name app:(XCUIApplication *)app {
   XCTAssertTrue(app.exists);
   XCTAttachment *shot = [XCTAttachment attachmentWithScreenshot:[[XCUIScreen mainScreen] screenshot]];
   shot.name = name; shot.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:shot];
 }
+- (void)waitForStable:(XCUIElement *)element app:(XCUIApplication *)app {
+  XCTAssertTrue([element waitForExistenceWithTimeout:10]);
+  CGRect bounds = app.frame;
+  __block CGRect previousFrame = CGRectNull;
+  __block NSTimeInterval unchangedSince = 0;
+  NSPredicate *settled = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+    CGRect frame = element.frame;
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+    if (!CGRectEqualToRect(frame, previousFrame)) { previousFrame = frame; unchangedSince = now; }
+    return CGRectContainsRect(bounds, frame) && now - unchangedSince >= 0.5;
+  }];
+  XCTNSPredicateExpectation *ready = [[XCTNSPredicateExpectation alloc] initWithPredicate:settled object:element];
+  XCTWaiterResult result = [XCTWaiter waitForExpectations:@[ready] timeout:10];
+  BOOL hittable = result == XCTWaiterResultCompleted && element.hittable;
+  if (!hittable) {
+    XCTAttachment *state = [XCTAttachment attachmentWithString:[NSString stringWithFormat:@"App bounds %@\n%@", NSStringFromCGRect(bounds), element.debugDescription]];
+    state.name = @"Replay control readiness"; state.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:state];
+  }
+  XCTAssertEqual(result, XCTWaiterResultCompleted); XCTAssertTrue(hittable);
+}
+- (void)closeOptions:(XCUIApplication *)app {
+  XCUIElement *close = app.buttons[@"Close playback options"];
+  [self waitForStable:close app:app]; [close tap];
+  XCTNSPredicateExpectation *closed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:close];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[closed] timeout:10], XCTWaiterResultCompleted);
+  [self waitForStable:app.buttons[@"Playback options"] app:app];
+}
 - (void)hour:(NSString *)hour app:(XCUIApplication *)app {
   [app.buttons[@"Playback options"] tap];
   XCUIElement *input = app.textFields[@"Replay hour"];
   XCTAssertTrue([input waitForExistenceWithTimeout:10]); XCTAssertEqualObjects(input.value, hour);
-  [app.buttons[@"Close playback options"] tap];
+  [self closeOptions:app];
 }
 - (XCUIElement *)visibleNumericKeyboard:(XCUIApplication *)app {
   __block XCUIElement *keyboard;
@@ -135,9 +182,9 @@
   [app.buttons[@"Playback options"] tap];
   NSString *paused = app.textFields[@"Replay hour"].value;
   XCTAssertGreaterThan(paused.doubleValue, 394.5673841421317); XCTAssertLessThan(paused.doubleValue, 402.5673841421317);
-  [app.buttons[@"Close playback options"] tap]; [app.buttons[@"Playback options"] tap];
+  [self closeOptions:app]; [app.buttons[@"Playback options"] tap];
   XCTAssertEqualObjects(app.textFields[@"Replay hour"].value, paused);
-  [app.buttons[@"Close playback options"] tap];
+  [self closeOptions:app];
   [app.buttons[@"End"] tap]; XCTAssertTrue(app.staticTexts[@"Winner · Prism"].firstMatch.exists);
   [self shot:@"Packed end and transport" app:app];
   [app.buttons[@"Exit replay"] tap]; [app.buttons[@"Open replay"] tap];
@@ -145,7 +192,10 @@
   XCTAssertTrue([pickerBar waitForExistenceWithTimeout:15]);
   XCUIElement *cancel = app.navigationBars.buttons[@"Cancel"].firstMatch;
   if (cancel.exists && cancel.hittable) [cancel tap];
-  else [[pickerBar coordinateWithNormalizedOffset:CGVectorMake(0.5,0)] pressForDuration:0.1 thenDragToCoordinate:[app coordinateWithNormalizedOffset:CGVectorMake(0.5,0.95)]];
+  else {
+    XCUICoordinate *sheetEdge = [[pickerBar coordinateWithNormalizedOffset:CGVectorMake(0.5,0)] coordinateWithOffset:CGVectorMake(0,-8)];
+    [sheetEdge pressForDuration:0.1 thenDragToCoordinate:[app coordinateWithNormalizedOffset:CGVectorMake(0.5,0.95)]];
+  }
   XCTNSPredicateExpectation *dismissed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:pickerBar];
   XCTAssertEqual([XCTWaiter waitForExpectations:@[dismissed] timeout:10], XCTWaiterResultCompleted);
   XCTNSPredicateExpectation *ready = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"enabled == YES"] object:app.buttons[@"Open replay"]];
@@ -169,11 +219,11 @@
   BOOL pad = [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad;
   [self seekHalfHour:app requireDocked:!pad];
   if (pad) { [app.buttons[@"Beginning"] tap]; [self seekHalfHour:app requireDocked:YES]; }
-  [app.buttons[@"Close playback options"] tap];
+  [self closeOptions:app];
   XCUIElement *timeline = [self element:@"Replay timeline" app:app]; XCTAssertTrue(timeline.exists);
   [[timeline coordinateWithNormalizedOffset:CGVectorMake(0.5,0.5)] tap];
   [app.buttons[@"Playback options"] tap]; XCTAssertEqualWithAccuracy([app.textFields[@"Replay hour"].value doubleValue],1,0.03);
-  [app.buttons[@"Close playback options"] tap];
+  [self closeOptions:app];
   XCUIElement *site = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Mnemosyne,"]].firstMatch;
   XCTAssertTrue([site waitForExistenceWithTimeout:10]); XCTAssertTrue(site.hittable); [site tap];
   XCTAssertTrue([app.buttons[@"Close site details"] waitForExistenceWithTimeout:10]);
