@@ -38,7 +38,7 @@ npm test -- --suite-timeout=900000
 
 ### Native replay files
 
-`npm run test:native-replay -- --app /path/to/simulator-QA.app` runs the real iOS picker and viewer in a fresh owned simulator. The [native acceptance guide](../native-tests/README.md) records prerequisites, fixture provenance, protected app identities, cleanup, and evidence. Schema-1, schema-2, and packed schema-3 cases cover their distinct file paths and controls; cancellation and malformed imports must preserve the previous replay. This is a separate gate from the ordinary host suite and requires an explicitly prepared simulator QA app. Three process-runner regression tests run in the ordinary host suite without Xcode.
+`npm run test:native-replay -- --app /path/to/simulator-QA.app` runs the real iOS picker and viewer in a fresh owned simulator. The [native acceptance guide](../native-tests/README.md) records prerequisites, fixture provenance, protected app identities, cleanup, and evidence, including iPad portrait/landscape commands and visible software-keyboard guards. Schema-1, schema-2, and packed schema-3 cases cover their distinct file paths and controls; cancellation and malformed imports must preserve the previous replay. This is a separate gate from the ordinary host suite and requires an explicitly prepared simulator QA app. Three process-runner regression tests run in the ordinary host suite without Xcode.
 
 ### Endgame failure evidence
 

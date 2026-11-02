@@ -1,11 +1,20 @@
 #import <XCTest/XCTest.h>
+#import <UIKit/UIKit.h>
 @interface ReplayNativeAcceptance : XCTestCase
 @end
 @implementation ReplayNativeAcceptance
 - (XCUIApplication *)library {
   self.continueAfterFailure = NO;
+  BOOL landscape = [NSProcessInfo.processInfo.environment[@"QA_ORIENTATION"] isEqualToString:@"landscape"];
+  [XCUIDevice sharedDevice].orientation = landscape ? UIDeviceOrientationLandscapeLeft : UIDeviceOrientationPortrait;
   XCUIApplication *app = [[XCUIApplication alloc] initWithBundleIdentifier:NSProcessInfo.processInfo.environment[@"QA_BUNDLE_ID"]];
   [app launch];
+  NSPredicate *orientation = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+    CGSize size = ((XCUIApplication *)target).frame.size;
+    return landscape ? size.width > size.height : size.height > size.width;
+  }];
+  XCTNSPredicateExpectation *rotated = [[XCTNSPredicateExpectation alloc] initWithPredicate:orientation object:app];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[rotated] timeout:10], XCTWaiterResultCompleted);
   if ([app.buttons[@"Close field manual"] waitForExistenceWithTimeout:3]) [app.buttons[@"Close field manual"] tap];
   XCTAssertTrue([app.buttons[@"Open shared replay"] waitForExistenceWithTimeout:20]);
   XCTAssertFalse(app.buttons[@"Resume multiplayer operation"].exists);
@@ -22,9 +31,16 @@
   [app.buttons[@"Open replay"] tap];
   XCUIElement *file = [[app descendantsMatchingType:XCUIElementTypeAny] matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", name]].firstMatch;
   if (![file waitForExistenceWithTimeout:2]) {
-    XCTAssertTrue([app.buttons[@"Browse"] waitForExistenceWithTimeout:15]); [app.buttons[@"Browse"] tap];
+    XCUIElement *local = [[app descendantsMatchingType:XCUIElementTypeAny] matchingPredicate:[NSPredicate predicateWithFormat:@"label IN %@", @[@"On My iPhone", @"On My iPad"]]].firstMatch;
+    NSPredicate *navigationReady = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+      return local.exists || app.buttons[@"Browse"].exists || file.exists;
+    }];
+    XCTNSPredicateExpectation *navigation = [[XCTNSPredicateExpectation alloc] initWithPredicate:navigationReady object:app];
+    XCTAssertEqual([XCTWaiter waitForExpectations:@[navigation] timeout:15], XCTWaiterResultCompleted);
+    if (!file.exists && !local.exists) {
+      XCTAssertTrue([app.buttons[@"Browse"] waitForExistenceWithTimeout:15]); [app.buttons[@"Browse"] tap];
+    }
     if (![file waitForExistenceWithTimeout:2]) {
-      XCUIElement *local = [self element:@"On My iPhone" app:app];
       XCTAssertTrue([local waitForExistenceWithTimeout:15]); [local tap];
       XCUIElement *folder = [self element:NSProcessInfo.processInfo.environment[@"QA_DOCUMENTS_NAME"] app:app];
       XCTAssertTrue([folder waitForExistenceWithTimeout:15]); [folder tap];
@@ -33,7 +49,8 @@
   XCTAssertTrue([file waitForExistenceWithTimeout:15]); [file tap];
 }
 - (void)shot:(NSString *)name app:(XCUIApplication *)app {
-  XCTAttachment *shot = [XCTAttachment attachmentWithScreenshot:[app screenshot]];
+  XCTAssertTrue(app.exists);
+  XCTAttachment *shot = [XCTAttachment attachmentWithScreenshot:[[XCUIScreen mainScreen] screenshot]];
   shot.name = name; shot.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:shot];
 }
 - (void)hour:(NSString *)hour app:(XCUIApplication *)app {
@@ -41,6 +58,58 @@
   XCUIElement *input = app.textFields[@"Replay hour"];
   XCTAssertTrue([input waitForExistenceWithTimeout:10]); XCTAssertEqualObjects(input.value, hour);
   [app.buttons[@"Close playback options"] tap];
+}
+- (XCUIElement *)visibleNumericKeyboard:(XCUIApplication *)app {
+  __block XCUIElement *keyboard;
+  NSPredicate *keyboardVisible = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+    NSArray<XCUIElement *> *surfaces = [app.popovers.allElementsBoundByIndex arrayByAddingObjectsFromArray:app.keyboards.allElementsBoundByIndex];
+    for (XCUIElement *surface in surfaces) {
+      XCUIElement *zero = surface.keys[@"0"];
+      if (zero.exists && zero.hittable && CGRectContainsRect(app.frame, zero.frame)) { keyboard = surface; return YES; }
+    }
+    return NO;
+  }];
+  XCTNSPredicateExpectation *visibleKeyboard = [[XCTNSPredicateExpectation alloc] initWithPredicate:keyboardVisible object:app];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[visibleKeyboard] timeout:10], XCTWaiterResultCompleted);
+  return keyboard;
+}
+- (void)seekHalfHour:(XCUIApplication *)app requireDocked:(BOOL)requireDocked {
+  XCUIElement *input = app.textFields[@"Replay hour"];
+  XCTAssertTrue(app.buttons[@"Close playback options"].hittable);
+  [input tap];
+  XCUIElement *keyboard = [self visibleNumericKeyboard:app];
+  if (requireDocked && keyboard.elementType == XCUIElementTypePopover) {
+    [input typeText:XCUIKeyboardKeyDelete];
+    [self shot:@"Docked keyboard setup after erase" app:app];
+    keyboard = [self visibleNumericKeyboard:app];
+  }
+  BOOL docked = keyboard.elementType == XCUIElementTypeKeyboard && keyboard.frame.size.width >= app.frame.size.width;
+  NSLog(@"QA_SOFTWARE_KEYBOARD_DOCKED %d FRAME %@", docked, NSStringFromCGRect(keyboard.frame));
+  [self shot:docked ? @"Docked software keyboard" : @"Floating software keypad" app:app];
+  XCTAssertTrue(!requireDocked || docked, @"The constrained-height case must use a docked software keyboard.");
+  if (docked) {
+    NSPredicate *formVisible = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
+      XCUIElement *seek = app.buttons[@"Seek hour"], *close = app.buttons[@"Close playback options"];
+      return input.hittable && seek.hittable && close.hittable &&
+        CGRectContainsRect(app.frame, input.frame) && CGRectContainsRect(app.frame, seek.frame) && CGRectContainsRect(app.frame, close.frame);
+    }];
+    XCTNSPredicateExpectation *form = [[XCTNSPredicateExpectation alloc] initWithPredicate:formVisible object:app];
+    XCTAssertEqual([XCTWaiter waitForExpectations:@[form] timeout:10], XCTWaiterResultCompleted);
+  }
+  XCUIElement *remove = [keyboard.keys matchingPredicate:[NSPredicate predicateWithFormat:@"label ==[c] %@ OR identifier ==[c] %@", @"delete", @"delete"]].firstMatch;
+  [remove tap]; [keyboard.keys[@"0"] tap]; [keyboard.keys[@"."] tap]; [keyboard.keys[@"5"] tap];
+  XCTAssertTrue(keyboard.keys[@"0"].hittable);
+  [self shot:@"Exact hour entry with software keys" app:app];
+  if (!docked) {
+    XCUIElement *dismiss = app.otherElements[@"PopoverDismissRegion"];
+    XCTAssertTrue(dismiss.hittable); [dismiss tap];
+    XCTNSPredicateExpectation *hidden = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:keyboard];
+    XCTAssertEqual([XCTWaiter waitForExpectations:@[hidden] timeout:10], XCTWaiterResultCompleted);
+  }
+  XCTAssertEqualObjects(input.value, @"0.5");
+  [app.buttons[@"Seek hour"] tap];
+  XCTAssertTrue([app.staticTexts[@"D01 · 00:30"].firstMatch waitForExistenceWithTimeout:10]);
+  XCTAssertTrue(app.buttons[@"Close playback options"].hittable);
 }
 - (void)testPackedReplayRecovery {
   XCUIApplication *app = [self library]; NSTimeInterval start = [NSDate timeIntervalSinceReferenceDate];
@@ -74,7 +143,9 @@
   [app.buttons[@"Exit replay"] tap]; [app.buttons[@"Open replay"] tap];
   XCUIElement *pickerBar = app.navigationBars[@"FullDocumentManagerViewControllerNavigationBar"];
   XCTAssertTrue([pickerBar waitForExistenceWithTimeout:15]);
-  [[pickerBar coordinateWithNormalizedOffset:CGVectorMake(0.5,0)] pressForDuration:0.1 thenDragToCoordinate:[app coordinateWithNormalizedOffset:CGVectorMake(0.5,0.95)]];
+  XCUIElement *cancel = app.navigationBars.buttons[@"Cancel"].firstMatch;
+  if (cancel.exists && cancel.hittable) [cancel tap];
+  else [[pickerBar coordinateWithNormalizedOffset:CGVectorMake(0.5,0)] pressForDuration:0.1 thenDragToCoordinate:[app coordinateWithNormalizedOffset:CGVectorMake(0.5,0.95)]];
   XCTNSPredicateExpectation *dismissed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:pickerBar];
   XCTAssertEqual([XCTWaiter waitForExpectations:@[dismissed] timeout:10], XCTWaiterResultCompleted);
   XCTNSPredicateExpectation *ready = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"enabled == YES"] object:app.buttons[@"Open replay"]];
@@ -94,9 +165,11 @@
   XCTAssertTrue([app.buttons[@"Exit replay"] waitForExistenceWithTimeout:30]);
   XCTAssertFalse(app.staticTexts[@"Winner · Prism"].firstMatch.exists); [self hour:@"2" app:app];
   [app.buttons[@"Beginning"] tap]; [self hour:@"0" app:app];
-  [app.buttons[@"Playback options"] tap]; XCUIElement *input = app.textFields[@"Replay hour"]; [input tap];
-  [input typeText:XCUIKeyboardKeyDelete]; [input typeText:@"0.5"]; [app.buttons[@"Seek hour"] tap];
-  XCTAssertEqualObjects(input.value, @"0.5"); [app.buttons[@"Close playback options"] tap];
+  [app.buttons[@"Playback options"] tap];
+  BOOL pad = [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad;
+  [self seekHalfHour:app requireDocked:!pad];
+  if (pad) { [app.buttons[@"Beginning"] tap]; [self seekHalfHour:app requireDocked:YES]; }
+  [app.buttons[@"Close playback options"] tap];
   XCUIElement *timeline = [self element:@"Replay timeline" app:app]; XCTAssertTrue(timeline.exists);
   [[timeline coordinateWithNormalizedOffset:CGVectorMake(0.5,0.5)] tap];
   [app.buttons[@"Playback options"] tap]; XCTAssertEqualWithAccuracy([app.textFields[@"Replay hour"].value doubleValue],1,0.03);

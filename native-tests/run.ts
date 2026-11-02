@@ -16,16 +16,18 @@ const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
 const { values } = parseArgs({ options: {
   app: { type: 'string' }, runtime: { type: 'string', default: 'com.apple.CoreSimulator.SimRuntime.iOS-27-0' },
   'device-type': { type: 'string', default: 'com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro' }, help: { type: 'boolean' },
+  orientation: { type: 'string', default: 'portrait' },
 } });
 
 async function main() {
   if (values.help) {
-    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--runtime identifier] [--device-type identifier]');
+    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape]');
     return;
   }
   assert.equal(process.platform, 'darwin', 'Native replay acceptance requires macOS and Xcode.');
   assert.equal(process.version, `v${(await readFile(join(root, '.nvmrc'), 'utf8')).trim()}`, 'Use the pinned Node version.');
   assert.ok(values.app, 'Provide a separately identified simulator QA app with --app.');
+  assert.ok(values.orientation === 'portrait' || values.orientation === 'landscape', 'Choose portrait or landscape orientation.');
   const app = resolve(values.app);
   const parent = join(root, '.data/native-replay-acceptance');
   await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -126,6 +128,7 @@ async function main() {
     const runfile = join(products, runfiles[0]!);
     await run('qa-id', ['/usr/libexec/PlistBuddy', '-c', `Add :ReplayUITests:EnvironmentVariables:QA_BUNDLE_ID string ${id}`, runfile]);
     await run('qa-name', ['/usr/libexec/PlistBuddy', '-c', `Add :ReplayUITests:EnvironmentVariables:QA_DOCUMENTS_NAME string ${name}`, runfile]);
+    await run('qa-orientation', ['/usr/libexec/PlistBuddy', '-c', `Add :ReplayUITests:EnvironmentVariables:QA_ORIENTATION string ${values.orientation}`, runfile]);
     assert.equal(await run('qa-name-check', ['/usr/libexec/PlistBuddy', '-c', 'Print :ReplayUITests:EnvironmentVariables:QA_DOCUMENTS_NAME', runfile]), name);
     console.log(`Native cases running on owned simulator ${device}. Evidence: ${out}`);
     await run('tests', ['xcodebuild', 'test-without-building', '-xctestrun', runfile, '-destination', `platform=iOS Simulator,id=${device}`, '-parallel-testing-enabled', 'NO', '-resultBundlePath', join(out, 'tests.xcresult')], 360_000);
@@ -136,7 +139,7 @@ async function main() {
     assert.deepEqual(await readdir(cache).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return []; throw error; }), [], 'Picker cache copies must be cleaned.');
     assert.equal(hash(await readFile(join(app, 'main.jsbundle'))), bundle, 'Input app changed.');
     await run('screenshots', ['xcrun', 'xcresulttool', 'export', 'attachments', '--path', join(out, 'tests.xcresult'), '--output-path', join(out, 'attachments')]);
-    await writeFile(join(out, 'acceptance.json'), JSON.stringify({ bundleSha256: bundle, testSourceSha256: sourceHash, device, runtime: values.runtime, qaIdentity: id, summary, originalFilesPreserved: true, pickerCacheEmpty: true, scope: 'Simulator file-picker/replay interaction only. Network-denied, physical-device, complete accessibility, and performance acceptance remain separate.' }, null, 2));
+    await writeFile(join(out, 'acceptance.json'), JSON.stringify({ bundleSha256: bundle, testSourceSha256: sourceHash, device, deviceType: values['device-type'], orientation: values.orientation, runtime: values.runtime, qaIdentity: id, summary, originalFilesPreserved: true, pickerCacheEmpty: true, scope: 'Simulator file-picker/replay interaction only. Network-denied, physical-device, complete accessibility, and performance acceptance remain separate.' }, null, 2));
     succeeded = true;
   } finally {
     if (device) await run('shutdown', ['xcrun', 'simctl', 'shutdown', device], 60_000, true).catch(async error => {

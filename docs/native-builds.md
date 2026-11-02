@@ -162,6 +162,20 @@ The focused native regression in `.data/native-replay-acceptance/run-EGjej8/` pa
 
 All four browser replay cases also pass at a 1,133 × 371 compact viewport, with the Close control fully inside the viewport and an actual seek to `00:30`, alongside browser-offline playback. The full source gate passes 1,726 behavior and 20 packaged-server cases without failures or skips using disposable PostgreSQL/TLS fixtures; logs are in `.data/acceptance/issue-187-final/`. The separate QA runtime has a 5,046,672-byte Hermes bundle, SHA-256 `aaf838f0f01395e3ec626be69cee7f2e84e908b276c8489813a7d1c34fd0eee0`, over the reused `0999ff4` native binary. Exact recompilation and header/footer checks pass. Exporting the final formatted source produces byte-identical Metro input; the source map and comparison are retained in `.data/acceptance/issue-187-formatted/`. The signed device IPA below is unchanged and lacks these later UI fixes. No upload or distribution is performed.
 
+### iPhone and iPad replay acceptance, November 2
+
+The [native gate](../native-tests/README.md) now verifies the requested interface orientation and handles the iPad Files sidebar and its real Cancel control. All three original replay cases pass with the final keyboard regression on each target:
+
+| iOS 27.0 target | Orientation | Passed / skipped | Private result |
+| --- | --- | --- | --- |
+| iPad mini (A17 Pro) | Landscape | 3 / 0 | `.data/native-replay-acceptance/run-0xbI8F/` |
+| iPad mini (A17 Pro) | Portrait | 3 / 0 | `.data/native-replay-acceptance/run-ujcTKQ/` |
+| iPhone 18 Pro | Portrait | 3 / 0 | `.data/native-replay-acceptance/run-3yXY7A/` |
+
+All nine cases use the same QA bundle recorded above and XCTest source SHA-256 `1785f8a3ae6f192af23180556e7d114bcd0151401497a629ec1ae1d2c0035ff6`. Both iPad runs record actual floating and docked software-keyboard profiles; iPhone records its docked keypad. Numeric entry uses visible keys and verifies the playback clock, preserving all earlier endpoint, state-order, scrubbing, inspection, playback, cancellation, and malformed-file recovery assertions. Original files remain byte-identical, picker cache copies are removed, and each successful run shuts down and deletes only its owned simulator. Reviewed captures are under `.fettle/shots/native-ipad-*` and `native-iphone-software-keyboard.png`. The combined matrix is `.data/acceptance/native-ipad/matrix.json`.
+
+Early phone-navigation assumptions, picker-readiness races, cropped app-frame screenshots, hidden keyboard placeholders, and entry without a visible software keyboard are retained as diagnostics and excluded from this matrix. Focused one-case runs do not count toward the nine cases. This verifies the recorded simulator QA runtime at normal text size in full-window layouts. Physical devices, native network-denied playback, full accessibility/Dynamic Type, multitasking windows, performance, battery, production identity/push, and rollout remain separate. No device artifact is replaced, uploaded, or distributed. See [#186](https://github.com/mcclowes/machination/issues/186).
+
 ### Build 6 local candidate, November 1
 
 A fresh device archive and signed IPA now package frozen commit `ddda55d`, including the current map work, compact-height correction, and bounded replay snapshot capture. Build 6 is committed locally; no App Store Connect availability or publication is claimed. All 789 tracked source files remain unchanged after native generation and archiving, and all 37 top-level dependencies match the lockfile. A private native project uses copied Pod caches: 161 existing Pod versions remain unchanged, with ExpoNotifications 55.0.27 added from the pinned dependency. The shared native project and Pod lockfile remain unchanged.

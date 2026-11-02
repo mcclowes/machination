@@ -7,17 +7,26 @@ nvm use
 npm run test:native-replay -- --app '/path/to/Machination QA current.app'
 ```
 
-Requires macOS, Xcode, the iOS 27.0 simulator runtime, and a signed simulator QA app. The default device is iPhone 18 Pro. `--runtime` and `--device-type` select other installed targets; those targets need their own acceptance evidence. The UI cases use English system labels. Use a QA build with sign-in and push identifiers disabled; this runner does not change configuration already compiled into the supplied app.
+Requires macOS, Xcode, the iOS 27.0 simulator runtime, and a signed simulator QA app. The default device is iPhone 18 Pro in portrait. `--runtime` and `--device-type` select other installed targets; those targets need their own acceptance evidence. `--orientation portrait|landscape` selects the requested interface orientation. Every case verifies the app frame matches it before interacting; the iPhone app supports portrait, while iPad also supports landscape. The UI cases use English system labels. Use a QA build with sign-in and push identifiers disabled; this runner does not change configuration already compiled into the supplied app.
+
+For the iPad mini orientation matrix, run both commands:
+
+```sh
+npm run test:native-replay -- --app '/path/to/simulator-QA.app' --device-type com.apple.CoreSimulator.SimDeviceType.iPad-mini-A17-Pro --orientation portrait
+npm run test:native-replay -- --app '/path/to/simulator-QA.app' --device-type com.apple.CoreSimulator.SimDeviceType.iPad-mini-A17-Pro --orientation landscape
+```
 
 The app must use a separate `com.mcclowes.machination.*qa` identity, expose its Documents folder through `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, and contain a simulator executable. Device archives, IPAs, and the regular Machination identity are rejected. See [native builds](../docs/native-builds.md) for the current prepared QA artifact and its exact source/runtime boundaries.
 
 The runner verifies the app signature and JavaScript hash, validates each decompressed fixture with the current decoder, installs only the QA identity, and seeds its Documents folder. It builds the standalone XCTest target before running any cases. Three host regression tests cover fast process completion, failed commands, and missing executables; they run through ordinary test discovery without Xcode. Three cases must pass with no skips:
 
 - Schema 3: actual natural ten-seat endgame import, exact endpoint hours, same-hour causal state order, actual playback advancement and stable paused time, Play/Pause/End, sheet dismissal, malformed-file recovery, and preservation of the previously imported ending.
-- Schema 1: import, exact endpoint hours, keyboard entry and seeking, timeline scrubbing, and recorded site inspection.
+- Schema 1: import, exact endpoint hours, visible software-key taps and actual clock seeking, timeline scrubbing, and recorded site inspection.
 - Schema 2: drifting-base import, visible drift descriptions, exact endpoint hours, and causal state stepping.
 
-Each case first rejects a saved multiplayer-seat indicator. No multiplayer, account, notification, or provider flow is selected. Cancellation uses the native sheet drag gesture; a Files menu's “Cancel” item does not cancel document picking.
+Each case first rejects a saved multiplayer-seat indicator. No multiplayer, account, notification, or provider flow is selected. Picker navigation waits for either the local Files sidebar or the phone's Browse control before choosing its path. Cancellation taps the navigation bar's real Cancel button when available, or uses the native sheet drag gesture otherwise; a Files menu's “Cancel” item does not cancel document picking.
+
+The iPad keyboard case covers the floating numeric popover and a docked software keyboard. The docked setup repeats the erase/focus transition from the original failure before numeric entry through onscreen keys. The input, Seek, and Close controls must be reachable in the docked viewport, and the playback clock must change to `00:30`. Keyboard surfaces are selected by a visible, hittable zero key inside the app frame; the offscreen docked-keyboard placeholder cannot satisfy this guard. The numeric popover is dismissed through its exposed background before the app's Seek action. Full-screen captures preserve landscape geometry.
 
 The original fixture files must remain byte-identical after the suite, and the picker cache directory must be empty. Input app bytes are never changed. Evidence is retained under `.data/native-replay-acceptance/run-*`: commands, logs, source copy, fixture hashes, test results, screenshots, summary, and acceptance metadata. A successful run shuts down and deletes only its own simulator. A failed run shuts down its owned simulator and retains it for diagnosis; its UUID is in `result.json`.
 
