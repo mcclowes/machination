@@ -27,6 +27,7 @@ import {
 import { playersIn } from '../game/players';
 import { MultiplayerAccount } from './MultiplayerAccount';
 import { OperationDirectory } from './OperationDirectory';
+import { OnlineEntry } from './OnlineEntry';
 import { FactionPanel } from './FactionPanel';
 import { ALLEGIANCES, type Allegiance } from '../game/factions';
 import type { AccountAccess } from './account-auth';
@@ -860,70 +861,89 @@ function ConnectedOperation({
         </View>
       ) : (
         <View key="connection-entry" style={s.panel}>
-          <Text style={s.label}>Game server</Text>
-          <TextInput
-            key="server-url"
-            secureTextEntry={false}
-            accessibilityLabel="Game server URL"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={url}
-            onChangeText={setUrl}
-            style={s.input}
-            keyboardType="url"
-          />
-          {account && (
-            <Action
-              text="Restore account operation"
-              disabled={busy}
-              onPress={() => void run(restoreAccount)}
-            />
-          )}
-          <Text style={s.label}>New operation</Text>
-          {variantControls}
-          <GameSetup council value={options} onChange={setOptions} disabled={busy} />
-          <Action
-            text="Create private operation"
+          <OnlineEntry
             disabled={busy}
-            onPress={() => void enter(false)}
-          />
-          <Text style={s.label}>Invitation code</Text>
-          <TextInput
-            key="invite-code"
-            secureTextEntry={false}
-            accessibilityLabel="Invitation code"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={invite}
-            onChangeText={setInvite}
-            style={s.input}
-            maxLength={24}
-          />
-          <Action
-            text="Join operation"
-            disabled={busy || invite.length !== 24}
-            onPress={() => void enter(true)}
-          />
-          <Text style={s.label}>Restore your seat</Text>
-          <Text style={s.detail}>
-            Use the server address above and a code you saved earlier. Restoring disconnects your
-            old device and consumes the code. Generate a new code afterward.
-          </Text>
-          <TextInput
-            key="seat-recovery"
-            accessibilityLabel="Recovery code"
-            autoCapitalize="none"
-            autoCorrect={false}
-            secureTextEntry
-            value={recoveryInput}
-            onChangeText={setRecoveryInput}
-            style={s.input}
-            maxLength={180}
-          />
-          <Action
-            text="Restore seat and revoke old connection"
-            disabled={busy || !recoveryInput.trim()}
-            onPress={restoreSeat}
+            server={
+              <>
+                <Text style={s.label}>Game server</Text>
+                <TextInput
+                  key="server-url"
+                  secureTextEntry={false}
+                  accessibilityLabel="Game server URL"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={url}
+                  onChangeText={setUrl}
+                  style={s.input}
+                  keyboardType="url"
+                />
+                {account && (
+                  <Action
+                    text="Restore account operation"
+                    disabled={busy}
+                    onPress={() => void run(restoreAccount)}
+                  />
+                )}
+              </>
+            }
+            create={
+              <>
+                <Text style={s.label}>New operation</Text>
+                {variantControls}
+                <GameSetup council value={options} onChange={setOptions} disabled={busy} />
+                <Action
+                  text="Create private operation"
+                  disabled={busy}
+                  onPress={() => void enter(false)}
+                />
+              </>
+            }
+            join={
+              <>
+                <Text style={s.label}>Invitation code</Text>
+                <TextInput
+                  key="invite-code"
+                  secureTextEntry={false}
+                  accessibilityLabel="Invitation code"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={invite}
+                  onChangeText={setInvite}
+                  style={s.input}
+                  maxLength={24}
+                />
+                <Action
+                  text="Join operation"
+                  disabled={busy || invite.length !== 24}
+                  onPress={() => void enter(true)}
+                />
+              </>
+            }
+            restore={
+              <>
+                <Text style={s.label}>Restore your seat</Text>
+                <Text style={s.detail}>
+                  Use the server address above and a code you saved earlier. Restoring disconnects
+                  your old device and consumes the code. Generate a new code afterward.
+                </Text>
+                <TextInput
+                  key="seat-recovery"
+                  accessibilityLabel="Recovery code"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  value={recoveryInput}
+                  onChangeText={setRecoveryInput}
+                  style={s.input}
+                  maxLength={180}
+                />
+                <Action
+                  text="Restore seat and revoke old connection"
+                  disabled={busy || !recoveryInput.trim()}
+                  onPress={restoreSeat}
+                />
+              </>
+            }
           />
         </View>
       )}

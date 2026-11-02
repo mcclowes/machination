@@ -7,7 +7,7 @@ Haulers can take hours to reach a border. Talk before you commit the forces that
 
 ## Join an invited operation
 
-Choose **Open multiplayer uplink** and enter the service address and invitation supplied by your host. The host chooses 2–10 players and a victory mode, then starts after every configured seat has joined.
+Choose **Open multiplayer uplink**, enter the service address, and choose **Join** to enter the invitation supplied by your host. **Create** opens the host's game settings; **Restore** opens recovery-code entry. Switching between these choices preserves unfinished entries and settings. The host chooses 2–10 players and a victory mode, then starts after every configured seat has joined.
 
 Public signup and a public browser frontend aren't prerequisites for an invited native playtest. Use the supplied client; this guide doesn't create multiplayer accounts or seats. Follow the login or recovery flow shown by that build.
 
@@ -43,4 +43,4 @@ Inspect an observed site or hauler in live state or history, choose **Copy site 
 
 Use the same account or installed client as directed by your build. If the operation offers a recovery code, generate one while connected and save it privately with the service address.
 
-A recovery code is single-use. Restoring the seat disconnects the old device; generate a fresh code after restoration. Never paste a recovery code into game chat. If a command's result is uncertain, retry it rather than recreating the action.
+A recovery code is single-use. In **Multiplayer uplink**, enter the service address and choose **Restore**, then enter the saved code and choose **Restore seat and revoke old connection**. Restoring the seat disconnects the old device; generate a fresh code after restoration. Never paste a recovery code into game chat. If a command's result is uncertain, retry it rather than recreating the action.

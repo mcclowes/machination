@@ -26,7 +26,7 @@ npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow first-pla
 
 This flow currently supports portrait only and accepts the same `--content-size` option. It scrolls to the briefing’s end with Continue visible, reveals and selects all six operation tabs, restores Chart, selects Foundry, requires the whole cargo field inside its scroll viewport with the software keypad open, enters six drones, plans a transfer to Quiet landing, prepares the six-drone launch, and verifies capture with two survivors and completion after app relaunch. Drawer gestures wait for stable geometry and follow the target frame across keyboard dismissal. Bounded reveal gestures bring offscreen exercise and launch actions into view; an already visible fixed launch footer needs no scrolling. Horizontal navigation drags use the visible viewport and require stable, hittable tabs with selected state and compact height. Only navigation bounds allow half a physical pixel for native coordinate rounding. Chart and Orders must remain above the open keypad. This flow requires one passing case with no skips; the default replay flow retains its three cases and unchanged deadlines. It proves scripted simulator interaction, not unaided human usability or physical-device behavior.
 
-The secure-editor flow checks two in-process round trips between multiplayer recovery entry and Solo cargo entry:
+The secure-editor flow chooses Restore and checks two in-process round trips between multiplayer recovery entry and Solo cargo entry:
 
 ```sh
 npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow secure-editors

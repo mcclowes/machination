@@ -458,6 +458,9 @@
     [self waitForStable:online app:app]; [online tap];
     XCUIElement *url = [self element:@"Game server URL" app:app];
     [self role:url expected:XCUIElementTypeTextField stage:@"multiplayer ordinary server editor"];
+    XCUIElement *restore = app.buttons[@"Restore a seat"];
+    [self waitForStable:restore app:app]; [restore tap];
+    XCTAssertFalse(app.buttons[@"Create private operation"].exists);
     XCUIElement *recovery = [self element:@"Recovery code" app:app];
     [self reveal:recovery inScrollView:app.scrollViews.firstMatch app:app];
     [self role:recovery expected:XCUIElementTypeSecureTextField stage:@"recovery before input"];
