@@ -74,8 +74,11 @@
   shot.name = name; shot.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:shot];
 }
 - (void)waitForStable:(XCUIElement *)element app:(XCUIApplication *)app {
+  [self waitForStable:element app:app tolerance:0];
+}
+- (void)waitForStable:(XCUIElement *)element app:(XCUIApplication *)app tolerance:(CGFloat)tolerance {
   XCTAssertTrue([element waitForExistenceWithTimeout:10]);
-  CGRect bounds = app.frame;
+  CGRect bounds = CGRectInset(app.frame,-tolerance,-tolerance);
   __block CGRect previousFrame = CGRectNull;
   __block NSTimeInterval unchangedSince = 0;
   NSPredicate *settled = [NSPredicate predicateWithBlock:^BOOL(id target, NSDictionary *bindings) {
@@ -116,6 +119,38 @@
   }
   [self shot:@"Practice scroll readiness" app:app];
   XCTAssertTrue(CGRectContainsRect(CGRectIntersection(scroll.frame,app.frame),element.frame),@"The control must be visible within its scroller.");
+}
+- (void)revealNavigationTab:(XCUIElement *)button app:(XCUIApplication *)app {
+  XCUIElement *navigation = app.otherElements[@"operation-navigation"].scrollViews.firstMatch;
+  CGFloat rounding = 0.5 / UIScreen.mainScreen.scale;
+  CGRect bounds = CGRectInset(app.frame,-rounding,-rounding);
+  for (int i=0; i<6 && (!button.hittable || !CGRectContainsRect(bounds,button.frame)); i++) {
+    XCTAssertTrue([navigation waitForExistenceWithTimeout:10]);
+    CGRect visible = CGRectIntersection(navigation.frame,app.frame);
+    XCTAssertGreaterThan(visible.size.width,0); XCTAssertGreaterThan(visible.size.height,0);
+    NSLog(@"QA_NAVIGATION_VIEWPORT scroll %@ app %@ target %@",NSStringFromCGRect(navigation.frame),NSStringFromCGRect(app.frame),NSStringFromCGRect(button.frame));
+    CGFloat delta = CGRectGetMinX(button.frame) < CGRectGetMinX(visible)
+      ? MIN(visible.size.width*0.4,CGRectGetMinX(visible)-CGRectGetMinX(button.frame)+12)
+      : -MIN(visible.size.width*0.4,CGRectGetMaxX(button.frame)-CGRectGetMaxX(visible)+12);
+    XCUICoordinate *from = [[app coordinateWithNormalizedOffset:CGVectorMake(0,0)] coordinateWithOffset:CGVectorMake(CGRectGetMidX(visible)-CGRectGetMinX(app.frame),CGRectGetMidY(visible)-CGRectGetMinY(app.frame))];
+    [from pressForDuration:0.05 thenDragToCoordinate:[from coordinateWithOffset:CGVectorMake(delta,0)] withVelocity:200 thenHoldForDuration:0.2];
+  }
+  [self waitForStable:button app:app tolerance:rounding];
+}
+- (void)operationNavigation:(XCUIApplication *)app {
+  CGFloat controlHeight = app.buttons[@"Resolve orders"].frame.size.height;
+  [self shot:@"Operation navigation before selection" app:app];
+  for (NSString *label in @[@"Chart",@"Orders",@"Specialists",@"Signals",@"Intel",@"Setup"]) {
+    XCUIElement *button = app.buttons[label];
+    [self revealNavigationTab:button app:app];
+    XCTAssertLessThanOrEqual(button.frame.size.height,controlHeight*2.5,@"The %@ tab must fit its icon and readable label without fragmented wrapping: %@",label,NSStringFromCGRect(button.frame));
+    [button tap];
+    XCTAssertTrue(button.selected,@"The %@ navigation tab must retain selection semantics.",label);
+    [self shot:[NSString stringWithFormat:@"Operation navigation %@",label] app:app];
+  }
+  XCUIElement *chart = app.buttons[@"Chart"];
+  [self revealNavigationTab:chart app:app]; [chart tap];
+  [self shot:@"Operation navigation labels and selection" app:app];
 }
 - (void)destroyedStatus:(XCUIApplication *)app {
   XCUIElementQuery *copies = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Jasper, destroyed site, Mnemosyne,"]];
@@ -339,6 +374,7 @@
   [self shot:@"Briefing end and visible actions" app:app];
   for (int i=0; i<8 && app.buttons[@"Continue dialogue"].exists; i++) [app.buttons[@"Continue dialogue"] tap];
   [self waitForStable:app.buttons[@"Take command"] app:app]; [app.buttons[@"Take command"] tap];
+  [self operationNavigation:app];
   XCUIElement *foundry = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Foundry,"]].firstMatch;
   [self waitForStable:foundry app:app]; [foundry tap];
   XCUIElement *drones = app.textFields[@"Drones to dispatch"];
@@ -349,6 +385,12 @@
   XCUIElement *manifestScroll = app.otherElements[@"operation-drawer"].scrollViews.firstMatch;
   [self waitForStable:manifestScroll app:app];
   [self shot:@"Manifest viewport with keypad" app:app];
+  for (NSString *label in @[@"Chart",@"Orders"]) {
+    XCUIElement *button = app.buttons[label];
+    XCTAssertTrue(CGRectContainsRect(app.frame,button.frame));
+    XCTAssertLessThanOrEqual(button.frame.size.height,app.buttons[@"Resolve orders"].frame.size.height*2.5);
+    XCTAssertLessThanOrEqual(CGRectGetMaxY(button.frame),CGRectGetMinY(keyboard.frame));
+  }
   XCTAssertTrue(CGRectContainsRect(manifestScroll.frame,drones.frame),@"The exact cargo field %@ must be fully visible within %@ while the keypad %@ is open.",NSStringFromCGRect(drones.frame),NSStringFromCGRect(manifestScroll.frame),NSStringFromCGRect(keyboard.frame));
   XCTAssertTrue(keyboard.keys[@"6"].hittable); [keyboard.keys[@"6"] tap];
   XCTAssertEqualObjects(drones.value,@"6");

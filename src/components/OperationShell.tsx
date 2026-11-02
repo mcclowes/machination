@@ -5,7 +5,7 @@
  */
 
 import type { PlayerColor } from '../game/player-colors';
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Pressable } from './Pressable';
 import type { Faction } from '../game/players';
@@ -37,6 +37,8 @@ const PANEL_CONTENT_PADDING = 14;
 
 export function OperationShell({ chart, timeline, status, player = 'you', portraits, colors, section, onSection, panels, hint, panelScrollRef, onPanelResize }: Props) {
   const { width, height, fontScale } = useWindowDimensions();
+  const shellRef = useRef<View>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const [availableHeight, setAvailableHeight] = useState<number>();
   const [stageHeight, setStageHeight] = useState<number>();
   const [headingHeight, setHeadingHeight] = useState(44);
@@ -65,7 +67,13 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     reveal.start();
     return () => reveal.stop();
   }, [animate, section, wide, entrance]);
-  return <PlayerRoster portraits={portraits} colors={colors}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  const navigationBar = <View accessibilityRole="tablist" style={[s.navigation, enlarged && s.enlargedNavigation]}>{navigation.map(([key, label, glyph]) => {
+      const selected = key === null ? section === null || section === 'asset' : section === key;
+      return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={({ pressed }) => [s.tab, enlarged && s.enlargedTab, selected && s.selected, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
+    })}</View>;
+  return <PlayerRoster portraits={portraits} colors={colors}><View ref={shellRef} style={s.shell} onLayout={() => {
+    if (Platform.OS === 'ios') shellRef.current?.measureInWindow((_x, y) => setKeyboardOffset(y));
+  }}><KeyboardAvoidingView style={s.shell} keyboardVerticalOffset={keyboardOffset} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={s.shell} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, compact && !!panel && s.compactStage, wide && s.wide]} onLayout={event => setStageHeight(event.nativeEvent.layout.height)}>
@@ -88,12 +96,9 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
       </Animated.View>}
     </View>
     <ScrollView style={[s.timeline, hideTimeline && s.hiddenTimeline]} accessibilityElementsHidden={hideTimeline} importantForAccessibility={hideTimeline ? 'no-hide-descendants' : 'auto'} contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">{timeline}</ScrollView>
-    <View accessibilityRole="tablist" style={s.navigation}>{navigation.map(([key, label, glyph]) => {
-      const selected = key === null ? section === null || section === 'asset' : section === key;
-      return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={({ pressed }) => [s.tab, selected && s.selected, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;
-    })}</View>
+    {enlarged ? <ScrollView testID="operation-navigation" horizontal style={s.navigationScroll} contentContainerStyle={s.navigationContent} keyboardShouldPersistTaps="handled">{navigationBar}</ScrollView> : navigationBar}
     </View>
-  </KeyboardAvoidingView></PlayerRoster>;
+  </KeyboardAvoidingView></View></PlayerRoster>;
 }
 const s = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { maxHeight: '35%', flexShrink: 1, paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0 }, statusBody: { gap: 6 },
@@ -104,6 +109,7 @@ const s = StyleSheet.create({
   heading: { flexDirection: 'row', alignItems: 'center', paddingLeft: 16, borderBottomWidth: 1, borderColor: '#23363e' }, title: { flex: 1, color: '#e5eadc', fontSize: 15 }, close: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, text: { color: '#b8e986', fontSize: 22 }, content: { padding: PANEL_CONTENT_PADDING, gap: 14, paddingBottom: 24 },
   timeline: { maxHeight: '42%', flexGrow: 0, flexShrink: 1 }, hiddenTimeline: { display: 'none' },
   navigation: { flexDirection: 'row', borderTopWidth: 1, borderColor: '#23363e', backgroundColor: '#101b21' }, tab: { flex: 1, minWidth: 44, minHeight: 54, alignItems: 'center', justifyContent: 'center', gap: 3, borderTopWidth: 2, borderTopColor: 'transparent' }, selected: { borderTopColor: '#b8e986', backgroundColor: 'transparent' }, glyph: { color: '#8c9f85', fontSize: 17 }, label: { color: '#8c9f85', fontSize: 10 }, active: { color: '#b8e986' },
+  navigationScroll: { flexGrow: 0, flexShrink: 0 }, navigationContent: { flexGrow: 1 }, enlargedNavigation: { flexGrow: 1 }, enlargedTab: { flex: 0, flexShrink: 0, paddingHorizontal: 18 },
   hint: { position: 'absolute', top: 8, left: 10, right: 112, padding: 10, backgroundColor: '#18291f', borderWidth: 1, borderColor: '#405b36', borderRadius: 10 },
   chrome: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: -6, paddingBottom: 8, borderBottomWidth: 1, borderColor: '#23363e' },
   exit: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }, exitText: { color: '#b4c7ca', fontSize: 14 },
