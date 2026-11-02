@@ -81,7 +81,7 @@ export function TitleArt({ scrollY }: Props) {
 
   const frame = coverFrame(viewport.width || 1, viewport.height || 1);
   const { width, height } = frame;
-  const parallax = scrollY ? scrollY.interpolate({ inputRange: [-200, 0, 600], outputRange: [-60, 0, 240], extrapolate: 'clamp' }) : 0;
+  const parallax = scrollY && reduced === false ? scrollY.interpolate({ inputRange: [-200, 0, 600], outputRange: [-60, 0, 240], extrapolate: 'clamp' }) : 0;
   const scrollFade = scrollY ? scrollY.interpolate({ inputRange: [0, viewport.height || 1], outputRange: [1, 0.3], extrapolate: 'clamp' }) : 1;
   const zoom = Animated.multiply(
     values.intro.interpolate({ inputRange: [0, 1], outputRange: [1.12, 1] }),
