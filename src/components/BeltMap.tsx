@@ -1096,14 +1096,41 @@ const SiteGlyph = memo(function SiteGlyph({
               ]}
             />
           ) : (
-            <Text style={{ color: rock.owner ? '#101d24' : NEUTRAL_SITE, fontSize: 15 }}>
-              {rock.destroyed ? '×' : '?'}
-            </Text>
+            <Svg width={16} height={16} viewBox="0 0 16 16" accessible={false} pointerEvents="none">
+              {rock.destroyed ? (
+                <Path
+                  d="M3 3 13 13 M13 3 3 13"
+                  fill="none"
+                  stroke={rock.owner ? '#101d24' : NEUTRAL_SITE}
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                />
+              ) : (
+                <>
+                  <Path
+                    d="M4.8 5a3.2 3.2 0 1 1 5.6 2.1C9.2 8.5 8 8.9 8 10.4"
+                    fill="none"
+                    stroke={rock.owner ? '#101d24' : NEUTRAL_SITE}
+                    strokeWidth={1.7}
+                    strokeLinecap="round"
+                  />
+                  <Circle cx={8} cy={13} r={0.9} fill={rock.owner ? '#101d24' : NEUTRAL_SITE} />
+                </>
+              )}
+            </Svg>
           )}
           {icon && (rock.coreOf || rock.kind === 'core') && (
-            <Text accessible={false} style={[styles.coreBadge, { color }]}>
-              ◈
-            </Text>
+            <View accessible={false} pointerEvents="none" style={styles.coreBadge}>
+              <Svg width={13} height={13} viewBox="0 0 13 13" accessible={false}>
+                <Path
+                  d="M6.5 1.5 11.5 6.5 6.5 11.5 1.5 6.5Z"
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={1.3}
+                />
+                <Path d="M6.5 4 9 6.5 6.5 9 4 6.5Z" fill={color} />
+              </Svg>
+            </View>
           )}
         </View>
       </View>
@@ -1256,9 +1283,6 @@ const styles = StyleSheet.create({
     right: -3,
     width: 13,
     height: 13,
-    lineHeight: 13,
-    fontSize: 12,
-    textAlign: 'center',
     backgroundColor: '#101d24',
     borderRadius: 7,
   },

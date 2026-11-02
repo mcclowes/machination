@@ -100,6 +100,52 @@
   XCTAssertEqual([XCTWaiter waitForExpectations:@[closed] timeout:10], XCTWaiterResultCompleted);
   [self waitForStable:app.buttons[@"Playback options"] app:app];
 }
+- (void)destroyedStatus:(XCUIApplication *)app {
+  XCUIElementQuery *copies = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Jasper, destroyed site, Mnemosyne,"]];
+  XCUIElement *site;
+  for (XCUIElement *candidate in copies.allElementsBoundByIndex) {
+    if (candidate.hittable && CGRectContainsRect(app.frame, candidate.frame)) { site = candidate; break; }
+  }
+  XCTAssertNotNil(site); [self waitForStable:site app:app];
+  CGRect frame = site.frame;
+  UIImage *screen = [[XCUIScreen mainScreen] screenshot].image;
+  CGFloat sx = CGImageGetWidth(screen.CGImage) / CGRectGetWidth(app.frame);
+  CGFloat sy = CGImageGetHeight(screen.CGImage) / CGRectGetHeight(app.frame);
+  CGRect region = CGRectMake((CGRectGetMidX(frame)-6)*sx, (CGRectGetMidY(frame)-6)*sy, 12*sx, 12*sy);
+  CGImageRef crop = CGImageCreateWithImageInRect(screen.CGImage, region);
+  XCTAssertTrue(crop != NULL);
+  XCTAttachment *image = [XCTAttachment attachmentWithImage:[UIImage imageWithCGImage:crop]];
+  image.name = @"Destroyed site status crop"; image.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:image];
+  unsigned char pixels[24*24*4] = {0};
+  CGColorSpaceRef color = CGColorSpaceCreateDeviceRGB();
+  CGContextRef context = CGBitmapContextCreate(pixels,24,24,8,24*4,color,kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);
+  XCTAssertTrue(context != NULL);
+  CGContextDrawImage(context,CGRectMake(0,0,24,24),crop);
+  NSUInteger dark = 0, bright = 0;
+  for (NSUInteger i=0; i<24*24; i++) {
+    unsigned char *pixel = pixels+i*4;
+    if (pixel[0]<55 && pixel[1]<55 && pixel[2]<55) dark++;
+    if (pixel[1]>90 && pixel[2]>90) bright++;
+  }
+  CGContextRelease(context); CGColorSpaceRelease(color); CGImageRelease(crop);
+  double ink = dark/(24.0*24.0);
+  NSLog(@"QA_DESTROYED_STATUS_INK %.5f FRAME %@ LABEL %@",ink,NSStringFromCGRect(frame),site.label);
+  XCTAssertGreaterThan(bright/(24.0*24.0),0.5,@"The sampled center must be inside the colored site marker.");
+  XCTAssertGreaterThan(ink,0.03,@"The destroyed-site cross must remain visible inside its marker.");
+}
+- (void)statusSample:(XCUIElement *)site name:(NSString *)name app:(XCUIApplication *)app {
+  [self waitForStable:site app:app];
+  UIImage *screen = [[XCUIScreen mainScreen] screenshot].image;
+  CGRect frame = site.frame;
+  CGFloat sx = CGImageGetWidth(screen.CGImage) / CGRectGetWidth(app.frame);
+  CGFloat sy = CGImageGetHeight(screen.CGImage) / CGRectGetHeight(app.frame);
+  CGImageRef crop = CGImageCreateWithImageInRect(screen.CGImage,CGRectMake(frame.origin.x*sx,frame.origin.y*sy,frame.size.width*sx,frame.size.height*sy));
+  XCTAssertTrue(crop != NULL);
+  XCTAttachment *image = [XCTAttachment attachmentWithImage:[UIImage imageWithCGImage:crop]];
+  image.name = name; image.lifetime = XCTAttachmentLifetimeKeepAlways; [self addAttachment:image];
+  NSLog(@"QA_MAP_STATUS_SAMPLE %@ LABEL %@ FRAME %@",name,site.label,NSStringFromCGRect(frame));
+  CGImageRelease(crop);
+}
 - (void)hour:(NSString *)hour app:(XCUIApplication *)app {
   [app.buttons[@"Playback options"] tap];
   XCUIElement *input = app.textFields[@"Replay hour"];
@@ -165,6 +211,12 @@
   NSLog(@"QA_PACKED_PICKER_TO_VIEWER_SECONDS %.3f", [NSDate timeIntervalSinceReferenceDate]-start);
   XCTAssertTrue(app.staticTexts[@"Winner · Prism"].firstMatch.exists);
   [self hour:@"402.5673841421317" app:app];
+  [self destroyedStatus:app];
+  XCUIElement *unknown = nil;
+  for (XCUIElement *candidate in [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label CONTAINS %@", @"map-site", @", unknown site,"]].allElementsBoundByIndex) {
+    if (CGRectContainsRect(app.frame,candidate.frame) && candidate.hittable) { unknown = candidate; break; }
+  }
+  XCTAssertNotNil(unknown); [self statusSample:unknown name:@"Unknown site symbol" app:app];
   [app.buttons[@"Beginning"] tap]; XCTAssertFalse(app.staticTexts[@"Winner · Prism"].firstMatch.exists);
   [self hour:@"394.5673841421317" app:app];
   XCTAssertFalse(app.buttons[@"Previous state"].enabled);
@@ -225,7 +277,8 @@
   [app.buttons[@"Playback options"] tap]; XCTAssertEqualWithAccuracy([app.textFields[@"Replay hour"].value doubleValue],1,0.03);
   [self closeOptions:app];
   XCUIElement *site = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label BEGINSWITH %@", @"map-site", @"Mnemosyne,"]].firstMatch;
-  XCTAssertTrue([site waitForExistenceWithTimeout:10]); XCTAssertTrue(site.hittable); [site tap];
+  XCTAssertTrue([site waitForExistenceWithTimeout:10]); XCTAssertTrue(site.hittable);
+  [self statusSample:site name:@"Intelligence core symbol" app:app]; [site tap];
   XCTAssertTrue([app.buttons[@"Close site details"] waitForExistenceWithTimeout:10]);
   XCTAssertTrue(app.staticTexts[@"0 drones"].firstMatch.exists); [self shot:@"Legacy recorded site inspection" app:app];
   [app.buttons[@"Close site details"] tap]; [app.buttons[@"End"] tap]; [self hour:@"2" app:app];

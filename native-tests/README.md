@@ -32,6 +32,8 @@ The iPad keyboard case covers the floating numeric popover and a docked software
 
 Expanded-text panels change the available chart area. Before closing Options, the runner waits for the Close button's frame to settle, requires a visible hit target, and verifies the panel disappears and the transport returns. Each readiness poll reads one frame; failed checks retain the target's accessibility description and app bounds. The original replay assertions and test deadlines remain unchanged.
 
+The packed ending also checks the destroyed-site cross in a screenshot of Jasper: a colored-marker precondition rejects background samples, and dark ink must cover more than 3% of the central 12-point square. This fails on the original largest-text runtime and passes with fixed-size SVG artwork. Core and unknown-site captures support visual review; chart-edge crops can be clipped and cannot alone establish legibility. Site labels retain text scaling and parent accessibility descriptions.
+
 The original fixture files must remain byte-identical after the suite, and the picker cache directory must be empty. Input app bytes are never changed. Evidence is retained under `.data/native-replay-acceptance/run-*`: commands, logs, source copy, fixture hashes, test results, screenshots, summary, and acceptance metadata. A successful run shuts down and deletes only its own simulator. A failed run shuts down its owned simulator and retains it for diagnosis; its UUID is in `result.json`.
 
 ## Fixtures
