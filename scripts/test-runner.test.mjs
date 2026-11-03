@@ -65,7 +65,7 @@ test('an empty suite fails instead of reporting a misleading green check', async
 
 test('a synchronous infinite loop is terminated by the suite deadline and fails the command', async t => {
   const run = await fixture(t, {
-    'src/hang.test.ts': "import { test } from 'node:test'; test('hang sentinel', () => { console.log('Entered synchronous loop'); while (true) {} });",
+    'src/hang.test.cjs': "const { test } = require('node:test'); test('hang sentinel', () => { console.log('Entered synchronous loop'); while (true) {} });",
   });
   await assert.rejects(run('--suite-timeout=3000'), error => {
     assert.equal(error.code, 1);

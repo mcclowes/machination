@@ -72,13 +72,14 @@ ${registration[0].getText(parsed)}
     [
       join(root, 'scripts/test.mjs'),
       '--test-reporter=tap',
-      '--test-concurrency=1',
+      // This fixture checks registration; the real matrix keeps its normal process isolation.
+      '--test-isolation=none',
       '--suite-timeout=15000',
     ],
     { cwd, env, timeout: 20000, maxBuffer: 1024 * 1024 },
   );
   const names = [...stdout.matchAll(/^ok \d+ - (.+)$/gm)].map((match) => match[1]);
-  const tuples = [...stdout.matchAll(/^# MATRIX_CASE (\[.+\])$/gm)].map((match) => match[1]);
+  const tuples = [...stdout.matchAll(/^MATRIX_CASE (\[.+\])$/gm)].map((match) => match[1]);
   assert.deepEqual(names.sort(), expectedNames.sort());
   assert.deepEqual(tuples.sort(), expectedTuples.sort());
   assert.match(stdout, /# tests 24\b/);
