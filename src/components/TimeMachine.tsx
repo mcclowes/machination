@@ -3,7 +3,7 @@
  * purpose: Shared order and time tray with relative time, scrubbing, event jumps, and precise inspection.
  * ---
  */
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { TimeWheel } from './TimeWheel';
 import { scheduledOrderLabel } from './ScheduledOrders';
@@ -12,10 +12,12 @@ import type { Fleet } from '../game/simulation';
 import { MAX_PLAN_DELAY } from '../game/orders';
 import { gameClock, inspectionMode, relativeInspectionTime } from '../game/time-machine';
 import { OPENING_HOURS } from '../game/opening-clock';
+import { TrayDockContext } from './tray-dock';
 
 type Props = { hour: number; inspectedHour: number | null; historyStart?: number; onChange: (hour: number | null) => void; events: readonly number[]; plans?: readonly ScheduledOrder[]; fleets?: readonly Fleet[]; rocks?: { id: string; name: string }[]; online?: boolean; compact?: boolean; forecastUncertain?: boolean; opening?: boolean; orders?: React.ReactNode };
 export function TimeMachine({ hour, inspectedHour, historyStart, onChange, events, plans = [], fleets = [], rocks = [], online, compact, forecastUncertain, opening, orders }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const dock = useContext(TrayDockContext);
   const mode = inspectionMode(hour, inspectedHour);
   const offset = (inspectedHour ?? hour) - hour;
   const start = Math.min(hour, historyStart ?? hour);
@@ -38,15 +40,23 @@ export function TimeMachine({ hour, inspectedHour, historyStart, onChange, event
   };
   const toggleExpanded = () => { if (expanded) Keyboard.dismiss(); setExpanded(!expanded); };
   const step = (delta: number) => { const nextOffset = Math.max(minimum, Math.min(MAX_PLAN_DELAY, offset + delta)); changeTime(nextOffset ? hour + nextOffset : null); };
+  const heading = <View style={s.timeHeading}>
+    <Text style={s.relative}>{mode === 'live' ? 'Now' : relativeInspectionTime(hour, inspectedHour!)}</Text>
+    <Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text>
+  </View>;
+  if (compact && dock.docked) return <View testID="time-tray-docked" style={[s.panel, s.compact, s.docked]}>
+    <View style={s.row}>
+      {heading}
+      {mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}
+      {!!orders && plans.length > 0 && <Control toggle label={`Show ${plans.length} scheduled ${plans.length === 1 ? 'order' : 'orders'}`} text={`${plans.length} scheduled ›`} onPress={dock.undock} />}
+    </View>
+  </View>;
   return <View style={[s.panel, compact && s.compact, !!orders && s.tray]}>
     <View style={s.trayBody}>
-      {!!orders && <View style={s.orderColumn}>{orders}</View>}
+      {!!orders && plans.length > 0 && <View style={s.orderColumn}>{orders}</View>}
       <View style={s.timeColumn}>
         <View style={s.row}>
-          <View style={s.timeHeading}>
-            <Text style={s.relative}>{mode === 'live' ? 'Now' : relativeInspectionTime(hour, inspectedHour!)}</Text>
-            <Text style={s.state}>{mode === 'live' ? `Live · ${gameClock(hour)}` : `${mode === 'past' ? 'History' : 'Forecast'} · ${gameClock(inspectedHour!)}`}</Text>
-          </View>
+          {heading}
           {compact ? <>{mode !== 'live' && <Control quiet label="Now" onPress={() => changeTime(null)} />}<Control toggle label={expanded ? 'Close time controls' : 'Time Machine'} text={expanded ? 'Close ▾' : 'Time Machine ▴'} onPress={toggleExpanded} /></> : <Text style={s.title}>Time Machine</Text>}
         </View>
         <TimeWheel hour={hour} inspectedHour={inspectedHour} historyStart={historyStart} events={markers} onChange={changeTime} />
@@ -69,6 +79,7 @@ function Control({ label, text, selected, disabled, quiet, toggle, onPress }: { 
 const s = StyleSheet.create({
   tray: { maxWidth: 960 }, trayBody: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20 }, orderColumn: { flexBasis: 260, flexGrow: 1, flexShrink: 1, minWidth: 0 }, timeColumn: { flexBasis: 340, flexGrow: 2, flexShrink: 1, minWidth: 0 }, timeHeading: { flex: 1, minWidth: 130, paddingVertical: 6 }, relative: { color: '#e5eadc', fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
   panel: { gap: 10, padding: 16, backgroundColor: '#101b21', borderTopWidth: 1, borderColor: '#23363e' }, row: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }, title: { color: '#e5eadc', fontSize: 15, flexGrow: 1 }, state: { color: '#bccacc', fontSize: 12, fontVariant: ['tabular-nums'] },
+  docked: { paddingTop: 4, paddingBottom: 4 },
   compact: { width: '100%', maxWidth: 680, alignSelf: 'center', paddingHorizontal: 12, paddingTop: 0, paddingBottom: 6, gap: 0, borderWidth: 0 },
   wheelCaption: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },
   control: { flexGrow: 1, minHeight: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#30442b' }, selected: { backgroundColor: '#263c20', borderColor: '#b8e986' }, toggle: { flexGrow: 0, borderRadius: 22, paddingHorizontal: 14, backgroundColor: '#162217' }, text: { color: '#d6e2cd', fontSize: 12 }, detail: { color: '#8c9f85', fontSize: 11, lineHeight: 18 }, input: { minHeight: 44, width: 66, color: '#e5eadc', padding: 10, borderWidth: 1, borderColor: '#40563a' },

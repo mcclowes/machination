@@ -48,8 +48,17 @@ test('orders share the time tray, inspect on selection, and keep the map and dia
   await expect(wheel).toBeInViewport();
   await page.getByRole('button', { name: 'Show scheduled orders', exact: true }).click();
   await page.getByRole('tab', { name: 'Orders', exact: true }).click();
-  await expect(page.getByRole('button', { name: firstOrder, exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Close Your orders', exact: true }).click();
+  if (info.project.name === 'mobile') {
+    // A phone sheet docks the tray to one line; scheduled orders stay one tap away.
+    await expect(page.getByTestId('time-tray-docked')).toBeVisible();
+    await expect(page.getByText('Forecast · D01 · 06:00', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: firstOrder, exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: `Show ${targets.length} scheduled orders`, exact: true }).click();
+    await expect(page.getByTestId('operation-drawer')).toHaveCount(0);
+  } else {
+    await expect(page.getByRole('button', { name: firstOrder, exact: true })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Close Your orders', exact: true }).click();
+  }
   await page.getByRole('button', { name: `Cancel scheduled order: ${source.name} → ${targets[0]!.name}`, exact: true }).click();
   await expect(order).toHaveCount(0);
   await expect(page.getByText('Forecast · D01 · 06:00', { exact: true })).toBeVisible();

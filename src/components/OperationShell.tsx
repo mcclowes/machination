@@ -11,6 +11,7 @@ import type { Faction } from '../game/players';
 import { PlayerRoster } from './PlayerIdentity';
 import type { CharacterId } from '../game/characters';
 import { nativeDriver, useAmbientMotion } from './use-ambient-motion';
+import { TrayDockContext } from './tray-dock';
 
 export type OperationSection = 'asset' | 'orders' | 'units' | 'signals' | 'intel' | 'settings';
 type Panel = { title: string; content: React.ReactNode; footer?: React.ReactNode };
@@ -45,6 +46,8 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     return () => reveal.stop();
   }, [animate, section, wide, entrance]);
   const sheet = useSheetGesture(!wide && !!panel, animate, onSection, section);
+  const docked = !wide && !!panel;
+  const dock = useMemo(() => ({ docked, undock: () => onSection(null) }), [docked, onSection]);
   return <PlayerRoster portraits={portraits} colors={colors}><KeyboardAvoidingView style={s.shell} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, wide && s.wide]}>
@@ -63,7 +66,8 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
         {panel.footer && <View style={s.footer}>{panel.footer}</View>}
       </Animated.View>}
     </View>
-    <ScrollView style={s.timeline} contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">{timeline}</ScrollView>
+    {/* A phone sheet needs the height; the tray keeps only the inspected time and a way back. */}
+    <TrayDockContext.Provider value={dock}><ScrollView style={s.timeline} contentContainerStyle={{ flexGrow: 1 }} keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled">{timeline}</ScrollView></TrayDockContext.Provider>
     <View accessibilityRole="tablist" style={s.navigation}>{navigation.map(([key, label, glyph]) => {
       const selected = key === null ? section === null || section === 'asset' : section === key;
       return <Pressable key={label} accessibilityRole={Platform.OS === 'ios' ? 'button' : 'tab'} accessibilityLabel={label} accessibilityState={{ selected }} onPress={() => onSection(key)} style={({ pressed }) => [s.tab, selected && s.selected, pressed && s.pressed, pressed && animate && s.pressScale]}><Text style={[s.glyph, selected && s.active]}>{glyph}</Text><Text style={[s.label, selected && s.active]}>{label}</Text></Pressable>;

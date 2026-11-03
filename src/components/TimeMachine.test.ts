@@ -233,3 +233,89 @@ test('the wheel supports scrolling, keyboard navigation, accessibility actions, 
     false,
   );
 });
+
+test('the tray drops an empty queue and docks to one line while a phone sheet is open', async () => {
+  const globals = globalThis as typeof globalThis & Record<string, any>;
+  const priorAct = Object.getOwnPropertyDescriptor(globals, 'IS_REACT_ACT_ENVIRONMENT');
+  const context = React.createContext({ docked: false, undock: () => {} });
+  const key = `__trayDock_${randomUUID().replaceAll('-', '')}`;
+  globals[key] = context;
+  globals.IS_REACT_ACT_ENVIRONMENT = true;
+  let renderer: any;
+  try {
+    const { TimeMachine } = await nativeComponent<typeof import('./TimeMachine')>(
+      new URL('./TimeMachine.tsx', import.meta.url),
+      {
+        'react-native': `export const View='View',Text='Text',TextInput='TextInput',Pressable='Pressable',ScrollView='ScrollView',StyleSheet={create:x=>x},PanResponder={create:x=>({panHandlers:x})},Keyboard={dismiss:()=>{}};`,
+        'react-native-svg': `export default 'Svg'; export const Defs='Defs',LinearGradient='LinearGradient',Stop='Stop',Rect='Rect',Line='Line',Path='Path',Circle='Circle';`,
+        './tray-dock': `export const TrayDockContext=globalThis.${key};`,
+      },
+    );
+    const calls: unknown[] = [];
+    const plan = { id: 'p', owner: 'you', from: 'a', to: 'b', drones: 4, executeAt: 8 };
+    const orders = React.createElement('Text', { testID: 'queue' }, 'queue');
+    const render = (docked: boolean, props: object) =>
+      React.createElement(
+        context.Provider,
+        { value: { docked, undock: () => calls.push('undock') } },
+        React.createElement(TimeMachine, {
+          hour: 2,
+          inspectedHour: null,
+          compact: true,
+          events: [],
+          onChange: (h: number | null) => calls.push(h),
+          rocks: [
+            { id: 'a', name: 'Alpha' },
+            { id: 'b', name: 'Beta' },
+          ],
+          orders,
+          ...props,
+        }),
+      );
+    const show = async (docked: boolean, props: object) =>
+      act(async () => {
+        if (renderer) renderer.update(render(docked, props));
+        else renderer = create(render(docked, props));
+      });
+    const has = (id: string) =>
+      renderer.root.findAll((node: any) => node.props.testID === id).length > 0;
+    const button = (label: string) =>
+      renderer.root.findAll(
+        (node: any) => node.type === 'Pressable' && node.props.accessibilityLabel === label,
+      )[0];
+
+    await show(false, { plans: [] });
+    assert.equal(has('queue'), false, 'An empty queue takes no room in the tray');
+    await show(false, { plans: [plan] });
+    assert.equal(has('queue'), true);
+    assert.equal(has('time-tray-docked'), false);
+
+    await show(true, { plans: [plan], inspectedHour: 8 });
+    assert.equal(has('time-tray-docked'), true, 'An open phone sheet docks the tray');
+    assert.equal(has('queue'), false);
+    assert.equal(
+      button('Time Machine'),
+      undefined,
+      'The wheel and its controls wait for the full tray',
+    );
+    assert.match(
+      renderer.root
+        .findAllByType('Text')
+        .map((n: any) => n.children.join(''))
+        .join('\n'),
+      /Forecast/,
+      'The inspected time stays visible',
+    );
+    await act(async () => button('Now').props.onPress());
+    await act(async () => button('Show 1 scheduled order').props.onPress());
+    assert.deepEqual(calls, [null, 'undock'], 'Scheduled orders stay one tap away');
+
+    await show(true, { plans: [] });
+    assert.equal(button('Show 0 scheduled orders'), undefined);
+  } finally {
+    if (renderer) await act(async () => renderer.unmount());
+    delete globals[key];
+    if (priorAct) Object.defineProperty(globals, 'IS_REACT_ACT_ENVIRONMENT', priorAct);
+    else delete globals.IS_REACT_ACT_ENVIRONMENT;
+  }
+});
