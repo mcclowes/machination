@@ -5,7 +5,9 @@
  *   - ../../docs/replay-contract.md
  * ---
  */
-import { recordTemporalCommand, refreshForesight } from './temporal-intelligence';
+import { finishSteps } from './execution';
+
+import { recordTemporalCommand, refreshForesightSteps } from './temporal-intelligence';
 import { activateTemporal } from './temporal-facilities';
 import { castCouncilVote, proposeCouncilPolicy, settleCouncil, type CouncilChoice } from './compact';
 import type { CompactPolicy } from './compact-policies';
@@ -13,7 +15,7 @@ import { applyPulseSpecialistEffect, commandPulse, type PulseEffectCommand, type
 import { settlePulseHazards, evaluatePulseVictory } from './pulse-simulation';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { scheduleAction, type ActionPlan } from './future-actions';
-import { advance, dispatch, installModule, type Faction, type Game } from './simulation';
+import { advanceSteps, dispatch, installModule, type Faction, type Game } from './simulation';
 import { giftTransfer } from './gifts';
 import { dispatchIntercept } from './interception';
 import { commandHauler, type HaulerChange } from './transport';
@@ -86,14 +88,18 @@ function performCommand(input: Game, command: GameCommand): Game {
   }
 }
 
-export function executeCommand(input: Game, command: GameCommand): Game {
-  const game = performCommand(input, command);
-  recordTemporalCommand(input, game, command);
-  settleCouncil(game);
-  if (game.pulse) { settlePulseHazards(game); evaluatePulseVictory(game); }
-  refreshForesight(game);
-  return game;
+export function* executeCommandSteps(input: Game, command: GameCommand): Generator<void, Game, unknown> {
+    const game = performCommand(input, command);
+    recordTemporalCommand(input, game, command);
+    settleCouncil(game);
+    if (game.pulse) {
+        settlePulseHazards(game);
+        evaluatePulseVictory(game);
+    }
+    (yield* refreshForesightSteps(game));
+    return game;
 }
+export function executeCommand(input: Game, command: GameCommand): Game { return finishSteps(executeCommandSteps(input, command)); }
 
 declare const archiveBrand: unique symbol;
 export type ReplayArchive = { readonly [archiveBrand]: true };
@@ -138,38 +144,47 @@ export function replayTo(handle: ReplayArchive, targetHour: number, options: Rep
 export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, sink: SimulationTraceSink): Game {
   return reconstruct(handle, targetHour, options, sink);
 }
-function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, trace?: SimulationTraceSink): Game {
-  const history = historyOf(handle);
-  if (options.rivals !== history.rivals) throw new Error('Replay rival mode cannot change.');
-  if (!Number.isFinite(targetHour) || !Number.isFinite(options.knownThrough) || targetHour < history.baseline.hour || targetHour > options.knownThrough || options.knownThrough < (history.entries.at(-1)?.hour ?? history.baseline.hour)) throw new Error('Replay hour is outside known history.');
-  const window = options.traceWindow;
-  if (window && (!Number.isFinite(window.from) || !Number.isFinite(window.through) || window.from < history.baseline.hour || window.through < window.from || window.through > targetHour)) throw new RangeError('Replay trace window is outside known history.');
-  const intersects = (from: number, through: number) => !window || (through >= window.from && from <= window.through);
-  const capture: SimulationTraceSink | undefined = trace && Object.assign(
-    (record: Parameters<SimulationTraceSink>[0]) => trace(record),
-    { includes: intersects },
-  );
-  let game = clone(history.baseline);
-  tracePoint(capture, 'replay:initial', game);
-  for (const entry of history.entries) {
-    if (entry.hour > targetHour) break;
-    if (entry.hour > game.hour) game = advance(game, entry.hour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined });
-    tracePoint(capture, 'command:before', game);
-    game = executeCommand(game, entry.command);
-    tracePoint(capture, 'command:after', game);
-  }
-  if (targetHour > game.hour) game = advance(game, targetHour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined });
-  tracePoint(capture, 'replay:final', game);
-  return game;
+function* reconstructSteps(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, trace?: SimulationTraceSink): Generator<void, Game, unknown> {
+    const history = historyOf(handle);
+    if (options.rivals !== history.rivals)
+        throw new Error('Replay rival mode cannot change.');
+    if (!Number.isFinite(targetHour) || !Number.isFinite(options.knownThrough) || targetHour < history.baseline.hour || targetHour > options.knownThrough || options.knownThrough < (history.entries.at(-1)?.hour ?? history.baseline.hour))
+        throw new Error('Replay hour is outside known history.');
+    const window = options.traceWindow;
+    if (window && (!Number.isFinite(window.from) || !Number.isFinite(window.through) || window.from < history.baseline.hour || window.through < window.from || window.through > targetHour))
+        throw new RangeError('Replay trace window is outside known history.');
+    const intersects = (from: number, through: number) => !window || (through >= window.from && from <= window.through);
+    const capture: SimulationTraceSink | undefined = trace && Object.assign((record: Parameters<SimulationTraceSink>[0]) => trace(record), { includes: intersects });
+    let game = clone(history.baseline);
+    tracePoint(capture, 'replay:initial', game);
+    for (const entry of history.entries) {
+        if (entry.hour > targetHour)
+            break;
+        if (entry.hour > game.hour)
+            game = (yield* advanceSteps(game, entry.hour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined }));
+        tracePoint(capture, 'command:before', game);
+        game = (yield* executeCommandSteps(game, entry.command));
+        tracePoint(capture, 'command:after', game);
+    }
+    if (targetHour > game.hour)
+        game = (yield* advanceSteps(game, targetHour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined }));
+    tracePoint(capture, 'replay:final', game);
+    return game;
 }
+function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, trace?: SimulationTraceSink): Game { return finishSteps(reconstructSteps(handle, targetHour, options, trace)); }
 
 /** Apply only at the trusted live frontier; publish both returned values atomically. */
-export function applyCommand(handle: ReplayArchive, command: GameCommand, options: ReplayOptions): { archive: ReplayArchive; game: Game } {
-  const history = historyOf(handle);
-  if (history.rivals && (command.type === 'inactivity' || command.owner !== 'you')) throw new Error('Automatic rival decisions must not be logged as player commands.');
-  const current = replayTo(handle, options.knownThrough, options);
-  if (current.hour !== options.knownThrough) throw new Error('The operation ended before this command hour.');
-  const canonical = clone(command);
-  const game = executeCommand(current, canonical);
-  return { game, archive: archive({ ...history, entries: [...history.entries, { hour: current.hour, command: canonical }] }) };
+export function* applyCommandSteps(handle: ReplayArchive, command: GameCommand, options: ReplayOptions): Generator<void, { archive: ReplayArchive; game: Game }, unknown> {
+    const history = historyOf(handle);
+    if (history.rivals && (command.type === 'inactivity' || command.owner !== 'you'))
+        throw new Error('Automatic rival decisions must not be logged as player commands.');
+    const current = (yield* replayToSteps(handle, options.knownThrough, options));
+    if (current.hour !== options.knownThrough)
+        throw new Error('The operation ended before this command hour.');
+    const canonical = clone(command);
+    const game = (yield* executeCommandSteps(current, canonical));
+    return { game, archive: archive({ ...history, entries: [...history.entries, { hour: current.hour, command: canonical }] }) };
 }
+export function applyCommand(handle: ReplayArchive, command: GameCommand, options: ReplayOptions): { archive: ReplayArchive; game: Game } { return finishSteps(applyCommandSteps(handle, command, options)); }
+
+export function* replayToSteps(handle: ReplayArchive, targetHour: number, options: ReplayOptions): Generator<void, Game, unknown> { return yield* reconstructSteps(handle, targetHour, options); }

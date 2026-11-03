@@ -5,6 +5,8 @@
  *   - ./rival-ai.ts - per-seat planning and policy selection
  * ---
  */
+import { finishSteps } from './execution';
+
 import { dispatch, type Faction, type Game } from './simulation';
 import { commandPulse, type PulseCommand } from './pulse';
 import { drillMine } from './economy';
@@ -45,16 +47,25 @@ export function plannedOrders(before: Game, after: Game, owner: Faction): Order[
 }
 
 /** Seats never see each other's same-tick orders, so decision order carries no information advantage. */
-export function actSimultaneously(input: Game, owners: readonly Faction[], plan: (game: Game, owner: Faction) => Game, after?: (game: Game) => void): Game {
-  const plans = owners.map(owner => ({ owner, orders: plannedOrders(input, plan(input, owner), owner) }));
-  let game = input;
-  for (const { orders } of plans) {
-    const renamed = new Map<string, string>();
-    for (const order of orders) {
-      // An order can only fail if another seat's same-tick order invalidated it; skip it rather than abort the tick.
-      try { game = order(game, renamed); } catch { /* skipped */ }
+export function* actSimultaneouslySteps(input: Game, owners: readonly Faction[], plan: (game: Game, owner: Faction) => Generator<void, Game, unknown>, after?: (game: Game) => void): Generator<void, Game, unknown> {
+    yield;
+    const plans = [];
+    for (const owner of owners)
+        plans.push({ owner, orders: plannedOrders(input, (yield* plan(input, owner)), owner) });
+    let game = input;
+    for (const { orders } of plans) {
+        const renamed = new Map<string, string>();
+        for (const order of orders) {
+ yield;
+            // An order can only fail if another seat's same-tick order invalidated it; skip it rather than abort the tick.
+            try {
+                game = order(game, renamed);
+            }
+            catch { /* skipped */ }
+        }
+        after?.(game);
+ yield;
     }
-    after?.(game);
-  }
-  return game;
+    return game;
 }
+export function actSimultaneously(input: Game, owners: readonly Faction[], plan: (game: Game, owner: Faction) => Game, after?: (game: Game) => void): Game { return finishSteps(actSimultaneouslySteps(input, owners, function* (...args: Parameters<typeof plan>) { return plan(...args); }, after)); }

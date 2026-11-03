@@ -79,32 +79,54 @@ function warningSource(game: Game, report: EncounterReport | undefined, owner: F
   }
   return report?.site ? `enemy action at ${game.rocks.find(r => r.id === report.site)?.name ?? report.site}` : 'committed enemy activity';
 }
+export function* predictSpecialistDeathsSteps(game: Game, forecast = new CommittedDeathForecast()): Generator<void, DeathWarning[], unknown> {
+    yield;
+    if (!temporalEnabled(game) || game.winner || game.draw)
+        return [];
+    const units = activeUnits(game);
+    const owners = new Set(units.filter(u => u.kind === 'foresight').map(u => u.owner));
+    if (!owners.size)
+        return [];
+    const protectedUnits = units.filter(u => owners.has(u.owner));
+    const warnings: DeathWarning[] = [], warned = new Set<string>();
+    const deaths = yield* forecast.predictSteps(game);
+    for (const hour of new Set(deaths.map(death => death.hour)))
+        for (const unit of protectedUnits) {
+            const death = deaths.find(death => death.hour === hour && death.specialistId === unit.id);
+            if (death && !warned.has(unit.id)) {
+                warned.add(unit.id);
+                warnings.push({ owner: unit.owner, specialistId: unit.id, deathAt: death.hour, source: warningSource(game, death.report, unit.owner) });
+            }
+        }
+    return warnings;
+}
 export function predictSpecialistDeaths(game: Game, forecast = new CommittedDeathForecast()): DeathWarning[] {
-  if (!temporalEnabled(game) || game.winner || game.draw) return [];
-  const units = activeUnits(game);
-  const owners = new Set(units.filter(u => u.kind === 'foresight').map(u => u.owner));
-  if (!owners.size) return [];
-  const protectedUnits = units.filter(u => owners.has(u.owner));
-  const warnings: DeathWarning[] = [], warned = new Set<string>();
-  const deaths = forecast.predict(game);
-  for (const hour of new Set(deaths.map(death => death.hour))) for (const unit of protectedUnits) {
-    const death = deaths.find(death => death.hour === hour && death.specialistId === unit.id);
-    if (death && !warned.has(unit.id)) {
-      warned.add(unit.id);
-      warnings.push({ owner: unit.owner, specialistId: unit.id, deathAt: death.hour, source: warningSource(game, death.report, unit.owner) });
+    const work = predictSpecialistDeathsSteps(game, forecast);
+    let step = work.next();
+    while (!step.done)
+        step = work.next();
+    return step.value;
+}
+export function* refreshForesightSteps(game: Game, forecast?: CommittedDeathForecast): Generator<void, void, unknown> {
+    yield;
+    if (!temporalEnabled(game))
+        return;
+    const warnings = yield* predictSpecialistDeathsSteps(game, forecast);
+    const previous = game.temporalIntel?.warnings ?? [];
+    if (!warnings.length && !previous.length)
+        return;
+    const changed = warnings.filter(w => !previous.some(p => p.owner === w.owner && p.specialistId === w.specialistId && Math.abs(p.deathAt - w.deathAt) < 1e-7 && p.source === w.source));
+    game.temporalIntel = { pending: game.temporalIntel?.pending ?? [], warnings };
+    for (const warning of changed) {
+        const unit = [...game.rocks, ...game.fleets].flatMap(a => a.specialists ?? []).find(u => u.id === warning.specialistId);
+        game.events.unshift({ hour: game.hour, audience: [warning.owner], message: `Foresight: ${unit ? SPECIALISTS[unit.kind].name : 'specialist'} predicted killed at hour ${warning.deathAt.toFixed(2)} by ${warning.source}. This warning changes with plans.` });
     }
-  }
-  return warnings;
+    if (changed.length)
+        game.events = recentEvents(game.events);
 }
 export function refreshForesight(game: Game, forecast?: CommittedDeathForecast): void {
-  if (!temporalEnabled(game)) return;
-  const warnings = predictSpecialistDeaths(game, forecast), previous = game.temporalIntel?.warnings ?? [];
-  if (!warnings.length && !previous.length) return;
-  const changed = warnings.filter(w => !previous.some(p => p.owner === w.owner && p.specialistId === w.specialistId && Math.abs(p.deathAt - w.deathAt) < 1e-7 && p.source === w.source));
-  game.temporalIntel = { pending: game.temporalIntel?.pending ?? [], warnings };
-  for (const warning of changed) {
-    const unit = [...game.rocks, ...game.fleets].flatMap(a => a.specialists ?? []).find(u => u.id === warning.specialistId);
-    game.events.unshift({ hour: game.hour, audience: [warning.owner], message: `Foresight: ${unit ? SPECIALISTS[unit.kind].name : 'specialist'} predicted killed at hour ${warning.deathAt.toFixed(2)} by ${warning.source}. This warning changes with plans.` });
-  }
-  if (changed.length) game.events = recentEvents(game.events);
+    const work = refreshForesightSteps(game, forecast);
+    let step = work.next();
+    while (!step.done)
+        step = work.next();
 }

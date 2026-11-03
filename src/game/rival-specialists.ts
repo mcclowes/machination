@@ -1,3 +1,5 @@
+import type { RivalForecast } from './rival-tactics';
+import { finishSteps } from './execution';
 /**
  * ---
  * purpose: Policy-two rival specialist use: recruitment priorities, per-target task forces, and positioning stationed passives.
@@ -17,7 +19,7 @@ import { pulseConfig } from './pulse';
 import { victoryTarget } from './rules';
 import { recruitmentCost, type Specialist } from './specialists';
 import type { SpecialistKind } from './specialist-catalog';
-import { byId, ownedSites, ownsKing, RIVAL_LOOKAHEAD, siteValue, surplus, type RivalForecast } from './rival-tactics';
+import { byId, ownedSites, ownsKing, RIVAL_LOOKAHEAD, siteValue, surplus, type RivalForecastSteps } from './rival-tactics';
 
 const live = (rock: Rock, owner: Faction | null | undefined): Specialist[] => (rock.specialists ?? []).filter(u => u.owner === owner && !u.captive);
 const has = (units: readonly Specialist[], kind: SpecialistKind) => units.some(u => u.kind === kind);
@@ -98,13 +100,17 @@ function placements(game: Game, owner: Faction): Placement[] {
 }
 
 /** At most one unescorted transfer per decision, committed only if the forecast shows the unit arriving under our control. */
-export function positionSpecialists(input: Game, owner: Faction, forecast: RivalForecast): Game {
-  for (const { unit, from, to } of placements(input, owner).slice(0, 2)) {
-    const sent = dispatch(input, from.id, to.id, 0, owner, false, [unit.id]);
-    const arrival = sent.fleets.at(-1)!.arrives;
-    if (arrival > input.hour + RIVAL_LOOKAHEAD) continue;
-    const future = forecast(sent, arrival);
-    if (future?.rocks.some(r => r.id === to.id && r.owner === owner && live(r, owner).some(u => u.id === unit.id))) return sent;
-  }
-  return input;
+export function* positionSpecialistsSteps(input: Game, owner: Faction, forecast: RivalForecastSteps): Generator<void, Game, unknown> {
+    yield;
+    for (const { unit, from, to } of placements(input, owner).slice(0, 2)) {
+        const sent = dispatch(input, from.id, to.id, 0, owner, false, [unit.id]);
+        const arrival = sent.fleets.at(-1)!.arrives;
+        if (arrival > input.hour + RIVAL_LOOKAHEAD)
+            continue;
+        const future = (yield* forecast(sent, arrival));
+        if (future?.rocks.some(r => r.id === to.id && r.owner === owner && live(r, owner).some(u => u.id === unit.id)))
+            return sent;
+    }
+    return input;
 }
+export function positionSpecialists(input: Game, owner: Faction, forecast: RivalForecast): Game { return finishSteps(positionSpecialistsSteps(input, owner, function* (...args: Parameters<typeof forecast>) { return forecast(...args); })); }

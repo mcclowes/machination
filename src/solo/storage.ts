@@ -1,8 +1,9 @@
 /** @format */
+import { abortIfNeeded, runSteps } from './execution';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  decodeOperation,
+  decodeOperationSteps,
   encodeOperation,
   summarizeOperation,
   type LocalOperation,
@@ -14,14 +15,18 @@ export async function peekGame(): Promise<OperationSummary | null> {
   const raw = await AsyncStorage.getItem(KEY);
   return raw ? summarizeOperation(raw, Date.now()) : null;
 }
-export async function loadGame(): Promise<LocalOperation | null> {
+export async function loadGame(
+  signal?: { readonly aborted: boolean },
+  now = Date.now(),
+): Promise<LocalOperation | null> {
   await pending.catch(() => undefined);
   const raw = await AsyncStorage.getItem(KEY);
-  return raw ? decodeOperation(raw, Date.now()) : null;
+  abortIfNeeded(signal);
+  return raw ? runSteps(decodeOperationSteps(raw, now), signal) : null;
 }
 let pending = Promise.resolve();
-export function saveGame(operation: LocalOperation): Promise<void> {
-  const encoded = encodeOperation(operation, Date.now());
+export function saveGame(operation: LocalOperation, savedAt = Date.now()): Promise<void> {
+  const encoded = encodeOperation(operation, savedAt);
   pending = pending.catch(() => undefined).then(() => AsyncStorage.setItem(KEY, encoded));
   return pending;
 }

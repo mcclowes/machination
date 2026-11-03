@@ -3,17 +3,19 @@
  * purpose: Validate private persisted command history and prove it reconstructs the saved live operation.
  * ---
  */
+import { finishSteps } from './execution';
+
 import { playersIn } from './players';
 import { isCouncilChoice } from './compact';
 import { isCompactPolicy } from './compact-policies';
 import { isTacticalPulseCommand } from './tactical-pulse';
 import { validateFutureAction } from './future-actions';
 import { validateLaunchEdit } from './orders';
-import { advance, FACTIONS, type Game } from './simulation';
+import { advanceSteps, FACTIONS, type Game } from './simulation';
 import { decodeSave } from './save-format';
 import { isModule } from './modules';
 import { isSpecialistKind } from './specialist-catalog';
-import { replayTo, traceReplayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
+import { replayToSteps, traceReplayTo, restoreArchive, type ReplayArchive, type ReplayData } from './replay';
 import type { SimulationTraceSink } from './simulation-trace';
 export const MAX_REPLAY_COMMANDS = 10_000;
 export const MAX_REPLAY_CHARACTERS = 16 * 1024 * 1024;
@@ -87,31 +89,50 @@ export function traceValidatedReplay(input: unknown, live: Game, rivals: boolean
   return validateReplay(input, live, rivals, { window, sink });
 }
 
-function validateReplay(input: unknown, live: Game, rivals: boolean, trace?: { window: { from: number; through: number }; sink: SimulationTraceSink }): ReplayArchive {
-  let callbackFailure: { error: unknown } | undefined;
-  const sink: SimulationTraceSink | undefined = trace && (record => {
-    try { trace.sink(record); }
-    catch (error) { callbackFailure = { error }; throw error; }
-  });
-  try {
-    if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals', ...(input.bots === undefined ? [] : ['bots'])]) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
-    const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
-    if (input.bots !== undefined && (rivals || !Array.isArray(input.bots) || input.bots.length === 0 || new Set(input.bots).size !== input.bots.length || !input.bots.every(f => f !== 'you' && playersIn(baseline).includes(f)))) throw new Error();
-    if (baseline.hour > live.hour || baseline.epoch !== live.epoch || baseline.version !== live.version) throw new Error();
-    let previous = baseline.hour;
-    for (const entry of input.entries) {
-      if (!record(entry) || !shape(entry, ['hour', 'command']) || !finite(entry.hour) || entry.hour < previous || entry.hour > live.hour || !command(entry.command) || rivals && (entry.command as { owner: string }).owner !== 'you') throw new Error();
-      previous = entry.hour;
+function* validateReplaySteps(input: unknown, live: Game, rivals: boolean, trace?: { window: { from: number; through: number }; sink: SimulationTraceSink }): Generator<void, ReplayArchive, unknown> {
+    let callbackFailure: {
+        error: unknown;
+    } | undefined;
+    const sink: SimulationTraceSink | undefined = trace && (record => {
+        try {
+            trace.sink(record);
+        }
+        catch (error) {
+            callbackFailure = { error };
+            throw error;
+        }
+    });
+    try {
+        if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals', ...(input.bots === undefined ? [] : ['bots'])]) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true))
+            throw new Error();
+        const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
+        if (input.bots !== undefined && (rivals || !Array.isArray(input.bots) || input.bots.length === 0 || new Set(input.bots).size !== input.bots.length || !input.bots.every(f => f !== 'you' && playersIn(baseline).includes(f))))
+            throw new Error();
+        if (baseline.hour > live.hour || baseline.epoch !== live.epoch || baseline.version !== live.version)
+            throw new Error();
+        let previous = baseline.hour;
+        for (const entry of input.entries) {
+            if (!record(entry) || !shape(entry, ['hour', 'command']) || !finite(entry.hour) || entry.hour < previous || entry.hour > live.hour || !command(entry.command) || rivals && (entry.command as {
+                owner: string;
+            }).owner !== 'you')
+                throw new Error();
+            previous = entry.hour;
+        }
+        const data = { version: 1, rules: 1, baseline, entries: input.entries, ...(input.bots ? { bots: input.bots } : {}), rivals } as ReplayData;
+        const archive = restoreArchive(data);
+        const reconstructed = trace && sink
+            ? traceReplayTo(archive, live.hour, { rivals, knownThrough: live.hour, traceWindow: trace.window }, sink)
+            : (yield* replayToSteps(archive, live.hour, { rivals, knownThrough: live.hour }));
+        if (canonical((yield* advanceSteps(reconstructed, reconstructed.hour, { rivals }))) !== canonical((yield* advanceSteps(live, live.hour, { rivals }))))
+            throw new Error();
+        return archive;
     }
-    const data = { version: 1, rules: 1, baseline, entries: input.entries, ...(input.bots ? { bots: input.bots } : {}), rivals } as ReplayData;
-    const archive = restoreArchive(data);
-    const reconstructed = trace && sink
-      ? traceReplayTo(archive, live.hour, { rivals, knownThrough: live.hour, traceWindow: trace.window }, sink)
-      : replayTo(archive, live.hour, { rivals, knownThrough: live.hour });
-    if (canonical(advance(reconstructed, reconstructed.hour, { rivals })) !== canonical(advance(live, live.hour, { rivals }))) throw new Error();
-    return archive;
-  } catch {
-    if (callbackFailure) throw callbackFailure.error;
-    throw new Error('Saved history is damaged or does not match this operation.');
-  }
+    catch {
+        if (callbackFailure)
+            throw callbackFailure.error;
+        throw new Error('Saved history is damaged or does not match this operation.');
+    }
 }
+function validateReplay(input: unknown, live: Game, rivals: boolean, trace?: { window: { from: number; through: number }; sink: SimulationTraceSink }): ReplayArchive { return finishSteps(validateReplaySteps(input, live, rivals, trace)); }
+
+export function* decodeReplaySteps(input: unknown, live: Game, rivals: boolean): Generator<void, ReplayArchive, unknown> { return yield* validateReplaySteps(input, live, rivals); }

@@ -59,6 +59,7 @@ import {
   type Rock,
 } from './src/game/simulation';
 import { loadGame, saveGame } from './src/solo/storage';
+import { useInspectedView } from './src/solo/useInspectedView';
 import { useLocalOperation } from './src/solo/useLocalOperation';
 import { OnlineOperation } from './src/online/OnlineOperation';
 import { FieldManual } from './src/components/FieldManual';
@@ -82,7 +83,7 @@ import {
   inspectionMode,
   orderHour,
 } from './src/game/time-machine';
-import { createArchive, exportArchive, replayTo, type GameCommand } from './src/game/replay';
+import { createArchive, exportArchive, type GameCommand } from './src/game/replay';
 import { localLifecycle } from './src/game/local-lifecycle';
 import { Practice, type PracticeAttempt } from './src/components/Practice';
 import { PracticeStatus } from './src/components/PracticeStatus';
@@ -94,7 +95,7 @@ import { StartScreen } from './src/components/StartScreen';
 import { useOngoingOperations } from './src/components/useOngoingOperations';
 import { describeListing, describeSolo } from './src/online/operation-labels';
 import type { LocalOperation } from './src/game/operation-save';
-import { observe, forecastObservation, type ObservedRock } from './src/game/visibility';
+import { observe, type ObservedRock } from './src/game/visibility';
 import { SignalLog } from './src/components/SignalLog';
 import { playSound, useSoundCues } from './src/audio/sound';
 import { SoundToggle } from './src/components/SoundToggle';
@@ -321,7 +322,8 @@ function Operation({
         {
           initial: () => operationFor(createGame()),
           create: newOperation,
-          load: async () => (await loadGame()) ?? (await newProfileOperation()),
+          load: async (signal, now) =>
+            (await loadGame(signal, now)) ?? (await newProfileOperation()),
           save: saveGame,
         },
         practice?.scenario.id,
@@ -334,11 +336,15 @@ function Operation({
     current,
     replace,
     ready,
+    busy,
+    advance: advanceOperation,
+    submit: submitOperation,
     loadFailed,
     setLoadFailed,
     error,
     setError,
     restartClock,
+    retrySave,
   } = useLocalOperation(policy, (next) => {
     resetCamera(next.game);
     setSelected(
@@ -391,23 +397,12 @@ function Operation({
   useEffect(() => {
     if (error) playSound('error');
   }, [error]);
-  const past = useMemo(
-    () =>
-      historical && inspectedHour !== null
-        ? observe(
-            replayTo(archive, inspectedHour, {
-              rivals: policy.rivals,
-              knownThrough: current.current.game.hour,
-            }),
-            'you',
-          )
-        : null,
-    [archive, inspectedHour, historical, current, policy.rivals],
-  );
-  const shown = useMemo(
-    () => past ?? (forecast ? forecastObservation(live, 'you', game.hour + forecast) : live),
-    [past, forecast, live, game.hour],
-  );
+  const {
+    past,
+    shown,
+    inspecting,
+    failed: inspectionFailed,
+  } = useInspectedView(archive, live, inspectedHour, policy.rivals, setError);
   const orders = past ?? live;
   const visibleWorld = {
     rocks: shown.rocks.filter((r): r is Rock & { known: true } => r.known),
@@ -432,6 +427,9 @@ function Operation({
     status === 'active' &&
     ready &&
     !loadFailed &&
+    !busy &&
+    !inspecting &&
+    !inspectionFailed &&
     !historical &&
     !resolving &&
     (!assessment || assessment.status === 'active');
@@ -648,7 +646,7 @@ function Operation({
     if (resolving) throw new Error('Pause playback before changing orders.');
     if (inspectionMode(current.current.game.hour, inspectedHour) === 'past')
       throw new Error('Historical views are read-only. Return to Now to issue an order.');
-    replace(policy.submit(current.current, command));
+    submitOperation(command);
   }
   function siteAction(action: FutureAction) {
     if (!operational || shown.winner || shown.draw || shown.eliminated.includes('you'))
@@ -698,8 +696,7 @@ function Operation({
   function advanceClock(hours: number) {
     if (!operational || (practice && inspectedHour !== null)) return;
     try {
-      restartClock();
-      replace(policy.advance(current.current, current.current.game.hour + hours, 'manual'));
+      void advanceOperation(hours);
       setInspectedHour(null);
       setPlanning(false);
       setNavigating(undefined);
@@ -745,7 +742,7 @@ function Operation({
         section={section}
         onSection={setSection}
         status={
-          practice || error || outcomeMessage ? (
+          practice || error || outcomeMessage || busy || inspecting || !ready ? (
             <>
               {practice && assessment ? (
                 <PracticeStatus
@@ -769,6 +766,17 @@ function Operation({
                   <Text style={s.clock}>{clock(shown.hour)}</Text>
                 </View>
               )}
+              {(busy || inspecting || !ready) && (
+                <View style={s.notice}>
+                  <Text accessibilityLiveRegion="polite" style={s.small}>
+                    {!ready
+                      ? 'Restoring saved history and catching up…'
+                      : busy
+                        ? 'Updating operation…'
+                        : 'Calculating chart…'}
+                  </Text>
+                </View>
+              )}
               {!!error && (
                 <View style={s.notice}>
                   <Text style={{ color: '#efb293', fontSize: 12, flex: 1 }}>
@@ -782,8 +790,7 @@ function Operation({
                         ? setError('')
                         : loadFailed
                           ? setReset(true)
-                          : policy
-                              .save(operation)
+                          : retrySave()
                               .then(() => setError(''))
                               .catch(() => setError('Save still unavailable.'))
                     }
@@ -1351,7 +1358,7 @@ function Operation({
                     key={game.epoch}
                     historyStart={historyStart}
                     hour={game.hour}
-                    disabled={!ready || loadFailed}
+                    disabled={!ready || loadFailed || busy}
                     createReplay={(from, through) =>
                       generatePackedReplay(current.current, 'you', from, through)
                     }

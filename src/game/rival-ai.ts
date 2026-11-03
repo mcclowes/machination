@@ -7,6 +7,8 @@
  *   - ./rival-ai.test.ts - adversarial decisions and persistence invariants
  * ---
  */
+import { finishSteps } from './execution';
+
 import { inStasis, temporalEnabled } from './temporal';
 import type { Faction, Game } from './simulation';
 import { allied } from './teams';
@@ -19,42 +21,53 @@ import { hireSpecialist, promoteSpecialist, recruitmentCost, recruitmentStatus, 
 import { promotion, type SpecialistKind } from './specialist-catalog';
 import { victoryTarget } from './rules';
 import { worldDistance } from './geometry';
-import { attackSites, byId, defendSites, createRivalForecast, guardKing, type Floors, type RivalForecast, ownsKing, ownedSites, reinforceFront, reserve, RIVAL_LOOKAHEAD } from './rival-tactics';
+import { attackSitesSteps, byId, defendSitesSteps, createRivalForecastSteps, guardKing, type Floors, type RivalForecastSteps, ownsKing, ownedSites, reinforceFrontSteps, reserve, RIVAL_LOOKAHEAD } from './rival-tactics';
 import type { RivalPolicy } from './rival-policy';
-import { actSimultaneously } from './rival-orders';
-import { hireScore, positionSpecialists, reservesForVictory, taskForce } from './rival-specialists';
+import { actSimultaneouslySteps } from './rival-orders';
+import { hireScore, positionSpecialistsSteps, reservesForVictory, taskForce } from './rival-specialists';
 
 export const RIVAL_DECISION_INTERVAL = 3;
 
 export type RivalStyle = 'conqueror' | 'expansionist' | 'industrialist';
 export function rivalStyle(owner: Faction): RivalStyle { return (['conqueror', 'expansionist', 'industrialist'] as const)[ALL_PLAYERS.indexOf(owner) % 3]!; }
 
-export function actStrategicRivals(input: Game, trace?: SimulationTraceSink, bots?: readonly Faction[]): Game {
-  if (input.winner || input.draw || input.version !== 2) return input;
-  const owners = playersIn(input).filter(f => f !== 'you' && !input.eliminated.includes(f) && (!bots || bots.includes(f)));
-  if ((input.rivalPolicy ?? 1) !== 1) return actSimultaneously(input, owners, actStrategicPlayer, game => tracePoint(trace, 'rival', game));
-  let game = input;
-  for (const owner of owners) {
-    if (game.eliminated.includes(owner)) continue;
-    game = actStrategicPlayer(game, owner);
-    tracePoint(trace, 'rival', game);
-  }
-  return game;
+export function* actStrategicRivalsSteps(input: Game, trace?: SimulationTraceSink, bots?: readonly Faction[]): Generator<void, Game, unknown> {
+    yield;
+    if (input.winner || input.draw || input.version !== 2)
+        return input;
+    const owners = playersIn(input).filter(f => f !== 'you' && !input.eliminated.includes(f) && (!bots || bots.includes(f)));
+    if ((input.rivalPolicy ?? 1) !== 1)
+        return (yield* actSimultaneouslySteps(input, owners, actStrategicPlayerSteps, game => tracePoint(trace, 'rival', game)));
+    let game = input;
+    for (const owner of owners) {
+        if (game.eliminated.includes(owner))
+            continue;
+        game = (yield* actStrategicPlayerSteps(game, owner));
+        tracePoint(trace, 'rival', game);
+        yield;
+    }
+    return game;
 }
+export function actStrategicRivals(input: Game, trace?: SimulationTraceSink, bots?: readonly Faction[]): Game { return finishSteps(actStrategicRivalsSteps(input, trace, bots)); }
 /** Policy defaults to the operation's pinned policy; benchmarks may override it per seat. */
-export function actStrategicPlayer(input: Game, owner: Faction, policy: RivalPolicy = input.rivalPolicy ?? 1): Game {
-  if (input.winner || input.draw || input.version !== 2 || input.eliminated.includes(owner) || !playersIn(input).includes(owner)) return input;
-  const forecast = createRivalForecast(input);
-  let game = defendSites(input, owner, forecast);
-  let floors: Floors | undefined;
-  if (policy !== 1) ({ game, floors } = guardKing(game, owner));
-  game = pursuePulse(game, owner);
-  game = policy === 1 ? recruit(game, owner) : recruitV2(game, owner);
-  const investment = invest(game, owner, forecast);
-  game = attackSites(investment.game, owner, forecast, investment.savingAt, policy === 1 ? undefined : taskForce, floors);
-  if (policy !== 1) game = positionSpecialists(game, owner, forecast);
-  return reinforceFront(game, owner, forecast, investment.savingAt, floors);
+export function* actStrategicPlayerSteps(input: Game, owner: Faction, policy: RivalPolicy = input.rivalPolicy ?? 1): Generator<void, Game, unknown> {
+    yield;
+    if (input.winner || input.draw || input.version !== 2 || input.eliminated.includes(owner) || !playersIn(input).includes(owner))
+        return input;
+    const forecast = createRivalForecastSteps(input);
+    let game = (yield* defendSitesSteps(input, owner, forecast));
+    let floors: Floors | undefined;
+    if (policy !== 1)
+        ({ game, floors } = guardKing(game, owner));
+    game = pursuePulse(game, owner);
+    game = policy === 1 ? recruit(game, owner) : recruitV2(game, owner);
+    const investment = (yield* invest(game, owner, forecast));
+    game = (yield* attackSitesSteps(investment.game, owner, forecast, investment.savingAt, policy === 1 ? undefined : taskForce, floors));
+    if (policy !== 1)
+        game = (yield* positionSpecialistsSteps(game, owner, forecast));
+    return (yield* reinforceFrontSteps(game, owner, forecast, investment.savingAt, floors));
 }
+export function actStrategicPlayer(input: Game, owner: Faction, policy: RivalPolicy = input.rivalPolicy ?? 1): Game { return finishSteps(actStrategicPlayerSteps(input, owner, policy)); }
 
 function pursuePulse(game: Game, owner: Faction): Game {
   const king = game.pulse?.kings.find(k => k.factionId === owner);
@@ -102,22 +115,30 @@ function recruitV2(game: Game, owner: Faction): Game {
   if (promotable && promotable.score >= 70 && promotable.score >= (hire?.score ?? 0)) return promoteSpecialist(game, owner, promotable.unit.id);
   return hire ? hireSpecialist(game, owner, hire.kind) : game;
 }
-function invest(game: Game, owner: Faction, forecast: RivalForecast): { game: Game; savingAt?: string } {
-  const sites = ownedSites(game, owner);
-  const mines = sites.filter(r => r.kind === 'mine' && !r.pulseDisabled && hasReserves(r)).length;
-  const desired = Math.min(3, Math.max(1, Math.floor(sites.length / (rivalStyle(owner) === 'industrialist' ? 3 : 4))));
-  if (!minesAllowed(game) || game.rules?.mode === 'domination' || mines >= desired) return { game };
-  const enemies = game.rocks.filter(r => !r.destroyed && r.owner && !allied(game, owner, r.owner));
-  const distance = (r: typeof sites[number]) => Math.min(100, ...enemies.map(e => worldDistance(game, r, e)));
-  const candidates = sites.filter(r => hasReserves(r) && r.kind !== 'mine' && !ownsKing(r, owner)
-    && sites.filter(s => s.kind === r.kind && hasReserves(s)).length > (r.kind === 'factory' ? 2 : 1)
-    && !game.fleets.some(f => f.owner !== owner && f.to === r.id && f.giftAt === undefined))
-    .sort((a, b) => (b.drones + distance(b) + (b.kind === 'generator' ? 30 : 0)) - (a.drones + distance(a) + (a.kind === 'generator' ? 30 : 0)) || byId(a, b));
-  const site = candidates[0];
-  if (!site) return { game };
-  const cost = mineCost(game, owner);
-  if (site.drones - cost < reserve(game, site, owner)) return { game, savingAt: site.id };
-  const built = drillMine(game, site.id, owner);
-  if (forecast(built, built.hour + RIVAL_LOOKAHEAD)?.rocks.some(r => r.id === site.id && r.kind === 'mine' && !r.destroyed && r.owner === owner)) return { game: built };
-  return { game };
+function* invest(game: Game, owner: Faction, forecast: RivalForecastSteps): Generator<void, {
+    game: Game;
+    savingAt?: string;
+}, unknown> {
+    yield;
+    const sites = ownedSites(game, owner);
+    const mines = sites.filter(r => r.kind === 'mine' && !r.pulseDisabled && hasReserves(r)).length;
+    const desired = Math.min(3, Math.max(1, Math.floor(sites.length / (rivalStyle(owner) === 'industrialist' ? 3 : 4))));
+    if (!minesAllowed(game) || game.rules?.mode === 'domination' || mines >= desired)
+        return { game };
+    const enemies = game.rocks.filter(r => !r.destroyed && r.owner && !allied(game, owner, r.owner));
+    const distance = (r: typeof sites[number]) => Math.min(100, ...enemies.map(e => worldDistance(game, r, e)));
+    const candidates = sites.filter(r => hasReserves(r) && r.kind !== 'mine' && !ownsKing(r, owner)
+        && sites.filter(s => s.kind === r.kind && hasReserves(s)).length > (r.kind === 'factory' ? 2 : 1)
+        && !game.fleets.some(f => f.owner !== owner && f.to === r.id && f.giftAt === undefined))
+        .sort((a, b) => (b.drones + distance(b) + (b.kind === 'generator' ? 30 : 0)) - (a.drones + distance(a) + (a.kind === 'generator' ? 30 : 0)) || byId(a, b));
+    const site = candidates[0];
+    if (!site)
+        return { game };
+    const cost = mineCost(game, owner);
+    if (site.drones - cost < reserve(game, site, owner))
+        return { game, savingAt: site.id };
+    const built = drillMine(game, site.id, owner);
+    if ((yield* forecast(built, built.hour + RIVAL_LOOKAHEAD))?.rocks.some(r => r.id === site.id && r.kind === 'mine' && !r.destroyed && r.owner === owner))
+        return { game: built };
+    return { game };
 }

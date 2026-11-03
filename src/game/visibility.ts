@@ -3,6 +3,8 @@
  * purpose: Redact authoritative state to a player's sensor observations and forecast only those observations.
  * ---
  */
+import { finishSteps } from './execution';
+
 import { cloneCompact, type BeltCompact } from './compact';
 import type { DeathWarning } from './temporal-intelligence';
 import { clonePulse, type PulseSystem } from './pulse';
@@ -16,7 +18,7 @@ import { simulationFromObservation } from './observation-simulation';
 import { isActionPlan, mapActionUnits, mapActionFleets } from './future-actions';
 import type { ScheduledOrder } from './orders';
 import { EVENTS_PER_OBSERVER, type ObservedEvent } from './events';
-import { advance, type Faction, type Fleet, type Game, type Rock } from './simulation';
+import { advanceSteps, type Faction, type Fleet, type Game, type Rock } from './simulation';
 import { fleetPosition } from './flight';
 import { canObserveHauler, inRange, sensors, type Sensor } from './sensors';
 export type ObservedRock = (Rock & { known: true }) | (Pick<Rock, 'id' | 'name' | 'x' | 'y' | 'drift'> & { kind: Rock['kind'] | 'unknown'; known: false; destroyed?: never; owner?: Faction | null; drones?: never; module?: never; specialists?: never; coreOf?: never });
@@ -77,35 +79,46 @@ export function observe(game: Game, faction: Faction, identify: (id: number) => 
     coverage, uncertain: [], interceptionUncertain: false,
   };
 }
-export function forecastObservation(view: GameView, faction: Faction, targetHour: number): GameView {
-  if (!Number.isFinite(targetHour) || targetHour < view.hour) throw new Error('Time can only move forward.');
-  const { simulation, unknown, alias, unknownInterceptions, territoryOwners } = simulationFromObservation(view, faction);
-  const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain || !!view.pulse);
-  const predicted = advance(simulation, targetHour, { rivals: false, temporalForecast: true, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners });
-  predicted.fleets.sort((a, b) => a.id - b.id);
-  const projected = observe(predicted, faction);
-  if (view.foresight?.length) { projected.foresight = view.foresight.map(w => ({ ...w })); projected.forecastUncertain = true; }
-  projected.fleets = projected.fleets.map(f => ({ ...f, id: alias(f.id), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined ? { target: alias(f.intercept.target) } : {}) } } : {}) }));
-  if (projected.pulse?.tactical) for (const wave of projected.pulse.tactical.waves) wave.hitFleets = wave.hitFleets.map(alias);
-  projected.scheduled = projected.scheduled.map(p => ({ ...p, ...(p.fleetId === undefined ? {} : { fleetId: alias(p.fleetId) }), ...(isActionPlan(p) ? { action: mapActionFleets(p.action, alias) } : {}) }));
-  for (const member of teamMembers(view, faction)) if (view.recruitmentUncertain || projected.recruitment?.[member]?.used !== view.recruitment?.[member]?.used) {
-    projected.recruitmentUncertain = true;
-    if (projected.recruitment?.[member]) projected.recruitment[member]!.offers = [];
-  }
-  projected.rocks = projected.rocks.map(r => {
-    const original = view.rocks.find(site => site.id === r.id)!;
-    return unknown.has(r.id) ? { ...original, ...sitePosition(view, original, predicted.hour) } : r;
-  });
-  projected.uncertain = [...new Set([...view.uncertain, ...predicted.events.filter(e => e.unresolvedDestination).map(e => e.unresolvedDestination!)])];
-  if (incompleteObservation || view.compact?.motion && targetHour >= view.compact.motion.closesAt) projected.forecastUncertain = true;
-  projected.interceptionUncertain = view.interceptionUncertain || predicted.events.some(e => e.unresolvedInterception);
-  projected.fundingUncertain = view.fundingUncertain || !!view.funding?.length && unknown.size > 0;
-  for (const f of playersIn(view)) {
-    const anonymous = Math.max(0, (view.standings?.[f]?.funders ?? 0) - fundingCount(view, f));
-    if (anonymous) {
-      projected.fundingUncertain = true;
-      if (projected.standings && !projected.eliminated.includes(f)) projected.standings[f]!.funders += anonymous;
+export function* forecastObservationSteps(view: GameView, faction: Faction, targetHour: number): Generator<void, GameView, unknown> {
+    if (!Number.isFinite(targetHour) || targetHour < view.hour)
+        throw new Error('Time can only move forward.');
+    const { simulation, unknown, alias, unknownInterceptions, territoryOwners } = simulationFromObservation(view, faction);
+    const incompleteObservation = view.version === 2 && (unknown.size > 0 || !!view.forecastUncertain || !!view.pulse);
+    const predicted = (yield* advanceSteps(simulation, targetHour, { rivals: false, temporalForecast: true, unknownDestinations: [...unknown], unknownInterceptions, territoryOwners }));
+    predicted.fleets.sort((a, b) => a.id - b.id);
+    const projected = observe(predicted, faction);
+    if (view.foresight?.length) {
+        projected.foresight = view.foresight.map(w => ({ ...w }));
+        projected.forecastUncertain = true;
     }
-  }
-  return projected;
+    projected.fleets = projected.fleets.map(f => ({ ...f, id: alias(f.id), ...(f.intercept ? { intercept: { home: f.intercept.home, ...(f.intercept.target !== undefined ? { target: alias(f.intercept.target) } : {}) } } : {}) }));
+    if (projected.pulse?.tactical)
+        for (const wave of projected.pulse.tactical.waves)
+            wave.hitFleets = wave.hitFleets.map(alias);
+    projected.scheduled = projected.scheduled.map(p => ({ ...p, ...(p.fleetId === undefined ? {} : { fleetId: alias(p.fleetId) }), ...(isActionPlan(p) ? { action: mapActionFleets(p.action, alias) } : {}) }));
+    for (const member of teamMembers(view, faction))
+        if (view.recruitmentUncertain || projected.recruitment?.[member]?.used !== view.recruitment?.[member]?.used) {
+            projected.recruitmentUncertain = true;
+            if (projected.recruitment?.[member])
+                projected.recruitment[member]!.offers = [];
+        }
+    projected.rocks = projected.rocks.map(r => {
+        const original = view.rocks.find(site => site.id === r.id)!;
+        return unknown.has(r.id) ? { ...original, ...sitePosition(view, original, predicted.hour) } : r;
+    });
+    projected.uncertain = [...new Set([...view.uncertain, ...predicted.events.filter(e => e.unresolvedDestination).map(e => e.unresolvedDestination!)])];
+    if (incompleteObservation || view.compact?.motion && targetHour >= view.compact.motion.closesAt)
+        projected.forecastUncertain = true;
+    projected.interceptionUncertain = view.interceptionUncertain || predicted.events.some(e => e.unresolvedInterception);
+    projected.fundingUncertain = view.fundingUncertain || !!view.funding?.length && unknown.size > 0;
+    for (const f of playersIn(view)) {
+        const anonymous = Math.max(0, (view.standings?.[f]?.funders ?? 0) - fundingCount(view, f));
+        if (anonymous) {
+            projected.fundingUncertain = true;
+            if (projected.standings && !projected.eliminated.includes(f))
+                projected.standings[f]!.funders += anonymous;
+        }
+    }
+    return projected;
 }
+export function forecastObservation(view: GameView, faction: Faction, targetHour: number): GameView { return finishSteps(forecastObservationSteps(view, faction, targetHour)); }
