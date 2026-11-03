@@ -9,14 +9,14 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
 
-async function motionHost(platform: string, check: (host: any) => Promise<void>) {
+async function motionHost(platform: string, check: (host: any) => Promise<void>, width = 1200) {
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const previous = Object.getOwnPropertyDescriptor(globals, 'IS_REACT_ACT_ENVIRONMENT');
   const running = new Set<object>();
   const listeners = new Map<string, Set<(value: any) => void>>();
   let resolveMotion!: (value: boolean) => void;
   globals.__operationAnimationHost = {
-    running, motion: new Promise<boolean>(resolve => { resolveMotion = resolve; }),
+    running, width, motion: new Promise<boolean>(resolve => { resolveMotion = resolve; }),
     subscribe(name: string, callback: (value: any) => void) {
       const group = listeners.get(name) ?? new Set();
       listeners.set(name, group); group.add(callback);
@@ -38,12 +38,13 @@ async function motionHost(platform: string, check: (host: any) => Promise<void>)
             ? `export default 'Svg'; export const Circle='Circle',G='G',Line='Line',Path='Path',Rect='Rect';`
             : `const host=globalThis.__operationAnimationHost;
               export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',KeyboardAvoidingView='KeyboardAvoidingView';
-              export const StyleSheet={create:x=>x},Platform={OS:${JSON.stringify(platform)}},useWindowDimensions=()=>({width:1200});
+              export const StyleSheet={create:x=>x},Platform={OS:${JSON.stringify(platform)}},useWindowDimensions=()=>({width:host.width??1200});
               export const AccessibilityInfo={isReduceMotionEnabled:()=>host.motion,addEventListener:host.subscribe};
               export const AppState={currentState:'active',addEventListener:host.subscribe};
-              export const Easing={sin:x=>x,ease:x=>x,cubic:x=>x,out:x=>x,inOut:x=>x};
+              export const Easing={sin:x=>x,ease:x=>x,cubic:x=>x,in:x=>x,out:x=>x,inOut:x=>x};
               const animation=()=>({start(){host.running.add(this)},stop(){host.running.delete(this)}});
-              export const Animated={View:'AnimatedView',Value:class{constructor(value){this.value=value}setValue(value){this.value=value}interpolate(){return this}},
+              export const Animated={View:'AnimatedView',Value:class{constructor(value){this.value=value}setValue(value){this.value=value}interpolate(){return this}},add:value=>value,
+                spring:(value,config)=>{if(config.useNativeDriver!==${platform !== 'web'})throw Error('Springs must use the platform driver');return animation()},
                 timing:(value,config)=>{if(config.isInteraction!==false||config.useNativeDriver!==${platform !== 'web'})throw Error('Motion must not block input or use per-frame native JS');return animation()},sequence:animation,loop:animation};` }));
       } }],
     });
@@ -126,4 +127,43 @@ for (const platform of ['web', 'ios']) test(`operation drawer enters on section 
     await host.render(host.OperationShell, props);
     assert.equal(host.root().findAllByProps({ testID: 'operation-drawer' }).length, 0, 'Closing removes the drawer immediately');
   });
+});
+
+for (const platform of ['web', 'ios']) test(`phone drawer is a sheet that expands, collapses, and closes by drag on ${platform}`, async () => {
+  await motionHost(platform, async host => {
+    const panels = Object.fromEntries(['asset', 'orders', 'units', 'signals', 'intel', 'settings'].map(key => [key, { title: key, content: React.createElement('Text', {}, key) }]));
+    const chosen: (string | null)[] = [];
+    const props = { chart: null, timeline: null, status: null, section: 'orders', onSection: (next: string | null) => chosen.push(next), panels };
+    await host.render(host.OperationShell, props);
+    await host.resolve(false);
+    const drawer = () => host.root().findByProps({ testID: 'operation-drawer' });
+    const expanded = () => drawer().props.style.flat().some((style: any) => style?.minHeight === '70%');
+    const sheet = () => host.root().findAll((node: any) => typeof node.props.onResponderRelease === 'function')[0]!.props;
+    const touch = (pageX: number, pageY: number, timestamp: number) => ({ nativeEvent: { pageX, pageY, timestamp } });
+    const drag = async (dy: number, ms: number) => host.flush(() => {
+      sheet().onStartShouldSetResponderCapture(touch(100, 400, 0));
+      sheet().onResponderGrant();
+      sheet().onResponderMove(touch(100, 400 + dy, ms));
+      sheet().onResponderRelease(touch(100, 400 + dy, ms));
+    });
+    const grip = host.root().findByProps({ testID: 'operation-drawer-grip' });
+    assert.equal(grip.props.accessibilityLabel, 'Expand orders', 'The grip is also a button for people who cannot drag');
+    sheet().onStartShouldSetResponderCapture(touch(100, 400, 0));
+    assert.equal(sheet().onMoveShouldSetResponderCapture(touch(102, 420, 10)), true, 'Vertical drags claim the sheet');
+    assert.equal(sheet().onMoveShouldSetResponderCapture(touch(130, 410, 10)), false, 'Sideways drags stay with the chart');
+    await drag(-60, 400);
+    assert.equal(expanded(), true, 'Dragging up expands');
+    await drag(120, 400);
+    assert.equal(expanded(), false, 'Dragging down from expanded collapses rather than closing');
+    assert.deepEqual(chosen, []);
+    await drag(30, 20);
+    assert.deepEqual(chosen, [], 'A flick down slides the sheet away before closing');
+    await drag(30, 400);
+    assert.deepEqual(chosen, [], 'A short, slow drag springs back');
+    await host.emit('reduceMotionChanged', true);
+    await drag(120, 400);
+    assert.deepEqual(chosen, [null], 'Without motion, the sheet closes at once');
+    await host.flush(() => grip.props.onPress());
+    assert.equal(expanded(), true);
+  }, 390);
 });
