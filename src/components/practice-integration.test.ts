@@ -81,7 +81,14 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     globalThis.cancelAnimationFrame = id => { frames.delete(id); };
     globalThis.setInterval = ((..._args: unknown[]) => { intervals++; throw new Error('Practice started a live interval'); }) as typeof setInterval;
     globalThis.fetch = (async () => { network++; throw new Error('Practice made a network request'); }) as typeof fetch;
-    const flush = async (action: () => void) => { await act(async () => { action(); await Promise.resolve(); }); };
+    const flush = async (action: () => void) => {
+      await act(async () => { action(); await Promise.resolve(); });
+      // Engine work runs on timers; assertions must see its published result.
+      for (let i = 0, quiet = 0; i < 2000 && renderer && quiet < 5; i++) {
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+        quiet = /Restoring saved history|Updating operation|Calculating chart/.test(visible()) ? 0 : quiet + 1;
+      }
+    };
     const frame = async (milliseconds = 100) => {
       animationTime += milliseconds;
       const callbacks = [...frames.values()]; frames.clear();

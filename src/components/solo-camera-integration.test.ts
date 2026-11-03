@@ -155,7 +155,20 @@ test('solo camera follows adoption, preserving manual pan through commands and c
         await action();
         await new Promise((resolve) => setImmediate(resolve));
       });
+      // Engine work runs on timers; assertions must see its published result.
+      for (let i = 0, quiet = 0; i < 2000 && renderer && quiet < 5; i++) {
+        await act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        quiet = working() ? 0 : quiet + 1;
+      }
     };
+    const working = () =>
+      renderer.root
+        .findAll((node: any) => node.type === 'Text')
+        .some((node: any) =>
+          /Restoring saved history|Updating operation|Calculating chart/.test(text(node)),
+        );
     const text = (node: any): string =>
       typeof node === 'string' ? node : node.children.map(text).join('');
     const press = async (label: string) => {
