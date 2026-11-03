@@ -4,13 +4,13 @@ import { mkdtemp, rm, mkdir, writeFile, readFile, stat, copyFile, chmod } from '
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import { once } from 'node:events';
 import { GameService } from './service';
 import { createApi } from './http';
 import { api, RejectedCommand } from '../src/online/network';
 import { exportSharedReplay } from '../src/online/shared-replay';
 import { encodeReplayArtifact, seekReplayArtifact } from '../src/replay/artifact';
 import type { Snapshot } from '../src/contracts/protocol';
+import { httpFixture } from './test-support/http-fixture';
 
 async function withFailureEvidence(
   { source, root = join(process.cwd(), '.data', 'endgame-failures'), report }: { source: string; root?: string; report: (message: string) => void },
@@ -44,23 +44,22 @@ async function withFailureEvidence(
 // Real HTTP/file persistence, ordinary default rules and resources; only wall time is injected.
 test('a fresh ten-seat HTTP pulse operation exports its natural ending and restores it after restart', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'machination-packed-http-ending-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  await withFailureEvidence({ source: directory, report: message => t.diagnostic(message) }, async () => {
+  const servers = httpFixture(t.signal);
+  const work = withFailureEvidence({ source: directory, report: message => t.diagnostic(message) }, async () => {
     let now = 0, requests = 0;
     const file = join(directory, 'rooms.json');
     let service = await GameService.open(file, () => now);
-    let server = createApi(service, undefined, undefined, { clock: () => now });
     async function listen() {
-      server.listen(0, '127.0.0.1'); await once(server, 'listening');
-      const address = server.address(); assert.ok(address && typeof address !== 'string');
-      return `http://127.0.0.1:${address.port}`;
+      return servers.listen(() => createApi(service, undefined, undefined, { clock: () => now }));
     }
     let url = await listen();
-    t.after(() => { server.closeAllConnections(); server.close(); });
     const seats = Array.from({ length: 10 }, () => ({ url, token: randomBytes(32).toString('hex'), id: undefined as string | undefined }));
     async function call(index: number, path: string, payload?: unknown) {
+      t.signal.throwIfAborted();
       assert.ok(++requests <= 1000, 'bounded HTTP acceptance request budget');
-      return api(seats[index]!, path, payload);
+      const result = await api(seats[index]!, path, payload);
+      t.signal.throwIfAborted();
+      return result;
     }
     const created = await call(0, 'games', { options: { playerCount: 10, mode: 'pulse' } });
     for (let i = 1; i < seats.length; i++) await call(i, 'join', { invite: created.invite });
@@ -111,13 +110,21 @@ test('a fresh ten-seat HTTP pulse operation exports its natural ending and resto
     assert.deepEqual(end.cargo, final.game.cargo); assert.deepEqual(end.rules, rules);
     const raw = encodeReplayArtifact(replay);
     for (const privateValue of [created.id, created.invite, ...seats.map(seat => seat.token)]) assert.ok(!raw.includes(privateValue));
-    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await servers.close();
+    t.signal.throwIfAborted();
     service = await GameService.open(file, () => now);
-    server = createApi(service, undefined, undefined, { clock: () => now });
     url = await listen(); seats.forEach(seat => { seat.url = url; });
     assert.equal((await call(0, `${path}/pulse`, retry)).status, 'game.finished');
     assert.equal(encodeReplayArtifact(await exportSharedReplay(seats[0]!, from, through)), raw);
   });
+  t.after(async () => {
+    try { await servers.close(); }
+    finally {
+      await work.catch(() => undefined);
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  await work;
 });
 
 test('failed endgame evidence survives source cleanup without exposing private state in diagnostics', async t => {
