@@ -23,7 +23,7 @@ test('orders share the time tray, inspect on selection, and keep the map and dia
   await page.goto('/');
   const closeManual = page.getByRole('button', { name: 'Close field manual', exact: true });
   if (await closeManual.isVisible()) await closeManual.click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   const order = page.getByRole('button', { name: firstOrder, exact: true });
   const wheel = page.getByLabel('Operation timeline', { exact: true });
   await expect(order).toBeVisible();

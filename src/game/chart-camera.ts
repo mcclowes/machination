@@ -4,6 +4,10 @@ import { wrappedBounds, type GeometryWorld, type Point } from './geometry';
 export type MapCamera = { scale: number; x: number; y: number };
 /** Extra camera travel in camera units, while an inspector needs space at a chart edge. */
 export type CameraPadding = number | { top: number; right: number; bottom: number; left: number };
+/** Closest manual zoom: pinch, wheel, and buttons stop here. */
+export const MAX_CHART_SCALE = 8;
+/** Home framing stays at a strategic distance even for a single owned site. */
+const MAX_FIT_SCALE = 4;
 type Chart = GeometryWorld & { rocks: readonly { x: number; y: number; owner?: Faction | null }[] };
 
 function axisBounds(values: number[], wrapped: boolean): [number, number] {
@@ -19,7 +23,7 @@ function axisBounds(values: number[], wrapped: boolean): [number, number] {
 
 /** Numeric padding extends the bottom edge; per-edge padding also clears site controls at bounded corners. */
 export function constrainCamera(world: GeometryWorld, camera: MapCamera, padding: CameraPadding = 0): MapCamera {
-  const scale = Math.max(1, Math.min(4, camera.scale));
+  const scale = Math.max(1, Math.min(MAX_CHART_SCALE, camera.scale));
   const period = scale * 100, bound = (scale - 1) * 50;
   const edges = typeof padding === 'number' ? { top: 0, right: 0, bottom: padding, left: 0 } : padding;
   const offset = (value: number, before: number, after: number) => wrappedBounds(world)
@@ -29,7 +33,7 @@ export function constrainCamera(world: GeometryWorld, camera: MapCamera, padding
 }
 
 export function zoomCamera(world: GeometryWorld, camera: MapCamera, requestedScale: number, padding: CameraPadding = 0): MapCamera {
-  const scale = Math.max(1, Math.min(4, requestedScale));
+  const scale = Math.max(1, Math.min(MAX_CHART_SCALE, requestedScale));
   const ratio = wrappedBounds(world) ? scale / camera.scale : 1;
   return constrainCamera(world, { scale, x: camera.x * ratio, y: camera.y * ratio }, padding);
 }
@@ -47,6 +51,6 @@ export function fitPlayerCamera(chart: Chart, player: Faction): MapCamera {
   const [left, right] = axisBounds(xs, !!wrappedBounds(chart));
   const [top, bottom] = axisBounds(ys, !!wrappedBounds(chart));
   const padding = 20;
-  const scale = Math.max(1, Math.min(4, 100 / (right - left + padding), 100 / (bottom - top + padding)));
+  const scale = Math.max(1, Math.min(MAX_FIT_SCALE, 100 / (right - left + padding), 100 / (bottom - top + padding)));
   return constrainCamera(chart, { scale, x: (50 - (left + right) / 2) * scale, y: (50 - (top + bottom) / 2) * scale });
 }

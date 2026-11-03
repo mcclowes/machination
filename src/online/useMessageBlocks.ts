@@ -62,6 +62,13 @@ export function useMessageBlocks(
   const [state, setState] = useState<State>({ phase: 'idle', working: false });
   const confirmed = useRef(state);
   confirmed.current = state;
+  const issuedGeneration = generation.current;
+  const actionCurrent = () =>
+    !!scope &&
+    mounted.current &&
+    latest.current.scope === scope &&
+    confirmed.current.scope === scope &&
+    generation.current === issuedGeneration;
   const current = (started: Started) =>
     mounted.current &&
     latest.current.scope === started.scope &&
@@ -139,11 +146,11 @@ export function useMessageBlocks(
       finish(started);
     }
   }
-  function refresh() {
+  function refreshCurrent() {
     const started = start();
     if (started) void read(started);
   }
-  const refreshOnScopeChange = useEffectEvent(refresh);
+  const refreshOnScopeChange = useEffectEvent(refreshCurrent);
   useEffect(() => {
     generation.current++;
     mounted.current = true;
@@ -163,8 +170,11 @@ export function useMessageBlocks(
       : { phase: scope ? ('loading' as const) : ('idle' as const), working: false };
   return {
     ...visible,
-    refresh,
+    refresh() {
+      if (actionCurrent()) refreshCurrent();
+    },
     setBlocked(player, blocked) {
+      if (!actionCurrent()) return;
       const known = confirmed.current;
       if (known.scope !== latest.current.scope || known.phase !== 'ready' || !known.settings)
         return;
@@ -178,6 +188,7 @@ export function useMessageBlocks(
         });
     },
     retry() {
+      if (!actionCurrent()) return;
       const body =
         confirmed.current.scope === latest.current.scope ? confirmed.current.retryBody : undefined;
       const started = start();

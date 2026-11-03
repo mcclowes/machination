@@ -4,13 +4,14 @@
  * ---
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { Pressable } from './Pressable';
 import { playSound, setSoundEnabled, useSoundEnabled } from '../audio/sound';
 
 export function SoundToggle({ compact = false }: { compact?: boolean } = {}) {
   const enabled = useSoundEnabled();
   return <Pressable accessibilityRole="switch" accessibilityLabel="Sound" accessibilityState={{ checked: enabled }}
-    onPress={() => { setSoundEnabled(!enabled); if (!enabled) playSound('tap'); }} style={[s.trigger, compact && { minWidth: 44, backgroundColor: 'transparent', borderWidth: 0 }]}>
+    sound={null} onPress={() => { setSoundEnabled(!enabled); if (!enabled) playSound('select'); }} style={[s.trigger, compact && { minWidth: 44, backgroundColor: 'transparent', borderWidth: 0 }]}>
     <Text style={[s.text, compact && s.icon, !enabled && s.muted]}>{compact ? enabled ? '♪' : '♪̸' : enabled ? 'Sound' : 'Muted'}</Text>
   </Pressable>;
 }

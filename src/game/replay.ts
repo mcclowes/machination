@@ -98,6 +98,7 @@ export function executeCommand(input: Game, command: GameCommand): Game {
 declare const archiveBrand: unique symbol;
 export type ReplayArchive = { readonly [archiveBrand]: true };
 export type ReplayOptions = { rivals: boolean; knownThrough: number };
+export type ReplayTraceOptions = ReplayOptions & { traceWindow?: { from: number; through: number } };
 export type ReplayEntry = { hour: number; command: GameCommand };
 type Entry = ReplayEntry;
 type History = { baseline: Game; entries: readonly Entry[]; rivals: boolean };
@@ -134,24 +135,31 @@ export function replayTo(handle: ReplayArchive, targetHour: number, options: Rep
 }
 
 /** Private callbacks follow replayTo's exact advancement and submission schedule. */
-export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayOptions, sink: SimulationTraceSink): Game {
+export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, sink: SimulationTraceSink): Game {
   return reconstruct(handle, targetHour, options, sink);
 }
-function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayOptions, trace?: SimulationTraceSink): Game {
+function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, trace?: SimulationTraceSink): Game {
   const history = historyOf(handle);
   if (options.rivals !== history.rivals) throw new Error('Replay rival mode cannot change.');
   if (!Number.isFinite(targetHour) || !Number.isFinite(options.knownThrough) || targetHour < history.baseline.hour || targetHour > options.knownThrough || options.knownThrough < (history.entries.at(-1)?.hour ?? history.baseline.hour)) throw new Error('Replay hour is outside known history.');
+  const window = options.traceWindow;
+  if (window && (!Number.isFinite(window.from) || !Number.isFinite(window.through) || window.from < history.baseline.hour || window.through < window.from || window.through > targetHour)) throw new RangeError('Replay trace window is outside known history.');
+  const intersects = (from: number, through: number) => !window || (through >= window.from && from <= window.through);
+  const capture: SimulationTraceSink | undefined = trace && Object.assign(
+    (record: Parameters<SimulationTraceSink>[0]) => trace(record),
+    { includes: intersects },
+  );
   let game = clone(history.baseline);
-  tracePoint(trace, 'replay:initial', game);
+  tracePoint(capture, 'replay:initial', game);
   for (const entry of history.entries) {
     if (entry.hour > targetHour) break;
-    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals, trace });
-    tracePoint(trace, 'command:before', game);
+    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined });
+    tracePoint(capture, 'command:before', game);
     game = executeCommand(game, entry.command);
-    tracePoint(trace, 'command:after', game);
+    tracePoint(capture, 'command:after', game);
   }
-  if (targetHour > game.hour) game = advance(game, targetHour, { rivals: history.rivals, trace });
-  tracePoint(trace, 'replay:final', game);
+  if (targetHour > game.hour) game = advance(game, targetHour, { rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined });
+  tracePoint(capture, 'replay:final', game);
   return game;
 }
 

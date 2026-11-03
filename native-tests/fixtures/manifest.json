@@ -1,0 +1,40 @@
+[
+  {
+    "name": "01-packed-endgame.json",
+    "gzip": "01-packed-endgame.json.gz",
+    "bytes": 1154571,
+    "sha256": "80e06739fff381737c1107582c6f42538d0a7993994bad6519733c67a950f611",
+    "schema": 3,
+    "from": 394.5673841421317,
+    "through": 402.5673841421317,
+    "provenance": "Public schema3 export of the actual synthetic natural ten-seat failure captured for #181. Raw private game/archive excluded."
+  },
+  {
+    "name": "02-legacy-fixed.json",
+    "gzip": "02-legacy-fixed.json.gz",
+    "bytes": 20923,
+    "sha256": "242afb0256c36a814a176a1c913f99e719952bc8e0b5443a8791d2d8caed4664",
+    "schema": 1,
+    "from": 0,
+    "through": 2,
+    "provenance": "Public schema1, createGame(0), rivals false, hours0\u20132."
+  },
+  {
+    "name": "04-legacy-drift.json",
+    "gzip": "04-legacy-drift.json.gz",
+    "bytes": 63906,
+    "sha256": "717773c5e8f50ff280241651d4d3fd34560b6fa1c719691787bba47bab67600d",
+    "schema": 2,
+    "from": 0,
+    "through": 2,
+    "provenance": "Public schema2, createConfiguredGame({playerCount:3,mode:mining,driftingBases:true},0,7), rivals false, hours0\u20132."
+  },
+  {
+    "name": "03-malformed.json",
+    "text": "{\"kind\":",
+    "bytes": 8,
+    "sha256": "a3094380a7a2bd4cebc260ad3044b534e4231c7621aa1ab2b8696a6394f9d1bd",
+    "schema": null,
+    "provenance": "Deliberately truncated synthetic JSON."
+  }
+]

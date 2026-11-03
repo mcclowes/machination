@@ -54,6 +54,8 @@ A legacy recovery code can still restore an unlinked seat; link it afterward. Li
 
 When Clerk is configured, new seats require `Authorization: Bearer <Clerk session JWT>`. The same JWT scheme authorizes every linked game, history, replay, and command endpoint. Tokens are fetched afresh for each client request and verified for signature, issuer, expiry, session ID, active session state, and allowed authorized party. Native tokens may omit `azp`; browser requests must have an `azp` matching their allowed `Origin`. See [Clerk token verification](https://clerk.com/docs/reference/backend/verify-token).
 
+Client account access binds token retrieval to the loaded Clerk session whose user matches the account. Loading, missing, or mismatched resources withhold access. A request already retrieving a token retains its original session when the active account changes; it cannot acquire the new account's credential. Replacement sessions supply fresh access, and an ended session cannot fall back to a device credential. This binding is covered by host component tests; production sign-in and physical-device acceptance remain open. TestFlight build 4 predates this fix, tracked in [#145](https://github.com/mcclowes/machination/issues/145), so account activation needs a later client artifact.
+
 | Method | Path | Body | Result |
 | --- | --- | --- | --- |
 | GET | `/v1/account/session` | None | `{snapshot: Snapshot \| null}` for the verified user's newest operation |

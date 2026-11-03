@@ -35,7 +35,8 @@
     "format:check": "prettier --check App.tsx \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"scripts/*.{mjs,ts}\"",
     "check:quality": "npm run lint && npm run format:check && npm run check:architecture && npm run typecheck",
     "test:smoke": "playwright test visual-tests/orders-tray.spec.ts visual-tests/ships.spec.ts",
-    "benchmark:service": "tsx scripts/benchmark-service.ts"
+    "benchmark:service": "tsx scripts/benchmark-service.ts",
+    "test:native-replay": "node --import tsx native-tests/run.ts"
   },
   "dependencies": {
     "@clerk/backend": "3.26.4",

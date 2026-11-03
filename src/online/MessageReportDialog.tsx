@@ -7,13 +7,13 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { FACTIONS } from '../game/players';
 import { REPORT_REASONS, type ReportReason } from '../contracts/message-reports';

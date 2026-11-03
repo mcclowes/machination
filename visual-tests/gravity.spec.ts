@@ -5,6 +5,7 @@ import { gravityCourse } from '../src/game/gravity';
 import { fleetVelocity } from '../src/game/flight';
 import { createArchive } from '../src/game/replay';
 import { encodeOperation } from '../src/game/operation-save';
+import { chartCopy, waitForChartLayout } from './chart-layout';
 
 const epoch = Date.parse('2026-10-13T12:00:00Z');
 let game = createConfiguredGame({ playerCount: 2, mode: 'mining', gravity: true }, epoch, 7);
@@ -31,13 +32,14 @@ test('gravity giants and curved routes are visible, with ships facing along thei
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
+  await waitForChartLayout(page);
   await expect(page.getByTestId('gravity-body').first()).toBeAttached();
   const paths = page.getByTestId('gravity-flight-route');
   await expect(paths.first()).toBeAttached();
   expect((await paths.first().getAttribute('d'))!.split('L').length).toBeGreaterThan(10);
-  const ship = page.getByRole('button', { name: /hauler, 1 drones/ }).filter({ visible: true }).first();
+  const ship = await chartCopy(page, page.getByRole('button', { name: /hauler, 1 drones/ }).filter({ visible: true }));
   await expect(ship).toBeVisible();
   expect(parseFloat((await ship.getByTestId('ship-hull').getAttribute('transform'))!.slice(7))).toBeCloseTo(heading, 5);
   await page.screenshot({ path: `.fettle/shots/gravity-chart-${info.project.name}.png` });

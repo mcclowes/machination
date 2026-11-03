@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
+import { packSharedReplay } from '../replay/packed';
 import type { SharedReplay } from '../replay/timeline';
 const require = createRequire(import.meta.url);
 const React = require('react');
@@ -14,7 +15,7 @@ function fixture(from = 0, through = 2): SharedReplay {
     spans: through > from ? [{ from, through, scene: scene(from) }] : [] };
 }
 // Real React effects and handlers, with file/device hosts replaced before loading.
-test('export requires disclosure, preserves gesture and bytes, and rejects stale lifecycle work', async () => {
+for (const format of ['legacy', 'packed']) test(`export requires disclosure, preserves gesture and bytes, and rejects stale lifecycle work (${format})`, async () => {
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,7 +35,7 @@ test('export requires disclosure, preserves gesture and bytes, and rejects stale
     } }] });
     const { ReplayExport } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals.__replayExportTest.forbidden;
-    const props = { historyStart: 0, hour: 2, createReplay(from: number, through: number) { calls++; return source(from, through); } };
+    const props = { historyStart: 0, hour: 2, async createReplay(from: number, through: number) { calls++; const value = await source(from, through); return format === 'packed' ? packSharedReplay(value) : value; } };
     const flush = async (fn: () => void) => { await act(async () => { fn(); await Promise.resolve(); }); };
     const hosts = (type: string) => renderer.root.findAll((node: any) => node.type === type);
     const button = (label: string) => hosts('Pressable').find((node: any) => node.props.accessibilityLabel === label);
@@ -49,7 +50,7 @@ test('export requires disclosure, preserves gesture and bytes, and rejects stale
     assert.ok(hosts('Image').length > 0);
     original.perspective = 'vesper'; original.groups[0]!.states[0]!.cargo.you = 99;
     await flush(() => renderer.update(React.createElement(ReplayExport, { ...props, hour: 8 })));
-    await press('Save replay'); assert.equal(JSON.parse(saved[0]!.raw).perspective, 'you'); assert.deepEqual(JSON.parse(saved[0]!.raw).groups[0].states[0].cargo, {});
+    await press('Save replay'); assert.equal(JSON.parse(saved[0]!.raw).schemaVersion, format === 'packed' ? 3 : 1); assert.equal(JSON.parse(saved[0]!.raw).perspective, 'you'); assert.deepEqual(JSON.parse(saved[0]!.raw).groups[0].states[0].cargo, {});
     assert.match(saved[0]!.name, /^machination-replay-0-2\.json$/); assert.match(visible(), /File handed to this device/);
     await change(1, '3'); assert.equal(button('Save replay'), undefined); assert.equal(button('Prepare replay').props.disabled, true);
     await change(1, '1'); source = fixture; await press('Prepare replay');

@@ -1,7 +1,8 @@
 /** @format */
 
 import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import {
   ALLEGIANCES,
   ALLEGIANCE_IDS,

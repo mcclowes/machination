@@ -1,6 +1,6 @@
 /**
  * ---
- * purpose: Play live-operation music and sound cues with a shared mute preference and foreground lifecycle.
+ * purpose: Play live-operation music, outcome cues, and control press cues with a shared mute preference and foreground lifecycle.
  * ---
  */
 import { useEffect, useRef, useSyncExternalStore } from 'react';
@@ -11,6 +11,7 @@ import type { Faction } from '../game/players';
 import { cueForUpdate, type CueView, type SoundCue } from './sound-cues';
 import { musicTension, type MusicView, type MusicTension } from './music-tension';
 import { MusicPlayback } from './music-player';
+import { setPressPlayer } from './press';
 
 const MUSIC: Record<MusicTension, number> = {
   calm: require('../../assets/music/space-ambient.mp3'),
@@ -21,6 +22,19 @@ const MUSIC: Record<MusicTension, number> = {
 const PREFERENCE = 'machination.sound.v1';
 const SOURCES: Record<SoundCue, number> = {
   tap: require('../../assets/sounds/tap.wav'),
+  select: require('../../assets/sounds/select.wav'),
+  back: require('../../assets/sounds/back.wav'),
+  confirm: require('../../assets/sounds/confirm.wav'),
+  time: require('../../assets/sounds/time.wav'),
+  cancel: require('../../assets/sounds/cancel.wav'),
+  build: require('../../assets/sounds/build.wav'),
+  recruit: require('../../assets/sounds/recruit.wav'),
+  shield: require('../../assets/sounds/shield.wav'),
+  pulse: require('../../assets/sounds/pulse.wav'),
+  council: require('../../assets/sounds/council.wav'),
+  intel: require('../../assets/sounds/intel.wav'),
+  gift: require('../../assets/sounds/gift.wav'),
+  message: require('../../assets/sounds/message.wav'),
   launch: require('../../assets/sounds/launch.wav'),
   schedule: require('../../assets/sounds/schedule.wav'),
   signal: require('../../assets/sounds/signal.wav'),
@@ -56,6 +70,7 @@ export function playSound(cue: SoundCue | null) {
     player.play();
   } catch { /* Sound is decorative; playback failures never interrupt the operation. */ }
 }
+setPressPlayer(playSound);
 
 export function useSoundCues(view: (CueView & MusicView) | undefined, player: Faction | undefined) {
   useMusic(view, player);
