@@ -20,13 +20,12 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('solo restoration yields to chart controls and preserves its save when canceled', async ({ page }, info) => {
+test('solo restoration yields to chart controls and preserves its save when canceled', async ({ page }) => {
   await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await expect(page.getByText('Restoring saved history and catching up…')).toBeVisible();
   await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Solo operation', exact: true })).toBeVisible();
   await expect(page.getByText('Restoring saved history and catching up…')).toBeVisible();
-  await page.screenshot({ path: `.fettle/shots/solo-restoring-${info.project.name}.png` });
   await page.getByRole('button', { name: '‹ Games', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume solo operation', exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('machination.game.v1'))).toBe(saved);
