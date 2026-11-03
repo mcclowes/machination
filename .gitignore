@@ -22,3 +22,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Supabase CLI link cache.
+supabase/.temp/
