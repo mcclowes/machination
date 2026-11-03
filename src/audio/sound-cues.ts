@@ -6,15 +6,30 @@
 import { allied, type TeamWorld } from '../game/teams';
 import type { Faction } from '../game/players';
 
-export type SoundCue = 'tap' | 'launch' | 'schedule' | 'signal' | 'combat' | 'capture' | 'loss' | 'alarm' | 'victory' | 'defeat' | 'error';
+/** Controls: tap, select, back, confirm, time. Everything else answers a change in the operation. */
+export type SoundCue =
+  | 'tap' | 'select' | 'back' | 'confirm' | 'time'
+  | 'launch' | 'schedule' | 'cancel' | 'signal' | 'combat' | 'capture' | 'loss' | 'alarm' | 'victory' | 'defeat' | 'error'
+  | 'build' | 'recruit' | 'shield' | 'pulse' | 'council' | 'intel' | 'gift' | 'message';
 type Owned = { owner?: Faction | null };
 export type CueView = TeamWorld & {
   epoch: number; rocks: Owned[]; fleets: Owned[]; scheduled: Owned[];
   events: { hour: number; message: string }[]; eliminated: Faction[]; winner: Faction | null;
 };
 
-const CORE_LOST = /core (lost|destroyed)/i;
+const ALARM = /core (lost|destroyed)|king's pulse detected|king eliminated|absorbing a hostile pulse|pulse shield collapsed|uplink lost/i;
 const COMBAT = /destroy|neutraliz|assimilat|detonat|combat|sentry fire|encounter/i;
+// Ordered by significance; the first matching telemetry line chooses the cue.
+const TELEMETRY: [RegExp, SoundCue][] = [
+  [/tactical pulse|disruptor charging|king's pulse/i, 'pulse'],
+  [/recruited|promoted to/i, 'recruit'],
+  [/constructed for|mine drilled/i, 'build'],
+  [/shields? (enabled|disabled)/i, 'shield'],
+  [/gifted|funding/i, 'gift'],
+  [/belt council/i, 'council'],
+  [/^(foresight|hindsight):/i, 'intel'],
+  [/canceled|aborted|recycled/i, 'cancel'],
+];
 
 function newEvents(previous: CueView['events'], next: CueView['events']) {
   const head = previous[0];
@@ -33,9 +48,20 @@ export function cueForUpdate(previous: CueView | undefined, next: CueView, playe
   if (territory > 0) return 'capture';
   if (territory < 0) return 'loss';
   const events = newEvents(previous.events, next.events);
-  if (events.some(e => CORE_LOST.test(e.message))) return 'alarm';
+  if (events.some(e => ALARM.test(e.message))) return 'alarm';
   if (events.some(e => COMBAT.test(e.message))) return 'combat';
-  if (count(next.fleets, player) > count(previous.fleets, player)) return 'launch';
-  if (count(next.scheduled, player) > count(previous.scheduled, player)) return 'schedule';
+  const launched = count(next.fleets, player) > count(previous.fleets, player);
+  if (launched) return 'launch';
+  const scheduled = count(next.scheduled, player) - count(previous.scheduled, player);
+  if (scheduled > 0) return 'schedule';
+  for (const [pattern, cue] of TELEMETRY) if (events.some(e => pattern.test(e.message))) return cue;
+  if (scheduled < 0) return 'cancel';
   return events.length ? 'signal' : null;
+}
+
+type Transmissions = { faction: Faction; messages: { from: Faction }[]; channels?: { messages: { from: Faction }[] }[] };
+/** Messages other operators have sent this seat, across direct and channel traffic. */
+export function incomingTransmissions({ faction, messages, channels = [] }: Transmissions) {
+  return messages.filter(m => m.from !== faction).length
+    + channels.reduce((sum, channel) => sum + channel.messages.filter(m => m.from !== faction).length, 0);
 }

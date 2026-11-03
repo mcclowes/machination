@@ -4,7 +4,8 @@
  * ---
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { MODULES, type ModuleKind } from '../game/modules';
 import type { Rock } from '../game/simulation';
 type Props = { rock: Rock; enabled: boolean; carry: boolean; onCarry: (carry: boolean) => void; onBuild: (kind: ModuleKind) => void };

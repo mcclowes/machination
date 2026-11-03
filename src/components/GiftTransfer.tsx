@@ -1,7 +1,8 @@
 /** Review voluntary support separately from an ordinary transfer or attack. */
 import { gameClock } from '../game/time-machine';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { FACTIONS, type Faction, type Rock } from '../game/simulation';
 import type { Specialist } from '../game/specialists';
 import { SPECIALISTS } from '../game/specialist-catalog';

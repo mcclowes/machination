@@ -1,12 +1,13 @@
 import { authorization, type RequestSession } from './account-auth';
-import { CURRENT_CLIENT_ACCEPT } from '../contracts/representation';
+import { PACKED_REPLAY_ACCEPT } from '../contracts/representation';
 import { abortable, throwIfAborted } from './request-abort';
-import { decodeSharedReplay, utf8Size } from '../replay/codec';
-import { SHARED_REPLAY_LIMITS, type SharedReplay } from '../replay/timeline';
+import { utf8Size } from '../replay/codec';
+import { decodeReplayArtifact, type ReplayArtifact } from '../replay/artifact';
+import { SHARED_REPLAY_LIMITS } from '../replay/timeline';
 import { RejectedCommand } from './network';
 
 /** Authenticated read only; never uses the command queue or updates presence. */
-export async function exportSharedReplay(session: RequestSession & { id?: string }, from: number, through: number, signal?: AbortSignal): Promise<SharedReplay> {
+export async function exportSharedReplay(session: RequestSession & { id?: string }, from: number, through: number, signal?: AbortSignal): Promise<ReplayArtifact> {
   if (!session.id) throw new Error('Connect to an operation first.');
   if (!Number.isFinite(from) || !Number.isFinite(through) || from < 0 || through < from) throw new Error('Choose a finite, ordered historical interval.');
   const controller = new AbortController();
@@ -18,7 +19,7 @@ export async function exportSharedReplay(session: RequestSession & { id?: string
     const bearer = session.accountId ? await abortable(() => authorization(session), controller.signal) : `Bearer ${session.token}`;
     throwIfAborted(controller.signal);
     const response = await fetch(`${session.url}/v1/games/${session.id}/replay?from=${encodeURIComponent(from)}&through=${encodeURIComponent(through)}`,
-      { headers: { Authorization: bearer, Accept: CURRENT_CLIENT_ACCEPT }, signal: controller.signal });
+      { headers: { Authorization: bearer, Accept: PACKED_REPLAY_ACCEPT }, signal: controller.signal });
     const limit = response.ok ? SHARED_REPLAY_LIMITS.bytes : 8192;
     const length = response.headers.get('content-length');
     if (length !== null && (!/^\d+$/.test(length) || Number(length) > limit)) {
@@ -46,7 +47,7 @@ export async function exportSharedReplay(session: RequestSession & { id?: string
       if (response.status >= 400 && response.status < 500 && response.status !== 429) throw new RejectedCommand(response.status, message);
       throw new Error(message);
     }
-    const replay = decodeSharedReplay(raw);
+    const replay = decodeReplayArtifact(raw);
     if (replay.from !== from || replay.through !== through) throw new Error('Unsupported replay interval.');
     return replay;
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }

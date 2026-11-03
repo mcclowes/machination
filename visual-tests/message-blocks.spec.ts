@@ -48,7 +48,7 @@ for (const width of [320, 1024])
           : route.abort(),
       );
       await page.goto('/');
-      await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+      await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
       await page.getByRole('tab', { name: 'Signals', exact: true }).click();
       await expect(page.getByText('Unwanted public transmission', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: 'Message blocking', exact: true }).click();

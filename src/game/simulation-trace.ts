@@ -6,7 +6,12 @@ import type { Game } from './simulation';
 export type SimulationTrace =
   | { type: 'point'; phase: string; game: Game }
   | { type: 'span'; from: Game; to: Game };
-export type SimulationTraceSink = (record: SimulationTrace) => void;
+export type SimulationTraceSink = ((record: SimulationTrace) => void) & {
+  includes?: (from: number, through: number) => boolean;
+};
+export function traceIncludes(sink: SimulationTraceSink | undefined, from: number, through = from): boolean {
+  return !!sink && (!sink.includes || sink.includes(from, through));
+}
 
 // Engine state is plain data; retain undefined and non-finite numeric sentinels.
 export function traceSnapshot<T>(value: T): T {
@@ -15,5 +20,5 @@ export function traceSnapshot<T>(value: T): T {
   return value;
 }
 export function tracePoint(sink: SimulationTraceSink | undefined, phase: string, game: Game): void {
-  if (sink) sink({ type: 'point', phase, game: traceSnapshot(game) });
+  if (sink && traceIncludes(sink, game.hour)) sink({ type: 'point', phase, game: traceSnapshot(game) });
 }

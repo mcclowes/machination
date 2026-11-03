@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 
 export function ResignationControl({ enabled, onConfirm }: { enabled: boolean; onConfirm: () => void }) {
   const [review, setReview] = useState(false);

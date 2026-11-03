@@ -20,7 +20,7 @@ test('recent battles appear on the chart and expire in forecast', async ({ page 
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('button', { name: 'Fit chart', exact: true }).click();
   const marker = page.locator('[id^="battle-marker-"]').first();
   await expect(marker).toBeVisible();

@@ -5,7 +5,8 @@ import { resourceName, siteKindLabel } from '../content/terminology';
  * ---
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { maximumShield } from '../game/economy';
 import { hasReserves, reserveDescription } from '../game/depletion';
 import { gameClock } from '../game/time-machine';

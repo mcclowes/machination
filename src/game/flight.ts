@@ -129,6 +129,14 @@ function curvedInterception(world: FlightWorld, source: MovingPoint, target: Fle
   return best;
 }
 
+/** Unit bearing from an arriving hauler's destination back along its final approach, or undefined for a zero-length course. */
+export function approachBearing(world: FlightWorld, fleet: Fleet): Point | undefined {
+  const { x, y } = flightDirection(world, fleet);
+  const length = Math.hypot(x, y);
+  // `|| 0` drops negative zero, which JSON saves cannot round-trip.
+  return length > 0 ? { x: -x / length || 0, y: -y / length || 0 } : undefined;
+}
+
 /** Heading remains aligned with the course while engines are disabled or launch is preparing. */
 export function flightDirection(world: FlightWorld, fleet: Fleet): Point {
   const route = flightEndpoints(world, fleet);

@@ -293,3 +293,25 @@ test('gift, release, resignation, and inactivity submissions stay atomic in priv
     assert.deepEqual(points(records, 'command:after'), [game]);
   }
 });
+
+test('bounded replay traces retain exact intersecting records and command ordering', () => {
+  let archive = createArchive(createGame(0));
+  for (const hour of [1, 1, 4, 8]) archive = applyCommand(archive,
+    { type: 'shields', owner: 'you', rock: 'm', disabled: hour !== 4 },
+    { rivals: false, knownThrough: hour }).archive;
+  const options = { rivals: false, knownThrough: 12 };
+  const full: SimulationTrace[] = [];
+  const expected = traceReplayTo(archive, 12, options, r => full.push(r));
+  for (const [from, through] of ([[0, 12], [1, 1], [1.125, 3.875], [4, 8], [12, 12]] as const)) {
+    const bounded: SimulationTrace[] = [];
+    assert.deepEqual(traceReplayTo(archive, 12, { ...options, traceWindow: { from, through } }, r => bounded.push(r)), expected);
+    const selected = full.filter(r => r.type === 'point'
+      ? r.game.hour >= from && r.game.hour <= through
+      : r.to.hour >= from && r.from.hour <= through);
+    assert.equal(bounded.length, selected.length);
+    assert.deepEqual(bounded, selected);
+  }
+  for (const [from, through] of ([[-1, 2], [2, 1], [0, 13], [NaN, 2], [0, Infinity]] as const)) {
+    assert.throws(() => traceReplayTo(archive, 12, { ...options, traceWindow: { from, through } }, () => {}), /trace window/);
+  }
+});

@@ -1,7 +1,8 @@
 /** Practice radio overlay and attempt-local playback. The exercise clock stays under player control. */
 import React, { useState } from 'react';
 import { displaySpecialistNames } from '../game/specialist-catalog';
-import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Modal, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable } from './Pressable';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { TrainingScenario } from '../game/training';
 import { TRAINING_DIALOGUE, trainingDialoguePhase, type DialoguePhase, type DialogueSpeaker } from '../game/training-dialogue';
@@ -12,10 +13,12 @@ const speakers = {
 };
 const phaseLabels = { briefing: 'Mission briefing', underway: 'Incoming transmission', passed: 'Mission complete', failed: 'Mission debrief' };
 
-export function PracticeDialogue({ scenario, status, hour, playing = false }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number; playing?: boolean }) {
-  const { width, height } = useWindowDimensions();
+/** `trigger={false}` keeps the dialogue mounted (so it still opens on its own) without the replay button. */
+export function PracticeDialogue({ scenario, status, hour, playing = false, trigger = true }: { scenario: TrainingScenario; status: 'active' | 'passed' | 'failed'; hour: number; playing?: boolean; trigger?: boolean }) {
+  const { width, height, fontScale } = useWindowDimensions();
   const compact = width < 600;
   const landscape = height < 500;
+  const enlarged = fontScale > 1;
   const [dismissed, setDismissed] = useState<DialoguePhase[]>([]);
   const [replaying, setReplaying] = useState(false);
   const phase = replaying ? 'briefing' : trainingDialoguePhase(status, hour);
@@ -32,30 +35,44 @@ export function PracticeDialogue({ scenario, status, hour, playing = false }: { 
     setCursor({ phase, index: 0 });
     setReplaying(false);
   }
-  const artHeight = Math.max(64, Math.min(height - (landscape ? 300 : 440), height * 0.45, compact ? 290 : 460));
+  const artHeight = Math.max(64, Math.min(height - (landscape ? 300 : 440), height * 0.45, enlarged ? 96 : compact ? 290 : 460));
+  const mission = <View style={[s.mission, (compact || landscape) && s.missionCompact]}><Text style={s.eyebrow}>{phaseLabels[phase]}</Text><Text accessibilityRole="header" style={s.missionTitle}>{scenario.title}</Text>{!landscape && !compact && <Text style={s.missionDetail}>{displaySpecialistNames(scenario.objective)}</Text>}</View>;
+  const portraits = <View pointerEvents="none" accessible={false} style={[s.portraits, { height: artHeight }]}>
+    {(['commander', 'enemy'] as const).map((id: DialogueSpeaker) => <Image key={id} accessible={false} source={speakers[id].art} resizeMode="contain" style={[s.portrait, { height: artHeight, opacity: line.speaker === id ? 1 : 0.38 }, id === 'enemy' && s.enemyPortrait]} />)}
+  </View>;
+  const nameplate = <View style={[s.nameplate, { borderLeftColor: speaker.color }]}><Text style={[s.speaker, { color: speaker.color }]}>{speaker.name}</Text><Text style={s.channel}>{speaker.role}</Text></View>;
+  const dialogue = <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{displaySpecialistNames(line.text)}</Text>;
+  const controls = <View style={[s.footer, enlarged && s.enlargedFooter]}>
+    <Text style={s.counter}>{index + 1} / {lines.length}</Text>
+    <Pressable accessibilityRole="button" onPress={close} style={[s.skip, enlarged && s.enlargedButton]}><Text style={s.skipText}>Skip dialogue</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={continueLabel} onPress={() => last ? close() : setCursor({ phase, index: index + 1 })} style={[s.next, enlarged && s.enlargedButton]}><Text style={s.nextText}>{continueLabel} <Text accessible={false}>▸</Text></Text></Pressable>
+  </View>;
 
   return <>
-    <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.quiet, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>
+    {trigger && <Pressable accessibilityRole="button" disabled={playing} onPress={() => { setCursor({ phase: 'briefing', index: 0 }); setReplaying(true); }} style={[s.quiet, playing && { opacity: 0.4 }]}><Text style={s.replayText}>Replay briefing</Text></Pressable>}
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close} statusBarTranslucent>
       {/* Modals mount a new native root, so insets need their own provider. */}
       <SafeAreaProvider><SafeAreaView style={s.overlay} accessibilityViewIsModal>
-        <View style={[s.mission, (compact || landscape) && s.missionCompact]}><Text style={s.eyebrow}>{phaseLabels[phase]}</Text><Text accessibilityRole="header" style={s.missionTitle}>{scenario.title}</Text>{!landscape && !compact && <Text style={s.missionDetail}>{displaySpecialistNames(scenario.objective)}</Text>}</View>
-        <View style={[s.scene, { maxWidth: 1180, paddingHorizontal: compact ? 12 : 40 }]}>
-          <View pointerEvents="none" accessible={false} style={[s.portraits, { height: artHeight }]}>
-            {(['commander', 'enemy'] as const).map((id: DialogueSpeaker) => <Image key={id} accessible={false} source={speakers[id].art} resizeMode="contain" style={[s.portrait, { height: artHeight, opacity: line.speaker === id ? 1 : 0.38 }, id === 'enemy' && s.enemyPortrait]} />)}
-          </View>
-          <View style={s.frame}>
-            <View style={[s.nameplate, { borderLeftColor: speaker.color }]}><Text style={[s.speaker, { color: speaker.color }]}>{speaker.name}</Text><Text style={s.channel}>{speaker.role}</Text></View>
-            <ScrollView key={`${phase}:${index}`} style={{ maxHeight: height * (landscape ? 0.25 : 0.28) }} contentContainerStyle={s.dialogueContent}>
-              <Text accessibilityLiveRegion="polite" style={[s.dialogue, compact && s.compactDialogue]}>{displaySpecialistNames(line.text)}</Text>
-            </ScrollView>
-            <View style={s.footer}>
-              <Text style={s.counter}>{index + 1} / {lines.length}</Text>
-              <Pressable accessibilityRole="button" onPress={close} style={s.skip}><Text style={s.skipText}>Skip dialogue</Text></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={continueLabel} onPress={() => last ? close() : setCursor({ phase, index: index + 1 })} style={s.next}><Text style={s.nextText}>{continueLabel} <Text accessible={false}>▸</Text></Text></Pressable>
+        {enlarged ? <>
+          <ScrollView key={`${phase}:${index}`} style={s.enlargedBody} contentContainerStyle={s.enlargedContent}>
+            {mission}
+            <View style={[s.scene, { maxWidth: 1180, paddingHorizontal: compact ? 12 : 40 }]}>
+              {portraits}
+              <View style={s.frame}>{nameplate}<View style={s.dialogueContent}>{dialogue}</View></View>
+            </View>
+          </ScrollView>
+          {controls}
+        </> : <>
+          {mission}
+          <View style={[s.scene, { maxWidth: 1180, paddingHorizontal: compact ? 12 : 40 }]}>
+            {portraits}
+            <View style={s.frame}>
+              {nameplate}
+              <ScrollView key={`${phase}:${index}`} style={{ maxHeight: height * (landscape ? 0.25 : 0.28) }} contentContainerStyle={s.dialogueContent}>{dialogue}</ScrollView>
+              {controls}
             </View>
           </View>
-        </View>
+        </>}
       </SafeAreaView></SafeAreaProvider>
     </Modal>
   </>;
@@ -72,6 +89,8 @@ const s = StyleSheet.create({
   nameplate: { gap: 4, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#101b21', borderLeftWidth: 2, borderBottomWidth: 1, borderBottomColor: '#23363e' },
   speaker: { fontSize: 14, fontWeight: '600' }, channel: { color: '#a8b7a2', fontSize: 11 },
   frame: { borderWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' },
+  enlargedBody: { flex: 1, minHeight: 0 }, enlargedContent: { paddingBottom: 12 },
+  enlargedFooter: { flexShrink: 0, marginHorizontal: 12, marginBottom: 12, borderWidth: 1, borderColor: '#30454c', backgroundColor: '#14232b' }, enlargedButton: { maxWidth: '100%' },
   dialogueContent: { padding: 16 },
   dialogue: { color: '#d6e2cd', fontSize: 17, lineHeight: 25 }, compactDialogue: { fontSize: 15, lineHeight: 22 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderTopWidth: 1, borderColor: '#23363e', flexWrap: 'wrap' }, counter: { color: '#8c9f85', fontSize: 11, marginRight: 'auto' },

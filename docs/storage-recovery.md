@@ -6,6 +6,10 @@ Quarantined operations return HTTP 503 with `game.unavailable.recovery`. Their i
 
 The loader quarantines every operation involved in a duplicate room identity or ambiguous active account assignment. Related notification bindings, jobs, revision floors, and incoming ledgers are retained in the archive and removed from active delivery. Healthy consent and queued work stay unchanged. Malformed shared structures, unknown database formats, invalid UTF-8, and incomplete SQL metadata stop startup. Malformed JSON errors omit saved content.
 
+Startup bounds each room and the shared metadata envelope to 128 nested object/array containers before cloning. Supported game and replay records are shallow; this leaves headroom for the enclosing database, validation defaults, and later cloning and JSON writes. A room beyond that bound is damaged and follows the configured recovery mode. Excessive depth, non-finite numbers, or unpersistable values in shared metadata refuse startup. Non-finite values within a room follow the configured recovery mode, preserving the original source before quarantine. Original room identities still determine duplicate and unavailable-marker conflicts. Report evidence remains opaque serialized source and does not consume this nesting allowance.
+
+SQL metadata keys `rooms` and `__proto__` are reserved and refuse startup without changing writer ownership or stored rows. Other future metadata keys remain preserved.
+
 ## Preserved source
 
 | Backend | Archive |

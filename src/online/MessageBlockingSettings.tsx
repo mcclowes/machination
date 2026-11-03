@@ -3,7 +3,8 @@
  * @format
  */
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { FACTIONS, type Faction } from '../game/players';
 import type { MessageBlockState } from './useMessageBlocks';
 

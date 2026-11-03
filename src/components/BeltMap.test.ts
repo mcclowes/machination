@@ -10,10 +10,17 @@ const require = createRequire(import.meta.url);
 const React = require('react');
 const { create, act } = require('react-test-renderer');
 
-for (const platform of ['web', 'ios', 'android']) test(`chart zoom controls and wheel lifecycle on ${platform}`, async () => {
+for (const platform of ['web', 'ios', 'android']) test(`chart zoom controls and wheel lifecycle on ${platform}`, async context => {
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globals, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
+  // Gestures render once per frame and hand the owner one camera when they settle.
+  context.mock.timers.enable({ apis: ['setTimeout'] });
+  const frames = new Map<number, (time: number) => void>();
+  let frameId = 0;
+  globals.requestAnimationFrame = (callback: (time: number) => void) => { frames.set(++frameId, callback); return frameId; };
+  globals.cancelAnimationFrame = (id: number) => frames.delete(id);
+  const paint = () => { const queued = [...frames.values()]; frames.clear(); queued.forEach(callback => callback(0)); };
   const listeners = new Map<string, (event: any) => void>();
   let registrations = 0, removals = 0;
   const host = {
@@ -70,10 +77,14 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
       assert.deepEqual(camera, { scale: 2, x: 0, y: 0 });
     }
     const panChart = async (dx: number, dy: number) => {
+      const before = camera;
       const chart = renderer.root.findByProps({ testID: 'belt-map' });
       const event = { nativeEvent: { touches: [{ pageX: 0, pageY: 0 }] } };
       await flush(() => chart.props.onPanResponderGrant(event, { dx: 0, dy: 0, x0: 0, y0: 0 }));
       await flush(() => chart.props.onPanResponderMove(event, { dx, dy }));
+      await flush(paint);
+      assert.deepEqual(camera, before, 'the owner keeps its camera until the gesture ends');
+      await flush(() => chart.props.onPanResponderRelease(event, { dx, dy }));
     };
     await panChart(40, 20);
     const skyPan = renderer.root.findByType('SpaceBackground').props.pan;
@@ -90,6 +101,8 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
       const gesture = { dx: 0, dy: 0 };
       await flush(() => chart.props.onPanResponderGrant({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }, { pageX: 100, pageY: 0 }] } }, gesture));
       await flush(() => chart.props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: 0, pageY: 0 }, { pageX: 150, pageY: 0 }] } }, gesture));
+      await flush(paint);
+      await flush(() => chart.props.onPanResponderRelease({ nativeEvent: { touches: [], changedTouches: [{ pageX: 150, pageY: 0 }] } }, gesture));
       assert.equal(camera.scale, 3, 'native pinch still zooms');
     } else {
       assert.equal(registrations, 1);
@@ -97,7 +110,9 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
       const wheel = async (deltaY: number, deltaMode = 0, overlay = false) => {
         prevented = false;
         await flush(() => listeners.get('wheel')!({ deltaY, deltaMode, target: { closest: () => overlay ? {} : null }, preventDefault() { prevented = true; } }));
+        await settle();
       };
+      const settle = () => flush(() => { paint(); context.mock.timers.tick(160); });
       await wheel(-100);
       assert.ok(camera.scale > 2);
       assert.equal(prevented, true);
@@ -112,9 +127,9 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
       await wheel(-6.25, 1);
       assert.equal(camera.scale, zoomed, 'line and pixel wheel events have consistent sensitivity');
       for (let i = 0; i < 20; i++) await wheel(-100, 2);
-      assert.equal(camera.scale, 4);
+      assert.equal(camera.scale, 8);
       assert.equal(button('Zoom in').props.disabled, true);
-      for (let i = 0; i < 20; i++) await wheel(100);
+      for (let i = 0; i < 30; i++) await wheel(100);
       assert.equal(camera.scale, 1);
       assert.equal(button('Zoom out').props.disabled, true);
       await flush(() => button('Zoom in').props.onPress());
@@ -123,6 +138,8 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
         listeners.get('wheel')!({ deltaY: -100, deltaMode: 0, preventDefault() {} });
         listeners.get('wheel')!({ deltaY: -100, deltaMode: 0, preventDefault() {} });
       });
+      assert.equal(camera.scale, 1.5, 'the owner hears about wheel zoom once it settles');
+      await settle();
       assert.ok(Math.abs(camera.scale - 1.5 * Math.exp(0.4)) < 1e-9, 'wheel bursts accumulate before React renders');
       await flush(() => button('Fit chart').props.onPress());
       game.fleets.push({ id: 1, owner: 'you', from: 'a', to: 'b', drones: 10, departed: 0, arrives: 10, route: { from: { x: 50, y: 95 }, to: { x: 50, y: 100 } } });
@@ -149,6 +166,8 @@ export const View='View',Pressable='Pressable',ScrollView='ScrollView',Text='Tex
     assert.equal(removals, platform === 'web' ? 1 : 0);
   } finally {
     if (renderer) await act(async () => renderer.unmount());
+    Reflect.deleteProperty(globals, 'requestAnimationFrame');
+    Reflect.deleteProperty(globals, 'cancelAnimationFrame');
     if (priorAct) Object.defineProperty(globals, 'IS_REACT_ACT_ENVIRONMENT', priorAct);
     else delete globals.IS_REACT_ACT_ENVIRONMENT;
   }

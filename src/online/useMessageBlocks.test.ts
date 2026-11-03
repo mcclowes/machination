@@ -163,3 +163,143 @@ test('unsupported servers cannot claim a block, and unmounted controls never wri
   m.out.current!.retry();
   assert.equal(writes, 0);
 });
+
+const transitions: { name: string; next: MessageBlockSeat; back?: boolean }[] = [
+  { name: 'operation', next: { ...seat, id: 'b'.repeat(24) } },
+  {
+    name: 'account',
+    next: { ...seat, accountId: 'user_second', getToken: async () => 'second-session' },
+  },
+  { name: 'device token', next: { ...seat, token: 'b'.repeat(64) } },
+  { name: 'server URL', next: { ...seat, url: 'https://second.example' } },
+  { name: 'faction', next: { ...seat, faction: 'vesper' } },
+  { name: 'away and back', next: { ...seat, id: 'b'.repeat(24) }, back: true },
+];
+
+test('retained block actions cannot mutate a newly selected seat or a returned generation', async () => {
+  for (const transition of transitions) {
+    const writes: { selected: MessageBlockSeat; body: SetMessageBlock }[] = [];
+    let ids = 0;
+    const m = await mount({
+      read: async (selected) => ({
+        gameId: selected.id,
+        faction: selected.faction,
+        revision: 7,
+        blocked: [],
+      }),
+      requestId: () => 'blocking-action-request-' + ++ids,
+      write: async (selected, body) => {
+        writes.push({ selected, body });
+        return {
+          gameId: selected.id,
+          faction: selected.faction,
+          revision: body.revision + 1,
+          blocked: body.blocked ? [body.player] : [],
+        };
+      },
+    });
+    try {
+      const stale = m.out.current!;
+      await m.rerender(transition.next);
+      if (transition.back) await m.rerender(seat);
+      const currentSeat = transition.back ? seat : transition.next;
+      await act(async () => stale.setBlocked('null', true));
+      assert.equal(writes.length, 0, transition.name + ': old controls must not write');
+      assert.equal(ids, 0, transition.name + ': old controls must not allocate a request');
+      assert.deepEqual(m.out.current!.settings!.blocked, []);
+      await act(async () => m.out.current!.setBlocked('null', true));
+      assert.equal(writes.length, 1, transition.name + ': current controls still work');
+      assert.equal(writes[0]!.selected, currentSeat);
+      assert.equal(writes[0]!.body.revision, 7);
+      assert.deepEqual(m.out.current!.settings!.blocked, ['null']);
+    } finally {
+      await m.unmount();
+    }
+  }
+});
+
+test('retained refresh and retry cannot read another seat or reconcile its uncertain request', async () => {
+  for (const transition of transitions) {
+    const reads: MessageBlockSeat[] = [];
+    const writes: { selected: MessageBlockSeat; body: SetMessageBlock }[] = [];
+    let ids = 0,
+      revision = 4;
+    let blocked: MessageBlockSettings['blocked'] = [];
+    const m = await mount({
+      read: async (selected) => {
+        reads.push(selected);
+        return { gameId: selected.id, faction: selected.faction, revision, blocked: [...blocked] };
+      },
+      requestId: () => 'blocking-retry-request-' + ++ids,
+      write: async (selected, body) => {
+        writes.push({ selected, body });
+        revision = 5;
+        blocked = [body.player];
+        if (writes.length === 1) throw new Error('Committed response lost');
+        return { gameId: selected.id, faction: selected.faction, revision, blocked: [...blocked] };
+      },
+    });
+    let unmounted = false;
+    try {
+      const stale = m.out.current!;
+      await m.rerender(transition.next);
+      if (transition.back) await m.rerender(seat);
+      const currentSeat = transition.back ? seat : transition.next;
+      const readCount = reads.length;
+      await act(async () => {
+        stale.refresh();
+        stale.retry();
+      });
+      assert.equal(reads.length, readCount, transition.name + ': stale actions must not read');
+      await act(async () => m.out.current!.setBlocked('null', true));
+      assert.equal(writes.length, 1);
+      assert.equal(writes[0]!.selected, currentSeat);
+      assert.equal(m.out.current!.phase, 'error');
+      assert.deepEqual(
+        m.out.current!.settings!.blocked,
+        [],
+        'an uncertain response is not confirmation',
+      );
+      await act(async () => {
+        stale.refresh();
+        stale.retry();
+        stale.setBlocked('null', false);
+      });
+      assert.equal(
+        reads.length,
+        readCount,
+        transition.name + ': stale refresh must retain the pending intent',
+      );
+      assert.equal(
+        writes.length,
+        1,
+        transition.name + ': stale retry must not submit a current-seat intent',
+      );
+      assert.equal(m.out.current!.phase, 'error');
+      await act(async () => m.out.current!.retry());
+      assert.equal(writes.length, 2, transition.name + ': current retry remains available');
+      assert.deepEqual(writes[1], writes[0]);
+      assert.equal(ids, 1, 'the accepted retry reuses the original request ID');
+      assert.deepEqual(m.out.current!.settings!.blocked, ['null']);
+      await act(async () => m.out.current!.refresh());
+      assert.equal(
+        reads.length,
+        readCount + 1,
+        transition.name + ': current refresh remains available',
+      );
+      assert.deepEqual(m.out.current!.settings!.blocked, ['null']);
+      const current = m.out.current!;
+      await m.unmount();
+      unmounted = true;
+      await act(async () => {
+        current.refresh();
+        current.retry();
+        current.setBlocked('null', false);
+      });
+      assert.equal(reads.length, readCount + 1);
+      assert.equal(writes.length, 2);
+    } finally {
+      if (!unmounted) await m.unmount();
+    }
+  }
+});

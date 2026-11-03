@@ -7,7 +7,7 @@ import { RejectedCommand } from './network';
 const session = { url: 'https://example.test', token: 'a'.repeat(64), id: 'b'.repeat(24) };
 test('replay requests advertise their decoder and preserve an upgrade refusal', async t => {
   t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
-    assert.equal(new Headers(init.headers).get('Accept'), 'application/vnd.machination.v2+json, application/json');
+    assert.equal(new Headers(init.headers).get('Accept'), 'application/vnd.machination.v2+json; replay=3, application/json');
     return new Response(JSON.stringify({ issues: [{ message: { detail: 'Update Machination.' } }] }), { status: 503 });
   });
   await assert.rejects(exportSharedReplay(session, 0, 0), error => error instanceof Error && !(error instanceof RejectedCommand) && error.message === 'Update Machination.');

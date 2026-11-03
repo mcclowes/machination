@@ -26,6 +26,24 @@ const stars = Array.from({ length: 90 }, (_, i) => ({
   color: i % 7 === 0 ? '#b6cddd' : i % 13 === 0 ? '#dfd5bd' : '#d5e2e5',
 }));
 
+/**
+ * A layer is twice the sky in each direction, offset by one sky, so any wrapped translation
+ * keeps one copy of every star in view. The unshifted copy carries the star's test ID.
+ */
+const StarTiles = memo(function StarTiles({ from, to }: { from: number; to: number }) {
+  return [0, 1].flatMap(row => [0, 1].flatMap(column => stars.slice(from, to).map(star => <View
+    key={`${star.id}-${row}-${column}`}
+    testID={row && column ? `space-star-${star.id}` : undefined}
+    style={{
+      position: 'absolute',
+      left: `${(star.left + column * 100) / 2}%`,
+      top: `${(star.top + row * 100) / 2}%`,
+      width: star.size, height: star.size,
+      borderRadius: star.size, opacity: star.opacity, backgroundColor: star.color,
+    }}
+  />)));
+});
+
 type Props = { pan?: Point; panPeriod?: Point };
 export const SpaceBackground = memo(function SpaceBackground({ pan = STILL, panPeriod }: Props) {
   const [reducedMotion, setReducedMotion] = useState(true);
@@ -104,13 +122,14 @@ export const SpaceBackground = memo(function SpaceBackground({ pan = STILL, panP
   }, [active, reducedMotion, shootingStar]);
 
   const offset = reducedMotion ? STILL : travel.offset;
-  const renderStar = (star: typeof stars[number]) => <View key={star.id} testID={`space-star-${star.id}`} style={{
-    position: 'absolute',
-    left: `${wrap(star.left + offset.x / size.width * 100 * (star.id < 54 ? DISTANT_STAR_PARALLAX : NEAR_STAR_PARALLAX), 100)}%`,
-    top: `${wrap(star.top + offset.y / size.height * 100 * (star.id < 54 ? DISTANT_STAR_PARALLAX : NEAR_STAR_PARALLAX), 100)}%`,
-    width: star.size, height: star.size,
-    borderRadius: star.size, opacity: star.opacity, backgroundColor: star.color,
-  }} />;
+  // Each layer moves as one transform, so panning never re-renders individual stars.
+  const layer = (parallax: number) => ({
+    ...styles.starLayer,
+    transform: [
+      { translateX: wrap(offset.x * parallax, size.width) },
+      { translateY: wrap(offset.y * parallax, size.height) },
+    ],
+  });
   return <View testID="space-background" pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.sky} onLayout={({ nativeEvent: { layout } }) => {
     if (layout.width > 0 && layout.height > 0) setSize({ width: layout.width, height: layout.height });
   }}>
@@ -131,9 +150,9 @@ export const SpaceBackground = memo(function SpaceBackground({ pan = STILL, panP
         <Rect width="100%" height="100%" fill={`url(#${gradient}-violet)`} />
       </Svg>
     </Animated.View>
-    <View style={StyleSheet.absoluteFillObject}>{stars.slice(0, 54).map(renderStar)}</View>
+    <View testID="space-stars-distant" style={layer(DISTANT_STAR_PARALLAX)}><StarTiles from={0} to={54} /></View>
     {twinkles.map((opacity, group) => <Animated.View key={group} style={[StyleSheet.absoluteFillObject, { opacity }]}>
-      {stars.slice(54 + group * 12, 66 + group * 12).map(renderStar)}
+      <View testID={`space-stars-near-${group}`} style={layer(NEAR_STAR_PARALLAX)}><StarTiles from={54 + group * 12} to={66 + group * 12} /></View>
     </Animated.View>)}
     <Animated.View testID="space-shooting-star" style={[styles.shootingStar, shootingPosition, {
       opacity: shootingStar.interpolate({ inputRange: [0, 0.08, 0.65, 1], outputRange: [0, 0.45, 0.3, 0] }),
@@ -151,6 +170,7 @@ export const SpaceBackground = memo(function SpaceBackground({ pan = STILL, panP
 
 const styles = StyleSheet.create({
   sky: { ...StyleSheet.absoluteFillObject, overflow: 'hidden', backgroundColor: '#0d1821' },
+  starLayer: { position: 'absolute', left: '-100%', top: '-100%', width: '200%', height: '200%' },
   nebula: { position: 'absolute', top: -24, bottom: -24, left: -24, right: -24 },
   shootingStar: { position: 'absolute', flexDirection: 'row', alignItems: 'center' },
   starHead: { width: 2, height: 2, borderRadius: 1, backgroundColor: '#dcebf0' },

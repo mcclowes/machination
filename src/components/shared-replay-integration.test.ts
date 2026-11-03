@@ -1,7 +1,9 @@
 import { OPERATION_MOTION_NATIVE, operationMotionPreferencePlugin } from '../test-support/operation-motion-host';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { gunzipSync } from 'node:zlib';
+import { pathToFileURL, URL } from 'node:url';
 import { test } from 'node:test';
 import { build } from 'esbuild';
 import type { ReplayScene } from '../replay/presentation';
@@ -10,7 +12,7 @@ import { createConfiguredGame } from '../game/world';
 import { withUnitEffects } from '../game/specialist-effects';
 import { createArchive } from '../game/replay';
 import { generateSharedReplay } from '../replay/generate';
-import { encodeSharedReplay } from '../replay/codec';
+import { packSharedReplay, encodePackedReplay } from '../replay/packed';
 import { SPECIALISTS } from '../game/specialist-catalog';
 import { playerAppearance } from '../game/players';
 import { siteKindLabel } from '../content/terminology';
@@ -30,11 +32,12 @@ function fixture(zero = false): SharedReplay {
     spans: zero ? [] : [{ from: 0, through: 1, scene: scene(0, 2) }, { from: 1, through: 2, scene: scene(1, 0, false) }] };
 }
 // Real React lifecycle with native hosts; no browser or device gesture claim.
-for (const platform of ['web', 'ios']) test(`shared replay import and viewer remain local, causal, bounded, and clean up playback on ${platform}`, async () => {
+for (const format of ['legacy', 'packed']) for (const platform of ['web', 'ios']) test(`shared replay import and viewer remain local, causal, bounded, and clean up playback on ${platform} (${format})`, async () => {
+  const encode = (replay: SharedReplay) => format === 'packed' ? encodePackedReplay(packSharedReplay(replay)) : JSON.stringify(replay);
   const key = '__sharedReplayIntegration';
   const globals = globalThis as typeof globalThis & Record<string, any>;
   let picked: string | null | Error = null, picks = 0, forbidden = 0, now = 1000, timer: (() => void) | undefined, starts = 0, dismissals = 0;
-  globals[key] = { dismiss: () => { dismissals++; }, pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
+  globals[key] = { fontScale: 1, dismiss: () => { dismissals++; }, pick: async () => { picks++; if (picked instanceof Error) throw picked; return picked; }, forbidden: () => { forbidden++; throw new Error('Live boundary reached'); } };
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
   globals.IS_REACT_ACT_ENVIRONMENT = true;
   const originals = { interval: globalThis.setInterval, clear: globalThis.clearInterval, fetch: globalThis.fetch, now: Date.now };
@@ -54,7 +57,7 @@ for (const platform of ['web', 'ios']) test(`shared replay import and viewer rem
           return React.createElement('View',{...props,ref});
         });
         ${OPERATION_MOTION_NATIVE}
-export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
+export const useWindowDimensions=()=>({width:390,height:844,scale:3,fontScale:globalThis.${key}.fontScale}); export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollView',TextInput='TextInput',KeyboardAvoidingView='KeyboardAvoidingView'; export const Platform={OS:${JSON.stringify(platform)}}; export const Keyboard={dismiss:()=>globalThis.${key}.dismiss()}; export const StyleSheet={create:x=>x}; export const PanResponder={create:x=>({panHandlers:x})};` : args.path === 'react-native-svg' ? `export default 'Svg'; export const Circle='Circle',Ellipse='Ellipse',G='G',Line='Line',Path='Path',Rect='Rect',Text='SvgText';` : args.path === 'expo-clipboard' ? `export const setStringAsync=()=>globalThis.${key}.forbidden();` : `export default globalThis.${key}.forbidden();` }));
     } }] });
     const { ReplayLibraryScreen } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
     globalThis.fetch = globals[key].forbidden;
@@ -70,8 +73,27 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     const firstAlphaLabel = `Alpha, ${siteKindLabel('core').toLowerCase()}, ${playerAppearance('you').name}, 1 drones, ${coreManifest}`;
     await flush(() => { renderer = create(React.createElement(ReplayLibraryScreen, { onExit() {} })); });
     assert.equal(picks, 0); assert.equal(starts, 0);
-    picked = JSON.stringify(fixture()); await press('Open replay');
+    picked = encode(fixture()); await press('Open replay');
     assert.match(visible(), /D01 · 02:00/); assert.match(visible(), /Winner/); assert.equal(starts, 0);
+    const mountedChart = hosts('View').find(node => node.props.testID === 'belt-map');
+    globals[key].fontScale = 3;
+    await flush(() => renderer.update(React.createElement(ReplayLibraryScreen, { onExit() {} })));
+    await press('Playback options');
+    assert.equal(button('Exit replay'), undefined, 'Expanded-text editing lends header space to the panel');
+    assert.equal(button('Play'), undefined, 'Expanded-text editing lends transport space to the panel');
+    assert.ok(hosts('TextInput')[0]);
+    assert.match(visible(), /Unverified replay · recorded perspective/);
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), mountedChart);
+    await press('Close playback options');
+    assert.ok(button('Exit replay')); assert.ok(button('Play'));
+    await press(firstAlphaLabel.replace('1 drones', '9 drones'));
+    assert.equal(button('Exit replay'), undefined);
+    await press('Close site details');
+    assert.ok(button('Exit replay'));
+    assert.equal(hosts('View').find(node => node.props.testID === 'belt-map'), mountedChart);
+    globals[key].fontScale = 1;
+    await flush(() => renderer.update(React.createElement(ReplayLibraryScreen, { onExit() {} })));
+
     await press(`Inspect specialists at Alpha: ${coreManifest}`);
     assert.ok(visible().includes(SPECIALISTS.queen.description));
     await press('Close site details');
@@ -135,7 +157,7 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     picked = '{bad'; await press('Open replay'); assert.ok(button('View imported replay'));
     await press('View imported replay'); await press('Beginning'); await press('Play');
     await flush(() => renderer.unmount()); renderer = undefined; assert.equal(timer, undefined);
-    picked = JSON.stringify(fixture(true));
+    picked = encode(fixture(true));
     await flush(() => { renderer = create(React.createElement(ReplayLibraryScreen, { onExit() {} })); });
     await press('Open replay'); assert.match(visible(), /State 2 of 2/); assert.ok(button('Play').props.disabled);
     const zeroRange = hosts('View').find(node => node.props.accessibilityLabel === 'Replay timeline')!.props.accessibilityValue;
@@ -146,7 +168,7 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     const beyond = fixture();
     for (const state of beyond.groups[0]!.states) state.fleets[0]!.arrives = 8;
     beyond.spans[0]!.scene.fleets[0]!.arrives = 8;
-    picked = JSON.stringify(beyond); await press('Open replay'); await press('Beginning');
+    picked = encode(beyond); await press('Open replay'); await press('Beginning');
     await flush(() => hosts('Pressable').find(node => /hauler,/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
     assert.equal(button('Jump to hauler arrival'), undefined);
     await press('Next state');
@@ -157,7 +179,7 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     for (const state of [...mixed.groups[0]!.states, mixed.spans[0]!.scene]) {
       state.fleets.push({ ...state.fleets[0]!, id: 2, arrives: 8, drones: 7 });
     }
-    picked = JSON.stringify(mixed); await press('Open replay'); await press('Beginning');
+    picked = encode(mixed); await press('Open replay'); await press('Beginning');
     await flush(() => hosts('Pressable').find(node => /hauler, 2 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
     assert.ok(button('Jump to hauler arrival'), 'An unrelated out-of-clip hauler must not hide an in-clip arrival action');
     const mixedChart = hosts('View').find(node => node.props.testID === 'belt-map');
@@ -173,7 +195,7 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     for (const arrival of [2, 8]) {
       const bounded = fixture(arrival === 8);
       for (const state of [...bounded.groups[0]!.states, ...(bounded.spans[0] ? [bounded.spans[0].scene] : [])]) state.fleets[0]!.arrives = arrival;
-      picked = JSON.stringify(bounded); await press('Open replay');
+      picked = encode(bounded); await press('Open replay');
       if (arrival !== 8) await press('Beginning');
       await flush(() => hosts('Pressable').find(node => /hauler, 2 drones/.test(node.props.accessibilityLabel ?? ''))!.props.onPress());
       if (arrival === 8) assert.equal(button('Jump to hauler arrival'), undefined, 'Zero-duration clips exclude future arrivals');
@@ -191,7 +213,7 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     Object.assign(core, { shieldMax: 20, shield: 7 });
     world.rocks.find(site => site.owner === 'you' && !site.coreOf)!.specialists!.push({ id: 'remote-chief', kind: 'security', owner: 'you' });
     const game = withUnitEffects(world);
-    picked = encodeSharedReplay(generateSharedReplay({ game, archive: createArchive(game) }, 'you', 0, 0));
+    picked = encode(generateSharedReplay({ game, archive: createArchive(game) }, 'you', 0, 0));
     await press('Open replay');
     await press(hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${core.name},`))!.props.accessibilityLabel);
     assert.match(visible(), /Shield 7 \/ 50/, 'the real viewer shows observed total capacity including Queen and a remote Chief');
@@ -201,6 +223,15 @@ export const Text='Text',Image='Image',Pressable='Pressable',ScrollView='ScrollV
     assert.match(visible(), /Captive · abilities inactive/);
     assert.equal(hosts('Pressable').some(node => /^(Load |Hire |Promote |Release captive)/.test(node.props.accessibilityLabel ?? '')), false, 'Public role inspection remains read-only');
     assert.equal(forbidden, 0);
+    await press('Exit replay');
+    picked = gunzipSync(await readFile(new URL('../../native-tests/fixtures/01-packed-endgame.json.gz', import.meta.url))).toString('utf8');
+    await press('Open replay');
+    await press('Playback options');
+    assert.equal(hosts('TextInput')[0]!.props.value, '402.5673841421317');
+    await press('Close playback options'); await press('Exit replay');
+    assert.equal(text(button('View imported replay')), 'Unverified replay · D17 · 10:34 – D17 · 18:34');
+    await press('View imported replay'); await press('Playback options');
+    assert.equal(hosts('TextInput')[0]!.props.value, '402.5673841421317', 'The display clock never rounds the retained replay endpoint');
   } finally {
     if (renderer) await act(async () => renderer.unmount());
     globalThis.setInterval = originals.interval; globalThis.clearInterval = originals.clear; globalThis.fetch = originals.fetch; Date.now = originals.now;

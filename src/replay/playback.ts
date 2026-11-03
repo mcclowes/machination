@@ -9,7 +9,9 @@ import type { SharedReplay } from './timeline';
 
 export type ReplayPosition = { hour: number; ordinal?: number };
 
-function locate(replay: SharedReplay, hour: number, ordinal?: number) {
+type StepTimeline<State = unknown> = { from: number; through: number; groups: { hour: number; states: State[] }[] };
+
+export function locateReplay<State>(replay: StepTimeline<State>, hour: number, ordinal?: number) {
   if (!Number.isFinite(hour)) throw new RangeError('Replay hour must be finite');
   if (ordinal !== undefined && (!Number.isSafeInteger(ordinal) || ordinal < 0)) {
     throw new RangeError('Replay ordinal must be a nonnegative safe integer');
@@ -33,7 +35,7 @@ function locate(replay: SharedReplay, hour: number, ordinal?: number) {
 
 
 export function seekReplay(replay: SharedReplay, hour: number, ordinal?: number): ReplayScene {
-  const at = locate(replay, hour, ordinal);
+  const at = locateReplay(replay, hour, ordinal);
   const source = at.exact ? at.group.states[at.ordinal] : replay.spans[at.index]?.scene;
   if (!source) throw new RangeError('Replay has no scene at this position');
   // Replay scenes contain validated JSON plain data; Hermes has no structuredClone.
@@ -42,16 +44,16 @@ export function seekReplay(replay: SharedReplay, hour: number, ordinal?: number)
 }
 
 /** Missing ordinal means the final causal state at a boundary. Ends return null. */
-export function previousReplayStep(replay: SharedReplay, position: ReplayPosition): ReplayPosition | null {
-  const at = locate(replay, position.hour, position.ordinal);
+export function previousReplayStep(replay: StepTimeline, position: ReplayPosition): ReplayPosition | null {
+  const at = locateReplay(replay, position.hour, position.ordinal);
   if (!at.exact) return { hour: at.group.hour, ordinal: at.group.states.length - 1 };
   if (at.ordinal > 0) return { hour: at.hour, ordinal: at.ordinal - 1 };
   const previous = replay.groups[at.index - 1];
   return previous ? { hour: previous.hour, ordinal: previous.states.length - 1 } : null;
 }
 
-export function nextReplayStep(replay: SharedReplay, position: ReplayPosition): ReplayPosition | null {
-  const at = locate(replay, position.hour, position.ordinal);
+export function nextReplayStep(replay: StepTimeline, position: ReplayPosition): ReplayPosition | null {
+  const at = locateReplay(replay, position.hour, position.ordinal);
   if (at.exact && at.ordinal + 1 < at.group.states.length) return { hour: at.hour, ordinal: at.ordinal + 1 };
   const next = replay.groups[at.index + 1];
   return next ? { hour: next.hour, ordinal: 0 } : null;

@@ -8,6 +8,7 @@ import { GameService } from './service';
 import { sitePosition } from '../src/game/drift';
 import { worldDistance } from '../src/game/geometry';
 import { forecastObservation } from '../src/game/visibility';
+import { createConfiguredGame } from '../src/game/world';
 
 test('drifting rooms retain setup, rendezvous, observations, and history through restart', async t => {
   const dir = await mkdtemp(join(tmpdir(), 'machination-drift-'));
@@ -37,11 +38,44 @@ test('drifting rooms retain setup, rendezvous, observations, and history through
   const captured = live.game.rocks.find(r => r.id === target.id)!;
   assert.equal(captured.owner, 'you');
   assert.ok(worldDistance(live.game, captured, sitePosition(live.game, target, live.game.hour)) < 1e-8);
-  assert.deepEqual(forecast.rocks.find(r => r.id === target.id), captured);
+  const predicted = forecast.rocks.find(r => r.id === target.id)!;
+  if (launched.game.rocks.find(r => r.id === target.id)!.known) assert.deepEqual(predicted, captured);
+  else {
+    assert.equal(predicted.known, false);
+    assert.equal(predicted.drones, undefined);
+    assert.equal(predicted.owner, target.owner);
+    assert.ok(forecast.uncertain.includes(target.id));
+    assert.deepEqual({ x: predicted.x, y: predicted.y }, sitePosition(launched.game, target, hour));
+  }
   service = await GameService.open(file, () => now);
   assert.deepEqual((await service.snapshot(room.id, host)).game, live.game);
   assert.deepEqual((await service.create(host)).game, live.game, 'omitting setup on retry retains an existing drifting room');
   const past = await service.history(room.id, host, 0);
   assert.deepEqual(past.game.rocks.find(r => r.id === target.id)!.drift, target.drift);
   assert.ok(worldDistance(past.game, past.game.rocks.find(r => r.id === target.id)!, target) < 1e-8);
+});
+
+test('an unobserved drifting arrival stays unresolved until live sensors reveal its capture', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'machination-hidden-drift-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  let now = 1000;
+  const service = await GameService.open(join(dir, 'room.json'), () => now,
+    () => createConfiguredGame({ playerCount: 2, mode: 'mining', driftingBases: true }, 1000, 683, undefined, 18));
+  const host = randomBytes(32).toString('hex'), rival = randomBytes(32).toString('hex');
+  const room = await service.create(host); await service.join(room.invite, rival);
+  const started = await service.start(room.id, host);
+  const source = started.game.rocks.find(r => r.owner === 'you' && (r.drones ?? 0) >= 30)!;
+  const target = started.game.rocks.filter(r => r.drift).sort((a, b) => worldDistance(started.game, source, a) - worldDistance(started.game, source, b))[0]!;
+  assert.equal(target.known, false);
+  const launched = await service.order(room.id, host, { requestId: randomUUID(), revision: started.revision, from: source.id, to: target.id, drones: 30 });
+  const hour = launched.game.fleets[0]!.arrives + 0.01;
+  const forecast = forecastObservation(launched.game, 'you', hour);
+  const predicted = forecast.rocks.find(r => r.id === target.id)!;
+  assert.equal(predicted.known, false); assert.equal(predicted.kind, 'unknown');
+  assert.equal(predicted.owner, target.owner); assert.equal(predicted.drones, undefined);
+  assert.ok(forecast.uncertain.includes(target.id));
+  now += hour * 3600000;
+  const live = await service.snapshot(room.id, host);
+  assert.equal(live.game.rocks.find(r => r.id === target.id)!.owner, 'you');
+  assert.equal(live.game.rocks.find(r => r.id === target.id)!.known, true);
 });

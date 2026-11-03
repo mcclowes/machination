@@ -7,15 +7,15 @@
  * ---
  */
 import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { playSound } from '../audio/sound';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import type { AccountAccess } from './account-auth';
 import { describeListing } from './operation-labels';
 import { useAccountOperations } from './useAccountOperations';
 
 export function OperationDirectory({ account, onOpen }: { account: AccountAccess; onOpen: (id?: string) => void }) {
   const { operations, error, refresh } = useAccountOperations(account);
-  const open = (id?: string) => { playSound('tap'); onOpen(id); };
+  const open = (id?: string) => onOpen(id);
   const active = operations?.filter((o) => o.status === 'active') ?? [];
   const finished = operations?.filter((o) => o.status !== 'active') ?? [];
   return (
