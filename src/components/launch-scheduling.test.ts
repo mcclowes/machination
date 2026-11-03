@@ -75,7 +75,14 @@ test('solo schedules a follow-on attack from a site captured only in the forecas
       } }],
     });
     const { default: App } = await import(`data:text/javascript;base64,${Buffer.from(output.outputFiles[0]!.text).toString('base64')}`);
-    const flush = async (action: () => void) => { await act(async () => { action(); await Promise.resolve(); }); };
+    const flush = async (action: () => void) => {
+      await act(async () => { action(); await Promise.resolve(); });
+      // Engine work runs on timers; assertions must see its published result.
+      for (let i = 0, quiet = 0; i < 2000 && renderer && quiet < 5; i++) {
+        await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+        quiet = /Restoring saved history|Updating operation|Calculating chart/.test(text(renderer.root)) ? 0 : quiet + 1;
+      }
+    };
     const hosts = (type: string) => renderer.root.findAll((node: Node) => node.type === type) as Node[];
     const button = (label: string | RegExp) => {
       const node = hosts('Pressable').find(node => typeof label === 'string' ? (node.props.accessibilityLabel ?? text(node)) === label : label.test(node.props.accessibilityLabel ?? text(node)));
