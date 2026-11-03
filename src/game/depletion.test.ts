@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createSoloGame } from './depletion';
 import { advance, dispatch } from './simulation';
 import { powerCapacity, drillMine, droneInventory } from './economy';
@@ -13,6 +14,21 @@ import { siteValue, attackSites, createRivalForecast } from './rival-tactics';
 import { miningInterval } from './mining';
 import { generateSharedReplay } from '../replay/generate';
 import { decodeSharedReplay, encodeSharedReplay } from '../replay/codec';
+import { assignPlayerColor } from './player-colors';
+
+test('the captured ten-seat finite-reserve solo catch-up preserves its complete native state', () => {
+  const initial = createSoloGame({ playerCount: 10, mode: 'mining', driftingBases: false, gravity: true,
+    portraits: ['admiral', 'pilot', 'engineer', 'ranger', 'diplomat', 'navigator', 'hotshot', 'envoy', 'veteran', 'enforcer'],
+  }, 1793660260770, 0);
+  initial.rules!.colors = assignPlayerColor(initial.rules!, [], 'you');
+  const game = advance(initial, 0.0026247222222222223, { rivals: true });
+  const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  const before = hash(game);
+  assert.equal(before, 'a5a298ea8ebb8d71a13064af166aafb8effd9ec7516d6f516ae2e6baf9c1935d');
+  const result = advance(game, 6.002624722222222, { rivals: true });
+  assert.equal(hash(result), '7843c07eb42bfb58d952bd553dfde5d3b6a4f41799edf8ca3c943f4aa27047e6');
+  assert.equal(hash(game), before);
+});
 
 test('solo factories spend only produced drones and stop at the last reserve', () => {
   const game = createSoloGame({ playerCount: 3, mode: 'mining' }, 0, 42);
