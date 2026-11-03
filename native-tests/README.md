@@ -9,6 +9,14 @@ npm run test:native-replay -- --app '/path/to/Machination QA current.app'
 
 Requires macOS, Xcode, the iOS 27.0 simulator runtime, and a signed simulator QA app. The default device is iPhone 18 Pro in portrait. `--runtime` and `--device-type` select other installed targets; those targets need their own acceptance evidence. `--orientation portrait|landscape` selects the requested interface orientation. Every case verifies the app frame matches it before interacting; the iPhone app supports portrait, while iPad also supports landscape. The UI cases use English system labels. Use a QA build with sign-in and push identifiers disabled; this runner does not change configuration already compiled into the supplied app.
 
+The solo responsiveness flow exercises both the default three-player pulse operation and a replacement ten-player mining operation:
+
+```sh
+npm run test:native-replay -- --app '/path/to/simulator-QA.app' --flow solo-responsiveness
+```
+
+It uses visible controls to advance six hours, requires the live clock to change within ten seconds, inspects an owned site, forecasts six hours, and returns to live before replacing the operation. The original six-gesture reveal limit, 240-second test build, and 360-second UI command bounds remain. It requires one passing case with no skips and supports portrait only. The seed comes from the supplied app; a private seed-zero QA bundle makes the captured #204 comparison reproducible. XCTest clock observation includes automation overhead and does not measure paint completion, physical-device latency, or frame percentiles. The private calibration adds engine/frame instrumentation and complete-state comparisons; this public flow verifies visible controls and readiness.
+
 For the iPad mini orientation matrix, run both commands:
 
 ```sh

@@ -23,7 +23,7 @@ const { values } = parseArgs({ options: {
 
 async function main() {
   if (values.help) {
-    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player|secure-editors|shared-header] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
+    console.log('Usage: npm run test:native-replay -- --app /path/to/simulator-QA.app [--flow replay|first-player|secure-editors|shared-header|solo-responsiveness] [--runtime identifier] [--device-type identifier] [--orientation portrait|landscape] [--content-size large|accessibility-extra-extra-extra-large]');
     return;
   }
   assert.equal(process.platform, 'darwin', 'Native replay acceptance requires macOS and Xcode.');
@@ -31,10 +31,12 @@ async function main() {
   assert.ok(values.app, 'Provide a separately identified simulator QA app with --app.');
   assert.ok(values.orientation === 'portrait' || values.orientation === 'landscape', 'Choose portrait or landscape orientation.');
   assert.ok(values['content-size'] === 'large' || values['content-size'] === 'accessibility-extra-extra-extra-large', 'Choose large or accessibility-extra-extra-extra-large content size.');
-  assert.ok(values.flow === 'replay' || values.flow === 'first-player' || values.flow === 'secure-editors' || values.flow === 'shared-header', 'Choose replay, first-player, secure-editors, or shared-header flow.');
-  assert.ok(values.flow === 'replay' || values.orientation === 'portrait', 'First-player, secure-editor, and shared-header acceptance currently support portrait only.');
+  assert.ok(values.flow === 'replay' || values.flow === 'first-player' || values.flow === 'secure-editors' || values.flow === 'shared-header' || values.flow === 'solo-responsiveness', 'Choose replay, first-player, secure-editors, shared-header, or solo-responsiveness flow.');
+  assert.ok(values.flow === 'replay' || values.orientation === 'portrait', 'Non-replay acceptance currently supports portrait only.');
   const prefix = '-only-testing:ReplayUITests/ReplayNativeAcceptance/';
-  const flow = values.flow === 'first-player'
+  const flow = values.flow === 'solo-responsiveness'
+    ? { count: 1, selectors: [prefix + 'testSoloResponsiveness'], scope: 'Simulator default and ten-player solo advance, inspection, forecast, and return-to-live readiness; physical-device latency remains separate.' }
+    : values.flow === 'first-player'
     ? { count: 1, selectors: [prefix + 'testFirstReinforcement'], scope: 'Simulator first-player practice interaction and retained progress only.' }
     : values.flow === 'secure-editors'
       ? { count: 1, selectors: [prefix + 'testSecureEditorTransitions'], scope: 'Simulator secure/plain editor transitions using synthetic input only; no recovery submission or account acceptance.' }

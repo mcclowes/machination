@@ -1,6 +1,6 @@
 # Multiplayer iOS release readiness
 
-Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated November 2, 2026.
+Tracking: [release goal #124](https://github.com/mcclowes/machination/issues/124). Updated November 3, 2026.
 
 The immediate target is a polished, invite-only multiplayer TestFlight release. Public App Store distribution adds the gates below. “AAA” means a consistent quality bar across play, presentation, reliability, and support; it isn't evidence of readiness or a reason to add more mechanics.
 
@@ -68,7 +68,7 @@ Live and forecast gravity observations retain the committed curve for position a
 
 The [frozen-source solo baseline and candidate](solo-performance.md) identify repeated Foresight prediction as a costly ten-player mining path. The combined candidate advances six hours in 2.01–2.23 seconds on Node/M5, retaining the original complete state hash. [Fix #200](https://github.com/mcclowes/machination/issues/200) preserves warnings, AI decisions, recorded rules, and replay parity. Both retained [export-headroom failures](testing.md#november-2-export-headroom-recurrence) pass under configuration load; the final full gate passes 1,755 behavior and 20 packaged-server tests, while native input latency and physical-device performance remain unverified.
 
-The [native calibration](solo-performance.md#native-calibration) records one default three-player six-hour advance at 220.91 ms in Hermes, with an exact complete-state match against the frozen Node engine. JavaScript frame callbacks and XCTest clock observation are recorded separately. The combined ten-player/forecast flow remains open in [#203](https://github.com/mcclowes/machination/issues/203); corrected-driver attempts time out before UI execution. This is a partial simulator measurement, not a physical-device responsiveness gate.
+The [native calibration](solo-performance.md#native-calibration) records a ten-player finite-reserve mining advance at 19,852.28 ms in Hermes, failing the unchanged ten-second live-clock readiness assertion. The [specialist-query candidate](solo-performance.md#specialist-queries-within-each-simulation-phase) subsequently passes the complete default/ten-player advance, inspection, forecast, and return-to-live flow: one case with zero failures or skips, the original build/UI/readiness limits, and exact comparisons for all four native results and both forecast inputs. Its default advance takes 165.14 ms and its ten-player advance 7,751.74 ms. These individual simulator observations still include a long JavaScript block; [#205](https://github.com/mcclowes/machination/issues/205) covers keeping interaction active during computation. The integrated full gate expires with harness failures and cancellations, including an HTTP endgame timeout, so [#204](https://github.com/mcclowes/machination/issues/204) and [#203](https://github.com/mcclowes/machination/issues/203) remain open. JavaScript frame callbacks and XCTest observation are recorded separately; neither establishes physical-device responsiveness.
 
 ## Delivery order and gates
 

@@ -53,6 +53,16 @@ export function restoreControl(game: Game, unit: Specialist, owner: Faction, car
 export function unitsAtRock(game: UnitWorld, id: string): Specialist[] {
   return [...(game.rocks.find(r => r.id === id)?.specialists ?? []), ...game.fleets.filter(f => f.preparing && f.from === id).flatMap(f => f.specialists ?? [])].filter(u => !u.captive);
 }
+export function stationedUnits(game: UnitWorld): Map<string, Specialist[]> {
+  const stationed = new Map<string, Specialist[]>();
+  for (const rock of game.rocks) if (rock.specialists?.length) stationed.set(rock.id, rock.specialists.filter(unit => !unit.captive));
+  for (const fleet of game.fleets) if (fleet.preparing && fleet.specialists?.length) {
+    let units = stationed.get(fleet.from);
+    if (!units) { units = []; stationed.set(fleet.from, units); }
+    for (const unit of fleet.specialists) if (!unit.captive) units.push(unit);
+  }
+  return stationed;
+}
 export function unitCount(game: UnitWorld, owner: Faction, kind: SpecialistKind): number { return activeUnits(game, owner).filter(u => u.kind === kind).length; }
 export function recruitmentStatus(game: UnitWorld & OpeningWorld & { hour: number; recruitment?: Partial<Record<Faction, Pick<Recruitment, 'used' | 'offers'>>> }, owner: Faction): { credits: number; offers: SpecialistKind[]; nextAt: number; at?: string } {
   const state = game.recruitment?.[owner];

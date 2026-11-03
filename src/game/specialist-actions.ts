@@ -10,25 +10,27 @@ import { isDue } from './event-timing';
 import { tracePoint, type SimulationTraceSink } from './simulation-trace';
 import { worldDistance } from './geometry';
 import type { Game } from './simulation';
-import { restoreControl, unitsAtRock } from './specialists';
+import { restoreControl, stationedUnits } from './specialists';
 import { maximumShield } from './economy';
 import { rockSensorRange, observers } from './sensors';
 import { fleetPosition } from './flight';
 import { sendUnitsHome } from './specialist-travel';
 
 export function nextSpecialistEvent(game: Game): number {
+  const stationed = stationedUnits(game);
   const contacts: number[] = [];
   for (const rock of game.rocks) {
-    if (!rock.owner || inStasis(game, rock) || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
+    if (!rock.owner || inStasis(game, rock) || !(stationed.get(rock.id) ?? []).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
       if ((!rock.drift && !holding.drift) || !holding.specialists?.some(u => u.owner === rock.owner && u.captive)) continue;
       contacts.push(...siteRangeWindows(game, rock, holding, rockSensorRange(game, rock)).map(w => w.from).filter(hour => hour > game.hour && hour <= game.hour + 1));
     }
   }
-  return Math.min(...contacts, ...game.rocks.filter(r => r.owner).flatMap(r => unitsAtRock(game, r.id).filter(u => u.owner === r.owner && (u.kind === 'sentry' || u.kind === 'tinkerer')).map(u => u.nextActionAt ?? Infinity)));
+  return Math.min(...contacts, ...game.rocks.filter(r => r.owner).flatMap(r => (stationed.get(r.id) ?? []).filter(u => u.owner === r.owner && (u.kind === 'sentry' || u.kind === 'tinkerer')).map(u => u.nextActionAt ?? Infinity)));
 }
 export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink): void {
-  for (const rock of game.rocks) for (const unit of unitsAtRock(game, rock.id)) {
+  const stationed = stationedUnits(game);
+  for (const rock of game.rocks) for (const unit of (stationed.get(rock.id) ?? [])) {
     if (inStasis(game, rock) || !rock.owner || unit.owner !== rock.owner || unit.nextActionAt === undefined || !isDue(game, unit.nextActionAt)) continue;
     try {
       if (unit.kind === 'tinkerer') {
@@ -50,17 +52,19 @@ export function settleSpecialistActions(game: Game, trace?: SimulationTraceSink)
   }
 }
 export function applyStationPassives(game: Game, trace?: SimulationTraceSink): void {
+  let stationed = stationedUnits(game);
   for (const rock of game.rocks) {
     if (!rock.owner || inStasis(game, rock)) continue;
-    if (unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'hypnotist')) {
+    if ((stationed.get(rock.id) ?? []).some(u => u.owner === rock.owner && u.kind === 'hypnotist')) {
       for (const unit of rock.specialists ?? []) if (unit.captive) {
         restoreControl(game, unit, rock.owner);
         tracePoint(trace, 'passive:hypnotist', game);
       }
     }
   }
+  stationed = stationedUnits(game);
   for (const rock of game.rocks) {
-    if (!rock.owner || inStasis(game, rock) || !unitsAtRock(game, rock.id).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
+    if (!rock.owner || inStasis(game, rock) || !(stationed.get(rock.id) ?? []).some(u => u.owner === rock.owner && u.kind === 'diplomat')) continue;
     for (const holding of game.rocks) {
       if (inStasis(game, holding)) continue;
       const inRange = rock.drift || holding.drift

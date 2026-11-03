@@ -550,4 +550,60 @@
   }
   XCTAssertTrue([app.buttons[@"Open solo operation"] waitForExistenceWithTimeout:20]);
 }
+- (XCUIElement *)soloClock:(XCUIApplication *)app prefix:(NSString *)prefix {
+  return [app.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@",prefix]].firstMatch;
+}
+- (void)measureSolo:(NSString *)scenario app:(XCUIApplication *)app {
+  if (!app.buttons[@"Close Solo operation"].exists) { [self waitForStable:app.buttons[@"Setup"] app:app]; [app.buttons[@"Setup"] tap]; }
+  XCUIElement *advance = app.buttons[@"Advance simulation +6h"];
+  [self reveal:advance inScrollView:app.otherElements[@"operation-drawer"].scrollViews.firstMatch app:app];
+  [self waitForStable:advance app:app];
+  XCUIElement *clock = [self soloClock:app prefix:@"Live · "];
+  XCTAssertTrue(clock.exists); NSString *before = clock.label;
+  NSTimeInterval started = NSProcessInfo.processInfo.systemUptime;
+  [advance tap]; NSTimeInterval tapReturned = NSProcessInfo.processInfo.systemUptime;
+  XCTNSPredicateExpectation *changed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"label != %@",before] object:clock];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[changed] timeout:10],XCTWaiterResultCompleted);
+  NSLog(@"QA_SOLO_UI scenario=%@ phase=advance before=%@ after=%@ tapReturnedMs=%.3f clockObservedMs=%.3f",scenario,before,clock.label,(tapReturned-started)*1000,(NSProcessInfo.processInfo.systemUptime-started)*1000);
+  [self shot:[scenario stringByAppendingString:@" advanced six hours"] app:app];
+  [self waitForStable:app.buttons[@"Chart"] app:app]; [app.buttons[@"Chart"] tap];
+  XCUIElement *site = [app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"identifier == %@ AND label CONTAINS %@",@"map-site",@"Mnemosyne,"]].firstMatch;
+  [self waitForStable:site app:app]; [site tap];
+  XCTAssertTrue([[self element:@"Drones to dispatch" app:app] waitForExistenceWithTimeout:10]);
+  [self closeOperationDrawer:app];
+  [self waitForStable:app.buttons[@"Time Machine"] app:app]; [app.buttons[@"Time Machine"] tap];
+  XCUIElement *future = app.buttons[@"+6h"];
+  [self reveal:future inScrollView:app.scrollViews.firstMatch app:app]; [self waitForStable:future app:app];
+  started = NSProcessInfo.processInfo.systemUptime; [future tap]; tapReturned = NSProcessInfo.processInfo.systemUptime;
+  XCUIElement *forecast = [self soloClock:app prefix:@"Forecast · "];
+  XCTAssertTrue([forecast waitForExistenceWithTimeout:10]);
+  NSLog(@"QA_SOLO_UI scenario=%@ phase=forecast after=%@ tapReturnedMs=%.3f clockObservedMs=%.3f",scenario,forecast.label,(tapReturned-started)*1000,(NSProcessInfo.processInfo.systemUptime-started)*1000);
+  [self shot:[scenario stringByAppendingString:@" forecast six hours"] app:app];
+  XCUIElement *now = [app.buttons matchingIdentifier:@"Now"].firstMatch;
+  [self waitForStable:now app:app]; [now tap];
+  XCTAssertTrue([[self soloClock:app prefix:@"Live · "] waitForExistenceWithTimeout:10]);
+  [self waitForStable:app.buttons[@"Close time controls"] app:app]; [app.buttons[@"Close time controls"] tap];
+  XCTAssertTrue([app.buttons[@"Time Machine"] waitForExistenceWithTimeout:10]);
+}
+- (void)testSoloResponsiveness {
+  XCUIApplication *app = [self library]; [app.buttons[@"Exit replay library"] tap];
+  XCUIElement *solo = app.buttons[@"Open solo operation"];
+  [self reveal:solo inScrollView:app.scrollViews.firstMatch app:app]; [self waitForStable:solo app:app]; [solo tap];
+  [self measureSolo:@"three-player pulse" app:app];
+  [self waitForStable:app.buttons[@"Setup"] app:app]; [app.buttons[@"Setup"] tap];
+  XCUIElement *reset = app.buttons[@"Reset"];
+  [self reveal:reset inScrollView:app.otherElements[@"operation-drawer"].scrollViews.firstMatch app:app]; [self waitForStable:reset app:app]; [reset tap];
+  XCUIElement *replace = app.buttons[@"Replace operation"];
+  XCUIElement *dialog = [app.scrollViews containingPredicate:[NSPredicate predicateWithFormat:@"label == %@",@"Replace operation"]].firstMatch;
+  XCUIElement *ten = [self element:@"10 players" app:app];
+  [self reveal:ten inScrollView:dialog app:app]; [self waitForStable:ten app:app]; [ten tap];
+  XCUIElement *mining = [self element:@"Mining" app:app];
+  [self reveal:mining inScrollView:dialog app:app]; [self waitForStable:mining app:app]; [mining tap];
+  [self reveal:replace inScrollView:dialog app:app]; [self waitForStable:replace app:app]; [replace tap];
+  XCTNSPredicateExpectation *closed = [[XCTNSPredicateExpectation alloc] initWithPredicate:[NSPredicate predicateWithFormat:@"exists == NO"] object:replace];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[closed] timeout:10],XCTWaiterResultCompleted);
+  XCTAssertTrue([app.staticTexts[@"10 intelligences · mining · target 300 cargo"].firstMatch waitForExistenceWithTimeout:10]);
+  [self measureSolo:@"ten-player mining" app:app];
+}
+
 @end

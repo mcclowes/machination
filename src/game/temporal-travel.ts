@@ -5,24 +5,28 @@
  */
 import type { Fleet, Game, Rock } from './simulation';
 import { TEMPORAL, temporalEnabled, inStasis } from './temporal';
-import { unitsAtRock } from './specialists';
+import { stationedUnits } from './specialists';
 import { rockSensorRange } from './sensors';
 import { fleetPosition, fleetVelocity, nextFlightVertex } from './flight';
 import { mapOffsets, nearestImage, worldDistance } from './geometry';
 
-export function dilationFields(game: Game): Rock[] {
-  return temporalEnabled(game) ? game.rocks.filter(r => r.owner && !r.destroyed && !inStasis(game, r)
-    && unitsAtRock(game, r.id).some(u => u.owner === r.owner && u.kind === 'dilation')) : [];
+type DilationField = { site: Rock; radius: number };
+
+export function dilationFields(game: Game): DilationField[] {
+  if (!temporalEnabled(game)) return [];
+  const stationed = stationedUnits(game);
+  return game.rocks.filter(r => r.owner && !r.destroyed && !inStasis(game, r)
+    && (stationed.get(r.id) ?? []).some(u => u.owner === r.owner && u.kind === 'dilation')).map(site => ({ site, radius: rockSensorRange(game, site) }));
 }
 function velocity(game: Game, fleet: Fleet): { x: number; y: number } {
   if (fleet.preparing || (fleet.enginesDisabledUntil ?? 0) > game.hour || fleet.heldAt) return { x: 0, y: 0 };
   return fleetVelocity(game, fleet, true);
 }
 export function dilationMultiplier(game: Game, fleet: Fleet, activeFields = dilationFields(game)): number {
-  if (!temporalEnabled(game) || fleet.preparing || fleet.heldAt) return 1;
+  if (!activeFields.length || !temporalEnabled(game) || fleet.preparing || fleet.heldAt) return 1;
   const point = fleetPosition(game, fleet), v = velocity(game, fleet);
-  for (const field of activeFields) {
-    const center = nearestImage(game, point, field), radius = rockSensorRange(game, field);
+  for (const { site: field, radius } of activeFields) {
+    const center = nearestImage(game, point, field);
     const distance = worldDistance(game, point, field);
     const radial = (point.x - center.x) * (v.x - (field.drift?.velocity.x ?? 0)) + (point.y - center.y) * (v.y - (field.drift?.velocity.y ?? 0));
     if (distance < radius - 1e-7 || Math.abs(distance - radius) <= 1e-7 && radial < 0) return TEMPORAL.dilationMultiplier;
@@ -36,11 +40,10 @@ export function nextDilationEvent(game: Game): number {
   for (const fleet of game.fleets) {
     if (fleet.preparing || fleet.heldAt) continue;
     const p = fleetPosition(game, fleet), v = velocity(game, fleet);
-    for (const field of activeFields) {
+    for (const { site: field, radius } of activeFields) {
       const vx = v.x - (field.drift?.velocity.x ?? 0), vy = v.y - (field.drift?.velocity.y ?? 0);
       const a = vx * vx + vy * vy;
       if (!a) continue;
-      const radius = rockSensorRange(game, field);
       for (const offset of mapOffsets(game)) {
         const dx = p.x - field.x + offset.x, dy = p.y - field.y + offset.y;
         const b = 2 * (dx * vx + dy * vy), c = dx * dx + dy * dy - radius * radius;
