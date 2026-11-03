@@ -1,10 +1,12 @@
 /**
  * ---
- * purpose: PROTOTYPE (#104). Gravity course plotting and timing; arithmetic and sqrt only so it could run deterministically on server and client.
+ * purpose: PROTOTYPE (#104). Copy of src/game/gravity-model.ts plus sandbox experiments: per-well reach (planetary sites),
+ *   endpoint-well exclusion, coasting reachability, and course sampling. Arithmetic and sqrt only.
  * ---
  */
 export type Point = { x: number; y: number };
-export type Well = { id: string; x: number; y: number; mass: number; radius: number; owner?: string | null };
+/** `reach` overrides the tuning reach for this well, so small planets and large giants can share a chart. */
+export type Well = { id: string; x: number; y: number; mass: number; radius: number; reach?: number; owner?: string | null };
 export type Tuning = {
   bend: number;
   speedGain: number;
@@ -30,6 +32,7 @@ export type MapSize = { width: number; height: number };
 
 export const DEFAULT_TUNING: Tuning = { bend: 1, speedGain: 0.6, reach: 10, ownerAware: true, baseSpeed: 8, samples: 48 };
 const CLEARANCE = 1.3;
+export const reachOf = (w: Well, tuning: Tuning) => w.reach ?? tuning.reach;
 /** Compact falloff: full strength at the centre, zero at the reach circle, so influence is legible. */
 export function influence(r2: number, reach: number, radius: number): number {
   const edge = (reach + radius) ** 2;
@@ -52,11 +55,11 @@ function segmentDistance(p: Point, a: Point, b: Point): number {
 }
 
 /** Copies wells at torus offsets and keeps only those close enough to the chord to matter. */
-function relevantWells(map: MapSize, wells: readonly Well[], a: Point, b: Point, reach: number): Well[] {
+function relevantWells(map: MapSize, wells: readonly Well[], a: Point, b: Point, tuning: Tuning): Well[] {
   const result: Well[] = [];
   for (const ox of [-1, 0, 1]) for (const oy of [-1, 0, 1]) for (const w of wells) {
     const image = { ...w, x: w.x + ox * map.width, y: w.y + oy * map.height };
-    if (segmentDistance(image, a, b) <= reach * 3 + w.radius) result.push(image);
+    if (segmentDistance(image, a, b) <= reachOf(w, tuning) * 3 + w.radius) result.push(image);
   }
   return result;
 }
@@ -82,7 +85,7 @@ export function fly(a: Point, b: Point, aim: number, wells: readonly Well[], tun
     for (const w of wells) {
       const wx = w.x - p.x, wy = w.y - p.y, r2 = wx * wx + wy * wy, r = Math.sqrt(r2);
       if (r < w.radius * CLEARANCE) return { points, miss: 0, valid: false };
-      const k = w.mass * influence(r2, tuning.reach, w.radius) / r;
+      const k = r ? w.mass * influence(r2, reachOf(w, tuning), w.radius) / r : 0;
       gx += wx * k; gy += wy * k;
     }
     const curvature = tuning.bend * (gx * -dy + gy * dx) / tuning.reach;
@@ -120,7 +123,7 @@ function coast(start: Point, end: Point, wells: readonly Well[], tuning: Tuning)
         if (!flight.valid) break;
         if (Math.sign(flight.miss) === Math.sign(loMiss)) { lo = mid; loMiss = flight.miss; } else hi = mid;
       }
-      const length = flight.valid ? pathLength(flight.points) : Infinity;
+      const length = flight.valid && Math.abs(flight.miss) < 1e-7 ? pathLength(flight.points) : Infinity;
       if (length < bestLength) { best = flight.points.slice(0, -1).concat([{ x: end.x, y: end.y }]); bestLength = length; }
     }
     prevAim = aim; prev = next;
@@ -133,31 +136,60 @@ function coast(start: Point, end: Point, wells: readonly Well[], tuning: Tuning)
  * burn once at a waypoint beside a blocking well. Canonical direction makes A→B and B→A the same course.
  */
 function shootLeg(a: Point, b: Point, wells: readonly Well[], tuning: Tuning): { points: Point[]; burns: number } {
+  if (a.x === b.x && a.y === b.y) return { points: [{ ...a }, { ...b }], burns: 0 };
   const swap = a.x > b.x || a.x === b.x && a.y > b.y;
   const [start, end] = swap ? [b, a] : [a, b];
   const orient = (points: Point[], burns: number) => ({ points: swap ? points.reverse() : points, burns });
+  if (wells.every(w => segmentDistance(w, start, end) >= reachOf(w, tuning) + w.radius)) return orient([{ ...start }, { ...end }], 0);
   const direct = coast(start, end, wells, tuning);
   if (direct) return orient(direct, 0);
   const cx = end.x - start.x, cy = end.y - start.y, length = Math.hypot(cx, cy) || 1;
   const nx = -cy / length, ny = cx / length;
   let best: Point[] | null = null;
   for (const w of wells) for (const side of [1, -1]) {
-    const offset = (tuning.reach * 0.75 + w.radius) * side;
+    const offset = (reachOf(w, tuning) * 0.75 + w.radius) * side;
     const waypoint = { x: w.x + nx * offset, y: w.y + ny * offset };
     const first = coast(start, waypoint, wells, tuning), second = first && coast(waypoint, end, wells, tuning);
     if (!first || !second) continue;
     const points = first.concat(second.slice(1));
     if (!best || pathLength(points) < pathLength(best)) best = points;
   }
-  return best ? orient(best, 1) : orient([{ ...start }, { ...end }], 0);
+  return best ? orient(best, 1) : orient(poweredDetour(start, end, wells), 1);
+}
+
+const atWell = (w: Well, p: Point) => Math.hypot(w.x - p.x, w.y - p.y) < w.radius * CLEARANCE;
+
+/** A bounded visibility graph supplies a safe powered fallback when no coasting solution exists. */
+function poweredDetour(start: Point, end: Point, wells: readonly Well[]): Point[] {
+  const diagonal = Math.sqrt(0.5);
+  const directions = [[1, 0], [diagonal, diagonal], [0, 1], [-diagonal, diagonal], [-1, 0], [-diagonal, -diagonal], [0, -1], [diagonal, -diagonal]];
+  const nodes = [start, end, ...wells.flatMap(w => directions.map(([x, y]) => ({ x: w.x + x! * w.radius * 1.6, y: w.y + y! * w.radius * 1.6 })))];
+  const distances = nodes.map((_, i) => i ? Infinity : 0), previous = nodes.map(() => -1), visited = new Set<number>();
+  for (let step = 0; step < nodes.length; step++) {
+    let current = -1;
+    for (let i = 0; i < nodes.length; i++) if (!visited.has(i) && (current < 0 || distances[i]! < distances[current]!)) current = i;
+    if (current < 0 || !Number.isFinite(distances[current]!)) break;
+    if (current === 1) {
+      const path: Point[] = [];
+      for (let i = 1; i !== -1; i = previous[i]!) path.push({ ...nodes[i]! });
+      return path.reverse();
+    }
+    visited.add(current);
+    for (let next = 0; next < nodes.length; next++) {
+      if (visited.has(next) || wells.some(w => segmentDistance(w, nodes[current]!, nodes[next]!) < w.radius * CLEARANCE)) continue;
+      const distance = distances[current]! + Math.hypot(nodes[next]!.x - nodes[current]!.x, nodes[next]!.y - nodes[current]!.y);
+      if (distance < distances[next]!) { distances[next] = distance; previous[next] = current; }
+    }
+  }
+  throw new Error('No gravity course clears the massive bodies.');
 }
 
 /** True when a hauler can coast from `from` to `to` without a burn. Used to shade shadows. */
 export function coastable(map: MapSize, from: Point, to: Point, wells: readonly Well[], tuning: Tuning): boolean {
   const end = nearestImage(map, from, to);
-  const near = relevantWells(map, wells, from, end, tuning.reach);
+  const near = relevantWells(map, wells, from, end, tuning).filter(w => !atWell(w, from) && !atWell(w, end));
   // A straight chord that never enters any influence circle is already a coasting course.
-  if (near.every(w => segmentDistance(w, from, end) >= tuning.reach + w.radius)) return true;
+  if (near.every(w => segmentDistance(w, from, end) >= reachOf(w, tuning) + w.radius)) return true;
   const swap = from.x > end.x || from.x === end.x && from.y > end.y;
   return swap ? coast(end, from, near, tuning) !== null : coast(from, end, near, tuning) !== null;
 }
@@ -166,7 +198,7 @@ export function speedFactor(p: Point, wells: readonly Well[], tuning: Tuning, ow
   let factor = 1;
   for (const w of wells) {
     const dx = w.x - p.x, dy = w.y - p.y;
-    const strength = tuning.speedGain * Math.abs(w.mass) * influence(dx * dx + dy * dy, tuning.reach, w.radius);
+    const strength = tuning.speedGain * Math.abs(w.mass) * influence(dx * dx + dy * dy, reachOf(w, tuning), w.radius);
     const sign = w.mass > 0 ? 1 : tuning.ownerAware && owner !== null && w.owner === owner ? 1 : -1;
     factor += sign * strength;
   }
@@ -181,7 +213,8 @@ export function plotCourse(map: MapSize, from: Point, to: Point, wells: readonly
   let burns = 0;
   for (let i = 0; i < stops.length - 1; i++) {
     const a = stops[i]!, b = stops[i + 1]!;
-    const legWells = relevantWells(map, wells, a, b, tuning.reach);
+    // A site's own well never acts on courses that leave or reach it: no capture at launch, no free slingshot on arrival.
+    const legWells = relevantWells(map, wells, a, b, tuning).filter(w => !atWell(w, a) && !atWell(w, b));
     near = near.concat(legWells);
     const leg = shootLeg(a, b, legWells, tuning);
     burns += leg.burns;

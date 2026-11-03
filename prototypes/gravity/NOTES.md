@@ -30,3 +30,18 @@ Do curved, gravity-bent hauler courses feel good and stay legible on a real char
 ## Verdict
 
 Integrated as the default gameplay variant for new mechanics-revision-19 operations, with an option to disable it. See [gravity rules](../../docs/gravity.md). The engine keeps fixed ballistic courses, neutral giants, and speed-integrated timing, with safe powered detours when no coasting solution exists. Interceptors fly straight under power. Specialist-created antigravity wells and interactive shadow overlays remain separate work. This sandbox remains available for tuning experiments.
+
+## Planetary sites (option B)
+
+Question: can some sites be planets with their own gravity, without turning gravity into a flat speed change?
+
+`model.ts` is now a copy of the engine model with two additions: a per-well `reach`, and a rule that a site's own well never acts on courses that leave or reach it. The sandbox's **Planet** sliders mark every Nth public site as a planet. `npx tsx prototypes/gravity/planets.ts` measures generated charts (2–8 players, seeds 1–5, site pairs within 30u, planets on every fifth site, radius 0.6).
+
+- **Giants don't touch ordinary hops.** `placeGiants` puts them about 20–23u from the nearest site, and their influence ends at 11.5u. No route shorter than about 31u bends; only 6–10% of all site pairs do. On today's charts, gravity mostly affects long strikes.
+- **Planets reach the hops that giants miss.** At mass 0.5 and reach 6, planets change 5–10% of short routes. Changed routes move by a median of 3–4% ETA (p90 6–8%). At mass 0.8 that's 4–5% (p90 8–11%), with no extra burns.
+- **No flat buff.** With endpoint wells excluded, the mean ETA change across all short routes is between 0 and −0.6%. Passing a planet is slightly faster on average, so sites near planets are slightly better connected.
+- **Planets cast shadows too.** A narrow wedge behind each planet, seen from the launching site, can't be reached by coasting, so those routes need a burn. Weak planets (mass 0.3) produce more burns than strong ones (6–13 vs 0–1 per 1,000 routes), because they bend courses too little to clear the 1.3× radius.
+- **Reach 6 overlaps.** 17–30% of planets share influence with another planet. At reach 4 that drops to 0–30%, but the effect becomes hard to see.
+- **Cost is fine.** 0.3–1.2ms per course, including giants.
+
+Open questions for the engine: assign planets by territory rank (as site types and shields are) so every player gets the same share; choose between mass 0.5 and 0.8; decide whether to keep giants as they are or move them closer, since they currently don't affect ordinary hops.
