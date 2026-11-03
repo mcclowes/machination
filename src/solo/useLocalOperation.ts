@@ -21,6 +21,7 @@ export function useLocalOperation(
   const [ready, setReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState('');
+  const [catchingUp, setCatchingUp] = useState(false);
   const lastTick = useRef(Date.now());
   const replace = useCallback((next: LocalOperation) => {
     current.current = next;
@@ -55,25 +56,44 @@ export function useLocalOperation(
     };
   }, [policy, replace, restartClock]);
   useEffect(() => {
-    if (!ready || loadFailed) return;
+    // Each catch-up slice commits a state; only the settled one is worth a full-history write.
+    if (!ready || loadFailed || catchingUp) return;
     void policy
       .save(operation)
       .catch(() => setError('Could not save this operation. Keep the app open and retry.'));
-  }, [operation, ready, loadFailed, policy]);
+  }, [operation, ready, loadFailed, policy, catchingUp]);
   useEffect(() => {
     if (!ready || loadFailed || !policy.automaticClock) return;
-    const tick = () => {
-      const now = Date.now(),
-        delta = Math.max(0, now - lastTick.current) / HOUR_MS;
-      lastTick.current = now;
+    // Returning after hours away is caught up one game hour per slice so the interface keeps responding.
+    let pending = 0,
+      slice: ReturnType<typeof setTimeout> | undefined;
+    const step = () => {
+      slice = undefined;
       const op = current.current;
-      if (!op.game.winner && !op.game.draw)
-        replace(policy.advance(op, op.game.hour + delta, 'clock'));
+      if (pending <= 0 || op.game.winner || op.game.draw) {
+        pending = 0;
+        setCatchingUp(false);
+        return;
+      }
+      const hours = Math.min(pending, 1);
+      pending -= hours;
+      setCatchingUp(pending > 0);
+      replace(policy.advance(op, op.game.hour + hours, 'clock'));
+      if (pending > 0) slice = setTimeout(step, 0);
+    };
+    const tick = () => {
+      const now = Date.now();
+      pending += Math.max(0, now - lastTick.current) / HOUR_MS;
+      lastTick.current = now;
+      if (slice === undefined) step();
     };
     const timer = setInterval(tick, 15_000);
     const subscription = AppState.addEventListener('change', tick);
     return () => {
       clearInterval(timer);
+      if (slice !== undefined) clearTimeout(slice);
+      setCatchingUp(false);
+      lastTick.current -= pending * HOUR_MS; // Unapplied time resumes with the next clock.
       subscription.remove();
     };
   }, [ready, loadFailed, policy, replace]);
@@ -87,5 +107,6 @@ export function useLocalOperation(
     error,
     setError,
     restartClock,
+    catchingUp,
   };
 }

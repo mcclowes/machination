@@ -4,6 +4,7 @@
  * ---
  */
 import { allied } from './teams';
+import { mechanicsVersion } from './rules';
 import { advance, type Faction, type Game } from './simulation';
 import type { GameCommand } from './replay';
 import type { EncounterReport } from './combat-report';
@@ -78,9 +79,13 @@ function warningSource(game: Game, report: EncounterReport | undefined, owner: F
   }
   return report?.site ? `enemy action at ${game.rocks.find(r => r.id === report.site)?.name ?? report.site}` : 'committed enemy activity';
 }
-export function predictSpecialistDeaths(game: Game): DeathWarning[] {
+/** Revision 20 refreshes foresight hourly and after orders instead of at every simulation boundary. */
+export const HOURLY_FORESIGHT_REVISION = 20;
+const hourlyForesight = (game: Game): boolean => mechanicsVersion(game) >= HOURLY_FORESIGHT_REVISION;
+/** Automated rivals never read warnings, so revision 20 forecasts only for the player when rivals are automated. */
+export function predictSpecialistDeaths(game: Game, automatedRivals = false): DeathWarning[] {
   if (!temporalEnabled(game) || game.winner || game.draw) return [];
-  const owners = new Set(activeUnits(game).filter(u => u.kind === 'foresight').map(u => u.owner));
+  const owners = new Set(activeUnits(game).filter(u => u.kind === 'foresight' && !(automatedRivals && hourlyForesight(game) && u.owner !== 'you')).map(u => u.owner));
   if (!owners.size) return [];
   const protectedUnits = activeUnits(game).filter(u => owners.has(u.owner));
   const warnings: DeathWarning[] = [], warned = new Set<string>();
@@ -100,9 +105,9 @@ export function predictSpecialistDeaths(game: Game): DeathWarning[] {
   inspect(predicted);
   return warnings;
 }
-export function refreshForesight(game: Game): void {
+export function refreshForesight(game: Game, automatedRivals = false): void {
   if (!temporalEnabled(game)) return;
-  const warnings = predictSpecialistDeaths(game), previous = game.temporalIntel?.warnings ?? [];
+  const warnings = predictSpecialistDeaths(game, automatedRivals), previous = game.temporalIntel?.warnings ?? [];
   if (!warnings.length && !previous.length) return;
   const changed = warnings.filter(w => !previous.some(p => p.owner === w.owner && p.specialistId === w.specialistId && Math.abs(p.deathAt - w.deathAt) < 1e-7 && p.source === w.source));
   game.temporalIntel = { pending: game.temporalIntel?.pending ?? [], warnings };
@@ -111,4 +116,12 @@ export function refreshForesight(game: Game): void {
     game.events.unshift({ hour: game.hour, audience: [warning.owner], message: `Foresight: ${unit ? SPECIALISTS[unit.kind].name : 'specialist'} predicted killed at hour ${warning.deathAt.toFixed(2)} by ${warning.source}. This warning changes with plans.` });
   }
   if (changed.length) game.events = recentEvents(game.events);
+}
+/** Between hourly refreshes, drop warnings whose predicted hour has passed or whose specialist is gone. */
+export function expireForesight(game: Game): void {
+  const intel = game.temporalIntel;
+  if (!hourlyForesight(game) || !intel?.warnings.length) return;
+  const present = new Set([...game.rocks, ...game.fleets].flatMap(a => a.specialists ?? []).map(u => `${u.owner}:${u.id}`));
+  const warnings = intel.warnings.filter(w => w.deathAt > game.hour && present.has(`${w.owner}:${w.specialistId}`));
+  if (warnings.length !== intel.warnings.length) game.temporalIntel = { pending: intel.pending, warnings };
 }

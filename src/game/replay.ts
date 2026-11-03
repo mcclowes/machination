@@ -86,12 +86,12 @@ function performCommand(input: Game, command: GameCommand): Game {
   }
 }
 
-export function executeCommand(input: Game, command: GameCommand): Game {
+export function executeCommand(input: Game, command: GameCommand, automatedRivals = false): Game {
   const game = performCommand(input, command);
   recordTemporalCommand(input, game, command);
   settleCouncil(game);
   if (game.pulse) { settlePulseHazards(game); evaluatePulseVictory(game); }
-  refreshForesight(game);
+  refreshForesight(game, automatedRivals);
   return game;
 }
 
@@ -149,17 +149,80 @@ function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayT
     (record: Parameters<SimulationTraceSink>[0]) => trace(record),
     { includes: intersects },
   );
-  let game = clone(history.baseline);
-  tracePoint(capture, 'replay:initial', game);
-  for (const entry of history.entries) {
-    if (entry.hour > targetHour) break;
-    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined });
-    tracePoint(capture, 'command:before', game);
-    game = executeCommand(game, entry.command);
-    tracePoint(capture, 'command:after', game);
+  if (capture) return reconstructFrom(history, clone(history.baseline), 0, targetHour, capture);
+  const start = latestCheckpoint(history, targetHour);
+  return reconstructFrom(history, start ? clone(start.game) : clone(history.baseline), start?.applied ?? 0, targetHour);
+}
+
+/**
+ * Simulation is split-invariant: advancing to a then b equals advancing to b. Replays therefore resume
+ * from the latest matching checkpoint instead of re-simulating from the baseline on every order or inspection.
+ */
+type Checkpoint = { entries: readonly Entry[]; applied: number; game: Game };
+type Checkpoints = { periodic: Checkpoint[]; frontier: Checkpoint[] };
+const CHECKPOINT_HOURS = 6;
+const MAX_PERIODIC_CHECKPOINTS = 64;
+const MAX_FRONTIER_CHECKPOINTS = 4;
+// Keyed by baseline, which every archive derived through applyCommand shares.
+const checkpoints = new WeakMap<Game, Checkpoints>();
+const describes = (point: Checkpoint, history: History): boolean =>
+  point.applied <= history.entries.length && (point.entries === history.entries || point.entries.slice(0, point.applied).every((entry, i) => entry === history.entries[i]));
+function latestCheckpoint(history: History, targetHour: number): Checkpoint | undefined {
+  const stored = checkpoints.get(history.baseline);
+  let best: Checkpoint | undefined;
+  for (const point of stored ? [...stored.periodic, ...stored.frontier] : []) {
+    if (point.game.hour > targetHour) continue;
+    if (best && (point.game.hour < best.game.hour || point.game.hour === best.game.hour && point.applied <= best.applied)) continue;
+    // The checkpoint must describe this history: same applied commands, and no later command before its hour.
+    if (!describes(point, history)) continue;
+    const following = history.entries[point.applied];
+    if (following && following.hour < point.game.hour) continue;
+    best = point;
   }
-  if (targetHour > game.hour) game = advance(game, targetHour, { rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined });
-  tracePoint(capture, 'replay:final', game);
+  return best;
+}
+function remember(history: History, applied: number, game: Game, kind: keyof Checkpoints): void {
+  const stored = checkpoints.get(history.baseline) ?? { periodic: [], frontier: [] };
+  checkpoints.set(history.baseline, stored);
+  const points = stored[kind];
+  if (points.some(point => point.applied === applied && point.game.hour === game.hour && describes(point, history))) return;
+  points.push({ entries: history.entries, applied, game: clone(game) });
+  if (points.length > (kind === 'periodic' ? MAX_PERIODIC_CHECKPOINTS : MAX_FRONTIER_CHECKPOINTS)) points.shift();
+}
+
+/** Replay in one-hour slices so callers can yield between them; each slice resumes from the previous one. */
+export function* replaySlices(handle: ReplayArchive, targetHour: number, options: ReplayOptions): Generator<number, Game> {
+  const baseline = historyOf(handle).baseline.hour;
+  for (let hour = Math.floor(baseline) + 1; hour < targetHour; hour++) {
+    reconstruct(handle, hour, options);
+    yield hour;
+  }
+  return reconstruct(handle, targetHour, options);
+}
+
+function reconstructFrom(history: History, initial: Game, applied: number, targetHour: number, trace?: SimulationTraceSink): Game {
+  let game = initial;
+  const advanceTo = (hour: number) => {
+    if (trace) { game = advance(game, hour, { rivals: history.rivals, trace: trace.includes?.(game.hour, hour) === false ? undefined : trace }); return; }
+    while (game.hour < hour) {
+      const mark = (Math.floor(game.hour / CHECKPOINT_HOURS) + 1) * CHECKPOINT_HOURS, stop = Math.min(hour, mark);
+      game = advance(game, stop, { rivals: history.rivals });
+      if (game.hour < stop) return; // The operation ended before this hour.
+      if (game.hour === mark) remember(history, applied, game, 'periodic');
+    }
+  };
+  if (applied === 0) tracePoint(trace, 'replay:initial', game);
+  for (; applied < history.entries.length; applied++) {
+    const entry = history.entries[applied]!;
+    if (entry.hour > targetHour) break;
+    if (entry.hour > game.hour) advanceTo(entry.hour);
+    tracePoint(trace, 'command:before', game);
+    game = executeCommand(game, entry.command, history.rivals);
+    tracePoint(trace, 'command:after', game);
+  }
+  if (targetHour > game.hour) advanceTo(targetHour);
+  tracePoint(trace, 'replay:final', game);
+  if (!trace) remember(history, applied, game, 'frontier');
   return game;
 }
 
@@ -170,6 +233,6 @@ export function applyCommand(handle: ReplayArchive, command: GameCommand, option
   const current = replayTo(handle, options.knownThrough, options);
   if (current.hour !== options.knownThrough) throw new Error('The operation ended before this command hour.');
   const canonical = clone(command);
-  const game = executeCommand(current, canonical);
+  const game = executeCommand(current, canonical, history.rivals);
   return { game, archive: archive({ ...history, entries: [...history.entries, { hour: current.hour, command: canonical }] }) };
 }
