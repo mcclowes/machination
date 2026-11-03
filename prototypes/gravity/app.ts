@@ -47,7 +47,7 @@ function wells(excluding: readonly string[] = []): Well[] {
 }
 
 function course(from: Site, to: Site, waypoints: readonly Point[] = []): Course {
-  return plotCourse(state, from, to, wells([from.id, to.id]), state.tuning, from.owner, waypoints);
+  return plotCourse(state, from, to, wells(), state.tuning, from.owner, waypoints);
 }
 
 const scale = () => canvas.width / state.width;

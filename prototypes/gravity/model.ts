@@ -32,7 +32,7 @@ export type MapSize = { width: number; height: number };
 
 export const DEFAULT_TUNING: Tuning = { bend: 1, speedGain: 0.6, reach: 10, ownerAware: true, baseSpeed: 8, samples: 48 };
 const CLEARANCE = 1.3;
-const reachOf = (w: Well, tuning: Tuning) => w.reach ?? tuning.reach;
+export const reachOf = (w: Well, tuning: Tuning) => w.reach ?? tuning.reach;
 /** Compact falloff: full strength at the centre, zero at the reach circle, so influence is legible. */
 export function influence(r2: number, reach: number, radius: number): number {
   const edge = (reach + radius) ** 2;

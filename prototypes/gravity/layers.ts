@@ -3,7 +3,7 @@
  * purpose: PROTOTYPE (#104). Pure helpers for optional chart layers: gravity pull vectors and travel-time contours.
  * ---
  */
-import { influence, type Point, type Tuning, type Well } from './model';
+import { influence, reachOf, type Point, type Tuning, type Well } from './model';
 
 /** The same steering vector `fly` uses, so arrows show which way a passing course turns. */
 export function pull(p: Point, wells: readonly Well[], tuning: Tuning): Point {
@@ -11,7 +11,7 @@ export function pull(p: Point, wells: readonly Well[], tuning: Tuning): Point {
   for (const w of wells) {
     const wx = w.x - p.x, wy = w.y - p.y, r2 = wx * wx + wy * wy, r = Math.sqrt(r2);
     if (r < 1e-9) continue;
-    const k = w.mass * influence(r2, tuning.reach, w.radius) / r;
+    const k = w.mass * influence(r2, reachOf(w, tuning), w.radius) / r;
     x += wx * k; y += wy * k;
   }
   return { x, y };
