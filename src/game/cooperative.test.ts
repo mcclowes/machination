@@ -39,6 +39,8 @@ test('cooperative catch-up retains the complete captured ten-player native resul
   const initial = createSoloGame({ playerCount: 10, mode: 'mining', driftingBases: false, gravity: true,
     portraits: ['admiral', 'pilot', 'engineer', 'ranger', 'diplomat', 'navigator', 'hotshot', 'envoy', 'veteran', 'enforcer'],
   }, 1793660260770, 0);
+  // Captured under revision 19; saved games keep their recorded rules.
+  initial.rules!.mechanicsVersion = 19;
   initial.rules!.colors = assignPlayerColor(initial.rules!, [], 'you');
   const game = advance(initial, 0.0026247222222222223, { rivals: true });
   const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -51,4 +53,14 @@ test('cooperative catch-up retains the complete captured ten-player native resul
     assert.ok(opportunities > 1);
     assert.equal(hash(game), 'a5a298ea8ebb8d71a13064af166aafb8effd9ec7516d6f516ae2e6baf9c1935d');
   } finally { clearInterval(timer); }
+});
+
+test('cooperative catch-up matches synchronous catch-up under the current solo revision', async () => {
+  const { createSoloGame } = await import('./depletion');
+  const { runSteps } = await import('../solo/execution');
+  const game = createSoloGame({ playerCount: 10, mode: 'mining', driftingBases: false, gravity: true,
+    portraits: ['admiral', 'pilot', 'engineer', 'ranger', 'diplomat', 'navigator', 'hotshot', 'envoy', 'veteran', 'enforcer'],
+  }, 1793660260770, 0);
+  const stepped = await runSteps(advanceSteps(game, 6.5, { rivals: true }));
+  assert.deepEqual(stepped, advance(game, 6.5, { rivals: true }));
 });

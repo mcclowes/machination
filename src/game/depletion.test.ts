@@ -20,6 +20,8 @@ test('the captured ten-seat finite-reserve solo catch-up preserves its complete 
   const initial = createSoloGame({ playerCount: 10, mode: 'mining', driftingBases: false, gravity: true,
     portraits: ['admiral', 'pilot', 'engineer', 'ranger', 'diplomat', 'navigator', 'hotshot', 'envoy', 'veteran', 'enforcer'],
   }, 1793660260770, 0);
+  // Captured under revision 19; saved games keep their recorded rules.
+  initial.rules!.mechanicsVersion = 19;
   initial.rules!.colors = assignPlayerColor(initial.rules!, [], 'you');
   const game = advance(initial, 0.0026247222222222223, { rivals: true });
   const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
