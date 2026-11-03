@@ -29,9 +29,9 @@ export const RIVAL_DECISION_INTERVAL = 3;
 export type RivalStyle = 'conqueror' | 'expansionist' | 'industrialist';
 export function rivalStyle(owner: Faction): RivalStyle { return (['conqueror', 'expansionist', 'industrialist'] as const)[ALL_PLAYERS.indexOf(owner) % 3]!; }
 
-export function actStrategicRivals(input: Game, trace?: SimulationTraceSink): Game {
+export function actStrategicRivals(input: Game, trace?: SimulationTraceSink, bots?: readonly Faction[]): Game {
   if (input.winner || input.draw || input.version !== 2) return input;
-  const owners = playersIn(input).filter(f => f !== 'you' && !input.eliminated.includes(f));
+  const owners = playersIn(input).filter(f => f !== 'you' && !input.eliminated.includes(f) && (!bots || bots.includes(f)));
   if ((input.rivalPolicy ?? 1) !== 1) return actSimultaneously(input, owners, actStrategicPlayer, game => tracePoint(trace, 'rival', game));
   let game = input;
   for (const owner of owners) {

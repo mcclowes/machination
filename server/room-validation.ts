@@ -59,6 +59,17 @@ export function validateStoredRoom(r: Room, ids: ReadonlySet<string>): void {
   const accounts = r.seats.flatMap((s) => (s.accountId ? [s.accountId] : []));
   if (new Set(accounts).size !== accounts.length) throw new Error('Duplicate account seats.');
   for (const seat of r.seats) {
+    if (
+      seat.bot !== undefined &&
+      (seat.bot !== true ||
+        seat.faction === 'you' ||
+        seat.accountId !== undefined ||
+        seat.profileId !== undefined ||
+        seat.identityHash !== undefined ||
+        seat.recoveryHash !== undefined ||
+        seat.lastActiveHour !== undefined)
+    )
+      throw new Error('Damaged bot seat.');
     validateStoredMessageBlocks(r, seat.faction, seat.messageBlocks);
     if (
       seat.accountId !== undefined &&
@@ -134,6 +145,11 @@ export function validateStoredRoom(r: Room, ids: ReadonlySet<string>): void {
     throw new Error('Damaged diplomacy metadata.');
   if (r.replay !== undefined) {
     if (r.startedAt === null) throw new Error('A lobby cannot contain operation history.');
+    if (
+      JSON.stringify(r.replay.bots ?? []) !==
+      JSON.stringify(r.seats.filter((s) => s.bot).map((s) => s.faction))
+    )
+      throw new Error('Damaged bot history.');
     r.replay = exportArchive(decodeReplay(r.replay, r.game, false));
   }
 }

@@ -50,7 +50,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
     if (typeof input.invite !== 'string') throw new Failure(400, 'game.validation.invite', 'Provide an invitation code.');
     return service.join(input.invite, token, input.preferredColor, mechanicsVersion);
   }
-  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications|message-blocks|reporting|message-reports))?$/);
+  const match = url.pathname.match(/^\/v1\/games\/([a-f0-9]{24})(?:\/(council|pulse|replay|resign|activity|history|funding|start|bots|orders|specialists|haulers|sites|gifts|messages|groups|channel-messages|modules|schedules|edit-schedule|cancel-schedule|intercepts|recovery|recover|notifications|message-blocks|reporting|message-reports))?$/);
   if (!match) throw new Failure(404, 'request.not_found.route', 'Endpoint not found.');
   const id = match[1]!, action = match[2];
   switch (req.method) {
@@ -101,6 +101,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
         case 'recovery': return service.setRecovery(id, token, input as RecoverySetup);
         case 'recover': return service.recover(id, token, input as RecoverSeat, mechanicsVersion);
         case 'start': return service.start(id, token);
+        case 'bots': return service.setBot(id, token, input);
         case 'specialists': return service.specialist(id, token, input as SpecialistOrder);
         case 'haulers': return service.hauler(id, token, input as HaulerOrder);
         case 'council': return service.council(id, token, input);

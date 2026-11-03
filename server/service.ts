@@ -18,7 +18,7 @@ import {
 import { assertClientRules } from './client-representation';
 import { councilCommand } from './council-command';
 import { factionStandings, finished, profileId } from './factions';
-import { isAllegiance, type FactionStandings } from '../src/game/factions';
+import { ALLEGIANCE_IDS, isAllegiance, type FactionStandings } from '../src/game/factions';
 import { factionOpening } from '../src/game/faction-opening';
 import { isTacticalPulseCommand } from '../src/game/tactical-pulse';
 import type { PulseCommand } from '../src/game/pulse';
@@ -301,15 +301,24 @@ export class GameService {
   }
   private advanceRoom(room: Room) {
     if (room.startedAt !== null) {
-      room.replay ??= exportArchive(createArchive(room.game));
+      room.replay ??= exportArchive(
+        createArchive(room.game, {
+          rivals: false,
+          bots: room.seats.filter((s) => s.bot).map((s) => s.faction),
+        }),
+      );
       const target = Math.max(room.game.hour, (this.now() - room.startedAt) / HOUR_MS);
       while (room.game.version === 2 && !room.game.winner && !room.game.draw) {
         const active = room.seats.filter(
-          (s) => !room.game.eliminated.includes(s.faction) && s.lastActiveHour !== undefined,
+          (s) =>
+            !s.bot && !room.game.eliminated.includes(s.faction) && s.lastActiveHour !== undefined,
         );
         const deadline = Math.min(...active.map((s) => s.lastActiveHour! + INACTIVITY_HOURS));
         if (deadline > target) break;
-        room.game = advance(room.game, Math.max(room.game.hour, deadline), { rivals: false });
+        room.game = advance(room.game, Math.max(room.game.hour, deadline), {
+          rivals: false,
+          bots: room.seats.filter((s) => s.bot).map((s) => s.faction),
+        });
         if (room.game.winner || room.game.draw) break;
         const owners = active
           .filter(
@@ -320,9 +329,12 @@ export class GameService {
           .map((s) => s.faction);
         if (owners.length) this.act(room, { type: 'inactivity', owners });
       }
-      room.game = advance(room.game, target, { rivals: false });
+      room.game = advance(room.game, target, {
+        rivals: false,
+        bots: room.seats.filter((s) => s.bot).map((s) => s.faction),
+      });
       if (room.game.version === 2)
-        for (const seat of room.seats) seat.lastActiveHour ??= room.game.hour;
+        for (const seat of room.seats) if (!seat.bot) seat.lastActiveHour ??= room.game.hour;
     }
   }
   /** Diffs each consenting seat's observed threats against its ledger. Seats without a ledger seed silently. */
@@ -431,7 +443,12 @@ export class GameService {
   }
   private act(room: Room, command: GameCommand): void {
     const result = applyCommand(
-      room.replay ? restoreArchive(room.replay) : createArchive(room.game),
+      room.replay
+        ? restoreArchive(room.replay)
+        : createArchive(room.game, {
+            rivals: false,
+            bots: room.seats.filter((s) => s.bot).map((s) => s.faction),
+          }),
       command,
       { rivals: false, knownThrough: room.game.hour },
     );
@@ -521,6 +538,9 @@ export class GameService {
       faction,
       host: faction === 'you',
       members: room.seats.map((s) => s.faction),
+      ...(room.seats.some((s) => s.bot)
+        ? { bots: room.seats.filter((s) => s.bot).map((s) => s.faction) }
+        : {}),
       revision: this.revision(room, faction),
       groups: (room.diplomacy?.groups ?? [])
         .filter((g) => g.members.includes(faction))
@@ -841,7 +861,7 @@ export class GameService {
         'game.conflict.closed',
         'This operation is no longer accepting players.',
       );
-      const faction = playersIn(room.game)[room.seats.length]!;
+      const faction = playersIn(room.game).find((f) => !room.seats.some((s) => s.faction === f))!;
       if (room.game.rules)
         room.game.rules.colors = assignPlayerColor(
           room.game.rules,
@@ -1114,6 +1134,64 @@ export class GameService {
       return this.view(r, f);
     });
   }
+  setBot(id: string, token: Credential, input: unknown): Promise<Snapshot> {
+    return this.transaction((db) => {
+      const room = this.room(db, id);
+      const owner = this.seat(room, token);
+      requireThat(owner === 'you', 403, 'game.forbidden.host', 'Only the host can assign bots.');
+      requireThat(
+        room.startedAt === null,
+        409,
+        'game.conflict.started',
+        'Bot assignments are fixed once the operation starts.',
+      );
+      const command = input as { faction?: Faction; enabled?: boolean } | null;
+      requireThat(
+        command &&
+          typeof command === 'object' &&
+          !Array.isArray(command) &&
+          Object.keys(command).every((k) => ['faction', 'enabled'].includes(k)) &&
+          typeof command.enabled === 'boolean' &&
+          command.faction !== 'you' &&
+          playersIn(room.game).includes(command.faction!),
+        400,
+        'bot.validation.slot',
+        'Choose a non-host slot and whether to assign a bot.',
+      );
+      const faction = command.faction!;
+      const seat = room.seats.find((s) => s.faction === faction);
+      requireThat(
+        !seat || seat.bot,
+        409,
+        'game.conflict.human',
+        'This slot belongs to a human player.',
+      );
+      if (command.enabled && !seat) {
+        room.seats.push({
+          faction,
+          bot: true,
+          hash: randomBytes(32).toString('hex'),
+          ...(room.variant
+            ? {
+                allegiance:
+                  ALLEGIANCE_IDS[playersIn(room.game).indexOf(faction) % ALLEGIANCE_IDS.length]!,
+              }
+            : {}),
+        });
+        if (room.game.rules)
+          room.game.rules.colors = assignPlayerColor(
+            room.game.rules,
+            room.seats.filter((s) => s.faction !== faction).map((s) => s.faction),
+            faction,
+          );
+        room.revision++;
+      } else if (!command.enabled && seat) {
+        room.seats = room.seats.filter((s) => s !== seat);
+        room.revision++;
+      }
+      return this.view(room, owner);
+    });
+  }
   start(id: string, token: Credential): Promise<Snapshot> {
     return this.transaction((db) => {
       const r = this.room(db, id);
@@ -1138,7 +1216,8 @@ export class GameService {
           );
         r.startedAt = this.now();
         r.game.epoch = r.startedAt;
-        if (r.game.version === 2) for (const seat of r.seats) seat.lastActiveHour = r.game.hour;
+        if (r.game.version === 2)
+          for (const seat of r.seats) if (!seat.bot) seat.lastActiveHour = r.game.hour;
         this.reviseOrders(r, [f]);
       }
       this.settle(db, r);

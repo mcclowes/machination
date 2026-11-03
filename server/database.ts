@@ -40,6 +40,7 @@ export type Room = {
   creationKey?: string;
   game: Game;
   seats: {
+    bot?: true;
     profileId?: string;
     allegiance?: Allegiance;
     accountId?: string;

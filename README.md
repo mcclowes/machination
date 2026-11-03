@@ -2,7 +2,7 @@
 
 Slow orbits. Cold decisions.
 
-An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. Play solo against one to nine deterministic AI rivals, or connect two to ten human players through the invite-only multiplayer service.
+An iOS and Android strategy game about rival machine intelligences in the asteroid belt. Built with Expo, React Native, and TypeScript. Play solo against one to nine deterministic AI rivals, or fill two to ten multiplayer slots with humans and bots through the invite-only multiplayer service. Hosts can assign or remove bots in empty lobby slots before starting; bots use the solo AI and run on the server.
 
 ## Run
 

@@ -3,6 +3,7 @@
  * purpose: Validate private persisted command history and prove it reconstructs the saved live operation.
  * ---
  */
+import { playersIn } from './players';
 import { isCouncilChoice } from './compact';
 import { isCompactPolicy } from './compact-policies';
 import { isTacticalPulseCommand } from './tactical-pulse';
@@ -93,15 +94,16 @@ function validateReplay(input: unknown, live: Game, rivals: boolean, trace?: { w
     catch (error) { callbackFailure = { error }; throw error; }
   });
   try {
-    if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals']) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
+    if (!record(input) || !shape(input, ['version', 'rules', 'baseline', 'entries', 'rivals', ...(input.bots === undefined ? [] : ['bots'])]) || input.version !== 1 || input.rules !== 1 || input.rivals !== rivals || !Array.isArray(input.entries) || input.entries.length > MAX_REPLAY_COMMANDS + MAX_INACTIVITY_COMMANDS || !replayFits(input as ReplayData, true)) throw new Error();
     const baseline = decodeSave(JSON.stringify({ savedAt: 0, game: input.baseline })).game;
+    if (input.bots !== undefined && (rivals || !Array.isArray(input.bots) || input.bots.length === 0 || new Set(input.bots).size !== input.bots.length || !input.bots.every(f => f !== 'you' && playersIn(baseline).includes(f)))) throw new Error();
     if (baseline.hour > live.hour || baseline.epoch !== live.epoch || baseline.version !== live.version) throw new Error();
     let previous = baseline.hour;
     for (const entry of input.entries) {
       if (!record(entry) || !shape(entry, ['hour', 'command']) || !finite(entry.hour) || entry.hour < previous || entry.hour > live.hour || !command(entry.command) || rivals && (entry.command as { owner: string }).owner !== 'you') throw new Error();
       previous = entry.hour;
     }
-    const data = { version: 1, rules: 1, baseline, entries: input.entries, rivals } as ReplayData;
+    const data = { version: 1, rules: 1, baseline, entries: input.entries, ...(input.bots ? { bots: input.bots } : {}), rivals } as ReplayData;
     const archive = restoreArchive(data);
     const reconstructed = trace && sink
       ? traceReplayTo(archive, live.hour, { rivals, knownThrough: live.hour, traceWindow: trace.window }, sink)

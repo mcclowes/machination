@@ -101,8 +101,8 @@ export type ReplayOptions = { rivals: boolean; knownThrough: number };
 export type ReplayTraceOptions = ReplayOptions & { traceWindow?: { from: number; through: number } };
 export type ReplayEntry = { hour: number; command: GameCommand };
 type Entry = ReplayEntry;
-type History = { baseline: Game; entries: readonly Entry[]; rivals: boolean };
-export type ReplayData = { version: 1; rules: 1; baseline: Game; entries: ReplayEntry[]; rivals: boolean };
+type History = { baseline: Game; entries: readonly Entry[]; bots?: Faction[]; rivals: boolean };
+export type ReplayData = { version: 1; rules: 1; baseline: Game; entries: ReplayEntry[]; bots?: Faction[]; rivals: boolean };
 const histories = new WeakMap<ReplayArchive, History>();
 function archive(history: History): ReplayArchive {
   const handle = Object.freeze({}) as ReplayArchive;
@@ -115,18 +115,18 @@ function historyOf(handle: ReplayArchive): History {
   return history;
 }
 
-export function createArchive(baseline: Game, options: { rivals: boolean } = { rivals: false }): ReplayArchive {
+export function createArchive(baseline: Game, options: { rivals: boolean; bots?: Faction[] } = { rivals: false }): ReplayArchive {
   if (!Number.isFinite(baseline.hour) || baseline.hour < 0) throw new Error('Invalid replay baseline hour.');
-  return archive({ baseline: clone(baseline), entries: [], rivals: options.rivals });
+  return archive({ baseline: clone(baseline), entries: [], ...(options.bots?.length ? { bots: [...options.bots] } : {}), rivals: options.rivals });
 }
 
 /** Private storage only. Importers must validate this envelope before restoring it. */
 export function exportArchive(handle: ReplayArchive): ReplayData {
   const history = historyOf(handle);
-  return clone({ version: 1, rules: 1, baseline: history.baseline, entries: [...history.entries], rivals: history.rivals });
+  return clone({ version: 1, rules: 1, baseline: history.baseline, entries: [...history.entries], ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals });
 }
 export function restoreArchive(data: ReplayData): ReplayArchive {
-  return archive(clone({ baseline: data.baseline, entries: data.entries, rivals: data.rivals }));
+  return archive(clone({ baseline: data.baseline, entries: data.entries, ...(data.bots ? { bots: data.bots } : {}), rivals: data.rivals }));
 }
 
 /** Includes all successful submissions at targetHour, in original submission order. */
@@ -153,12 +153,12 @@ function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayT
   tracePoint(capture, 'replay:initial', game);
   for (const entry of history.entries) {
     if (entry.hour > targetHour) break;
-    if (entry.hour > game.hour) game = advance(game, entry.hour, { rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined });
+    if (entry.hour > game.hour) game = advance(game, entry.hour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, entry.hour) ? capture : undefined });
     tracePoint(capture, 'command:before', game);
     game = executeCommand(game, entry.command);
     tracePoint(capture, 'command:after', game);
   }
-  if (targetHour > game.hour) game = advance(game, targetHour, { rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined });
+  if (targetHour > game.hour) game = advance(game, targetHour, { ...(history.bots ? { bots: history.bots } : {}), rivals: history.rivals, trace: intersects(game.hour, targetHour) ? capture : undefined });
   tracePoint(capture, 'replay:final', game);
   return game;
 }

@@ -1811,7 +1811,7 @@ function ConnectedOperation({
                     : snapshot.game.eliminated.includes(snapshot.faction)
                       ? 'eliminated'
                       : snapshot.status.replace('game.', '')}{' '}
-                  · {joined}/{roster.length} players joined · hour{' '}
+                  · {joined}/{roster.length} slots filled · hour{' '}
                   {(past ? history.frame!.history.at : game.hour).toFixed(2)}
                 </Text>
                 {rulesSummary}
@@ -1826,24 +1826,49 @@ function ConnectedOperation({
                   </Text>
                 )}
                 {roster.map((f) => (
-                  <PlayerIdentity
-                    key={f}
-                    faction={f}
-                    detail={[
-                      game.rules?.teams ? `Team ${teamNumber(game, f)}` : '',
-                      f === snapshot.faction ? 'You' : '',
-                      snapshot.members.includes(f) ? 'Joined' : 'Awaiting player',
-                      ...(snapshot.allegiances
-                        ?.filter((a) => a.player === f)
-                        .map(
-                          (a) =>
-                            `${ALLEGIANCES[a.faction].name} · ${SPECIALISTS[ALLEGIANCES[a.faction].elite].name}`,
-                        ) ?? []),
-                      game.eliminated.includes(f) ? 'Eliminated' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  />
+                  <View key={f}>
+                    <PlayerIdentity
+                      faction={f}
+                      detail={[
+                        game.rules?.teams ? `Team ${teamNumber(game, f)}` : '',
+                        f === snapshot.faction ? 'You' : '',
+                        snapshot.bots?.includes(f)
+                          ? 'Bot'
+                          : snapshot.members.includes(f)
+                            ? 'Joined'
+                            : 'Awaiting player',
+                        ...(snapshot.allegiances
+                          ?.filter((a) => a.player === f)
+                          .map(
+                            (a) =>
+                              `${ALLEGIANCES[a.faction].name} · ${SPECIALISTS[ALLEGIANCES[a.faction].elite].name}`,
+                          ) ?? []),
+                        game.eliminated.includes(f) ? 'Eliminated' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    />
+                    {snapshot.status === 'game.lobby' &&
+                      snapshot.host &&
+                      f !== 'you' &&
+                      (!snapshot.members.includes(f) || snapshot.bots?.includes(f)) && (
+                        <Action
+                          text={snapshot.bots?.includes(f) ? 'Remove bot' : 'Assign bot'}
+                          disabled={past || busy || !!session?.pending}
+                          onPress={() => {
+                            if (!past)
+                              void run(async () =>
+                                accept(
+                                  await api(session!, `games/${snapshot.id}/bots`, {
+                                    faction: f,
+                                    enabled: !snapshot.bots?.includes(f),
+                                  }),
+                                ),
+                              );
+                          }}
+                        />
+                      )}
+                  </View>
                 ))}
                 {snapshot.status === 'game.lobby' && snapshot.host && (
                   <Action
@@ -1859,8 +1884,8 @@ function ConnectedOperation({
                 )}
                 {snapshot.status === 'game.lobby' && (
                   <Text style={s.detail}>
-                    {Math.max(0, roster.length - joined)} players remaining. Share the invitation to
-                    fill the configured seats. Time begins when the host starts.
+                    {Math.max(0, roster.length - joined)} slots remaining. Share the invitation or
+                    assign bots to fill the configured seats. Time begins when the host starts.
                   </Text>
                 )}
                 {game.draw && <Text style={s.code}>The operation ended in a draw.</Text>}

@@ -1,6 +1,6 @@
 # Multiplayer service
 
-The app now supports invite-only operations with two to ten human players. Solo operations stay local and continue using rival AI.
+The app now supports invite-only operations with two to ten slots filled by humans and server-controlled bots. Solo operations stay local.
 
 For Machination account login, account restoration, and legacy seat linking, see [account setup](accounts.md). The local review below uses device tokens when Clerk is not configured.
 
@@ -15,7 +15,7 @@ In **Multiplayer uplink**, use `http://localhost:8787`. Create an operation, sha
 
 For the Android emulator, use `http://10.0.2.2:8787`. Remote devices require an HTTPS endpoint; the current local server is bound to loopback. Set `EXPO_PUBLIC_GAME_SERVER` before starting/exporting the app to change its initial server address. Native runtime and device networking still need verification.
 
-The host controls Mnemosyne; later players control Vesper, Null collective, and the remaining intelligences in seat order. Every seat is human controlled. The lobby clock is frozen. The host's start command anchors server time. Afterward, one wall-clock hour is one game hour. Each request settles elapsed time, including arrivals and victory, so the result doesn't depend on someone keeping the app open. Online forecasts simulate known orders without inventing rival decisions.
+The host controls Mnemosyne; later human players take the first unoccupied slot among Vesper, Null collective, and the remaining intelligences. Hosts can assign bots to empty slots before starting. The lobby clock is frozen. The host's start command anchors server time. Afterward, one wall-clock hour is one game hour. Each request settles elapsed time, including arrivals and victory, so the result doesn't depend on someone keeping the app open. Online forecasts simulate known orders without inventing rival decisions.
 
 Launches and private messages carry unique command IDs. The app saves a pending command before sending it and retains it through uncertain network failures. Retrying that command cannot apply it twice. A definitive HTTP rejection clears the pending command and refreshes the operation. Order revisions reject stale plans after another accepted order or module build by the same seat. Rival actions are validated through current state without exposing their command counts. Friendly reinforcement is supported through destination selection.
 
@@ -143,3 +143,11 @@ Use **Create next operation** or **Join next operation** after a match to keep t
 `GET /v1/factions` returns `{completedGames, faction?, leaderboard: [{faction, wins}]}`. `POST /v1/factions` takes exactly `{faction}` with `mnemosyne`, `vesper`, or `null`. Both accept verified account authentication or a current device-seat credential. Repeating the selected faction is harmless; changing it returns `409 faction.conflict.chosen`. Selecting before completing an online operation returns `409 faction.conflict.locked`.
 
 Create with `POST /v1/games` and `{options, variant: "faction"}`. Omit `variant` for a standard operation. Invitations inherit the host's variant. Players without an allegiance receive `409 faction.conflict.required`. Faction snapshots add `variant: "faction"` and `allegiances: [{player, faction}]`; standard snapshots omit both. The extra specialists are part of the initial replay baseline, so history, forecasts, and restarts retain the same opening. Existing database files load without faction metadata.
+
+## Bot slots
+
+Before starting an operation, the host can select **Assign bot** beside any empty slot in the lobby, or **Remove bot** to reopen it for a human. Human players keep their occupied slots. Once every slot is filled, the host can start, including with one human and all remaining slots assigned to bots. Assignments are fixed after starting.
+
+Bots use the deterministic solo AI on the authoritative server. Their decisions are retained in operation history and survive service restarts; bots never retire for inactivity. In faction mode, bots receive a faction and its starting elite, but bot victories do not add faction leaderboard wins.
+
+`POST /v1/games/:id/bots` accepts `{faction, enabled}` from the host while in the lobby. Snapshots include an optional `bots` array naming bot-controlled members. Repeating the same assignment has no additional effect. Human seats cannot be converted, and assignments cannot change after starting.

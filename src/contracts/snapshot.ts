@@ -70,6 +70,14 @@ function bounds(value: unknown): value is { from: number; through: number } {
 function metadata(value: Record<string, unknown>, members: unknown[]): boolean {
   const member = (faction: unknown) => isFaction(faction) && members.includes(faction);
   if (
+    value.bots !== undefined &&
+    (!Array.isArray(value.bots) ||
+      !value.bots.every((f) => f !== 'you' && members.includes(f)) ||
+      new Set(value.bots).size !== value.bots.length ||
+      value.bots.includes(value.faction))
+  )
+    return false;
+  if (
     (value.variant !== undefined && value.variant !== 'faction') ||
     (value.variant === 'faction'
       ? !Array.isArray(value.allegiances) ||

@@ -61,6 +61,7 @@ export type Snapshot = {
   status: 'game.lobby' | 'game.active' | 'game.finished';
   faction: Faction;
   host: boolean;
+  bots?: Faction[];
   members: Faction[];
   revision: number;
   recoveryEnabled?: boolean;

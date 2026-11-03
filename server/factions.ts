@@ -14,7 +14,7 @@ export const profileId = (seat: Room['seats'][number]) => seat.profileId ?? (sea
 export function factionStandings(db: Database, identity: string): FactionStandings {
   const faction = db.factions?.find(p => p.id === identity)?.faction;
   const leaderboard = ALLEGIANCE_IDS.map(faction => ({ faction, wins: db.rooms.filter(room => finished(room) && room.variant === 'faction'
-    && room.seats.some(seat => seat.faction === room.game.winner && seat.allegiance === faction)).length }));
+    && room.seats.some(seat => !seat.bot && seat.faction === room.game.winner && seat.allegiance === faction)).length }));
   leaderboard.sort((a, b) => b.wins - a.wins || ALLEGIANCE_IDS.indexOf(a.faction) - ALLEGIANCE_IDS.indexOf(b.faction));
   return { completedGames: db.rooms.filter(room => finished(room) && room.seats.some(seat => profileId(seat) === identity)).length,
     ...(faction ? { faction } : {}), leaderboard };
@@ -31,6 +31,6 @@ export function validateFactionMembership(room: Room, profiles: readonly Faction
     if (room.variant !== undefined && room.variant !== 'faction'
       || room.seats.some(seat => seat.profileId !== undefined && !identity(seat.profileId)
         || seat.allegiance !== undefined && !isAllegiance(seat.allegiance)
-        || seat.allegiance !== undefined && !profiles?.some(p => p.id === profileId(seat) && p.faction === seat.allegiance)
+        || seat.allegiance !== undefined && !seat.bot && !profiles?.some(p => p.id === profileId(seat) && p.faction === seat.allegiance)
         || (room.variant === 'faction') !== (seat.allegiance !== undefined))) throw new Error('Damaged faction membership.');
 }

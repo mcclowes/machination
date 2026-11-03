@@ -125,7 +125,7 @@ export function dispatch(game: Game, fromId: string, toId: string, drones: numbe
   recordTemporalAction(result, owner, `${owner}: transfer from ${from.name} to ${to.name} with ${drones} drones.`, from);
   return result;
 }
-export function advance(saved: Game, targetHour: number, options: { temporalForecast?: boolean; trace?: SimulationTraceSink; rivals?: boolean; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean; encounters?: EncounterSink } = {}): Game {
+export function advance(saved: Game, targetHour: number, options: { temporalForecast?: boolean; trace?: SimulationTraceSink; rivals?: boolean; bots?: readonly Faction[]; unknownDestinations?: readonly string[]; unknownInterceptions?: readonly number[]; territoryOwners?: ReadonlyMap<string, Faction | null>; stopWhen?: (game: Readonly<Game>) => boolean; encounters?: EncounterSink } = {}): Game {
   const input = upgradeSpecialists(saved);
   if (!Number.isFinite(targetHour) || targetHour < input.hour) throw new Error('Time can only move forward.');
   let game: Game = {
@@ -282,7 +282,7 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
     settleCouncil(game);
     tracePoint(trace, 'victory', game);
     if (!game.pulse && !game.winner && !game.draw) game = executeScheduled(game, trace);
-    if (options.rivals !== false && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy ? actStrategicRivals(game, trace) : actRivals(game, trace);
+    if ((options.rivals !== false || options.bots?.length) && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy ? RIVAL_DECISION_INTERVAL : 6) === 0) game = game.rivalPolicy ? actStrategicRivals(game, trace, options.bots) : actRivals(game, trace, options.bots);
     if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary)) refreshForesight(game, foresight);
     game.events = recentEvents(game.events);
     tracePoint(trace, 'retention', game);
@@ -290,9 +290,9 @@ export function advance(saved: Game, targetHour: number, options: { temporalFore
   tracePoint(trace, 'advance:final', game);
   return game;
 }
-function actRivals(input: Game, trace?: SimulationTraceSink): Game {
+function actRivals(input: Game, trace?: SimulationTraceSink, bots?: readonly Faction[]): Game {
   let game = input;
-  for (const faction of playersIn(game).filter(f => f !== 'you')) {
+  for (const faction of playersIn(game).filter(f => f !== 'you' && (!bots || bots.includes(f)))) {
     if (game.eliminated.includes(faction)) continue;
     const sources = game.rocks.filter(r => r.owner === faction && r.drones > 35).sort((a, b) => b.drones - a.drones);
     const source = sources[0];
