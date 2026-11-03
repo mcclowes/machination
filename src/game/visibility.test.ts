@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { advance, dispatch, installModule } from './simulation';
 import { forecastObservation, observe } from './visibility';
+import { createConfiguredGame } from './world';
 
 test('observations omit hidden rock data, enemy cargo, unseen haulers, and global sequence numbers', () => {
   let game = createGame(0);
@@ -413,4 +414,17 @@ test('unresolved remote conquest cannot manufacture a domination victory', async
   assert.equal(victoryProgress(forecast, 'vesper'), 14);
   assert.equal(forecast.rocks.find(r => r.id === target.id)!.owner, null);
   assert.equal(forecast.forecastUncertain, true);
+});
+
+test('observations keep the frozen gravity course of an owned hauler', () => {
+  const game = createConfiguredGame({ playerCount: 2, mode: 'domination', gravity: true }, 0, 7);
+  const home = game.rocks.find(r => r.owner === 'you')!;
+  const launches = game.rocks.filter(r => r !== home).map(r => dispatch(game, home.id, r.id, 1, 'you'));
+  const launched = launches.find(g => (g.fleets.at(-1)!.route?.course?.length ?? 0) > 2)!;
+  const fleet = launched.fleets.at(-1)!;
+  const view = observe(launched, 'you');
+  const seen = view.fleets.find(f => f.id === fleet.id)!;
+  assert.deepEqual(seen.route, fleet.route);
+  assert.notEqual(seen.route!.course, fleet.route!.course);
+  assert.deepEqual(forecastObservation(view, 'you', view.hour + 1).fleets.find(f => f.id === fleet.id)!.route!.course, fleet.route!.course);
 });

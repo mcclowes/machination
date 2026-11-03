@@ -182,7 +182,7 @@ export function decodeSave(raw: string): Save {
       plans.add(`${p.owner}:${p.id}`);
     }
   }
-  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.battle === undefined || record(e.battle) && finite(e.battle.x) && finite(e.battle.y)) && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
+  if (!g.events.every(e => record(e) && nonnegative(e.hour) && e.hour <= (g.hour as number) && typeof e.message === 'string' && (e.battle === undefined || record(e.battle) && finite(e.battle.x) && finite(e.battle.y) && (e.battle.site === undefined || typeof e.battle.site === 'string') && (e.battle.toward === undefined || record(e.battle.toward) && finite(e.battle.toward.x) && finite(e.battle.toward.y))) && (e.audience === undefined || Array.isArray(e.audience) && e.audience.every(isFaction)))) return fail();
   if (!validTemporalSave(g as Game)) return fail();
   if (!validPulseSave(g as Game)) return fail();
   const decoded = save as Save;

@@ -12,7 +12,8 @@ import { playersIn } from './players';
 import { sendUnitsHome, returnHauler } from './specialist-travel';
 import { applyCombatAbilities } from './combat-abilities';
 import type { Faction, Fleet, Game, Rock } from './simulation';
-import { fleetPosition } from './flight';
+import type { BattleLocation } from './events';
+import { approachBearing, fleetPosition } from './flight';
 import { maximumShield, absorbShields, droneInventory, powerCapacity } from './economy';
 import { reconcileFunding } from './funding';
 import { loseMine, MINING_DAY } from './mining';
@@ -63,11 +64,13 @@ function excessGiftDrones(game: Game, owner: Faction, incoming: number): number 
   const accepted = Math.max(0, Math.min(incoming, powerCapacity(game, owner) - existing));
   return incoming - accepted;
 }
-function log(game: Game, point: { x: number; y: number }, owners: (Faction | null)[], message: string, battle = false): void {
-  game.events.unshift({ hour: game.hour, audience: [...new Set([...owners.filter((o): o is Faction => !!o), ...observers(game, point)])], message, ...(battle ? { battle: { x: point.x, y: point.y } } : {}) });
+function log(game: Game, point: { x: number; y: number }, owners: (Faction | null)[], message: string, battle: boolean | Omit<BattleLocation, 'x' | 'y'> = false): void {
+  game.events.unshift({ hour: game.hour, audience: [...new Set([...owners.filter((o): o is Faction => !!o), ...observers(game, point)])], message, ...(battle ? { battle: { x: point.x, y: point.y, ...(battle === true ? {} : battle) } } : {}) });
 }
 export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, encounters?: EncounterSink): void {
   const leaders = coreLocations(game);
+  const toward = approachBearing(game, fleet);
+  const contact = { site: rock.id, ...(toward ? { toward } : {}) };
   const draft = encounters && { ...startEncounter('arrival', game.hour, fleet, rock), site: rock.id };
   if (rock.destroyed) { returnHauler(game, fleet); finish(encounters, draft, game, 'returned', fleet, rock); return; }
   const donor = fleet.owner;
@@ -110,7 +113,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     if (rock.kind === 'mine') { if (rock.owner) loseMine(game, rock.owner); rock.miningAt = game.hour + MINING_DAY; delete rock.miningInterval; }
     if (!rock.owner && rock.kind === 'factory') rock.productionAt = afterWork(game, game.hour, 8);
     rock.owner = fleet.owner; rock.shieldAt = afterWork(game, game.hour, 48 / (rock.shieldMax ?? 10));
-    log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`, true);
+    log(game, rock, [formerOwner, fleet.owner], `${rock.name} acquired; opposing modules captured.`, contact);
   } else {
     const remaining = rock.drones - fleet.drones;
     const repaired = repairLosses(game, rock, Math.max(0, originalDefending - remaining), phase.suppressed);
@@ -118,7 +121,7 @@ export function resolveStationArrival(game: Game, fleet: Fleet, rock: Rock, enco
     rock.drones = remaining + repaired + salvaged;
     if (draft) { draft.winner = 1; draft.repaired = repaired; if (salvaged) draft.salvaged = salvaged; draft.captured = rock.owner ? newlyCaptive(fleet.specialists ?? [], rock.owner) : []; }
     if (rock.owner) rock.specialists = [...(rock.specialists ?? []), ...capture(game, fleet.specialists ?? [], rock.owner)];
-    log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`, true);
+    log(game, rock, [formerOwner, fleet.owner], `${rock.name}: defending force held the site.`, contact);
   }
   game.fleets = game.fleets.filter(f => f.id !== fleet.id);
   reconcileLeadership(game, leaders, rock);

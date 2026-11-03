@@ -25,7 +25,7 @@ test('sound rebuild retains the recorded cues and produces a complete PCM bank',
         readFileSync(join(root, `assets/sounds/${cue}.wav`))), `${cue} recording must survive rebuilds`);
     }
     const files = readdirSync(join(scratch, 'assets/sounds')).filter(name => name.endsWith('.wav'));
-    assert.equal(files.length, 11);
+    assert.equal(files.length, 24);
     for (const name of files) {
       const data = readFileSync(join(scratch, 'assets/sounds', name));
       assert.equal(data.toString('ascii', 0, 4), 'RIFF', name);

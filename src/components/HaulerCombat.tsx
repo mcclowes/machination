@@ -1,6 +1,7 @@
 /** Contextual predictions use the inspected observation, including historical frames. */
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from './Pressable';
 import { forecastEncounters } from '../game/encounter-forecast';
 import type { EncounterAsset, EncounterReport } from '../game/combat-report';
 import { SPECIALISTS } from '../game/specialist-catalog';

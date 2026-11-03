@@ -3,6 +3,7 @@
 !Dockerfile.railway
 !package.json
 !package-lock.json
+!tsconfig.json
 !scripts/
 !scripts/build-server.mjs
 !scripts/railway-entrypoint.sh

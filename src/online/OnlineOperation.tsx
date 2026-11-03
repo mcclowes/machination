@@ -31,7 +31,8 @@ import { FactionPanel } from './FactionPanel';
 import { ALLEGIANCES, type Allegiance } from '../game/factions';
 import type { AccountAccess } from './account-auth';
 import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { ResignationControl } from '../components/ResignationControl';
 import { stationCourse } from '../game/drift';
 import { flightDestination } from '../game/flight';
@@ -65,6 +66,7 @@ import { minesAllowed, mineCost } from '../game/economy';
 import { useDiplomacyPanel } from './DiplomacyPanel';
 import { IntelligenceReports } from '../components/IntelligenceReports';
 import { OperationShell, type OperationSection } from '../components/OperationShell';
+import { AppChromeContext, useChromeHost } from '../components/app-chrome';
 import { TimeMachine } from '../components/TimeMachine';
 import { gameClock, inspectionMode, inspectionOffset, orderHour } from '../game/time-machine';
 import { forecastObservation } from '../game/visibility';
@@ -89,6 +91,7 @@ import { CopyObjectReference } from '../components/CopyObjectReference';
 import { ReplayExport } from '../components/ReplayExport';
 import { exportSharedReplay } from './shared-replay';
 import { playSound, useSoundCues } from '../audio/sound';
+import { incomingTransmissions } from '../audio/sound-cues';
 import { MessageNotificationSettings } from './MessageNotificationSettings';
 import { useMessageNotifications } from './useMessageNotifications';
 import { notificationDeps, useNotificationDevice } from './notification-wiring';
@@ -109,10 +112,7 @@ function Action({
       accessibilityRole="button"
       disabled={disabled}
       accessibilityState={{ disabled }}
-      onPress={() => {
-        playSound('tap');
-        onPress();
-      }}
+      onPress={onPress}
       style={[s.button, disabled && { opacity: 0.35 }]}
     >
       <Text style={s.buttonText}>{text}</Text>
@@ -158,26 +158,35 @@ function AccountOperations({
     const next = { id: tapped, instance: ++instances.current };
     setSelection((current) => (current !== 'list' && current.id === tapped ? current : next));
   }, [tapped]);
+  const listExit = useMemo(
+    () => [{ label: '‹ All operations', onPress: () => setSelection('list') }],
+    [],
+  );
+  const chrome = useChromeHost(listExit);
   if (selection === 'list') return <OperationDirectory account={account} onOpen={open} />;
   return (
-    <View style={{ flex: 1 }}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setSelection('list')}
-        style={s.backToList}
-      >
-        <Text style={s.backToListText}>‹ All operations</Text>
-      </Pressable>
-      <ConnectedOperation
-        key={selection.instance}
-        {...props}
-        account={account}
-        operationId={selection.id}
-        onOpened={(id) =>
-          setSelection((current) => (current === 'list' ? current : { ...current, id }))
-        }
-      />
-    </View>
+    <AppChromeContext.Provider value={chrome.value}>
+      <View style={{ flex: 1 }}>
+        {!chrome.claimed && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setSelection('list')}
+            style={s.backToList}
+          >
+            <Text style={s.backToListText}>‹ All operations</Text>
+          </Pressable>
+        )}
+        <ConnectedOperation
+          key={selection.instance}
+          {...props}
+          account={account}
+          operationId={selection.id}
+          onOpened={(id) =>
+            setSelection((current) => (current === 'list' ? current : { ...current, id }))
+          }
+        />
+      </View>
+    </AppChromeContext.Provider>
   );
 }
 function ConnectedOperation({
@@ -336,6 +345,14 @@ function ConnectedOperation({
   useEffect(() => {
     if (error) playSound('error');
   }, [error]);
+  const received = snapshot ? incomingTransmissions(snapshot) : 0;
+  const heard = useRef<{ id: string; received: number }>(undefined);
+  useEffect(() => {
+    if (!snapshot) return;
+    if (heard.current?.id === snapshot.id && received > heard.current.received)
+      playSound('message');
+    heard.current = { id: snapshot.id, received };
+  }, [snapshot, received]);
   const [acknowledged, setAcknowledged] = useState<string>();
   const [disconnect, setDisconnect] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState('');
@@ -1317,11 +1334,13 @@ function ConnectedOperation({
       hint={
         (planning && !destination) || navigating !== undefined ? (
           <>
-            <Text style={s.detail}>
-              {navigating !== undefined
-                ? 'Choose a new course destination.'
-                : `From ${rock?.name}: choose a destination.`}
-            </Text>
+            <View pointerEvents="none">
+              <Text style={s.detail}>
+                {navigating !== undefined
+                  ? 'Choose a new course destination.'
+                  : `From ${rock?.name}: choose a destination.`}
+              </Text>
+            </View>
             <Action
               text="Cancel selection"
               onPress={() => {

@@ -53,6 +53,19 @@ const STATE_KEYS = [
   'messageReports',
 ] as const;
 
+function storedStateValue(key: string, source: string): unknown {
+  return key === 'messageReports' ? serializedReportState(source) : JSON.parse(source);
+}
+
+function canonicalSnapshot(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    // Recovery still needs the original row when its value cannot be serialized safely.
+    return undefined;
+  }
+}
+
 export class WriterReplacedError extends Error {
   constructor() {
     super('Another service instance has taken over the game database.');
@@ -78,8 +91,10 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
   let prepared: Promise<void> | undefined;
   let claimed = false;
   // What the database holds, so each save writes only the rooms and state that changed.
-  let rooms = new Map<string, string>();
-  let state = new Map<string, string>();
+  let rooms = new Map<string, string | undefined>();
+  let state = new Map<string, string | undefined>();
+  let rawRooms = new Map<string, string>();
+  let rawState = new Map<string, string>();
   const prepare = () =>
     (prepared ??= sql.transaction(async (tx) => {
       for (const statement of SCHEMA) await tx.query(statement);
@@ -159,12 +174,12 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
             "select key, data::text as data from machination_state where key <> 'writer' order by key",
           );
           if (
-            originalRooms.length !== rooms.size ||
+            originalRooms.length !== rawRooms.size ||
             originalRooms.some(
-              (row) => JSON.stringify(JSON.parse(row.data)) !== rooms.get(row.id),
+              (row, index) => row.id !== originalIds[index] || row.data !== rawRooms.get(row.id),
             ) ||
-            originalState.length !== state.size ||
-            originalState.some((row) => JSON.stringify(JSON.parse(row.data)) !== state.get(row.key))
+            originalState.length !== rawState.size ||
+            originalState.some((row) => row.data !== rawState.get(row.key))
           )
             throw new Error('Database changed during recovery.');
           const archive = {
@@ -204,6 +219,10 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
     claimed = true;
     rooms = nextRooms;
     state = new Map(nextState);
+    for (const id of removed) rawRooms.delete(id);
+    for (const [id, source] of changedRooms) rawRooms.set(id, source);
+    for (const key of cleared) rawState.delete(key);
+    for (const [key, source] of changedState) rawState.set(key, source);
     return true;
   };
 
@@ -214,9 +233,8 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
     },
     async load() {
       await prepare();
-      return sql.transaction(async (tx) => {
+      const snapshot = await sql.transaction(async (tx) => {
         await claim(tx);
-        claimed = true;
         if (!(await hasStoredDatabase(tx))) return undefined;
         const stored = await tx.query<{ key: string; data: string }>(
           `select key, data::text as data from machination_state where key <> 'writer'`,
@@ -228,15 +246,26 @@ export function postgresPersistence(sql: SqlClient): PostgresPersistence {
         const database: Record<string, unknown> = {
           rooms: roomRows.map((row) => JSON.parse(row.data)),
         };
-        for (const row of stored)
-          database[row.key] =
-            row.key === 'messageReports' ? serializedReportState(row.data) : JSON.parse(row.data);
-        rooms = new Map(
-          roomRows.map((row, i) => [row.id, JSON.stringify((database.rooms as unknown[])[i])]),
-        );
-        state = new Map(stored.map((row) => [row.key, JSON.stringify(database[row.key])]));
-        return database;
+        for (const row of stored) {
+          if (row.key === 'rooms' || row.key === '__proto__')
+            throw new Error('Damaged Postgres database metadata.');
+          database[row.key] = storedStateValue(row.key, row.data);
+        }
+        return { database, roomRows, stored };
       });
+      claimed = true;
+      rooms = new Map(
+        snapshot?.roomRows.map((row, i) => [
+          row.id,
+          canonicalSnapshot((snapshot.database.rooms as unknown[])[i]),
+        ]),
+      );
+      state = new Map(
+        snapshot?.stored.map((row) => [row.key, canonicalSnapshot(snapshot.database[row.key])]),
+      );
+      rawRooms = new Map(snapshot?.roomRows.map((row) => [row.id, row.data]));
+      rawState = new Map(snapshot?.stored.map((row) => [row.key, row.data]));
+      return snapshot?.database;
     },
     save: async (next) => {
       await commit(next);

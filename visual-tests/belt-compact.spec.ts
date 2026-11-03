@@ -17,7 +17,7 @@ test('daily council votes, public nominations, and convention lore work beside c
   const room = await service.create(tokens[0]!, { playerCount: 3, mode: 'mining', beltCompact: true });
   for (const token of tokens.slice(1)) await service.join(room.invite, token);
   await service.start(room.id, tokens[0]!);
-  const server = createApi(service, ['http://127.0.0.1:3094']);
+  const server = createApi(service, [String(info.project.use.baseURL)]);
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address(); if (!address || typeof address === 'string') throw new Error('Missing test server address.');
   try {
@@ -29,7 +29,7 @@ test('daily council votes, public nominations, and convention lore work beside c
     }, session);
     await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
     await page.goto('/');
-    await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+    await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
     await page.getByRole('tab', { name: 'Signals', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'The Belt compact', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Motion 1: Authorize high-thrust transit', exact: true })).toBeVisible();
@@ -51,7 +51,7 @@ test('daily council votes, public nominations, and convention lore work beside c
     now += 24 * 3_600_000;
     expect((await service.snapshot(room.id, tokens[0]!)).game.compact!.history[0]!.result).toBe('passed');
     await page.reload();
-    await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+    await page.getByRole('button', { name: /^(Resume multiplayer operation|Open multiplayer uplink|All multiplayer operations)/ }).first().click();
     await page.getByRole('tab', { name: 'Signals', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Waived: Transit safety limits', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Motion 2: Release strategic weapons interlocks', exact: true })).toBeVisible();

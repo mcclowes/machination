@@ -34,7 +34,7 @@ test('account changes unmount the previous operation and keep saved seats and pe
         'react-native': `export const View='View',Text='Text',Pressable='Pressable',ScrollView='ScrollView',ActivityIndicator='ActivityIndicator',Linking={openURL:async(url)=>globalThis[${JSON.stringify(key)}].opened.push(url)},Platform={OS:'ios'},AppState={currentState:'active'};`,
         'expo-secure-store': `const store=globalThis[${JSON.stringify(key)}].storage; export const {getItemAsync,setItemAsync,deleteItemAsync}=store;`,
         'expo-crypto': `export const randomUUID=()=> 'account-test-uuid',getRandomBytesAsync=async()=>new Uint8Array(32);`,
-        '@clerk/expo': `export const ClerkProvider=({children})=>children,useAuth=()=>globalThis[${JSON.stringify(key)}].auth;`,
+        '@clerk/expo': `const state=globalThis[${JSON.stringify(key)}]; export const ClerkProvider=({children})=>children,useAuth=()=>state.auth,useSession=()=>({isLoaded:state.auth.isLoaded,session:state.auth.userId?{user:{id:state.auth.userId},getToken:state.auth.getToken}:null});`,
         '@clerk/expo/token-cache': `export const tokenCache={};`,
         '@clerk/expo/hosted-auth': `export const useHostedAuth=()=>({startHostedAuth:async()=>({createdSessionId:null})});`,
       };

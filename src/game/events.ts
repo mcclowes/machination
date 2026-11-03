@@ -5,7 +5,9 @@
  */
 import { ALL_PLAYERS } from './players';
 import type { Faction } from './simulation';
-export type ObservedEvent = { discoveredAt?: number; hour: number; message: string; battle?: { x: number; y: number } };
+/** Station battles name the site and a unit bearing from its centre toward the attacker, so the chart can mark the point of contact. */
+export type BattleLocation = { x: number; y: number; site?: string; toward?: { x: number; y: number } };
+export type ObservedEvent = { discoveredAt?: number; hour: number; message: string; battle?: BattleLocation };
 export type GameEvent = ObservedEvent & { audience?: Faction[]; unresolvedDestination?: string; unresolvedInterception?: boolean };
 export const EVENTS_PER_OBSERVER = 80;
 export const MAX_STORED_EVENTS = EVENTS_PER_OBSERVER * (ALL_PLAYERS.length + 1);

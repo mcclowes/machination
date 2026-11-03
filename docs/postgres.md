@@ -7,7 +7,7 @@ Use `MACHINATION_STORAGE=file` for local file storage; that mode refuses a nonem
 ## Layout
 
 - `machination_rooms` holds one row per room. Each row is the full room, including its immutable command history (`replay`), so there's no separate command table.
-- `machination_state` holds the database version, faction profiles, notification state, quarantined operation identifiers, and the current writer.
+- `machination_state` holds the database version, faction profiles, notification state, the private message-report ledger, quarantined operation identifiers, and the current writer.
 - `machination_quarantine` holds private recovery archives and the original source of a first import. The active loader does not publish those records.
 
 Columns use `json`, not `jsonb`, so object key order survives exactly. Each save writes only the rooms that changed, inside one transaction. Validation is unchanged: rows are loaded and checked by the same code as the JSON file.

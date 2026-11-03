@@ -5,19 +5,25 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { decodeSharedReplay, encodeSharedReplay, utf8Size } from '../replay/codec';
+import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { utf8Size } from '../replay/codec';
+import {
+  decodeReplayArtifact,
+  encodeReplayArtifact,
+  replayArtifactRules,
+  type ReplayArtifact,
+} from '../replay/artifact';
+import { Pressable } from './Pressable';
 import { saveSharedReplay } from '../replay/files';
-import type { SharedReplay } from '../replay/timeline';
 import { PlayerIdentity, PlayerRoster } from './PlayerIdentity';
 
 type Props = {
   historyStart: number;
   hour: number;
-  createReplay: (from: number, through: number) => SharedReplay | Promise<SharedReplay>;
+  createReplay: (from: number, through: number) => ReplayArtifact | Promise<ReplayArtifact>;
   disabled?: boolean;
 };
-type Artifact = { raw: string; replay: SharedReplay; bytes: number; retainedStart: number };
+type Artifact = { raw: string; replay: ReplayArtifact; bytes: number; retainedStart: number };
 const boundsError = 'Choose finite, ordered hours within retained history.';
 export function ReplayExport({ historyStart, hour, createReplay, disabled = false }: Props) {
   const [frontier] = useState(hour);
@@ -83,8 +89,8 @@ export function ReplayExport({ historyStart, hour, createReplay, disabled = fals
     setBusy(true);
     try {
       const value = await createReplay(from, through);
-      const raw = encodeSharedReplay(value),
-        replay = decodeSharedReplay(raw);
+      const raw = encodeReplayArtifact(value),
+        replay = decodeReplayArtifact(raw);
       if (replay.from !== from || replay.through !== through) throw new Error('Interval mismatch');
       if (
         !mounted.current ||
@@ -193,8 +199,8 @@ export function ReplayExport({ historyStart, hour, createReplay, disabled = fals
       {shareable && (
         <View style={s.panel}>
           <PlayerRoster
-            colors={artifact.replay.groups[0]?.states[0]?.rules?.colors}
-            portraits={artifact.replay.groups[0]?.states[0]?.rules?.portraits}
+            colors={replayArtifactRules(artifact.replay)?.colors}
+            portraits={replayArtifactRules(artifact.replay)?.portraits}
           >
             <PlayerIdentity
               faction={artifact.replay.perspective}

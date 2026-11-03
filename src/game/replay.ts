@@ -98,6 +98,7 @@ export function executeCommand(input: Game, command: GameCommand, automatedRival
 declare const archiveBrand: unique symbol;
 export type ReplayArchive = { readonly [archiveBrand]: true };
 export type ReplayOptions = { rivals: boolean; knownThrough: number };
+export type ReplayTraceOptions = ReplayOptions & { traceWindow?: { from: number; through: number } };
 export type ReplayEntry = { hour: number; command: GameCommand };
 type Entry = ReplayEntry;
 type History = { baseline: Game; entries: readonly Entry[]; rivals: boolean };
@@ -134,14 +135,21 @@ export function replayTo(handle: ReplayArchive, targetHour: number, options: Rep
 }
 
 /** Private callbacks follow replayTo's exact advancement and submission schedule. */
-export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayOptions, sink: SimulationTraceSink): Game {
+export function traceReplayTo(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, sink: SimulationTraceSink): Game {
   return reconstruct(handle, targetHour, options, sink);
 }
-function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayOptions, trace?: SimulationTraceSink): Game {
+function reconstruct(handle: ReplayArchive, targetHour: number, options: ReplayTraceOptions, trace?: SimulationTraceSink): Game {
   const history = historyOf(handle);
   if (options.rivals !== history.rivals) throw new Error('Replay rival mode cannot change.');
   if (!Number.isFinite(targetHour) || !Number.isFinite(options.knownThrough) || targetHour < history.baseline.hour || targetHour > options.knownThrough || options.knownThrough < (history.entries.at(-1)?.hour ?? history.baseline.hour)) throw new Error('Replay hour is outside known history.');
-  if (trace) return reconstructFrom(history, clone(history.baseline), 0, targetHour, trace);
+  const window = options.traceWindow;
+  if (window && (!Number.isFinite(window.from) || !Number.isFinite(window.through) || window.from < history.baseline.hour || window.through < window.from || window.through > targetHour)) throw new RangeError('Replay trace window is outside known history.');
+  const intersects = (from: number, through: number) => !window || (through >= window.from && from <= window.through);
+  const capture: SimulationTraceSink | undefined = trace && Object.assign(
+    (record: Parameters<SimulationTraceSink>[0]) => trace(record),
+    { includes: intersects },
+  );
+  if (capture) return reconstructFrom(history, clone(history.baseline), 0, targetHour, capture);
   const start = latestCheckpoint(history, targetHour);
   return reconstructFrom(history, start ? clone(start.game) : clone(history.baseline), start?.applied ?? 0, targetHour);
 }
@@ -195,7 +203,7 @@ export function* replaySlices(handle: ReplayArchive, targetHour: number, options
 function reconstructFrom(history: History, initial: Game, applied: number, targetHour: number, trace?: SimulationTraceSink): Game {
   let game = initial;
   const advanceTo = (hour: number) => {
-    if (trace) { game = advance(game, hour, { rivals: history.rivals, trace }); return; }
+    if (trace) { game = advance(game, hour, { rivals: history.rivals, trace: trace.includes?.(game.hour, hour) === false ? undefined : trace }); return; }
     while (game.hour < hour) {
       const mark = (Math.floor(game.hour / CHECKPOINT_HOURS) + 1) * CHECKPOINT_HOURS, stop = Math.min(hour, mark);
       game = advance(game, stop, { rivals: history.rivals });

@@ -6,7 +6,7 @@ test('solo setup starts doubles and 4v4 with fixed teams', async ({ page }, info
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
-  await page.getByRole('button', { name: 'Solo', exact: true }).click();
+  await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
   await page.getByRole('tab', { name: 'Setup', exact: true }).click();
   for (const [label, format, count] of [['Doubles (2v2)', '2v2', 4], ['4v4', '4v4', 8]] as const) {
     await page.getByRole('button', { name: 'Reset', exact: true }).click();

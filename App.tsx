@@ -16,16 +16,8 @@ import { DisruptorControls } from './src/components/DisruptorControls';
 import { PulseMoveWarning, PulseControls, PulseLocation } from './src/components/PulseControls';
 import { openingEnabled } from './src/game/opening-clock';
 import React, { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  Modal,
-  TextInput,
-} from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View, Modal, TextInput } from 'react-native';
+import { Pressable } from './src/components/Pressable';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Crypto from 'expo-crypto';
@@ -81,6 +73,7 @@ import { LAUNCH_PREPARATION } from './src/game/transport';
 import { SiteControls, siteDescription } from './src/components/SiteControls';
 import { minesAllowed, droneInventory, mineCost, powerCapacity } from './src/game/economy';
 import { OperationShell, type OperationSection } from './src/components/OperationShell';
+import { AppChromeContext, useChromeHost } from './src/components/app-chrome';
 import { IntelligenceReports } from './src/components/IntelligenceReports';
 import { TimeMachine } from './src/components/TimeMachine';
 import {
@@ -96,7 +89,7 @@ import { PracticeStatus } from './src/components/PracticeStatus';
 import { canResolveTrainingOrders } from './src/game/training';
 import { ReplayLibraryScreen } from './src/components/ReplayLibraryScreen';
 import { ReplayExport } from './src/components/ReplayExport';
-import { generateSharedReplay } from './src/replay/generate';
+import { generatePackedReplay } from './src/replay/generate-packed';
 import { StartScreen } from './src/components/StartScreen';
 import { useOngoingOperations } from './src/components/useOngoingOperations';
 import { describeListing, describeSolo } from './src/online/operation-labels';
@@ -144,10 +137,7 @@ function Button({
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      onPress={() => {
-        playSound('tap');
-        onPress();
-      }}
+      onPress={onPress}
       style={({ pressed }) => [
         s.button,
         quiet && s.quiet,
@@ -169,6 +159,29 @@ export default function App() {
     setOnlineOperation(operationId);
     setModeState(next);
   };
+  const gamesExit = useMemo(
+    () => [
+      {
+        label: '‹ Games',
+        onPress: () => {
+          setOnlineOperation(undefined);
+          setModeState(null);
+        },
+      },
+    ],
+    [],
+  );
+  // An open operation shell owns the screen; its Setup tab carries these exits instead.
+  const chromeTools = useMemo(
+    () => (
+      <>
+        <SoundToggle compact />
+        <FieldManual compact />
+      </>
+    ),
+    [],
+  );
+  const chrome = useChromeHost(gamesExit, chromeTools);
   const launch = useNotificationLaunch(launchDeps);
   // A tap opens multiplayer from the start screen, but never abandons a solo, practice, or replay session.
   const autoOpened = useRef<string>(undefined);
@@ -209,55 +222,51 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={s.safe} edges={['top', 'left', 'right', 'bottom']}>
         <StatusBar style="light" />
-        <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
-          {mode ? (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="‹ Games"
-                onPress={() => setMode(null)}
-                style={{ minHeight: 44, minWidth: 64, justifyContent: 'center' }}
-              >
-                <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
-              </Pressable>
-              <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
-                {mode === 'solo'
-                  ? 'Solo operation'
-                  : mode === 'online'
-                    ? 'Multiplayer'
-                    : 'Tactical practice'}
-              </Text>
-            </>
-          ) : (
-            (['solo', 'online', 'practice'] as const).map((m) => (
-              <View key={m} style={{ flex: 1 }}>
-                <Button
-                  label={m === 'solo' ? 'Solo' : m === 'online' ? 'Multiplayer' : 'Practice'}
-                  quiet={mode !== m}
-                  onPress={() => setMode(m)}
-                />
-              </View>
-            ))
-          )}
-          <SoundToggle compact={!!mode} />
-          <FieldManual compact={!!mode} />
-        </View>
-        {transmission}
-        {mode === 'solo' ? (
-          <Operation onOpenReplays={() => setMode('replays')} />
-        ) : mode === 'online' ? (
-          <OnlineOperation
-            key={onlineOperation}
-            operationId={onlineOperation}
-            onOpenReplays={() => setMode('replays')}
-            notification={launch.request}
-            onNotificationHandled={launch.consume}
-          />
-        ) : mode === 'practice' ? (
-          <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice>
-        ) : (
-          <HomeMenu open={setMode} />
+        {!(mode && chrome.claimed) && (
+          <View style={[s.row, { paddingHorizontal: 12, paddingTop: mode ? 0 : 8 }]}>
+            {mode ? (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="‹ Games"
+                  onPress={() => setMode(null)}
+                  style={{ minHeight: 44, minWidth: 64, justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#b4c7ca', fontSize: 14 }}>‹ Games</Text>
+                </Pressable>
+                <Text accessibilityRole="header" numberOfLines={1} style={s.screenTitle}>
+                  {mode === 'solo'
+                    ? 'Solo operation'
+                    : mode === 'online'
+                      ? 'Multiplayer'
+                      : 'Tactical practice'}
+                </Text>
+              </>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
+            <SoundToggle compact={!!mode} />
+            <FieldManual compact={!!mode} />
+          </View>
         )}
+        {transmission}
+        <AppChromeContext.Provider value={chrome.value}>
+          {mode === 'solo' ? (
+            <Operation onOpenReplays={() => setMode('replays')} />
+          ) : mode === 'online' ? (
+            <OnlineOperation
+              key={onlineOperation}
+              operationId={onlineOperation}
+              onOpenReplays={() => setMode('replays')}
+              notification={launch.request}
+              onNotificationHandled={launch.consume}
+            />
+          ) : mode === 'practice' ? (
+            <Practice>{(attempt, key) => <Operation key={key} practice={attempt} />}</Practice>
+          ) : (
+            <HomeMenu open={setMode} />
+          )}
+        </AppChromeContext.Provider>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -345,6 +354,7 @@ function Operation({
     setError,
     restartClock,
   } = useLocalOperation(policy, (next) => {
+    resetCamera(next.game);
     setSelected(
       (
         next.game.rocks.find((r) => r.id === practice?.scenario.focus) ??
@@ -372,13 +382,10 @@ function Operation({
   const [mapCamera, setMapCamera] = useState(() => fitPlayerCamera(game, 'you'));
   const [inspectFleet, setInspectFleet] = useState<{ request: number; id?: number }>();
   const inspectionSequence = useRef(0);
-  const resetCamera = useEffectEvent(() => {
-    setMapCamera(fitPlayerCamera(game, 'you'));
+  function resetCamera(next: Game) {
+    setMapCamera(fitPlayerCamera(next, 'you'));
     setInspectFleet(undefined);
-  });
-  useEffect(() => {
-    resetCamera();
-  }, [game.epoch]);
+  }
   const [inspectedHour, setInspectedHour] = useState<number | null>(null);
   const [resolving, setResolving] = useState(false);
   function inspectTime(hour: number | null) {
@@ -1360,7 +1367,7 @@ function Operation({
                     hour={game.hour}
                     disabled={!ready || loadFailed}
                     createReplay={(from, through) =>
-                      generateSharedReplay(current.current, 'you', from, through)
+                      generatePackedReplay(current.current, 'you', from, through)
                     }
                   />
                 )}
@@ -1427,6 +1434,7 @@ function Operation({
                   return;
                 }
                 replace(next);
+                resetCamera(next.game);
                 restartClock();
                 setLoadFailed(false);
                 setError('');

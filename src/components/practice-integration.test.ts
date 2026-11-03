@@ -20,8 +20,8 @@ test('App practice isolates live lifecycles and awards only actual capture, with
   const key = `__practiceIntegration_${randomUUID().replaceAll('-', '')}`;
   const globals = globalThis as typeof globalThis & Record<string, any>;
   const priorAct = Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT');
-  const soloKey = 'machination.game.v1', onlineKey = 'machination.online.v1', progressKey = 'machination.training-progress.v1';
-  const seeded = [[soloKey, 'recognizable solo archive bytes'], [onlineKey, 'recognizable online credentials bytes']] as const;
+  const soloKey = 'machination.game.v1', onlineKey = 'machination.online.v1', progressKey = 'machination.training-progress.v1', profileKey = 'machination.profile.v1';
+  const seeded = [[soloKey, 'recognizable solo archive bytes'], [onlineKey, 'recognizable online credentials bytes'], [profileKey, '{"portrait":"pilot","preferredColor":"rust"}']] as const;
   const bytes = new Map<string, string>([...seeded, ['machination.briefing.v1', '1']]);
   const reads: string[] = [], writes: string[] = [], subscriptions: string[] = [];
   let expectedSoloReads = 1;
@@ -107,14 +107,15 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     const mapSite = (name: string) => hosts('Pressable').find(node => node.props.accessibilityLabel?.startsWith(`${name},`))!;
     const quiet = () => {
       assert.equal(mounts, 0); assert.equal(network, 0); assert.equal(intervals, 0); assert.deepEqual(subscriptions, []);
-      assert.ok(reads.every(name => name === soloKey || name === progressKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
+      assert.ok(reads.every(name => name === soloKey || name === progressKey || name === profileKey || name === 'machination.briefing.v1'), `Unexpected reads: ${reads}`);
       assert.equal(reads.filter(name => name === soloKey).length, expectedSoloReads, 'Only the games menu inspects the saved solo operation; practice and replays never reopen it');
+      assert.equal(reads.filter(name => name === profileKey).length, expectedSoloReads, 'Only the home screen restores the portrait; practice and replays never reopen the profile');
       assert.ok(writes.every(name => name === progressKey), `Unexpected writes: ${writes}`);
       for (const [name, value] of seeded) assert.equal(bytes.get(name), value);
     };
     await flush(() => { renderer = create(React.createElement(App)); });
     assert.ok(hosts('View').some(node => node.props.accessibilityRole === 'header' && node.props.accessibilityLabel === 'Machination'));
-    assert.deepEqual(reads, ['machination.briefing.v1', soloKey]); assert.deepEqual(writes, []);
+    assert.deepEqual(reads, ['machination.briefing.v1', profileKey, soloKey]); assert.deepEqual(writes, []);
     assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel?.startsWith('Foundry,')), false);
     quiet();
     await press('Open shared replay');
@@ -122,7 +123,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Exit replay library');
     expectedSoloReads = 2;
     quiet();
-    await press('Practice');
+    await press('Start tactical practice');
     await press('Start: Open a foothold');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[0]!.text));
     assert.equal(hosts('Modal').length, 1);
@@ -136,12 +137,13 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     }
     await press('Take command');
     assert.equal(hosts('Modal').length, 0);
+    await press('Show instructions');
     await press('Replay briefing');
     assert.ok(visible().includes(TRAINING_DIALOGUE['first-launch'].briefing[0]!.text));
     await press('Skip dialogue');
     assert.equal(hosts('Modal').length, 0);
     assert.match(visible(), /Launch drones from Foundry/);
-    assert.equal(hosts('Pressable').find(node => text(node) === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
+    assert.equal(hosts('Pressable').find(node => node.props.accessibilityLabel === 'Resolve orders')?.props.disabled, true, 'An empty plan cannot resolve an exercise');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /unclaimed, 4 drones/);
     await press(/^Quiet landing,/);
     await press('Specialists');
@@ -262,7 +264,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
     assert.equal(hosts('TextInput').some(node => node.props.accessibilityLabel === 'Drones to dispatch'), false, 'A stationary second finger cancels before any pinch movement');
     await flush(() => chart.props.onPanResponderGrant(pinchStart, gesture));
-    await flush(() => chart.props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: from.x, pageY: from.y }, { pageX: from.x + 150, pageY: from.y }] } }, gesture));
+    await flush(() => chart.props.onPanResponderMove({ nativeEvent: { touches: [{ pageX: from.x, pageY: from.y }, { pageX: from.x + 55, pageY: from.y }] } }, gesture));
     const scale = () => { const a = point('Foundry'), b = point('Quiet landing'); return Math.hypot(a.x - b.x, a.y - b.y); };
     const pinchedScale = scale();
     await flush(() => chart.props.onPanResponderEnd(touch, gesture));
@@ -275,7 +277,10 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await flush(() => chart.props.onPanResponderRelease(touch, gesture));
     const cargo = hosts('View').find(node => node.props.accessibilityLabel === 'Drone cargo')!;
     await flush(() => cargo.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
-    await flush(() => cargo.props.onPanResponderGrant({ nativeEvent: { locationX: 40 } }));
+    assert.equal(cargo.props.onStartShouldSetPanResponder(), false, 'Touching the cargo track does not claim a vertical scroll');
+    assert.equal(cargo.props.onMoveShouldSetPanResponder({}, { dx: 0, dy: 20 }), false);
+    assert.equal(cargo.props.onMoveShouldSetPanResponder({}, { dx: 20, dy: 0 }), true);
+    await flush(() => cargo.props.onPanResponderGrant({ nativeEvent: { locationX: 40 } }, { dx: 20, dy: 0 }));
     assert.equal(hosts('TextInput').find(node => node.props.accessibilityLabel === 'Drones to dispatch')!.props.value, '6');
     await press('Prepare launch · 10m');
     assert.ok(hosts('Pressable').some(node => /hauler, preparing launch, 6 drones/.test(node.props.accessibilityLabel ?? '')), 'The drag-based command submits the adjusted manifest');
@@ -310,7 +315,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     assert.match(visible(), /Exercise complete/);
     assert.doesNotMatch(visible(), /Forecast/, 'Resolving returns to the actual outcome');
     assert.match(mapSite('Quiet landing').props.accessibilityLabel, /Mnemosyne, 2 drones/);
-    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false, 'Completed attempts cannot resolve twice');
+    assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Resolve orders'), false, 'Completed attempts cannot resolve twice');
     if (hosts('Modal').length) await press('Skip dialogue');
     await press('All exercises');
     assert.match(visible(), /1\. Open a foothold · completed/);
@@ -340,7 +345,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await finishPlayback();
     assert.match(visible(), /Try another plan/);
     assert.match(visible(), /D01 · 06:00/, 'An unsuccessful plan resolves to the deadline');
-    assert.equal(hosts('Pressable').some(node => text(node) === 'Resolve orders'), false);
+    assert.equal(hosts('Pressable').some(node => node.props.accessibilityLabel === 'Resolve orders'), false);
     assert.deepEqual(writes, [progressKey], 'Resolving an unsuccessful plan never awards completion');
     quiet();
     await press('Skip dialogue');
@@ -353,6 +358,7 @@ test('App practice isolates live lifecycles and awards only actual capture, with
     await press('Prepare launch · 10m');
     await press('Resolve orders');
     await frame(); await frame();
+    await press('Show instructions');
     await press('Retry exercise');
     assert.equal(frames.size, 0, 'Retry cancels the previous attempt animation');
     await press('Skip dialogue');

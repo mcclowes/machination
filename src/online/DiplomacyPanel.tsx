@@ -7,7 +7,8 @@
  */
 
 import React, { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { FACTIONS, type Faction } from '../game/simulation';
 import { PlayerIdentity } from '../components/PlayerIdentity';
 import { commandId, type Pending } from './client';

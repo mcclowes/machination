@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
 COPY scripts/build-server.mjs ./scripts/build-server.mjs
+COPY tsconfig.json ./tsconfig.json
 COPY server ./server
 COPY src/game ./src/game
 COPY src/replay ./src/replay

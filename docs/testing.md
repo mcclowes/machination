@@ -16,7 +16,7 @@ This prerequisite applies to certified diagnostics. Gameplay and [player replay 
 
 ## Behavior tests
 
-The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, and `scripts`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
+The suite uses Node's test runner, TypeScript through `tsx`, and the real simulation. `npm test` recursively discovers `.test.ts`, `.test.tsx`, `.test.js`, `.test.cjs`, and `.test.mjs` files under `src`, `server`, `plugins`, `scripts`, and `native-tests`. Hidden directories, dependencies, and generated output outside those roots are excluded. `scripts/build-server.test.mjs` runs separately through `npm run test:server-build` because it needs a freshly built production bundle. An empty default suite fails.
 
 Four test files run concurrently, with process isolation between files. Tests within each file run sequentially by default, which protects tests that replace clocks or native adapters. The configuration matrix uses twelve files under `src/game/configuration-invariants`, one for each player-count, victory-mode, and drifting-base combination. Each file retains both rival settings and all three seeds, preserving the original 24 tests and 72 scenarios while allowing the existing four-file pool to distribute their CPU work. The inventory regression runs the real wrappers and registration through default discovery with only the costly scenario body replaced, proving every original name and seeded tuple appears exactly once without running the matrix twice.
 
@@ -34,6 +34,33 @@ npm test -- --test-name-pattern='catch-up'
 # Override the suite deadline in milliseconds when diagnosing a slow run.
 npm test -- --suite-timeout=900000
 ```
+
+
+### Native replay files
+
+`npm run test:native-replay -- --app /path/to/simulator-QA.app` runs the real iOS picker and viewer in a fresh owned simulator. Append `--content-size accessibility-extra-extra-extra-large` for the largest accessibility text category; the default is explicitly `large`, and both settings are read back before and after the cases. The [native acceptance guide](../native-tests/README.md) records prerequisites, fixture provenance, protected app identities, cleanup, and evidence, including iPad portrait/landscape commands and visible software-keyboard guards. Schema-1, schema-2, and packed schema-3 cases cover their distinct file paths and controls; cancellation and malformed imports must preserve the previous replay. This is a separate gate from the ordinary host suite and requires an explicitly prepared simulator QA app. Three process-runner regression tests run in the ordinary host suite without Xcode.
+
+### Endgame failure evidence
+
+The ordinary ten-seat HTTP/file acceptance in `server/shared-replay-endgame.test.ts` retains callback failures before cleaning up its temporary operation. It writes the exact saved `rooms.json` and `failure.json` beneath `.data/endgame-failures/case-*`, then rethrows the original exception. Metadata includes the error stack, client rejection status when available, elapsed time, Node/V8 executable identity, and state SHA-256. The directory is private (`0700`) and both files use `0600`; only its path is reported in test diagnostics. Captures contain private synthetic operation state and remain local and ignored by Git.
+
+Successful checks produce no failure artifact. Capture or diagnostic errors preserve the original exception. Three focused checks verify cleanup survival, file privacy, the success path, and error identity; a deliberate private entrypoint fault verifies the normal wiring. Process termination and test-runner interruption can prevent capture, so missing evidence does not establish a pass.
+
+[Endgame diagnosis #181](https://github.com/mcclowes/machination/issues/181) remains open. Sixteen fresh ordinary operations pass the unchanged acceptance assertions: fifteen isolated cases and one alongside three configuration workers. Their 32 client export calls take about 1.87–2.58 seconds locally; this is not a hosted capacity or latency budget. The three load workers are stopped after the endgame completes, and no configuration pass is claimed from that load experiment.
+
+The subsequent full gate captures an actual `AbortError` on Node 24.14.1 before cleanup. The saved game is already finished at hour 402.5673841421317, with Prism winning and nine eliminations. The source state SHA-256 is `d7d0734dbe8864ba03c0ab60993bb5a564120d559c6dd27703972c40d9320f17`. At that diagnostic stage, remaining owned configuration workers are stopped to isolate the case, so that run has no full-gate pass.
+
+The captured replay is valid and within existing limits: 1,154,571 bytes, 106,530 records, 159 groups, and 158 spans. Its public terminal cargo/rules and outcome match the observed game. Profiled generation takes about 10.74 seconds, versus 0.33 seconds encoding and 0.42 seconds decoding. A full trace carries 7,019 snapshot payloads, including 4,518 before the chosen eight-hour interval. The same saved case takes 14.67 seconds through the real HTTP client in isolation and aborts before response headers alongside three configuration workers. The client deadline remains 15 seconds. This pre-fix baseline establishes insufficient export headroom for that valid case.
+
+Replay tracing now accepts an optional inclusive capture window. Snapshot allocation skips points and spans wholly outside that window, while reconstruction retains every original advance endpoint and command. Spans touching either boundary remain included. The default full trace remains available. A regression compares every bounded record and the final game against the full trace, covering equal-hour commands, interior span cuts, zero-width windows, and invalid bounds.
+
+On the captured case, the optimized artifact is byte-identical to the baseline SHA-256 below, including all 106,530 records. The real HTTP client completes alongside three configuration workers in two checks taking 14.91 and 2.77 seconds with its existing 15-second deadline, and the saved game/archive remain unchanged. A repeat in isolation takes 1.97 seconds. Local timing varies considerably, and the slower loaded result leaves little headroom; these checks do not establish hosted capacity. The load workers are intentionally stopped afterward; their cancellation is not a test pass. The full gate passes on Node 24.14.1: 1,716 behavior checks and 13 packaged-server checks, with 14 database checks skipped without fixtures. This includes the ordinary fresh ten-seat HTTP endgame and the bounded-trace regression.
+
+HTTP reproduction uses a private copy with only the host credential hash rebound to a new synthetic token, because the saved store contains hashes rather than the original token. Original capture bytes are immutable; all game, archive, rule, outcome, and other source bytes remain unchanged. Its valid exported artifact SHA-256 is `80e06739fff381737c1107582c6f42538d0a7993994bad6519733c67a950f611`.
+
+Private investigation records are under `.data/acceptance/issue-181/`; the captured failure is under `.data/endgame-failures/case-as2SMe/`. The deliberate sentinel is archived separately. The first four reproduction records have an invalid `elapsedMs` field from an observer-name collision; use their parent process wall times instead. Their export timings and assertions are unaffected, and the raw records are unchanged. Initial pure probes incorrectly compared public output with private cargo/rules; the corrected oracle uses the player's observation. The earlier uncaptured failure cannot be identified retrospectively.
+
+At the diagnostic commit, the targeted normal entrypoint and all three retention checks pass; source quality passes. Its full behavior run exposes the captured failure above and is intentionally stopped afterward. The later optimized full gate passes as recorded above. All 22 original acceptance assertions remain unchanged. No gameplay rule, replay limit, client deadline, or acceptance assertion is altered to obtain a pass.
 
 ### Message notifications
 
@@ -71,6 +98,8 @@ Both mining fixtures and domination seed 7 reach the configured quota. Dominatio
 
 Add regressions at the boundary where behavior can fail. Prefer observable results and real collaborators; replace platform I/O only when a Node test can't run it. Use fixed seeds and explicit clocks so failures can be reproduced. Keep tests beside the behavior, and keep slow packaging prerequisites explicit. A coverage percentage alone doesn't establish these guarantees.
 
+Container builds include the same root TypeScript configuration as the host standalone build. Use `scripts/test-server-image.mjs` for the generic image and `scripts/test-railway-image.mjs` for Railway; their mount initialization, process ownership, and data paths intentionally differ. The [current AMD64 image checkpoint](railway.md#local-amd64-checkpoint-october-31) records exact artifacts, copied-backup restoration, and SQL/TLS checks inside both actual service containers under local emulation. The [preceding ARM64 checkpoint](railway.md#local-image-checkpoint-october-31) separately records the complete host packaging suite against extracted image bytes without rebuilding them.
+
 ## Postgres runtime
 
 The server-packaging workflow supplies a disposable Postgres 17.11 service and sets `MACHINATION_TEST_DATABASE_URL` for both the real-driver test and standalone bundle checks. The bundle scenarios use isolated schemas and explicitly select the adapter's local plaintext mode. They cover accepted writes during shutdown, restart/retry, failed imports, listener failures, and a write held behind a real SQL lock until the shutdown deadline. The deadline case requires a failure exit, rollback of the interrupted write, preservation of prior state, and safe retry after restart.
@@ -87,6 +116,16 @@ The standalone storage-requirement scenario imports a real legacy file, accepts 
 
 Node component tests don't establish native/browser layout, touch gestures, keyboard focus, audio playback, platform permissions, or sign-in redirects. Before distributing a playtest build, exercise those on the target runtime using [native build checks](native-builds.md) and [account setup](accounts.md). Platform exports establish compilation and asset resolution; they don't replace those interaction checks.
 
+### Short-layout interaction checks
+
+Run `npm run test:visual -- visual-tests/landscape-operations.spec.ts` for local multiplayer checks across short phone, narrow portrait, and tablet viewports. Controls must fit fully inside both the viewport and every clipping ancestor, rather than merely exist in the page. The cases retain a private draft and unfinished time entry through resizing, verify exactly one private delivery with an excluded third seat, and submit a launch after rotating its manifest into landscape. Disposable local services and browser storage isolate these checks from production. Screenshots land in `.fettle/shots/`.
+
+These are browser interactions with shared React Native styles. Browser viewport resizing doesn't prove native keyboard avoidance, orientation, Dynamic Type, or physical-device behavior.
+
+### Solo camera restoration
+
+Run `npm run test:visual -- visual-tests/solo-camera.spec.ts` to check a fixed seeded save against equal and different initial timestamps. Both cases must frame and inspect the restored core without pressing Focus your territory. The App-level `solo-camera-integration.test.ts` additionally covers same-epoch replacement, failed replacement, and preserving manual pan through commands, automatic ticks, and manual catch-up. Its native and presentation hosts are stubbed; the browser check supplies rendered framing evidence.
+
 ## Screenshot comparisons
 
 `npm run test:visual` runs the production web app in Expo against an isolated
@@ -96,9 +135,18 @@ the chart. Reduced motion is enabled, the browser clock is fixed, and external
 requests are blocked. Desktop and phone viewports cover the title actions and
 selected-site chart. These web checks do not establish native iOS/Android gestures.
 
-Run on the pinned Node version. Missing baselines fail; capture is pending an
-unrestricted browser run. For an intentional change, run
-`npm run test:visual:update`, review the expected/actual/diff images, and commit
-the references beside `visual-tests/game.spec.ts`. Use the same OS, lockfile
-Chromium, and fonts for recording and comparison. Reports and traces are in
-`playwright-report` and `test-results`. Ordinary comparisons never record images.
+Run on the pinned Node version. Six reviewed [macOS references](../visual-tests/game.spec.ts-snapshots/README.md)
+cover the home screen, selected core, and six-hour forecast in desktop and phone contexts.
+The fixture acknowledges the briefing and identifies the core through its accessible
+name, which remains available when collision suppression omits the visible label.
+Before capture, it requires the chart's projection SVG viewport to match the measured
+chart bounds, including after opening time controls. Pixel stability alone can precede
+delivery of the asynchronous resize notification.
+Missing or changed baselines fail. Other operating systems need their own reviewed references.
+
+For an intentional visual change, run `npm run test:visual:update -- visual-tests/game.spec.ts`,
+review the expected/actual/diff images, update the reference provenance, and commit the
+images beside `visual-tests/game.spec.ts`. Use the same OS, lockfile Chromium, and fonts
+for recording and comparison. Reports and traces are in `playwright-report` and
+`test-results`. Ordinary comparisons never record images. An isolated inverted-render
+control verified rejection of a visual mismatch without changing the references.

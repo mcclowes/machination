@@ -30,7 +30,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown>> 
     return parsed;
   } catch { throw new Failure(400, 'request.validation.json', 'Send a JSON object.'); }
 }
-async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential, mechanicsVersion: ClientMechanicsVersion): Promise<unknown> {
+async function gameRequest(req: IncomingMessage, url: URL, service: GameService, token: string | AccountCredential, mechanicsVersion: ClientMechanicsVersion, packedReplay: boolean): Promise<unknown> {
   if (url.pathname === '/v1/factions') {
     if (req.method === 'GET') return service.factions(token);
     if (req.method === 'POST') {
@@ -70,7 +70,7 @@ async function gameRequest(req: IncomingMessage, url: URL, service: GameService,
             throw new Failure(400, 'replay.validation.bounds', 'Provide exactly one finite from and through, with no other query parameters.');
           }
           await service.requireClientRules(id, token, mechanicsVersion);
-          return service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]));
+          return service.sharedReplay(id, token, Number(bounds[0]), Number(bounds[1]), packedReplay);
         }
         case 'history': {
           const hour = url.searchParams.get('hour');
@@ -196,7 +196,7 @@ export function createApi(service: GameService, origins: string[] = ['http://loc
         throw new Failure(405, 'request.validation.method', 'Method not allowed.');
       }
       if (authenticate && !account && req.method === 'POST' && (path === '/v1/games' || path === '/v1/join')) throw new Failure(401, 'account.unauthorized.session', 'Sign in to create or join an operation.');
-      res.end(encode(await gameRequest(req, url, service, token, representation.mechanicsVersion)));
+      res.end(encode(await gameRequest(req, url, service, token, representation.mechanicsVersion, representation.packedReplay)));
     } catch (error) {
       const e = error instanceof Failure ? error : new Failure(500, 'server.internal.unavailable', 'The server could not complete this request. Retry with the same command ID.');
       if (!(error instanceof Failure)) console.error('Request failed', correlationId, (error as NodeJS.ErrnoException).code ?? 'internal');
