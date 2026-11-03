@@ -353,6 +353,7 @@ function Operation({
     error,
     setError,
     restartClock,
+    catchingUp,
   } = useLocalOperation(policy, (next) => {
     resetCamera(next.game);
     setSelected(
@@ -660,6 +661,7 @@ function Operation({
   }
   function act(command: GameCommand) {
     if (resolving) throw new Error('Pause playback before changing orders.');
+    if (catchingUp) throw new Error('Still catching up on time away. Try again in a moment.');
     if (inspectionMode(current.current.game.hour, inspectedHour) === 'past')
       throw new Error('Historical views are read-only. Return to Now to issue an order.');
     replace(policy.submit(current.current, command));
@@ -710,7 +712,7 @@ function Operation({
     setResolving(true);
   }
   function advanceClock(hours: number) {
-    if (!operational || (practice && inspectedHour !== null)) return;
+    if (!operational || catchingUp || (practice && inspectedHour !== null)) return;
     try {
       restartClock();
       replace(policy.advance(current.current, current.current.game.hour + hours, 'manual'));
