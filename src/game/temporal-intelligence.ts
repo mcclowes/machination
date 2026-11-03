@@ -4,6 +4,7 @@
  * ---
  */
 import { allied } from './teams';
+import { mechanicsVersion } from './rules';
 import type { Faction, Game } from './simulation';
 import { CommittedDeathForecast } from './committed-death-forecast';
 import type { GameCommand } from './replay';
@@ -79,12 +80,16 @@ function warningSource(game: Game, report: EncounterReport | undefined, owner: F
   }
   return report?.site ? `enemy action at ${game.rocks.find(r => r.id === report.site)?.name ?? report.site}` : 'committed enemy activity';
 }
-export function* predictSpecialistDeathsSteps(game: Game, forecast = new CommittedDeathForecast()): Generator<void, DeathWarning[], unknown> {
+/** Revision 20 refreshes foresight hourly and after orders instead of at every simulation boundary. */
+export const HOURLY_FORESIGHT_REVISION = 20;
+const hourlyForesight = (game: Game): boolean => mechanicsVersion(game) >= HOURLY_FORESIGHT_REVISION;
+/** Automated rivals never read warnings, so revision 20 forecasts only for the player when rivals are automated. */
+export function* predictSpecialistDeathsSteps(game: Game, forecast = new CommittedDeathForecast(), automatedRivals = false): Generator<void, DeathWarning[], unknown> {
     yield;
     if (!temporalEnabled(game) || game.winner || game.draw)
         return [];
     const units = activeUnits(game);
-    const owners = new Set(units.filter(u => u.kind === 'foresight').map(u => u.owner));
+    const owners = new Set(units.filter(u => u.kind === 'foresight' && !(automatedRivals && hourlyForesight(game) && u.owner !== 'you')).map(u => u.owner));
     if (!owners.size)
         return [];
     const protectedUnits = units.filter(u => owners.has(u.owner));
@@ -100,18 +105,18 @@ export function* predictSpecialistDeathsSteps(game: Game, forecast = new Committ
         }
     return warnings;
 }
-export function predictSpecialistDeaths(game: Game, forecast = new CommittedDeathForecast()): DeathWarning[] {
-    const work = predictSpecialistDeathsSteps(game, forecast);
+export function predictSpecialistDeaths(game: Game, forecast = new CommittedDeathForecast(), automatedRivals = false): DeathWarning[] {
+    const work = predictSpecialistDeathsSteps(game, forecast, automatedRivals);
     let step = work.next();
     while (!step.done)
         step = work.next();
     return step.value;
 }
-export function* refreshForesightSteps(game: Game, forecast?: CommittedDeathForecast): Generator<void, void, unknown> {
+export function* refreshForesightSteps(game: Game, forecast?: CommittedDeathForecast, automatedRivals = false): Generator<void, void, unknown> {
     yield;
     if (!temporalEnabled(game))
         return;
-    const warnings = yield* predictSpecialistDeathsSteps(game, forecast);
+    const warnings = yield* predictSpecialistDeathsSteps(game, forecast, automatedRivals);
     const previous = game.temporalIntel?.warnings ?? [];
     if (!warnings.length && !previous.length)
         return;
@@ -124,9 +129,17 @@ export function* refreshForesightSteps(game: Game, forecast?: CommittedDeathFore
     if (changed.length)
         game.events = recentEvents(game.events);
 }
-export function refreshForesight(game: Game, forecast?: CommittedDeathForecast): void {
-    const work = refreshForesightSteps(game, forecast);
+export function refreshForesight(game: Game, automatedRivals = false): void {
+    const work = refreshForesightSteps(game, undefined, automatedRivals);
     let step = work.next();
     while (!step.done)
         step = work.next();
+}
+/** Between hourly refreshes, drop warnings whose predicted hour has passed or whose specialist is gone. */
+export function expireForesight(game: Game): void {
+  const intel = game.temporalIntel;
+  if (!hourlyForesight(game) || !intel?.warnings.length) return;
+  const present = new Set([...game.rocks, ...game.fleets].flatMap(a => a.specialists ?? []).map(u => `${u.owner}:${u.id}`));
+  const warnings = intel.warnings.filter(w => w.deathAt > game.hour && present.has(`${w.owner}:${w.specialistId}`));
+  if (warnings.length !== intel.warnings.length) game.temporalIntel = { pending: intel.pending, warnings };
 }

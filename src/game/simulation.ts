@@ -10,7 +10,7 @@ import type { FlightRoute } from './flight-route';
 import { CommittedDeathForecast } from './committed-death-forecast';
 import { gravityCourse } from './gravity';
 
-import { cloneTemporalIntelligence, recordTemporalAction, recordTemporalCommand, settleHindsight, nextHindsightEvent, refreshForesightSteps, type TemporalIntelligence } from './temporal-intelligence';
+import { cloneTemporalIntelligence, recordTemporalAction, recordTemporalCommand, settleHindsight, nextHindsightEvent, refreshForesightSteps, expireForesight, HOURLY_FORESIGHT_REVISION, type TemporalIntelligence } from './temporal-intelligence';
 import { requireUnfrozen, nextTemporalFacilityEvent, settleTemporalFacilities, holdStasisArrival } from './temporal-facilities';
 import { nextDilationEvent } from './temporal-travel';
 import { temporalEnabled, type OverclockLoan } from './temporal';
@@ -183,7 +183,7 @@ export function* advanceSteps(saved: Game, targetHour: number, options: {
     yield;
     evaluatePulseVictory(game);
     if (!options.temporalForecast && temporalEnabled(game) && Number.isInteger(game.hour)) {
-        yield* refreshForesightSteps(game, foresight);
+        yield* refreshForesightSteps(game, foresight, options.rivals !== false);
         tracePoint(trace, 'temporal-intelligence', game);
         yield;
     }
@@ -399,8 +399,17 @@ export function* advanceSteps(saved: Game, targetHour: number, options: {
             game = executeScheduled(game, trace);
         if ((options.rivals !== false || options.bots?.length) && !game.winner && !game.draw && Number.isInteger(next) && next % (game.rivalPolicy ? RIVAL_DECISION_INTERVAL : 6) === 0)
             game = game.rivalPolicy ? (yield* actStrategicRivalsSteps(game, trace, options.bots)) : actRivals(game, trace, options.bots);
-        if (!options.temporalForecast && (next === naturalBoundary || pulseEvent < boundary))
-            yield* refreshForesightSteps(game, foresight);
+        if (!options.temporalForecast) {
+            // Each refresh simulates a full foresight horizon, so revision 20 refreshes on whole hours only.
+            if (mechanicsVersion(game) < HOURLY_FORESIGHT_REVISION) {
+                if (next === naturalBoundary || pulseEvent < boundary)
+                    yield* refreshForesightSteps(game, foresight);
+            }
+            else if (Number.isInteger(next))
+                yield* refreshForesightSteps(game, foresight, options.rivals !== false);
+            else
+                expireForesight(game);
+        }
         game.events = recentEvents(game.events);
         tracePoint(trace, 'retention', game);
         yield;
