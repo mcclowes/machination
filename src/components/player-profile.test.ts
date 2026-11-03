@@ -16,14 +16,14 @@ test('profile picker saves independent selections, updates the home portrait, an
     stdin: { contents: "export {PlayerProfile} from './src/components/PlayerProfile'; export {loadProfile} from './src/solo/profile';", resolveDir: process.cwd() },
     bundle: true, write: false, platform: 'node', format: 'esm',
     plugins: [{ name: 'profile-hosts', setup(builder) {
-      builder.onResolve({ filter: /\/(PlayerIdentity|ProfileFaction)$/ }, args => ({ path: args.path, namespace: 'profile-view' }));
-      builder.onLoad({ filter: /.*/, namespace: 'profile-view' }, () => ({ contents: `export const PlayerAvatar='PlayerAvatar', ProfileFaction=()=>null;` }));
+      builder.onResolve({ filter: /\/(PlayerIdentity|ProfileFaction|SoundToggle)$/ }, args => ({ path: args.path, namespace: 'profile-view' }));
+      builder.onLoad({ filter: /.*/, namespace: 'profile-view' }, () => ({ contents: `export const PlayerAvatar='PlayerAvatar', ProfileFaction=()=>null, SoundToggle=()=>null;` }));
       builder.onResolve({ filter: /^react$/ }, () => ({ path: pathToFileURL(require.resolve('react')).href, external: true }));
-      builder.onResolve({ filter: /^(react-native|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'profile-host' }));
+      builder.onResolve({ filter: /^(react-native|react-native-safe-area-context|@react-native-async-storage\/async-storage)$/ }, args => ({ path: args.path, namespace: 'profile-host' }));
       builder.onLoad({ filter: /.*/, namespace: 'profile-host' }, args => ({ contents: args.path === 'react-native' ? `
-        export const Pressable='Pressable',ScrollView='ScrollView',Text='Text',View='View',StyleSheet={create:x=>x};
+        export const Pressable='Pressable',ScrollView='ScrollView',Text='Text',TextInput='TextInput',View='View',StyleSheet={create:x=>x};
         export const Modal=({visible,children})=>visible?children:null;
-      ` : `let raw=null; export default {getItem:async()=>raw,setItem:async(key,value)=>{raw=value;}};` }));
+      ` : args.path === 'react-native-safe-area-context' ? `export const SafeAreaView='SafeAreaView';` : `let raw=null; export default {getItem:async()=>raw,setItem:async(key,value)=>{raw=value;}};` }));
     } }],
   });
   const { PlayerProfile, loadProfile } = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0]!.text).toString('base64')}`);
@@ -49,5 +49,22 @@ test('profile picker saves independent selections, updates the home portrait, an
   assert.deepEqual(await loadProfile(), { portrait: 'pilot' });
   await act(async () => { await color('Automatic profile picture').props.onPress(); });
   assert.deepEqual(await loadProfile(), {});
+  const nameField = () => renderer.root.findAll((n: any) => n.type === 'TextInput' && n.props.accessibilityLabel === 'Player name')[0];
+  const homeText = () => renderer.root.findAll((n: any) => n.type === 'Text').flatMap((n: any) => n.children).filter((c: unknown) => typeof c === 'string');
+  await act(async () => { nameField().props.onChangeText('  Ada   Vance '); });
+  await act(async () => { nameField().props.onBlur(); });
+  assert.deepEqual(await loadProfile(), { name: 'Ada Vance' });
+  assert.equal(nameField().props.value, 'Ada Vance');
+  await act(async () => { nameField().props.onChangeText('Grace'); });
+  await act(async () => { await color('gold player color').props.onPress(); });
+  assert.deepEqual(await loadProfile(), { name: 'Ada Vance', preferredColor: 'gold' });
+  await act(async () => { button().at(-1).props.onPress(); });
+  assert.deepEqual(await loadProfile(), { name: 'Grace', preferredColor: 'gold' });
+  assert.ok(homeText().includes('Grace'));
+  await act(async () => { button()[0].props.onPress(); });
+  assert.equal(nameField().props.value, 'Grace');
+  await act(async () => { nameField().props.onChangeText('   '); });
+  await act(async () => { nameField().props.onSubmitEditing(); });
+  assert.deepEqual(await loadProfile(), { preferredColor: 'gold' });
   await act(async () => { renderer.unmount(); });
 });

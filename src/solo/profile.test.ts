@@ -24,7 +24,13 @@ test('profile color persists separately from games, clears, validates, and repor
   await assert.rejects(() => profile.saveProfile({ portrait: 'invalid' as never }), /known profile picture/);
   await profile.saveProfile({});
   assert.deepEqual(await profile.loadProfile(), {});
-  for (const invalid of ['null', '[]', '{"preferredColor":"invalid"}', '{"portrait":"invalid"}', 'broken json']) {
+  assert.equal(profile.normalizeProfileName('  Ada \n\t Vance\u0007 '), 'Ada Vance');
+  assert.equal(Array.from(profile.normalizeProfileName('🛰'.repeat(profile.PROFILE_NAME_MAX + 5))).length, profile.PROFILE_NAME_MAX);
+  await profile.saveProfile({ name: 'Ada Vance' });
+  assert.deepEqual(await profile.loadProfile(), { name: 'Ada Vance' });
+  for (const name of ['', ' padded ', 'x'.repeat(profile.PROFILE_NAME_MAX + 1), 7]) await assert.rejects(() => profile.saveProfile({ name: name as never }), /valid name/);
+  await profile.saveProfile({});
+  for (const invalid of ['null', '[]', '{"preferredColor":"invalid"}', '{"portrait":"invalid"}', '{"name":""}', '{"name":7}', 'broken json']) {
     profile.bytes.set('machination.profile.v1', invalid);
     await assert.rejects(() => profile.loadProfile());
     assert.equal(profile.bytes.get('machination.profile.v1'), invalid);
