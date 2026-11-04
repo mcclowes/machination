@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
@@ -11,7 +12,7 @@ const saved = encodeOperation({ game, archive: createArchive(game, { rivals: tru
 const coreName = game.rocks.find(rock => rock.coreOf === 'you')!.name;
 
 test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol === 'http:' || location.protocol === 'https:') { localStorage.setItem('machination.game.v1', raw); localStorage.setItem('machination.briefing.v1', '1'); }
   }, saved);
@@ -32,6 +33,7 @@ test('start screen retains its primary actions', async ({ page }) => {
 test('fixed solo chart and selected site remain readable', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /^(Open|Resume) solo operation$/ }).click();
+  await expect(page.getByText('Restoring saved history and catching up…')).toBeHidden();
   const core = page.getByRole('button', { name: new RegExp('^' + coreName + ',.*intelligence core') }).filter({ visible: true }).first();
   await expect(core).toBeVisible();
   await waitForChartLayout(page);
@@ -49,6 +51,7 @@ test('forecast retains the chart and future-order context', async ({ page }) => 
   await page.getByRole('button', { name: 'Time Machine', exact: true }).click();
   await page.getByRole('button', { name: '+6h', exact: true }).click();
   await expect(page.getByText(/Forecast ·/)).toBeVisible();
+  await expect(page.getByText('Calculating chart…')).toBeHidden();
   await waitForChartLayout(page);
   await expect(page).toHaveScreenshot('six-hour-forecast.png');
 });

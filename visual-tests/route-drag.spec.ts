@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
@@ -10,7 +11,7 @@ const game = createConfiguredGame(DEFAULT_GAME_OPTIONS, epoch, 314159);
 const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
 
 for (const steps of [1, 20]) test(`dragging from a selected solo base plots a route (${steps} mouse moves)`, async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     localStorage.setItem('machination.game.v1', raw);
     localStorage.setItem('machination.briefing.v1', '1');

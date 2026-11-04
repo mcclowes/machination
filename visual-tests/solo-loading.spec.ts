@@ -1,10 +1,12 @@
 /** @format */
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createSoloGame } from '../src/game/depletion';
 import { advance } from '../src/game/simulation';
 import { createArchive } from '../src/game/replay';
 import { decodeOperation, encodeOperation } from '../src/game/operation-save';
 import { forecastObservation, observe } from '../src/game/visibility';
+import { expectPlayerFit } from './chart-layout';
 
 const now = Date.parse('2026-11-03T10:00:00Z');
 for (const revision of [19, 20] as const)
@@ -29,7 +31,7 @@ for (const revision of [19, 20] as const)
       page.on('pageerror', (error) => {
         throw error;
       });
-      await page.clock.setFixedTime(new Date(now));
+      await freezeWallTime(page, now);
       await page.addInitScript((raw) => {
         localStorage.setItem('machination.game.v1', raw);
         localStorage.setItem('machination.briefing.v1', '1');
@@ -74,6 +76,7 @@ for (const revision of [19, 20] as const)
           }),
         )
         .toEqual(restored);
+      await expectPlayerFit(page, operation.game);
       await page.getByRole('button', { name: 'Time Machine', exact: true }).click();
       await page.getByRole('button', { name: '+6h', exact: true }).click();
       await expect(page.getByText(/Forecast ·/)).toBeVisible();

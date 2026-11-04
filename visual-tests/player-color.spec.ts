@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
@@ -10,7 +11,7 @@ const saved = encodeOperation({ game, archive: createArchive(game, { rivals: tru
 const coreName = game.rocks.find((rock) => rock.coreOf === 'you')!.name;
 
 test('solo player bases use teal while unclaimed sites stay neutral', async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript((raw) => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);
@@ -31,7 +32,7 @@ test('solo player bases use teal while unclaimed sites stay neutral', async ({ p
 });
 
 test('profile color persists and colors a new solo operation without recoloring a resumed one', async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(() => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.briefing.v1', '1');
   });

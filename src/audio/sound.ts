@@ -6,7 +6,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import { createPlaybackPlayer, type PlaybackPlayer } from './audio-player';
 import type { Faction } from '../game/players';
 import { cueForUpdate, type CueView, type SoundCue } from './sound-cues';
 import { musicTension, type MusicView, type MusicTension } from './music-tension';
@@ -49,7 +49,7 @@ const SOURCES: Record<SoundCue, number> = {
 
 let enabled = true;
 const listeners = new Set<() => void>();
-const players = new Map<SoundCue, AudioPlayer>();
+const players = new Map<SoundCue, PlaybackPlayer>();
 void AsyncStorage.getItem(PREFERENCE).then(value => { if (value === 'off') setSoundEnabled(false); }).catch(() => undefined);
 
 export function setSoundEnabled(next: boolean) {
@@ -65,7 +65,7 @@ export function playSound(cue: SoundCue | null) {
   if (!cue || !enabled) return;
   try {
     let player = players.get(cue);
-    if (!player) players.set(cue, player = createAudioPlayer(SOURCES[cue]));
+    if (!player) players.set(cue, player = createPlaybackPlayer(SOURCES[cue]));
     void player.seekTo(0).catch(() => undefined);
     player.play();
   } catch { /* Sound is decorative; playback failures never interrupt the operation. */ }
@@ -90,7 +90,7 @@ function useMusic(view: MusicView | undefined, player: Faction | undefined) {
   const active = !!view && !!player;
   useEffect(() => {
     if (!active) return;
-    const music = new MusicPlayback(track => createAudioPlayer(MUSIC[track]));
+    const music = new MusicPlayback(track => createPlaybackPlayer(MUSIC[track]));
     playback.current = music;
     const refresh = () => music.select(AppState.currentState === 'active' ? desired.current : null);
     refresh();

@@ -1,4 +1,27 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import type { Game } from '../src/game/simulation';
+import { chartFit } from '../src/game/chart-projection';
+import { fitPlayerCamera } from '../src/game/chart-camera';
+import { worldDistance } from '../src/game/geometry';
+
+export async function expectPlayerFit(page: Page, game: Game) {
+  await waitForChartLayout(page);
+  const sites = game.rocks.filter(site => site.owner === 'you' && game.rocks.filter(other => other.name === site.name).length === 1).slice(0, 2);
+  expect(sites).toHaveLength(2);
+  const distance = worldDistance(game, sites[0]!, sites[1]!);
+  const scale = fitPlayerCamera(game, 'you').scale;
+  await expect.poll(async () => {
+    const measured = await page.getByTestId('belt-map').evaluate((chart, names) => {
+      const bounds = chart.getBoundingClientRect();
+      const points = names.map(name => Array.from(chart.querySelectorAll('[role="button"][aria-label]'))
+        .filter(element => element.getAttribute('aria-label')?.startsWith(name + ','))
+        .map(element => element.getBoundingClientRect()).filter(rect => rect.width > 0)
+        .map(rect => ({ x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 })));
+      return { width: bounds.width, height: bounds.height, distance: Math.min(...points[0]!.flatMap(a => points[1]!.map(b => Math.hypot(a.x - b.x, a.y - b.y)))) };
+    }, sites.map(site => site.name));
+    return Math.abs(measured.distance - distance * scale * chartFit(game, measured));
+  }).toBeLessThan(1);
+}
 
 export async function waitForChartLayout(page: Page) {
   await page.evaluate(() => document.fonts.ready);

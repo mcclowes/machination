@@ -29,7 +29,7 @@
     "test:server-image": "node scripts/test-server-image.mjs",
     "test:postgres-tls": "node scripts/test-postgres-tls.mjs",
     "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots",
+    "test:visual:update": "playwright test --update-snapshots=changed",
     "lint": "eslint App.tsx src server --max-warnings=0 --no-warn-ignored",
     "format": "prettier --write",
     "format:check": "prettier --check App.tsx \"src/**/*.{ts,tsx}\" \"server/**/*.ts\" \"scripts/*.{mjs,ts}\"",

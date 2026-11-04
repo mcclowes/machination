@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { advance } from '../src/game/simulation';
@@ -10,7 +11,7 @@ for (const cargo of [4, 5]) test(`recruitment displays and enforces the five-car
   const game = advance(createConfiguredGame({ playerCount: 2, mode: 'mining' }, epoch, 73), 3, { rivals: false });
   game.cargo.you = cargo;
   const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
-  await page.clock.install({ time: new Date(epoch) });
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);

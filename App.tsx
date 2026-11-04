@@ -741,8 +741,21 @@ function Operation({
         colors={shown.rules?.colors}
         section={section}
         onSection={setSection}
+        activity={
+          (busy || inspecting || !ready) && (
+            <View style={s.notice}>
+              <Text accessibilityLiveRegion="polite" style={s.small}>
+                {!ready
+                  ? 'Restoring saved history and catching up…'
+                  : busy
+                    ? 'Updating operation…'
+                    : 'Calculating chart…'}
+              </Text>
+            </View>
+          )
+        }
         status={
-          practice || error || outcomeMessage || busy || inspecting || !ready ? (
+          practice || error || outcomeMessage ? (
             <>
               {practice && assessment ? (
                 <PracticeStatus
@@ -764,17 +777,6 @@ function Operation({
                     The quiet belt · solo{game.rules ? ` · ${game.rules.mode}` : ''}
                   </Text>
                   <Text style={s.clock}>{clock(shown.hour)}</Text>
-                </View>
-              )}
-              {(busy || inspecting || !ready) && (
-                <View style={s.notice}>
-                  <Text accessibilityLiveRegion="polite" style={s.small}>
-                    {!ready
-                      ? 'Restoring saved history and catching up…'
-                      : busy
-                        ? 'Updating operation…'
-                        : 'Calculating chart…'}
-                  </Text>
                 </View>
               )}
               {!!error && (

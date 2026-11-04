@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createSoloGame } from '../src/game/depletion';
 import { createArchive } from '../src/game/replay';
@@ -11,7 +12,7 @@ for (const reserves of [24, 0]) test(`solo site inspection exposes ${reserves} r
   const core = game.rocks.find(r => r.coreOf === 'you')!;
   core.reserves = reserves;
   const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
-  await page.clock.install({ time: new Date(epoch) });
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);

@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -15,7 +16,7 @@ const localOnly = async (page: Page) => page.route('**/*', route => ['127.0.0.1'
 
 async function openSolo(page: Page, game: Game) {
   const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);

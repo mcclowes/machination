@@ -1,8 +1,9 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 
 test('solo setup starts doubles and 4v4 with fixed teams', async ({ page }, info) => {
   test.setTimeout(120_000);
-  await page.clock.install({ time: new Date('2026-10-30T12:00:00Z') });
+  await freezeWallTime(page, Date.parse('2026-10-30T12:00:00Z'));
   await page.route('**/*', route => ['127.0.0.1', 'localhost'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();

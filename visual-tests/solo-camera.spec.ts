@@ -1,9 +1,11 @@
 /** @format */
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { DEFAULT_GAME_OPTIONS } from '../src/game/rules';
 import { createArchive } from '../src/game/replay';
 import { encodeOperation } from '../src/game/operation-save';
+import { expectPlayerFit } from './chart-layout';
 
 const epoch = Date.parse('2026-10-13T12:00:00Z');
 const game = createConfiguredGame(DEFAULT_GAME_OPTIONS, epoch, 314159);
@@ -14,7 +16,7 @@ for (const offset of [0, 1])
   test(`restored core is framed without refocusing at epoch offset ${offset}`, async ({
     page,
   }, info) => {
-    await page.clock.setFixedTime(new Date(epoch + offset));
+    await freezeWallTime(page, epoch + offset);
     await page.addInitScript((raw) => {
       if (location.protocol.startsWith('http')) {
         localStorage.setItem('machination.game.v1', raw);
@@ -27,12 +29,14 @@ for (const offset of [0, 1])
         : route.abort(),
     );
     await page.goto('/');
-    await page.getByRole('button', { name: 'Solo', exact: true }).click();
+    await page.getByRole('button', { name: 'Resume solo operation', exact: true }).click();
     const site = page
       .getByRole('button', { name: new RegExp(`^${core.name},.*intelligence core`) })
       .filter({ visible: true })
       .first();
     await expect(site).toBeInViewport();
+    await expect(page.getByText('Restoring saved history and catching up…')).toBeHidden();
+    await expectPlayerFit(page, game);
     await site.click();
     await expect(page.getByRole('heading', { name: core.name, exact: true })).toBeVisible();
     expect(

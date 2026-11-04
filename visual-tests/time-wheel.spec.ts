@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { createConfiguredGame } from '../src/game/world';
@@ -11,7 +12,7 @@ const saved = encodeOperation({ game, archive: createArchive(game, { rivals: tru
 
 test('the visible roller supports direct time travel and retains precise controls', async ({ page, isMobile }, testInfo) => {
   page.on('pageerror', error => { throw error; });
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     localStorage.setItem('machination.game.v1', raw);
     localStorage.setItem('machination.briefing.v1', '1');

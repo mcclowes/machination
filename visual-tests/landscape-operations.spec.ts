@@ -15,7 +15,9 @@ async function fullyVisible(control: Locator) {
     .poll(async () => {
       try {
         await control.scrollIntoViewIfNeeded({ timeout: 1000 });
-        await control.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+        await control.evaluate((element) =>
+          element.scrollIntoView({ block: 'center', inline: 'nearest' }),
+        );
       } catch (error) {
         if (String(error).includes('not attached to the DOM')) return false;
         throw error;
@@ -89,7 +91,7 @@ for (const [width, height] of [
           : route.abort(),
       );
       await page.goto('/');
-      await page.getByRole('button', { name: 'Multiplayer', exact: true }).click();
+      await page.getByRole('button', { name: 'Resume multiplayer operation', exact: true }).click();
       await page.getByRole('button', { name: 'Time Machine', exact: true }).click();
       const timeEntry = page.getByRole('textbox', { name: 'Go to hours from now', exact: true });
       await timeEntry.fill('7.5');
@@ -107,6 +109,10 @@ for (const [width, height] of [
       await page.setViewportSize({ width, height });
       await fullyVisible(editor);
       await expect(editor).toHaveValue('Landscape acceptance transmission.');
+      if (width === 568 || width === 320)
+        await page.screenshot({
+          path: `.fettle/shots/private-editor-${width}x${height}-${info.project.name}.png`,
+        });
       const send = page.getByRole('button', { name: 'Transmit privately', exact: true });
       await fullyVisible(send);
       expect((await send.boundingBox())!.height).toBeGreaterThanOrEqual(44);

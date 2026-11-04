@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { advance, dispatch } from '../src/game/simulation';
@@ -25,7 +26,7 @@ const heading = Math.atan2(velocity.y, velocity.x) * 180 / Math.PI;
 const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
 
 test('gravity giants and curved routes are visible, with ships facing along their course', async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);

@@ -22,7 +22,7 @@ type Props = {
   portraits?: readonly CharacterId[];
   colors?: readonly PlayerColor[];
   section: OperationSection | null; onSection: (section: OperationSection | null) => void;
-  panels: Record<OperationSection, Panel>; hint?: React.ReactNode;
+  panels: Record<OperationSection, Panel>; hint?: React.ReactNode; activity?: React.ReactNode;
   panelScrollRef?: React.RefObject<ScrollView | null>; onPanelResize?: () => void;
 };
 const navigation = [
@@ -35,7 +35,7 @@ const MIN_SHEET_HEIGHT = 148;
 const MIN_DRAWER_BODY_HEIGHT = 96;
 const PANEL_CONTENT_PADDING = 14;
 
-export function OperationShell({ chart, timeline, status, player = 'you', portraits, colors, section, onSection, panels, hint, panelScrollRef, onPanelResize }: Props) {
+export function OperationShell({ chart, timeline, status, player = 'you', portraits, colors, section, onSection, panels, hint, activity, panelScrollRef, onPanelResize }: Props) {
   const { width, height, fontScale } = useWindowDimensions();
   const shellRef = useRef<View>(null);
   const [keyboardOffset, setKeyboardOffset] = useState(0);
@@ -46,7 +46,8 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
   const compact = (availableHeight ?? height) < COMPACT_OPERATION_HEIGHT;
   const enlarged = fontScale > 1;
   const wide = width >= 1000 || (compact && width >= COMPACT_SIDEBAR_WIDTH);
-  const sheetHeight = stageHeight === undefined ? undefined : enlarged ? stageHeight : Math.min(stageHeight, Math.max(MIN_SHEET_HEIGHT, stageHeight * (section === 'intel' ? 0.9 : 0.55)));
+  const minimumSheetHeight = Math.max(MIN_SHEET_HEIGHT, headingHeight + MIN_DRAWER_BODY_HEIGHT);
+  const sheetHeight = stageHeight === undefined ? undefined : enlarged ? stageHeight : Math.min(stageHeight, Math.max(minimumSheetHeight, stageHeight * (section === 'intel' ? 0.9 : 0.55)));
   const panel = section && panels[section];
   const hideTimeline = (compact || enlarged) && !!panel;
   const drawerHeight = wide ? stageHeight : sheetHeight;
@@ -78,7 +79,7 @@ export function OperationShell({ chart, timeline, status, player = 'you', portra
     <View style={s.shell} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
     {!!status && <View style={s.status}><ScrollView style={s.statusContent} contentContainerStyle={s.statusBody} keyboardShouldPersistTaps="handled">{status}</ScrollView></View>}
     <View style={[s.stage, compact && !!panel && s.compactStage, wide && s.wide]} onLayout={event => setStageHeight(event.nativeEvent.layout.height)}>
-      <View style={s.chart}>{chart}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
+      <View style={s.chart}>{chart}{!!activity && <View pointerEvents="none" style={s.activity}>{activity}</View>}{!!hint && <View pointerEvents="box-none" style={s.hint}>{hint}</View>}</View>
       {panel && <Animated.View testID="operation-drawer" style={[s.drawer, wide ? [s.sidebar, compact && { width: Math.min(370, width * 0.48) }] : [s.sheet, section === 'intel' && s.intelSheet, sheetHeight !== undefined && { maxHeight: sheetHeight }], {
         opacity: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.65, 1] }),
         transform: [wide
@@ -172,6 +173,7 @@ function useSheetGesture(enabled: boolean, animate: boolean, onSection: (section
 const s = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: '#101b21' }, status: { maxHeight: '35%', flexShrink: 1, paddingHorizontal: 14, paddingVertical: 4, borderBottomWidth: 1, borderColor: '#23363e', gap: 12, flexDirection: 'row', alignItems: 'center' }, statusContent: { flex: 1, minWidth: 0 }, statusBody: { gap: 6 },
   stage: { flex: 1, minHeight: 120, overflow: 'hidden' }, compactStage: { minHeight: 0 }, wide: { flexDirection: 'row' }, chart: { flex: 1, minWidth: 0 },
+  activity: { position: 'absolute', top: 12, left: 12, right: 64, maxWidth: 480 },
   drawer: { backgroundColor: '#14232b', borderTopWidth: 1, borderColor: '#30454c', minHeight: 0, overflow: 'hidden' }, sidebar: { width: 370 }, sheet: { maxHeight: '55%', borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   intelSheet: { maxHeight: '90%' }, expandedSheet: { minHeight: '70%', maxHeight: '92%' },
   grip: { alignSelf: 'stretch', alignItems: 'center', paddingTop: 8, paddingBottom: 2 }, gripBar: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#4a6168' },

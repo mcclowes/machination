@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { scheduleTransfer } from '../src/game/orders';
@@ -14,7 +15,7 @@ const firstOrder = `Inspect scheduled order: ${source.name} → ${targets[0]!.na
 
 test('orders share the time tray, inspect on selection, and keep the map and dial visible', async ({ page }, info) => {
   page.on('pageerror', error => { throw error; });
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     localStorage.setItem('machination.game.v1', raw);
     localStorage.setItem('machination.briefing.v1', '1');

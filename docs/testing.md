@@ -142,6 +142,12 @@ Run `npm run test:visual -- visual-tests/solo-camera.spec.ts` to check a fixed s
 
 ## Screenshot comparisons
 
+Fixed-state checks use `visual-tests/wall-time.ts` when they need a frozen wall clock and real browser scheduling. It pins `Date.now()`, zero-argument `new Date()`, and callable `Date()` while retaining native performance, timers, and animation frames. Save restoration, screenshots, launch editing, and other fixed-state fixtures share this helper. The battle-marker case verifies the exact epoch before and after forecasting.
+
+The November 4 forecast diagnosis keeps the same seed-42 two-player mining save, controls, perimeter/expiry assertions, and five-second deadline. Three Playwright-clock controls stall with no frame callbacks and overdue layout timers in the emulated queue; three Date-only controls finish in 141–170 ms with 8–9 frame callbacks. A separate profiled comparison changes the timing and isn't accepted as a performance baseline. The normal desktop/phone battle case then passes ten repetitions without increasing any timeout. Raw controls, profiles, and clock-state records remain under `.data/acceptance/aaa-browser-current/forecast-probe/`. This fixture repair changes neither game rules nor the cooperative execution budget.
+
+Disruptor charging explicitly advances virtual timers. Its fixture loads with a running clock, pauses at the recorded epoch, and drives callbacks inside the existing five-second assertions. Two of three automatic-clock controls stall during charging; all three paused controls pass. The final desktop/phone fixture passes six repetitions, retaining the 45-minute jump, both material deductions, cancellation without refund, wave fading, and the original deadlines. Raw controls remain under `.data/acceptance/aaa-browser-current/disruptor-clock-probe/`.
+
 `npm run test:visual` runs the production web app in Expo against an isolated
 browser context. A saved operation built by the real engine uses seed 314159
 and a fixed epoch, so global random calls and real elapsed time cannot change

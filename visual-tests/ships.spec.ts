@@ -1,3 +1,4 @@
+import { freezeWallTime } from './wall-time';
 import { expect, test } from '@playwright/test';
 import { createConfiguredGame } from '../src/game/world';
 import { advance } from '../src/game/simulation';
@@ -22,7 +23,7 @@ game.nextId = 6;
 const saved = encodeOperation({ game, archive: createArchive(game, { rivals: true }) }, epoch);
 
 test('directional ships keep counts and inspection readable', async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => {
     if (location.protocol.startsWith('http')) localStorage.setItem('machination.game.v1', raw);
   }, saved);
@@ -60,7 +61,7 @@ test('directional ships keep counts and inspection readable', async ({ page }, i
 
 
 test('clicking a preparing ship opens and updates its launch order', async ({ page }, info) => {
-  await page.clock.setFixedTime(new Date(epoch));
+  await freezeWallTime(page, epoch);
   await page.addInitScript(raw => localStorage.setItem('machination.game.v1', raw), saved);
   await page.goto('/');
   await page.getByRole('button', { name: 'Close field manual', exact: true }).click();
