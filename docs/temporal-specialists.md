@@ -36,6 +36,8 @@ The boost and repayment deadlines are visible at an observed site and in special
 
 This implements the power-for-time idea as borrowed production. Power remains fleet capacity; this release adds no consumable energy reserve or separate accelerator.
 
+Literal power-draining acceleration remains a separate proposal in [#213](https://github.com/mcclowes/machination/issues/213). Revenant is a character identity without an implemented temporal ability; Dilation countering its proposed warning compression remains design work. See the [idea record](strategy-ideas.md) for that distinction and the related resource and diplomacy proposals.
+
 ## Hindsight
 
 A stationed Hindsight records successful enemy actions originating within twice its site's sensor range, including launches outside ordinary coverage. Reports arrive two game hours later. Scheduling a future action doesn't reveal that private plan; the executed action can be discovered later.

@@ -52,6 +52,8 @@ Potential module mappings: interceptor, thruster, hijacker, and meltdown charge.
 
 New revision-18 operations add [temporal specialists](temporal-specialists.md): Dilation → Anchor, Overclock, Hindsight, Foresight, and Hastener. They change local travel and production clocks, reveal delayed actions and conditional lethal threats, and pull enemy transfers forward.
 
+The [temporal, resource, and diplomacy idea record](strategy-ideas.md) maps Max's November 5 proposals to implemented mechanics and open design issues, including power-draining acceleration, material theft and destruction, roleplay rooms, and daily voting.
+
 ## Release milestones
 
 1. Local vertical slice: simulation, command map, forecast, persistence, and basic rival AI.
